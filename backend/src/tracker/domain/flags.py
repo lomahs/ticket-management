@@ -161,3 +161,12 @@ def issue_flags(issue: Issue, *, is_current: bool, owner_id: str | None, today: 
         held_days=_held(issue, today),
         rounds=_rounds(issue, owner_id),
     )
+
+
+def actual_span(issue: Issue, today: str) -> tuple[str, str] | None:
+    """First and last worklog day; an issue still in progress is drawn up to today."""
+    dates = sorted(w.date for w in issue.worklogs)
+    if not dates:
+        return None
+    end = today if issue.status == Status.WIP and dates[-1] < today else dates[-1]
+    return dates[0], end

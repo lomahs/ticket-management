@@ -140,3 +140,13 @@ def test_worker_is_reviewer_on_review_steps_and_owner_otherwise():
     assert worker_of(issue(step=StepKind.BAL_REVIEW, fid="F1", assignee="minh"), "an") == "minh"
     assert worker_of(issue(step=StepKind.FIX_JM, fid="F1", assignee="tanaka"), "an") == "an"
     assert worker_of(issue(assignee="chi"), None) == "chi"
+
+
+def test_actual_span_from_worklogs_extends_to_today_while_in_progress():
+    from tracker.domain.flags import actual_span
+    i = issue(logged=2, log_date="2026-10-02")
+    i.worklogs.append(type(i.worklogs[0])("2026-10-05", "an", 1))
+    assert actual_span(i, TODAY) == ("2026-10-02", TODAY)
+    done = issue(status=Status.CLOSED, logged=2, log_date="2026-10-02")
+    assert actual_span(done, TODAY) == ("2026-10-02", "2026-10-02")
+    assert actual_span(issue(), TODAY) is None
