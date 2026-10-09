@@ -93,10 +93,7 @@ def add_epic(d: Deps, key: str) -> JiraSettingsView:
     s = _load(d)
     if k in s.jira.epics:
         raise Conflict(f"{k} is already tracked", "key")
-    try:
-        epic = d.reader.get_epic(k)
-    except JiraError as e:
-        raise Invalid(f"Could not read {k} from Jira: {e}", "key") from e
+    epic = d.reader.get_epic(k)  # JiraError propagates: Jira being unreachable is not a problem with the key
     if not epic:
         raise NotFound(f"{k} was not found or is not an Epic", "key")
     s.jira.epics.append(k)

@@ -11,7 +11,7 @@ from ..errors import CapabilityDisabled, Invalid, NotFound
 
 
 @dataclass(frozen=True)
-class Warning:
+class TicketWarning:
     kind: str  # late (days) | over (hours) | rounds (count)
     value: float
 
@@ -27,7 +27,7 @@ class Handover:
 class TicketDetail:
     card: TaskCard
     owner_id: str | None
-    warnings: list[Warning]
+    warnings: list[TicketWarning]
     history: list[Handover]
     worklogs: list[Worklog]
 
@@ -41,11 +41,11 @@ def detail(d: Deps, key: str) -> TicketDetail:
     c = ctx.card(i)
     warns = []
     if c.late:
-        warns.append(Warning("late", c.late_days))
+        warns.append(TicketWarning("late", c.late_days))
     if c.over:
-        warns.append(Warning("over", round(c.logged_h - c.estimate_h, 2)))
+        warns.append(TicketWarning("over", round(c.logged_h - c.estimate_h, 2)))
     if i.is_function_step and STEP_BY_KIND[i.step].fix and c.rounds >= ctx.settings.thresholds.review_rounds:
-        warns.append(Warning("rounds", c.rounds))
+        warns.append(TicketWarning("rounds", c.rounds))
     history = [Handover(e.at, e.from_value, e.to_value) for e in sorted(i.events, key=lambda e: e.at) if e.field == EventField.ASSIGNEE]
     logs = sorted(i.worklogs, key=lambda w: w.date, reverse=True)
     return TicketDetail(c, ctx.owner.get(key), warns, history, logs)

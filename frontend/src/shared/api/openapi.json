@@ -1,0 +1,5409 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Team Tracker API",
+  "version": "1"
+ },
+ "paths": {
+  "/api/v1/meta": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Meta",
+    "operationId": "meta_api_v1_meta_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Meta"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/members": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Members",
+    "operationId": "members_api_v1_members_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Member"
+         },
+         "type": "array",
+         "title": "Response Members Api V1 Members Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sync": {
+   "post": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Sync",
+    "operationId": "sync_api_v1_sync_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SyncIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SyncStatus"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sync/runs/latest": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Latest Sync",
+    "operationId": "latest_sync_api_v1_sync_runs_latest_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SyncStatus"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/my-work": {
+   "get": {
+    "tags": [
+     "my work"
+    ],
+    "summary": "My Work",
+    "operationId": "my_work_api_v1_my_work_get",
+    "parameters": [
+     {
+      "name": "member",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Member"
+      }
+     },
+     {
+      "name": "backlog",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "week",
+        "month"
+       ],
+       "type": "string",
+       "default": "week",
+       "title": "Backlog"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MyWork"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/anken": {
+   "get": {
+    "tags": [
+     "anken"
+    ],
+    "summary": "Overview",
+    "operationId": "overview_api_v1_anken_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/AnkenCard"
+         },
+         "type": "array",
+         "title": "Response Overview Api V1 Anken Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/anken/{epic}": {
+   "get": {
+    "tags": [
+     "anken"
+    ],
+    "summary": "Detail",
+    "operationId": "detail_api_v1_anken__epic__get",
+    "parameters": [
+     {
+      "name": "epic",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Epic"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AnkenDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/anken/{epic}/matrix": {
+   "get": {
+    "tags": [
+     "anken"
+    ],
+    "summary": "Matrix",
+    "operationId": "matrix_api_v1_anken__epic__matrix_get",
+    "parameters": [
+     {
+      "name": "epic",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Epic"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MatrixView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/anken/{epic}/functions/preview": {
+   "post": {
+    "tags": [
+     "anken"
+    ],
+    "summary": "Preview Function",
+    "operationId": "preview_function_api_v1_anken__epic__functions_preview_post",
+    "parameters": [
+     {
+      "name": "epic",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Epic"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FunctionDraftIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FunctionPreview"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/anken/{epic}/functions": {
+   "post": {
+    "tags": [
+     "anken"
+    ],
+    "summary": "Create Function",
+    "operationId": "create_function_api_v1_anken__epic__functions_post",
+    "parameters": [
+     {
+      "name": "epic",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Epic"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FunctionCreateIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/KeysOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/planning": {
+   "get": {
+    "tags": [
+     "planning"
+    ],
+    "summary": "View",
+    "operationId": "view_api_v1_planning_get",
+    "parameters": [
+     {
+      "name": "start",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "title": "Start"
+      }
+     },
+     {
+      "name": "weeks",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 2,
+       "minimum": 1,
+       "default": 2,
+       "title": "Weeks"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanningView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/planning/preview": {
+   "post": {
+    "tags": [
+     "planning"
+    ],
+    "summary": "Preview",
+    "operationId": "preview_api_v1_planning_preview_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanningPreviewIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanningPreview"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/planning/push": {
+   "post": {
+    "tags": [
+     "planning"
+    ],
+    "summary": "Push",
+    "operationId": "push_api_v1_planning_push_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanningPushIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/KeysOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/effort/timesheet": {
+   "get": {
+    "tags": [
+     "effort"
+    ],
+    "summary": "Timesheet",
+    "operationId": "timesheet_api_v1_effort_timesheet_get",
+    "parameters": [
+     {
+      "name": "from",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "title": "From"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "title": "To"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TimesheetView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/effort/timesheet/{member}/{date}": {
+   "get": {
+    "tags": [
+     "effort"
+    ],
+    "summary": "Day",
+    "operationId": "day_api_v1_effort_timesheet__member___date__get",
+    "parameters": [
+     {
+      "name": "member",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Member"
+      }
+     },
+     {
+      "name": "date",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+       "title": "Date"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DayDetailView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/effort/analysis": {
+   "get": {
+    "tags": [
+     "effort"
+    ],
+    "summary": "Analysis",
+    "operationId": "analysis_api_v1_effort_analysis_get",
+    "parameters": [
+     {
+      "name": "anken",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Anken"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EffortAnalysis"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/calendar": {
+   "get": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Month",
+    "operationId": "month_api_v1_calendar_get",
+    "parameters": [
+     {
+      "name": "month",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}$",
+       "title": "Month"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CalendarView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/leaves": {
+   "post": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Add Leave",
+    "operationId": "add_leave_api_v1_leaves_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LeaveIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DaysOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/leaves/{leave_id}": {
+   "put": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Edit Leave",
+    "operationId": "edit_leave_api_v1_leaves__leave_id__put",
+    "parameters": [
+     {
+      "name": "leave_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Leave Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LeaveIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DaysOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Delete Leave",
+    "operationId": "delete_leave_api_v1_leaves__leave_id__delete",
+    "parameters": [
+     {
+      "name": "leave_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Leave Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/leaves/import/preview": {
+   "post": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Import Preview",
+    "operationId": "import_preview_api_v1_leaves_import_preview_post",
+    "parameters": [
+     {
+      "name": "sample",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Sample"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_import_preview_api_v1_leaves_import_preview_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ImportPreviewOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/leaves/import": {
+   "post": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Import Confirm",
+    "operationId": "import_confirm_api_v1_leaves_import_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ImportIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ImportResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/leaves/template": {
+   "get": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Template",
+    "operationId": "template_api_v1_leaves_template_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response"
+     }
+    }
+   }
+  },
+  "/api/v1/leaves/export": {
+   "get": {
+    "tags": [
+     "calendar"
+    ],
+    "summary": "Export",
+    "operationId": "export_api_v1_leaves_export_get",
+    "parameters": [
+     {
+      "name": "month",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^\\d{4}-\\d{2}$",
+       "title": "Month"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/tickets/{key}": {
+   "get": {
+    "tags": [
+     "tickets"
+    ],
+    "summary": "Detail",
+    "operationId": "detail_api_v1_tickets__key__get",
+    "parameters": [
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TicketDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "tickets"
+    ],
+    "summary": "Patch",
+    "operationId": "patch_api_v1_tickets__key__patch",
+    "parameters": [
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TicketPatchIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TicketDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/qa": {
+   "post": {
+    "tags": [
+     "tickets"
+    ],
+    "summary": "Ask",
+    "operationId": "ask_api_v1_qa_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/QuestionIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Answer"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/jira": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Jira",
+    "operationId": "jira_api_v1_settings_jira_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JiraSettingsView"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Jira",
+    "operationId": "save_jira_api_v1_settings_jira_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/JiraIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JiraSettingsView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/jira/test": {
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Test Jira",
+    "operationId": "test_jira_api_v1_settings_jira_test_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/JiraTestIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JiraTestOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/epics": {
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Add Epic",
+    "operationId": "add_epic_api_v1_settings_epics_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EpicIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JiraSettingsView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/epics/{key}": {
+   "delete": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Remove Epic",
+    "operationId": "remove_epic_api_v1_settings_epics__key__delete",
+    "parameters": [
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/JiraSettingsView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/field-mapping": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Field Mapping",
+    "operationId": "field_mapping_api_v1_settings_field_mapping_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FieldMappingView"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Field Mapping",
+    "operationId": "save_field_mapping_api_v1_settings_field_mapping_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FieldMappingIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FieldMappingView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/field-mapping/check": {
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Check Field Mapping",
+    "operationId": "check_field_mapping_api_v1_settings_field_mapping_check_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FieldCheckIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FieldMappingCheck"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/status-mapping": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Status Mapping",
+    "operationId": "status_mapping_api_v1_settings_status_mapping_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/StatusRow"
+         },
+         "type": "array",
+         "title": "Response Status Mapping Api V1 Settings Status Mapping Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Status Mapping",
+    "operationId": "save_status_mapping_api_v1_settings_status_mapping_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StatusMappingIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/StatusRow"
+         },
+         "type": "array",
+         "title": "Response Save Status Mapping Api V1 Settings Status Mapping Put"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/name-rules": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Name Rules",
+    "operationId": "name_rules_api_v1_settings_name_rules_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NameRulesView"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Name Rules",
+    "operationId": "save_name_rules_api_v1_settings_name_rules_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NameRulesIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NameRulesView"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/name-rules/preview": {
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Preview Name Rule",
+    "operationId": "preview_name_rule_api_v1_settings_name_rules_preview_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NameRulePreviewIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NameRulePreview"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/members/{member_id}": {
+   "patch": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Update Member",
+    "operationId": "update_member_api_v1_members__member_id__patch",
+    "parameters": [
+     {
+      "name": "member_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Member Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemberPatchIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Member"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/holidays": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Holidays",
+    "operationId": "holidays_api_v1_holidays_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Holiday"
+         },
+         "type": "array",
+         "title": "Response Holidays Api V1 Holidays Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Add Holiday",
+    "operationId": "add_holiday_api_v1_holidays_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HolidayIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Holiday"
+         },
+         "type": "array",
+         "title": "Response Add Holiday Api V1 Holidays Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/holidays/{date}": {
+   "delete": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Delete Holiday",
+    "operationId": "delete_holiday_api_v1_holidays__date__delete",
+    "parameters": [
+     {
+      "name": "date",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Date"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Holiday"
+         },
+         "title": "Response Delete Holiday Api V1 Holidays  Date  Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/extra-days": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Extra Days",
+    "operationId": "extra_days_api_v1_extra_days_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "type": "object",
+         "title": "Response Extra Days Api V1 Extra Days Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Add Extra Day",
+    "operationId": "add_extra_day_api_v1_extra_days_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExtraDayIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "type": "object",
+         "title": "Response Add Extra Day Api V1 Extra Days Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/extra-days/{date}": {
+   "delete": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Delete Extra Day",
+    "operationId": "delete_extra_day_api_v1_extra_days__date__delete",
+    "parameters": [
+     {
+      "name": "date",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Date"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Delete Extra Day Api V1 Extra Days  Date  Delete"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/working-hours": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Working Hours",
+    "operationId": "working_hours_api_v1_settings_working_hours_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkingHours"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Working Hours",
+    "operationId": "save_working_hours_api_v1_settings_working_hours_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkingHoursIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkingHours"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/settings/alerts": {
+   "get": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Alerts",
+    "operationId": "alerts_api_v1_settings_alerts_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Thresholds"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "settings"
+    ],
+    "summary": "Save Alerts",
+    "operationId": "save_alerts_api_v1_settings_alerts_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AlertsIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Thresholds"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "AlertsIn": {
+    "properties": {
+     "soon_days": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Soon Days"
+     },
+     "effort_warn_pct": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Effort Warn Pct"
+     },
+     "held_days": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Held Days"
+     },
+     "review_rounds": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Review Rounds"
+     },
+     "capacity_pct": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Capacity Pct"
+     }
+    },
+    "type": "object",
+    "required": [
+     "soon_days",
+     "effort_warn_pct",
+     "held_days",
+     "review_rounds",
+     "capacity_pct"
+    ],
+    "title": "AlertsIn"
+   },
+   "AnkenCard": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "project": {
+      "type": "string",
+      "title": "Project"
+     },
+     "plan": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Plan"
+     },
+     "forecast": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Forecast"
+     },
+     "late_functions": {
+      "type": "integer",
+      "title": "Late Functions"
+     },
+     "late_subtasks": {
+      "type": "integer",
+      "title": "Late Subtasks"
+     },
+     "used_h": {
+      "type": "number",
+      "title": "Used H"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     },
+     "phases": {
+      "items": {
+       "$ref": "#/components/schemas/PhaseRollup"
+      },
+      "type": "array",
+      "title": "Phases"
+     },
+     "member_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Member Ids"
+     },
+     "has_functions": {
+      "type": "boolean",
+      "title": "Has Functions"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "project",
+     "plan",
+     "forecast",
+     "late_functions",
+     "late_subtasks",
+     "used_h",
+     "estimate_h",
+     "phases",
+     "member_ids",
+     "has_functions"
+    ],
+    "title": "AnkenCard"
+   },
+   "AnkenDetail": {
+    "properties": {
+     "card": {
+      "$ref": "#/components/schemas/AnkenCard"
+     },
+     "attention": {
+      "items": {
+       "$ref": "#/components/schemas/AttentionView"
+      },
+      "type": "array",
+      "title": "Attention"
+     }
+    },
+    "type": "object",
+    "required": [
+     "card",
+     "attention"
+    ],
+    "title": "AnkenDetail"
+   },
+   "Answer": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "chips": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Chips"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text",
+     "chips"
+    ],
+    "title": "Answer"
+   },
+   "AttentionView": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "count": {
+      "type": "integer",
+      "title": "Count"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "count",
+     "items"
+    ],
+    "title": "AttentionView"
+   },
+   "BacklogGroup": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     },
+     "current": {
+      "type": "boolean",
+      "title": "Current"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "remaining_h": {
+      "type": "number",
+      "title": "Remaining H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "start",
+     "current",
+     "items",
+     "remaining_h"
+    ],
+    "title": "BacklogGroup"
+   },
+   "Body_import_preview_api_v1_leaves_import_preview_post": {
+    "properties": {
+     "file": {
+      "anyOf": [
+       {
+        "type": "string",
+        "contentMediaType": "application/octet-stream"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "title": "Body_import_preview_api_v1_leaves_import_preview_post"
+   },
+   "CalendarCell": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "kind": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Kind"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "leave": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Leave"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "kind",
+     "label",
+     "leave"
+    ],
+    "title": "CalendarCell"
+   },
+   "CalendarRow": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "cells": {
+      "items": {
+       "$ref": "#/components/schemas/CalendarCell"
+      },
+      "type": "array",
+      "title": "Cells"
+     },
+     "days_off": {
+      "type": "number",
+      "title": "Days Off"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "cells",
+     "days_off"
+    ],
+    "title": "CalendarRow"
+   },
+   "CalendarView": {
+    "properties": {
+     "month": {
+      "type": "string",
+      "title": "Month"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/DayHead"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/CalendarRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "type": "object",
+    "required": [
+     "month",
+     "days",
+     "rows"
+    ],
+    "title": "CalendarView"
+   },
+   "Capabilities": {
+    "properties": {
+     "jira_write": {
+      "type": "boolean",
+      "title": "Jira Write"
+     }
+    },
+    "type": "object",
+    "required": [
+     "jira_write"
+    ],
+    "title": "Capabilities"
+   },
+   "ChangePreview": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "from_start": {
+      "type": "string",
+      "title": "From Start"
+     },
+     "from_end": {
+      "type": "string",
+      "title": "From End"
+     },
+     "from_member": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Member"
+     },
+     "to_start": {
+      "type": "string",
+      "title": "To Start"
+     },
+     "to_end": {
+      "type": "string",
+      "title": "To End"
+     },
+     "to_member": {
+      "type": "string",
+      "title": "To Member"
+     },
+     "day_off": {
+      "items": {
+       "prefixItems": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "string"
+        }
+       ],
+       "type": "array",
+       "maxItems": 2,
+       "minItems": 2
+      },
+      "type": "array",
+      "title": "Day Off"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "from_start",
+     "from_end",
+     "from_member",
+     "to_start",
+     "to_end",
+     "to_member",
+     "day_off"
+    ],
+    "title": "ChangePreview"
+   },
+   "DayCell": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "kind": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Kind"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "tentative": {
+      "type": "boolean",
+      "title": "Tentative"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "kind",
+     "label",
+     "tentative"
+    ],
+    "title": "DayCell"
+   },
+   "DayDetailView": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "planned_h": {
+      "type": "number",
+      "title": "Planned H"
+     },
+     "entries": {
+      "items": {
+       "$ref": "#/components/schemas/DayEntryView"
+      },
+      "type": "array",
+      "title": "Entries"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "date",
+     "logged_h",
+     "planned_h",
+     "entries"
+    ],
+    "title": "DayDetailView"
+   },
+   "DayEntryView": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "function_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Function Id"
+     },
+     "step": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "planned_h": {
+      "type": "number",
+      "title": "Planned H"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "summary",
+     "function_id",
+     "step",
+     "logged_h",
+     "planned_h",
+     "notes"
+    ],
+    "title": "DayEntryView"
+   },
+   "DayHead": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "is_today": {
+      "type": "boolean",
+      "title": "Is Today"
+     },
+     "extra_note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Extra Note"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "is_today",
+     "extra_note"
+    ],
+    "title": "DayHead"
+   },
+   "DaysOut": {
+    "properties": {
+     "days": {
+      "type": "integer",
+      "title": "Days"
+     }
+    },
+    "type": "object",
+    "required": [
+     "days"
+    ],
+    "title": "DaysOut"
+   },
+   "EffortAnalysis": {
+    "properties": {
+     "epic_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Epic Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "kpis": {
+      "$ref": "#/components/schemas/EffortKpis"
+     },
+     "by_phase": {
+      "items": {
+       "$ref": "#/components/schemas/EffortBar"
+      },
+      "type": "array",
+      "title": "By Phase"
+     },
+     "by_step": {
+      "items": {
+       "$ref": "#/components/schemas/EffortBar"
+      },
+      "type": "array",
+      "title": "By Step"
+     },
+     "rework": {
+      "items": {
+       "$ref": "#/components/schemas/Rework"
+      },
+      "type": "array",
+      "title": "Rework"
+     }
+    },
+    "type": "object",
+    "required": [
+     "epic_key",
+     "title",
+     "kpis",
+     "by_phase",
+     "by_step",
+     "rework"
+    ],
+    "title": "EffortAnalysis"
+   },
+   "EffortBar": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "label",
+     "estimate_h",
+     "logged_h"
+    ],
+    "title": "EffortBar"
+   },
+   "EffortKpis": {
+    "properties": {
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     },
+     "rework_rate": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rework Rate"
+     },
+     "avg_rounds": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avg Rounds"
+     },
+     "fix_tickets": {
+      "type": "integer",
+      "title": "Fix Tickets"
+     },
+     "over_subtasks": {
+      "type": "integer",
+      "title": "Over Subtasks"
+     }
+    },
+    "type": "object",
+    "required": [
+     "logged_h",
+     "estimate_h",
+     "rework_rate",
+     "avg_rounds",
+     "fix_tickets",
+     "over_subtasks"
+    ],
+    "title": "EffortKpis"
+   },
+   "EpicIn": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key"
+    ],
+    "title": "EpicIn"
+   },
+   "EpicView": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "project": {
+      "type": "string",
+      "title": "Project"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "project"
+    ],
+    "title": "EpicView"
+   },
+   "ExtraDayIn": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Date"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "required": [
+     "date"
+    ],
+    "title": "ExtraDayIn"
+   },
+   "FieldCheck": {
+    "properties": {
+     "target": {
+      "type": "string",
+      "title": "Target"
+     },
+     "field_id": {
+      "type": "string",
+      "title": "Field Id"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     }
+    },
+    "type": "object",
+    "required": [
+     "target",
+     "field_id",
+     "status",
+     "value"
+    ],
+    "title": "FieldCheck"
+   },
+   "FieldCheckIn": {
+    "properties": {
+     "sample": {
+      "type": "string",
+      "title": "Sample"
+     },
+     "planned_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned Start"
+     },
+     "planned_end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned End"
+     },
+     "effort": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effort"
+     }
+    },
+    "type": "object",
+    "required": [
+     "sample"
+    ],
+    "title": "FieldCheckIn"
+   },
+   "FieldMappingCheck": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "results": {
+      "items": {
+       "$ref": "#/components/schemas/FieldCheck"
+      },
+      "type": "array",
+      "title": "Results"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "summary",
+     "results"
+    ],
+    "title": "FieldMappingCheck"
+   },
+   "FieldMappingIn": {
+    "properties": {
+     "planned_start": {
+      "type": "string",
+      "title": "Planned Start",
+      "default": ""
+     },
+     "planned_end": {
+      "type": "string",
+      "title": "Planned End",
+      "default": ""
+     },
+     "effort": {
+      "type": "string",
+      "title": "Effort",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "title": "FieldMappingIn"
+   },
+   "FieldMappingView": {
+    "properties": {
+     "planned_start": {
+      "type": "string",
+      "title": "Planned Start"
+     },
+     "planned_end": {
+      "type": "string",
+      "title": "Planned End"
+     },
+     "effort": {
+      "type": "string",
+      "title": "Effort"
+     },
+     "catalog": {
+      "items": {
+       "$ref": "#/components/schemas/JiraField"
+      },
+      "type": "array",
+      "title": "Catalog"
+     }
+    },
+    "type": "object",
+    "required": [
+     "planned_start",
+     "planned_end",
+     "effort",
+     "catalog"
+    ],
+    "title": "FieldMappingView"
+   },
+   "FunctionCreateIn": {
+    "properties": {
+     "parent_key": {
+      "type": "string",
+      "title": "Parent Key"
+     },
+     "name": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Name"
+     },
+     "ba": {
+      "type": "string",
+      "title": "Ba"
+     },
+     "bal": {
+      "type": "string",
+      "title": "Bal"
+     },
+     "jm": {
+      "type": "string",
+      "title": "Jm"
+     },
+     "create_hours": {
+      "type": "number",
+      "maximum": 1000.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Create Hours"
+     },
+     "overrides": {
+      "items": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/StepOverride"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Overrides"
+     },
+     "function_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z]+\\d+$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Function Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "parent_key",
+     "name",
+     "ba",
+     "bal",
+     "jm",
+     "create_hours"
+    ],
+    "title": "FunctionCreateIn"
+   },
+   "FunctionDraftIn": {
+    "properties": {
+     "parent_key": {
+      "type": "string",
+      "title": "Parent Key"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name",
+      "default": ""
+     },
+     "ba": {
+      "type": "string",
+      "title": "Ba"
+     },
+     "bal": {
+      "type": "string",
+      "title": "Bal"
+     },
+     "jm": {
+      "type": "string",
+      "title": "Jm"
+     },
+     "create_hours": {
+      "type": "number",
+      "maximum": 1000.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Create Hours"
+     },
+     "overrides": {
+      "items": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/StepOverride"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Overrides"
+     }
+    },
+    "type": "object",
+    "required": [
+     "parent_key",
+     "ba",
+     "bal",
+     "jm",
+     "create_hours"
+    ],
+    "title": "FunctionDraftIn"
+   },
+   "FunctionPreview": {
+    "properties": {
+     "phase": {
+      "type": "string",
+      "title": "Phase"
+     },
+     "function_id": {
+      "type": "string",
+      "title": "Function Id"
+     },
+     "steps": {
+      "items": {
+       "$ref": "#/components/schemas/PreviewStep"
+      },
+      "type": "array",
+      "title": "Steps"
+     }
+    },
+    "type": "object",
+    "required": [
+     "phase",
+     "function_id",
+     "steps"
+    ],
+    "title": "FunctionPreview"
+   },
+   "FunctionRow": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner Id"
+     },
+     "reviewer_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reviewer Id"
+     },
+     "current": {
+      "type": "integer",
+      "title": "Current"
+     },
+     "state": {
+      "type": "string",
+      "title": "State"
+     },
+     "progress": {
+      "type": "string",
+      "title": "Progress"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group"
+     },
+     "pct": {
+      "type": "integer",
+      "title": "Pct"
+     },
+     "cells": {
+      "items": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/TaskCard"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Cells"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "owner_id",
+     "reviewer_id",
+     "current",
+     "state",
+     "progress",
+     "group",
+     "pct",
+     "cells",
+     "logged_h",
+     "estimate_h"
+    ],
+    "title": "FunctionRow"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "Handover": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "from_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Id"
+     },
+     "to_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "from_id",
+     "to_id"
+    ],
+    "title": "Handover"
+   },
+   "Holiday": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "countries": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Countries"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "countries",
+     "name"
+    ],
+    "title": "Holiday"
+   },
+   "HolidayIn": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Date"
+     },
+     "name": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Name"
+     },
+     "countries": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "VN",
+        "JP"
+       ]
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Countries"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "name",
+     "countries"
+    ],
+    "title": "HolidayIn"
+   },
+   "ImportIn": {
+    "properties": {
+     "rows": {
+      "items": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "type": "array",
+      "maxItems": 2000,
+      "title": "Rows"
+     }
+    },
+    "type": "object",
+    "required": [
+     "rows"
+    ],
+    "title": "ImportIn"
+   },
+   "ImportPreviewOut": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "title": "File"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/ImportRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     },
+     "working_days": {
+      "type": "integer",
+      "title": "Working Days"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file",
+     "rows",
+     "working_days"
+    ],
+    "title": "ImportPreviewOut"
+   },
+   "ImportResult": {
+    "properties": {
+     "imported": {
+      "type": "integer",
+      "title": "Imported"
+     },
+     "month": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Month"
+     }
+    },
+    "type": "object",
+    "required": [
+     "imported",
+     "month"
+    ],
+    "title": "ImportResult"
+   },
+   "ImportRow": {
+    "properties": {
+     "row": {
+      "type": "integer",
+      "title": "Row"
+     },
+     "member": {
+      "type": "string",
+      "title": "Member"
+     },
+     "date_from": {
+      "type": "string",
+      "title": "Date From"
+     },
+     "date_to": {
+      "type": "string",
+      "title": "Date To"
+     },
+     "type_text": {
+      "type": "string",
+      "title": "Type Text"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note"
+     },
+     "member_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Member Id"
+     },
+     "type": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LeaveType"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "error": {
+      "type": "string",
+      "title": "Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "row",
+     "member",
+     "date_from",
+     "date_to",
+     "type_text",
+     "note",
+     "member_id",
+     "type",
+     "error"
+    ],
+    "title": "ImportRow"
+   },
+   "JiraField": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "type": {
+      "type": "string",
+      "title": "Type"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "type"
+    ],
+    "title": "JiraField"
+   },
+   "JiraIn": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "token": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Token"
+     },
+     "interval": {
+      "type": "string",
+      "enum": [
+       "5",
+       "15",
+       "60",
+       "manual"
+      ],
+      "title": "Interval"
+     }
+    },
+    "type": "object",
+    "required": [
+     "url",
+     "email",
+     "interval"
+    ],
+    "title": "JiraIn"
+   },
+   "JiraSettingsView": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "token_masked": {
+      "type": "string",
+      "title": "Token Masked"
+     },
+     "interval": {
+      "type": "string",
+      "title": "Interval"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "epics": {
+      "items": {
+       "$ref": "#/components/schemas/EpicView"
+      },
+      "type": "array",
+      "title": "Epics"
+     },
+     "last_full_sync": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Full Sync"
+     }
+    },
+    "type": "object",
+    "required": [
+     "url",
+     "email",
+     "token_masked",
+     "interval",
+     "status",
+     "epics",
+     "last_full_sync"
+    ],
+    "title": "JiraSettingsView"
+   },
+   "JiraTestIn": {
+    "properties": {
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email",
+      "default": ""
+     },
+     "token": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "url"
+    ],
+    "title": "JiraTestIn"
+   },
+   "JiraTestOut": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "fail"
+      ],
+      "title": "Status"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "JiraTestOut"
+   },
+   "KeysOut": {
+    "properties": {
+     "keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Keys"
+     }
+    },
+    "type": "object",
+    "required": [
+     "keys"
+    ],
+    "title": "KeysOut"
+   },
+   "Leave": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "type": {
+      "$ref": "#/components/schemas/LeaveType"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "member_id",
+     "date",
+     "type"
+    ],
+    "title": "Leave"
+   },
+   "LeaveIn": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "type": {
+      "$ref": "#/components/schemas/LeaveType"
+     },
+     "date_from": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Date From"
+     },
+     "date_to": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Date To"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "type",
+     "date_from",
+     "date_to"
+    ],
+    "title": "LeaveIn"
+   },
+   "LeaveType": {
+    "type": "string",
+    "enum": [
+     "full",
+     "half",
+     "fullTent",
+     "halfTent"
+    ],
+    "title": "LeaveType"
+   },
+   "MatrixStats": {
+    "properties": {
+     "progress_pct": {
+      "type": "integer",
+      "title": "Progress Pct"
+     },
+     "functions_done": {
+      "type": "integer",
+      "title": "Functions Done"
+     },
+     "functions_total": {
+      "type": "integer",
+      "title": "Functions Total"
+     },
+     "late_functions": {
+      "type": "integer",
+      "title": "Late Functions"
+     },
+     "late_subtasks": {
+      "type": "integer",
+      "title": "Late Subtasks"
+     },
+     "over_subtasks": {
+      "type": "integer",
+      "title": "Over Subtasks"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "progress_pct",
+     "functions_done",
+     "functions_total",
+     "late_functions",
+     "late_subtasks",
+     "over_subtasks",
+     "logged_h",
+     "estimate_h"
+    ],
+    "title": "MatrixStats"
+   },
+   "MatrixView": {
+    "properties": {
+     "epic_key": {
+      "type": "string",
+      "title": "Epic Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "phase": {
+      "type": "string",
+      "title": "Phase"
+     },
+     "stats": {
+      "$ref": "#/components/schemas/MatrixStats"
+     },
+     "functions": {
+      "items": {
+       "$ref": "#/components/schemas/FunctionRow"
+      },
+      "type": "array",
+      "title": "Functions"
+     },
+     "parents": {
+      "items": {
+       "$ref": "#/components/schemas/ParentOption"
+      },
+      "type": "array",
+      "title": "Parents"
+     },
+     "next_function_id": {
+      "type": "string",
+      "title": "Next Function Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "epic_key",
+     "title",
+     "phase",
+     "stats",
+     "functions",
+     "parents",
+     "next_function_id"
+    ],
+    "title": "MatrixView"
+   },
+   "Member": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "full_name": {
+      "type": "string",
+      "title": "Full Name"
+     },
+     "role": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Role"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "country": {
+      "type": "string",
+      "title": "Country"
+     },
+     "color": {
+      "type": "string",
+      "title": "Color"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email",
+      "default": ""
+     },
+     "permission": {
+      "$ref": "#/components/schemas/Permission",
+      "default": "user"
+     },
+     "external": {
+      "type": "boolean",
+      "title": "External",
+      "default": false
+     },
+     "jira_account_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Jira Account Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "full_name",
+     "role",
+     "country",
+     "color"
+    ],
+    "title": "Member"
+   },
+   "MemberCapacity": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "weeks": {
+      "items": {
+       "$ref": "#/components/schemas/WeekLoad"
+      },
+      "type": "array",
+      "title": "Weeks"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "weeks"
+    ],
+    "title": "MemberCapacity"
+   },
+   "MemberLane": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/DayCell"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PlanBlock"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "days",
+     "items"
+    ],
+    "title": "MemberLane"
+   },
+   "MemberPatchIn": {
+    "properties": {
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "role": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Role"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "clear_role": {
+      "type": "boolean",
+      "title": "Clear Role",
+      "default": false
+     },
+     "permission": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Permission"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "country": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "VN",
+         "JP"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Country"
+     }
+    },
+    "type": "object",
+    "title": "MemberPatchIn"
+   },
+   "Meta": {
+    "properties": {
+     "mode": {
+      "type": "string",
+      "title": "Mode"
+     },
+     "today": {
+      "type": "string",
+      "title": "Today"
+     },
+     "capabilities": {
+      "$ref": "#/components/schemas/Capabilities"
+     },
+     "sync": {
+      "$ref": "#/components/schemas/SyncStatus"
+     },
+     "projects": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Projects"
+     }
+    },
+    "type": "object",
+    "required": [
+     "mode",
+     "today",
+     "capabilities",
+     "sync",
+     "projects"
+    ],
+    "title": "Meta"
+   },
+   "MyWork": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "today": {
+      "type": "string",
+      "title": "Today"
+     },
+     "next_day": {
+      "type": "string",
+      "title": "Next Day"
+     },
+     "delay": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Delay"
+     },
+     "due_today": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Due Today"
+     },
+     "due_next": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Due Next"
+     },
+     "backlog": {
+      "items": {
+       "$ref": "#/components/schemas/BacklogGroup"
+      },
+      "type": "array",
+      "title": "Backlog"
+     },
+     "related": {
+      "items": {
+       "$ref": "#/components/schemas/TaskCard"
+      },
+      "type": "array",
+      "title": "Related"
+     },
+     "related_scope": {
+      "type": "string",
+      "title": "Related Scope"
+     },
+     "open_count": {
+      "type": "integer",
+      "title": "Open Count"
+     },
+     "remaining_h": {
+      "type": "number",
+      "title": "Remaining H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "today",
+     "next_day",
+     "delay",
+     "due_today",
+     "due_next",
+     "backlog",
+     "related",
+     "related_scope",
+     "open_count",
+     "remaining_h"
+    ],
+    "title": "MyWork"
+   },
+   "NameRulePreview": {
+    "properties": {
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "tokens": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tokens"
+     },
+     "values": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Values"
+     },
+     "step": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step"
+     },
+     "sample_matches": {
+      "type": "boolean",
+      "title": "Sample Matches"
+     },
+     "matched": {
+      "type": "integer",
+      "title": "Matched"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "error",
+     "tokens",
+     "values",
+     "step",
+     "sample_matches",
+     "matched",
+     "total"
+    ],
+    "title": "NameRulePreview"
+   },
+   "NameRulePreviewIn": {
+    "properties": {
+     "rule": {
+      "type": "string",
+      "title": "Rule"
+     },
+     "aliases": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Aliases"
+     },
+     "sample": {
+      "type": "string",
+      "title": "Sample",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "required": [
+     "rule"
+    ],
+    "title": "NameRulePreviewIn"
+   },
+   "NameRulesIn": {
+    "properties": {
+     "rule": {
+      "type": "string",
+      "title": "Rule"
+     },
+     "aliases": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Aliases"
+     }
+    },
+    "type": "object",
+    "required": [
+     "rule",
+     "aliases"
+    ],
+    "title": "NameRulesIn"
+   },
+   "NameRulesView": {
+    "properties": {
+     "rule": {
+      "type": "string",
+      "title": "Rule"
+     },
+     "aliases": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Aliases"
+     },
+     "matched": {
+      "type": "integer",
+      "title": "Matched"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "rule",
+     "aliases",
+     "matched",
+     "total"
+    ],
+    "title": "NameRulesView"
+   },
+   "ParentOption": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "phase": {
+      "type": "string",
+      "title": "Phase"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "summary",
+     "phase"
+    ],
+    "title": "ParentOption"
+   },
+   "Permission": {
+    "type": "string",
+    "enum": [
+     "admin",
+     "user"
+    ],
+    "title": "Permission"
+   },
+   "PhaseRollup": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "pct": {
+      "type": "integer",
+      "title": "Pct"
+     },
+     "closed": {
+      "type": "integer",
+      "title": "Closed"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     },
+     "end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "pct",
+     "closed",
+     "total",
+     "start",
+     "end"
+    ],
+    "title": "PhaseRollup"
+   },
+   "PlanBlock": {
+    "properties": {
+     "card": {
+      "$ref": "#/components/schemas/TaskCard"
+     },
+     "color_step": {
+      "type": "string",
+      "title": "Color Step"
+     }
+    },
+    "type": "object",
+    "required": [
+     "card",
+     "color_step"
+    ],
+    "title": "PlanBlock"
+   },
+   "PlanChangeIn": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "start": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Start"
+     },
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "start",
+     "member_id"
+    ],
+    "title": "PlanChangeIn"
+   },
+   "PlanningPreview": {
+    "properties": {
+     "changes": {
+      "items": {
+       "$ref": "#/components/schemas/ChangePreview"
+      },
+      "type": "array",
+      "title": "Changes"
+     },
+     "capacity": {
+      "items": {
+       "$ref": "#/components/schemas/MemberCapacity"
+      },
+      "type": "array",
+      "title": "Capacity"
+     }
+    },
+    "type": "object",
+    "required": [
+     "changes",
+     "capacity"
+    ],
+    "title": "PlanningPreview"
+   },
+   "PlanningPreviewIn": {
+    "properties": {
+     "start": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Start"
+     },
+     "changes": {
+      "items": {
+       "$ref": "#/components/schemas/PlanChangeIn"
+      },
+      "type": "array",
+      "title": "Changes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "start",
+     "changes"
+    ],
+    "title": "PlanningPreviewIn"
+   },
+   "PlanningPushIn": {
+    "properties": {
+     "changes": {
+      "items": {
+       "$ref": "#/components/schemas/PlanChangeIn"
+      },
+      "type": "array",
+      "title": "Changes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "changes"
+    ],
+    "title": "PlanningPushIn"
+   },
+   "PlanningView": {
+    "properties": {
+     "start": {
+      "type": "string",
+      "title": "Start"
+     },
+     "end": {
+      "type": "string",
+      "title": "End"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/DayHead"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "projects": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Projects"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/MemberLane"
+      },
+      "type": "array",
+      "title": "Rows"
+     },
+     "capacity": {
+      "items": {
+       "$ref": "#/components/schemas/MemberCapacity"
+      },
+      "type": "array",
+      "title": "Capacity"
+     }
+    },
+    "type": "object",
+    "required": [
+     "start",
+     "end",
+     "days",
+     "projects",
+     "rows",
+     "capacity"
+    ],
+    "title": "PlanningView"
+   },
+   "PreviewStep": {
+    "properties": {
+     "step": {
+      "type": "string",
+      "title": "Step"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "assignee_id": {
+      "type": "string",
+      "title": "Assignee Id"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     },
+     "start": {
+      "type": "string",
+      "title": "Start"
+     },
+     "end": {
+      "type": "string",
+      "title": "End"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note"
+     },
+     "reasons": {
+      "items": {
+       "prefixItems": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "string"
+        }
+       ],
+       "type": "array",
+       "maxItems": 2,
+       "minItems": 2
+      },
+      "type": "array",
+      "title": "Reasons"
+     }
+    },
+    "type": "object",
+    "required": [
+     "step",
+     "summary",
+     "assignee_id",
+     "estimate_h",
+     "start",
+     "end",
+     "note",
+     "reasons"
+    ],
+    "title": "PreviewStep"
+   },
+   "QuestionIn": {
+    "properties": {
+     "q": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Q"
+     }
+    },
+    "type": "object",
+    "required": [
+     "q"
+    ],
+    "title": "QuestionIn"
+   },
+   "Rework": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "functions": {
+      "type": "integer",
+      "title": "Functions"
+     },
+     "create_h": {
+      "type": "number",
+      "title": "Create H"
+     },
+     "fix_h": {
+      "type": "number",
+      "title": "Fix H"
+     },
+     "rate": {
+      "type": "number",
+      "title": "Rate"
+     },
+     "avg_rounds": {
+      "type": "number",
+      "title": "Avg Rounds"
+     },
+     "max_rounds": {
+      "type": "integer",
+      "title": "Max Rounds"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "functions",
+     "create_h",
+     "fix_h",
+     "rate",
+     "avg_rounds",
+     "max_rounds"
+    ],
+    "title": "Rework"
+   },
+   "Role": {
+    "type": "string",
+    "enum": [
+     "BA",
+     "BAL",
+     "JM"
+    ],
+    "title": "Role"
+   },
+   "StatusMappingIn": {
+    "properties": {
+     "mapping": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string",
+         "enum": [
+          "N",
+          "W",
+          "R",
+          "C"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Mapping"
+     }
+    },
+    "type": "object",
+    "required": [
+     "mapping"
+    ],
+    "title": "StatusMappingIn"
+   },
+   "StatusRow": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category"
+     },
+     "mapped": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mapped"
+     },
+     "effective": {
+      "type": "string",
+      "title": "Effective"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "category",
+     "mapped",
+     "effective"
+    ],
+    "title": "StatusRow"
+   },
+   "StepOverride": {
+    "properties": {
+     "start": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     },
+     "end": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End"
+     }
+    },
+    "type": "object",
+    "title": "StepOverride"
+   },
+   "SyncIn": {
+    "properties": {
+     "full": {
+      "type": "boolean",
+      "title": "Full",
+      "default": false
+     }
+    },
+    "type": "object",
+    "title": "SyncIn"
+   },
+   "SyncStatus": {
+    "properties": {
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "last_ok_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Ok At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "started_at",
+     "finished_at",
+     "error",
+     "last_ok_at"
+    ],
+    "title": "SyncStatus"
+   },
+   "TaskCard": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "project": {
+      "type": "string",
+      "title": "Project"
+     },
+     "epic_key": {
+      "type": "string",
+      "title": "Epic Key"
+     },
+     "phase": {
+      "type": "string",
+      "title": "Phase"
+     },
+     "function_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Function Id"
+     },
+     "function_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Function Name"
+     },
+     "step": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "jira_status": {
+      "type": "string",
+      "title": "Jira Status"
+     },
+     "assignee_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assignee Id"
+     },
+     "worker_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Worker Id"
+     },
+     "planned_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned Start"
+     },
+     "planned_end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned End"
+     },
+     "estimate_h": {
+      "type": "number",
+      "title": "Estimate H"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "remaining_h": {
+      "type": "number",
+      "title": "Remaining H"
+     },
+     "actual_start": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Actual Start"
+     },
+     "actual_end": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Actual End"
+     },
+     "is_current": {
+      "type": "boolean",
+      "title": "Is Current"
+     },
+     "late": {
+      "type": "boolean",
+      "title": "Late"
+     },
+     "late_days": {
+      "type": "integer",
+      "title": "Late Days"
+     },
+     "soon": {
+      "type": "boolean",
+      "title": "Soon"
+     },
+     "over": {
+      "type": "boolean",
+      "title": "Over"
+     },
+     "tone": {
+      "type": "string",
+      "title": "Tone"
+     },
+     "held_days": {
+      "type": "integer",
+      "title": "Held Days"
+     },
+     "rounds": {
+      "type": "integer",
+      "title": "Rounds"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "summary",
+     "project",
+     "epic_key",
+     "phase",
+     "function_id",
+     "function_name",
+     "step",
+     "status",
+     "jira_status",
+     "assignee_id",
+     "worker_id",
+     "planned_start",
+     "planned_end",
+     "estimate_h",
+     "logged_h",
+     "remaining_h",
+     "actual_start",
+     "actual_end",
+     "is_current",
+     "late",
+     "late_days",
+     "soon",
+     "over",
+     "tone",
+     "held_days",
+     "rounds"
+    ],
+    "title": "TaskCard",
+    "description": "One issue as screens show it: raw values plus the flags the domain derived."
+   },
+   "Thresholds": {
+    "properties": {
+     "soon_days": {
+      "type": "number",
+      "title": "Soon Days",
+      "default": 2
+     },
+     "effort_warn_pct": {
+      "type": "number",
+      "title": "Effort Warn Pct",
+      "default": 80
+     },
+     "held_days": {
+      "type": "number",
+      "title": "Held Days",
+      "default": 3
+     },
+     "review_rounds": {
+      "type": "number",
+      "title": "Review Rounds",
+      "default": 3
+     },
+     "capacity_pct": {
+      "type": "number",
+      "title": "Capacity Pct",
+      "default": 100
+     }
+    },
+    "type": "object",
+    "title": "Thresholds"
+   },
+   "TicketDetail": {
+    "properties": {
+     "card": {
+      "$ref": "#/components/schemas/TaskCard"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner Id"
+     },
+     "warnings": {
+      "items": {
+       "$ref": "#/components/schemas/TicketWarning"
+      },
+      "type": "array",
+      "title": "Warnings"
+     },
+     "history": {
+      "items": {
+       "$ref": "#/components/schemas/Handover"
+      },
+      "type": "array",
+      "title": "History"
+     },
+     "worklogs": {
+      "items": {
+       "$ref": "#/components/schemas/Worklog"
+      },
+      "type": "array",
+      "title": "Worklogs"
+     }
+    },
+    "type": "object",
+    "required": [
+     "card",
+     "owner_id",
+     "warnings",
+     "history",
+     "worklogs"
+    ],
+    "title": "TicketDetail"
+   },
+   "TicketPatchIn": {
+    "properties": {
+     "status": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "N",
+         "W",
+         "R",
+         "C"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "assignee_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assignee Id"
+     },
+     "planned_start": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned Start"
+     },
+     "planned_end": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planned End"
+     }
+    },
+    "type": "object",
+    "title": "TicketPatchIn"
+   },
+   "TicketWarning": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "value": {
+      "type": "number",
+      "title": "Value"
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "value"
+    ],
+    "title": "TicketWarning"
+   },
+   "TimesheetCell": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "planned_h": {
+      "type": "number",
+      "title": "Planned H"
+     },
+     "expected_h": {
+      "type": "number",
+      "title": "Expected H"
+     },
+     "state": {
+      "type": "string",
+      "title": "State"
+     },
+     "off_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Off Reason"
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "logged_h",
+     "planned_h",
+     "expected_h",
+     "state",
+     "off_reason"
+    ],
+    "title": "TimesheetCell"
+   },
+   "TimesheetRow": {
+    "properties": {
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "cells": {
+      "items": {
+       "$ref": "#/components/schemas/TimesheetCell"
+      },
+      "type": "array",
+      "title": "Cells"
+     },
+     "logged_h": {
+      "type": "number",
+      "title": "Logged H"
+     },
+     "expected_h": {
+      "type": "number",
+      "title": "Expected H"
+     },
+     "over_days": {
+      "type": "integer",
+      "title": "Over Days"
+     }
+    },
+    "type": "object",
+    "required": [
+     "member_id",
+     "cells",
+     "logged_h",
+     "expected_h",
+     "over_days"
+    ],
+    "title": "TimesheetRow"
+   },
+   "TimesheetView": {
+    "properties": {
+     "start": {
+      "type": "string",
+      "title": "Start"
+     },
+     "end": {
+      "type": "string",
+      "title": "End"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/DayHead"
+      },
+      "type": "array",
+      "title": "Days"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/TimesheetRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "type": "object",
+    "required": [
+     "start",
+     "end",
+     "days",
+     "rows"
+    ],
+    "title": "TimesheetView"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WeekLoad": {
+    "properties": {
+     "week_start": {
+      "type": "string",
+      "title": "Week Start"
+     },
+     "planned_h": {
+      "type": "number",
+      "title": "Planned H"
+     },
+     "available_h": {
+      "type": "number",
+      "title": "Available H"
+     },
+     "pct": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pct"
+     },
+     "level": {
+      "type": "string",
+      "title": "Level"
+     }
+    },
+    "type": "object",
+    "required": [
+     "week_start",
+     "planned_h",
+     "available_h",
+     "pct",
+     "level"
+    ],
+    "title": "WeekLoad"
+   },
+   "WorkingHours": {
+    "properties": {
+     "hours_per_day": {
+      "type": "number",
+      "title": "Hours Per Day",
+      "default": 8
+     },
+     "days": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Days",
+      "default": [
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     },
+     "timesheet_tolerance_h": {
+      "type": "number",
+      "title": "Timesheet Tolerance H",
+      "default": 1
+     }
+    },
+    "type": "object",
+    "title": "WorkingHours"
+   },
+   "WorkingHoursIn": {
+    "properties": {
+     "hours_per_day": {
+      "type": "number",
+      "maximum": 24.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Hours Per Day"
+     },
+     "days": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Days"
+     },
+     "timesheet_tolerance_h": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Timesheet Tolerance H"
+     }
+    },
+    "type": "object",
+    "required": [
+     "hours_per_day",
+     "days",
+     "timesheet_tolerance_h"
+    ],
+    "title": "WorkingHoursIn"
+   },
+   "Worklog": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "title": "Date"
+     },
+     "member_id": {
+      "type": "string",
+      "title": "Member Id"
+     },
+     "hours": {
+      "type": "number",
+      "title": "Hours"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "type": "object",
+    "required": [
+     "date",
+     "member_id",
+     "hours"
+    ],
+    "title": "Worklog"
+   }
+  }
+ }
+}

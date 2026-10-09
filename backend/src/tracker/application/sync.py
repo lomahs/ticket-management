@@ -1,6 +1,7 @@
 """SyncFromJira: reads the tracked epics from Jira and stores them as domain issues."""
 
 import re
+import threading
 import unicodedata
 import zlib
 from collections.abc import Sequence
@@ -15,6 +16,7 @@ from .ports import Clock, JiraReader, UnitOfWork, UnitOfWorkFactory
 from .settings import TrackerSettings
 
 INCREMENTAL_MARGIN = timedelta(minutes=5)
+_RUN_LOCK = threading.Lock()  # one sync at a time per process (scheduler, Sync button, settings changes)
 CATEGORY_STATUS = {"new": Status.NYS, "indeterminate": Status.WIP, "done": Status.CLOSED}
 SECONDS_FIELDS = {"timeoriginalestimate", "aggregatetimeoriginalestimate", "timeestimate"}
 MEMBER_COLORS = ["oklch(0.55 0.13 255)", "oklch(0.52 0.13 305)", "oklch(0.56 0.14 35)", "oklch(0.52 0.11 150)",
@@ -114,6 +116,10 @@ class SyncFromJira:
         self.uow_factory, self.reader, self.clock = uow_factory, reader, clock
 
     def run(self, full: bool = False) -> SyncResult:
+        with _RUN_LOCK:
+            return self._run(full)
+
+    def _run(self, full: bool) -> SyncResult:
         with self.uow_factory() as uow:
             last_ok = uow.sync_runs.latest_ok()
             run_id = uow.sync_runs.start(full, self.clock.now())
@@ -133,7 +139,7 @@ class SyncFromJira:
 
     def refresh(self, keys: Sequence[str]) -> SyncResult:
         """Re-reads specific issues after a write; keys Jira no longer has are skipped."""
-        with self.uow_factory() as uow:
+        with _RUN_LOCK, self.uow_factory() as uow:
             settings = uow.settings.load()
             mapper = _Mapper(uow, settings, settings.jira.epics)
             n = 0

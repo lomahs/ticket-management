@@ -120,3 +120,23 @@ def test_refresh_resyncs_only_the_given_keys(store):
     assert r.status == "ok" and r.issues == 1
     got = issues(store)
     assert got["PAY-1201"].status == Status.CLOSED and got["PAY-1201"].phase == "Implement_Coding"
+
+
+def test_concurrent_runs_do_not_overlap(store):
+    import threading
+    order = []
+
+    class SlowReader(StubReader):
+        def search(self, epic_keys, updated_since):
+            order.append("start")
+            threading.Event().wait(0.05)
+            order.append("end")
+            return [PARENT]
+
+    sync = SyncFromJira(store, SlowReader([], {"PAY-1100": EPIC}), FixedClock())
+    threads = [threading.Thread(target=sync.run, kwargs={"full": True}) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert order == ["start", "end", "start", "end"]

@@ -1,4 +1,8 @@
-"""The demo data, synced through the real pipeline, must reproduce what ui-mock-v0 showed (golden.json)."""
+"""The demo data, synced through the real pipeline, must reproduce what ui-mock-v0 showed.
+
+golden.json was captured from the ui-mock-v0 implementation (git tag ui-mock-v0, backend/app) by
+backend/tests/characterization/capture.py in commit 168b4c7.
+"""
 
 import json
 from pathlib import Path
