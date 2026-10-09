@@ -1,0 +1,26 @@
+{
+  "issues": [
+    {
+      "key": "PAY-1213",
+      "fields": {
+        "summary": "[Implement_Coding][F03] Domestic card payment – Fix comment BAL",
+        "status": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+        "assignee": {"accountId": "557058:binh", "displayName": "Trần Văn Bình"},
+        "parent": {"key": "PAY-1102"},
+        "project": {"key": "PAY"},
+        "created": "2026-09-24T08:00:00.000+0700",
+        "updated": "2026-10-05T11:00:00.000+0700",
+        "customfield_10020": "2026-10-01",
+        "customfield_10016": "2026-10-06",
+        "timeoriginalestimate": 14400,
+        "worklog": {"startAt": 0, "maxResults": 1, "total": 3, "worklogs": [
+          {"author": {"accountId": "557058:binh", "displayName": "Trần Văn Bình"}, "started": "2026-10-06T09:00:00.000+0700", "timeSpentSeconds": 7200}
+        ]}
+      },
+      "changelog": {"startAt": 0, "maxResults": 1, "total": 2, "histories": [
+        {"created": "2026-09-30T10:00:00.000+0700", "items": [{"field": "assignee", "fieldtype": "jira", "from": "5b10ac8d82e05b22cc7d4ef5", "fromString": "Hoàng Minh", "to": "557058:binh", "toString": "Trần Văn Bình"}]}
+      ]}
+    }
+  ],
+  "isLast": true
+}
