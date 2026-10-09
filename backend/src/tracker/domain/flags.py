@@ -130,15 +130,12 @@ def _last_event(i: Issue, field: EventField, to: str | None = None) -> str | Non
     return max(dates) if dates else None
 
 
-def _held(i: Issue, owner_id: str | None, is_current: bool, today: str) -> int:
-    since = None
-    step = STEP_BY_KIND.get(i.step) if i.is_function_step else None
-    if i.status == Status.RESOLVED:
-        since = _last_event(i, EventField.STATUS, Status.RESOLVED.value)
-    elif step and step.fix and owner_id and i.assignee_id != owner_id:
-        since = _last_event(i, EventField.ASSIGNEE)
-    elif step and step.review and is_current and i.status in (Status.NYS, Status.WIP):
-        since = _last_event(i, EventField.ASSIGNEE) or i.created
+def _held(i: Issue, today: str) -> int:
+    """Working days the issue has been with its current assignee (since it was resolved, when resolved)."""
+    if i.status == Status.CLOSED:
+        return 0
+    since = _last_event(i, EventField.STATUS, Status.RESOLVED.value) if i.status == Status.RESOLVED else None
+    since = since or _last_event(i, EventField.ASSIGNEE)
     return weekdays_after(since, today) if since else 0
 
 
@@ -161,6 +158,6 @@ def issue_flags(issue: Issue, *, is_current: bool, owner_id: str | None, today: 
         soon=bool(not late and active and pe and pe >= today and weekdays_after(today, pe) <= thresholds.soon_days),
         over=issue.logged_h > issue.estimate_h,
         tone=_tone(issue, today),
-        held_days=_held(issue, owner_id, is_current, today),
+        held_days=_held(issue, today),
         rounds=_rounds(issue, owner_id),
     )

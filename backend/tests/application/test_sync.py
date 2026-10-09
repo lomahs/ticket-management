@@ -110,3 +110,13 @@ def test_incremental_sync_asks_for_changes_since_last_success_minus_margin(store
 def test_no_tracked_epics_is_a_successful_empty_sync():
     s = MemStore()
     assert SyncFromJira(s, StubReader(), FixedClock()).run(full=True).status == "ok"
+
+
+def test_refresh_resyncs_only_the_given_keys(store):
+    reader = StubReader([PARENT, CREATE, REVIEW], {"PAY-1100": EPIC})
+    run(store, reader)
+    reader.issues = [PARENT, snap("PAY-1201", CREATE.summary, "PAY-1102", status="Closed", cat="done"), REVIEW]
+    r = SyncFromJira(store, reader, FixedClock()).refresh(["PAY-1201", "PAY-9999"])
+    assert r.status == "ok" and r.issues == 1
+    got = issues(store)
+    assert got["PAY-1201"].status == Status.CLOSED and got["PAY-1201"].phase == "Implement_Coding"

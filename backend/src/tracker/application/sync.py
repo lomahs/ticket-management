@@ -48,7 +48,7 @@ class _Mapper:
 
     def __init__(self, uow: UnitOfWork, settings: TrackerSettings, epics: Sequence[str]):
         self.uow, self.s, self.epics = uow, settings, set(epics)
-        self.rule = compile_rule(settings.name_rules.rule)
+        self.rule = compile_rule(settings.name_rules.rule, settings.name_rules.aliases)
         self.members = {m.jira_account_id: m for m in uow.members.list() if m.jira_account_id}
         self.ids = {m.id for m in uow.members.list()}
 
@@ -96,8 +96,8 @@ class _Mapper:
             estimate_h=self.hours(snap), created=snap.created,
         )
         if not is_parent:
-            p = parse_summary(self.rule, snap.summary, self.s.name_rules.aliases)
-            if p and p.step and p.values.get("function_id"):
+            p = parse_summary(self.rule, snap.summary)
+            if p and p.values.get("function_id"):
                 i.function_id, i.function_name, i.step = p.values["function_id"], p.values.get("function_name"), p.step
         i.worklogs = [Worklog(w.date, self.member(w.author), w.hours, w.comment) for w in snap.worklogs]
         for c in snap.changes:
@@ -130,6 +130,22 @@ class SyncFromJira:
                 uow.sync_runs.finish(run_id, self.clock.now(), "failed", 0, f"{type(e).__name__}: {e}")
                 uow.commit()
             return SyncResult(run_id, "failed", 0, f"{type(e).__name__}: {e}")
+
+    def refresh(self, keys: Sequence[str]) -> SyncResult:
+        """Re-reads specific issues after a write; keys Jira no longer has are skipped."""
+        with self.uow_factory() as uow:
+            settings = uow.settings.load()
+            mapper = _Mapper(uow, settings, settings.jira.epics)
+            n = 0
+            for key in keys:
+                snap = self.reader.get_issue(key)
+                if not snap:
+                    continue
+                parent = uow.issues.get(snap.parent_key) if snap.parent_key not in mapper.epics else None
+                uow.issues.save(mapper.issue(snap, parent))
+                n += 1
+            uow.commit()
+        return SyncResult(0, "ok", n, None)
 
     def _sync(self, uow: UnitOfWork, since, full: bool) -> int:
         settings = uow.settings.load()

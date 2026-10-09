@@ -109,17 +109,17 @@ def test_held_on_fix_step_while_with_reviewer():
     assert flags(i, owner="dung").held_days == 4
 
 
-def test_fix_step_with_owner_is_not_held():
-    i = issue(step=StepKind.FIX_BAL, fid="F03", assignee="binh", events=[assigned("2026-10-01", "minh", "binh")])
-    assert flags(i, owner="binh").held_days == 0
+def test_held_counts_days_with_the_current_assignee():
+    i = issue(step=StepKind.FIX_BAL, fid="F03", assignee="binh", events=[assigned("2026-10-05", "minh", "binh")])
+    assert flags(i, owner="binh").held_days == 2
+    j = issue(step=StepKind.BAL_REVIEW, fid="F05", assignee="minh", events=[assigned("2026-10-02", "chi", "minh")])
+    assert flags(j, owner="chi", current=False).held_days == 3
 
 
-def test_current_review_step_held_since_assignment_or_creation():
-    i = issue(step=StepKind.BAL_REVIEW, fid="F05", assignee="minh", events=[assigned("2026-10-02", "chi", "minh")])
-    assert flags(i, owner="chi").held_days == 3
-    j = issue(step=StepKind.BAL_REVIEW, fid="F05", assignee="minh", created="2026-10-06")
-    assert flags(j, owner="chi").held_days == 1
-    assert flags(i, owner="chi", current=False).held_days == 0
+def test_not_held_without_handover_or_when_closed():
+    assert flags(issue()).held_days == 0
+    closed = issue(status=Status.CLOSED, events=[assigned("2026-10-01", "an", "minh")])
+    assert flags(closed).held_days == 0
 
 
 def test_rounds_count_returns_to_owner():

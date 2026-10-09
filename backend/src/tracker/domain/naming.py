@@ -34,12 +34,13 @@ class RuleError(ValueError):
 class CompiledRule:
     regex: re.Pattern[str]
     tokens: tuple[str, ...]
+    steps: dict[str, StepKind]  # normalised alias → step
 
 
 @dataclass(frozen=True)
 class Parsed:
     values: dict[str, str]
-    step: StepKind | None  # None when {step} matched text that is no known alias
+    step: StepKind
 
 
 def _literal(ch: str) -> str:
@@ -50,7 +51,15 @@ def _literal(ch: str) -> str:
     return re.escape(ch)
 
 
-def compile_rule(rule: str) -> CompiledRule:
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", "", s.lower()).replace("–", "-")
+
+
+def compile_rule(rule: str, aliases: Mapping[StepKind, str]) -> CompiledRule:
+    """{step} only matches a known alias, so a hyphen inside a function name cannot be mistaken for the separator."""
+    steps = {_norm(n): kind for kind, names in aliases.items() for n in names.split(",") if n.strip()}
+    names = sorted({n.strip() for names in aliases.values() for n in names.split(",") if n.strip()}, key=len, reverse=True)
+    step_src = "(?i:" + "|".join("".join(_literal(ch) for ch in n) for n in names) + ")" if names else "(?!)"
     seen: list[str] = []
     src = ""
     for part in _PLACEHOLDER.split(rule):
@@ -62,33 +71,25 @@ def compile_rule(rule: str) -> CompiledRule:
             if name in seen:
                 raise RuleError(f"{{{name}}} is used twice")
             seen.append(name)
-            src += f"(?P<{name}>.+?)"
+            src += f"(?P<step>{step_src})" if name == "step" else f"(?P<{name}>.+?)"
         else:
             src += "".join(_literal(ch) for ch in part)
     if "step" not in seen:
         raise RuleError("Pattern must contain {step}")
-    return CompiledRule(re.compile(rf"^\s*{src}\s*$"), tuple(seen))
+    return CompiledRule(re.compile(rf"^\s*{src}\s*$"), tuple(seen), steps)
 
 
-def step_for(text: str, aliases: Mapping[StepKind, str]) -> StepKind | None:
-    t = text.strip().lower()
-    for kind, names in aliases.items():
-        if t in {n.strip().lower() for n in names.split(",") if n.strip()}:
-            return kind
-    return None
-
-
-def parse_summary(rule: CompiledRule, summary: str, aliases: Mapping[StepKind, str]) -> Parsed | None:
+def parse_summary(rule: CompiledRule, summary: str) -> Parsed | None:
     m = rule.regex.match(summary)
     if not m:
         return None
     values = {k: v for k, v in m.groupdict().items() if v is not None}
-    return Parsed(values, step_for(values.get("step", ""), aliases))
+    return Parsed(values, rule.steps[_norm(values["step"])])
 
 
-def coverage(rule: CompiledRule, aliases: Mapping[StepKind, str], summaries: Iterable[str]) -> int:
-    """How many summaries match the rule with a recognised step."""
-    return sum(1 for s in summaries if (p := parse_summary(rule, s, aliases)) and p.step)
+def coverage(rule: CompiledRule, summaries: Iterable[str]) -> int:
+    """How many summaries match the rule."""
+    return sum(1 for s in summaries if parse_summary(rule, s))
 
 
 def parse_phase(parent_summary: str) -> str:
