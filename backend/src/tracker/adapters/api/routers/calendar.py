@@ -15,6 +15,7 @@ from ..schemas import DaysOut, ImportIn, LeaveIn
 
 router = APIRouter(tags=["calendar"])
 MONTH = r"^\d{4}-\d{2}$"
+MAX_UPLOAD = 5 * 1024 * 1024
 
 
 class ImportPreviewOut(BaseModel):
@@ -53,7 +54,10 @@ async def import_preview(d: D, file: Annotated[UploadFile | None, File()] = None
         name, rows = SAMPLE_FILE, SAMPLE_ROWS
     elif file is not None:
         name = file.filename or "upload"
-        rows = read_rows(name, await file.read())
+        raw = await file.read(MAX_UPLOAD + 1)
+        if len(raw) > MAX_UPLOAD:
+            raise Invalid("The file is larger than 5 MB", "file")
+        rows = read_rows(name, raw)
     else:
         raise Invalid("Choose a .xlsx or .csv file", "file")
     p = calendar.import_preview(d, rows)

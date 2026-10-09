@@ -156,3 +156,9 @@ def test_openapi_file_matches_the_app(client):
     path = Path(__file__).resolve().parents[3] / "frontend" / "src" / "shared" / "api" / "openapi.json"
     assert path.exists(), "run: npm run gen:api (in frontend/)"
     assert json.loads(path.read_text("utf-8")) == json.loads(json.dumps(client.app.openapi())), "OpenAPI changed: run npm run gen:api"
+
+
+def test_import_rejects_oversized_files(fresh):
+    big = b"Member,From,To,Type,Note\n" + b"x" * (5 * 1024 * 1024 + 1)
+    err = problem(fresh.post("/api/v1/leaves/import/preview", files={"file": ("big.csv", big, "text/csv")}), 422, "invalid")
+    assert "5 MB" in err["detail"]

@@ -46,6 +46,9 @@ the stored Jira token; otherwise `backend/data/secret.key` is created), `TRACKER
 
 The API syncs on the chosen interval and from the Sync button; screens read only the local database.
 
+> **No login in phase 1.** Anyone who can reach the server can read the data and change settings, so run it only
+> inside the team's network. The Jira token is stored encrypted and never returned by the API.
+
 ## Architecture
 
 **Backend** (`backend/src/tracker`)
