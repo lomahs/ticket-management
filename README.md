@@ -1,65 +1,92 @@
 # Team Tracker
 
-Jira companion for a BA team: function matrix, personal work queue, anken overview, planning Gantt,
-effort timesheet, team calendar and admin settings. Implements the claude.ai/design project
+Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning (Gantt + capacity), Effort
+(timesheet + analysis), Team Calendar (leave, holidays), and Settings. It implements the claude.ai/design project
 "Team Tracker" (`Team Tracker.dc.html`) on the Atlassian design-system tokens.
 
 ```
-backend/   Python · FastAPI API, JSON-file store seeded with the design's demo data
-frontend/  React + Vite + TypeScript UI
+backend/   Python · FastAPI · SQLAlchemy/SQLite · clean architecture (domain → application → adapters → bootstrap)
+frontend/  React · Vite · TypeScript · TanStack Router/Query · feature-sliced, typed client generated from OpenAPI
+scripts/   setup.sh · demo.sh · dev.sh · check.sh
 ```
 
-## Run (development)
+## Quick start
 
 ```bash
-# API on :8000
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload --port 8000
-
-# UI on :5173 (proxies /api to :8000)
-cd frontend
-npm install
-npm run dev
+scripts/demo.sh          # demo data on http://localhost:8000 — same code as the real app, simulated Jira
+scripts/dev.sh           # development: API :8000 (auto-reload) + Vite :5173, demo mode
+scripts/dev.sh jira      # development against real Jira (set it up in Settings → Jira)
+scripts/check.sh         # every automated check; add --e2e for the Playwright suite
 ```
 
-Open http://localhost:5173.
+`scripts/setup.sh` (run by the others) creates `backend/.venv` and installs `frontend/node_modules`; everything stays
+inside the repository. The original mock-data build is tagged: `git checkout ui-mock-v0 && scripts/demo.sh`.
 
-## Run (single server)
+## Modes
 
-```bash
-cd frontend && npm run build          # writes frontend/dist
-cd ../backend && .venv/bin/uvicorn app.main:app --port 8000
-```
+| `TRACKER_MODE` | Jira | Writes | "Today" | Database |
+|---|---|---|---|---|
+| `demo` | simulated site with the design's data | enabled (to the simulated site) | 2026-10-07 | `.tmp/demo/tracker.db`, recreated on start |
+| `jira` (default) | your Jira Cloud site, read-only in phase 1 | disabled; the UI says so | real date (Asia/Ho_Chi_Minh) | `backend/data/tracker.db` |
 
-The API serves the built UI at http://localhost:8000.
+Other settings: `TRACKER_DB_URL` (SQLAlchemy URL), `TRACKER_TODAY` (pin the date), `TRACKER_SECRET_KEY` (Fernet key for
+the stored Jira token; otherwise `backend/data/secret.key` is created), `TRACKER_STATIC_DIR` (built frontend to serve).
 
-## Tests and checks
+### Connecting a real Jira site (phase 1: read)
 
-```bash
-cd backend && .venv/bin/python -m pytest -q
-cd frontend && npm run typecheck
-```
+1. `scripts/dev.sh jira`, open Settings → Jira, enter the site URL, the service account e-mail and an
+   [API token](https://id.atlassian.com/manage-profile/security/api-tokens), **Test connection**, **Save**.
+2. Add the epics to track. Each epic is an anken; its children are phase parent tickets (`[Prepare] …`,
+   `[Implement_Coding] …`), whose sub-tasks are the work items.
+3. Field mapping: the custom field ids for Planned Start / Planned End and the effort field; **Check** against a ticket.
+4. Name rules: how sub-task Summaries encode function id, name and step (default
+   `[{phase_name}][{function_id}] {function_name} – {step}`); the preview shows how many synced sub-tasks match.
+5. Status mapping (after the first sync): which Jira statuses count as NYS / WIP / Resolved / Closed.
+6. Members appear as they are seen on issues; give them a role (BA / BAL / JM) and country.
 
-## Configuration
+The API syncs on the chosen interval and from the Sync button; screens read only the local database.
 
-| Env var         | Default                    | Purpose                                                         |
-|-----------------|----------------------------|-----------------------------------------------------------------|
-| `TRACKER_DATA`  | `backend/data/store.json`  | Where state is persisted. Deleted → reseeded on next start.     |
-| `TRACKER_TODAY` | `2026-10-07`               | "Today" for lateness, timesheets and plans (the demo data is anchored to this date). |
+## Architecture
 
-`POST /api/reset` restores the demo data.
+**Backend** (`backend/src/tracker`)
 
-## How it fits together
+- `domain/` — pure rules: working-day calendar, flags (late, over, tone, held days, review rounds), scheduling,
+  naming rules, capacity, timesheet, analysis, anken roll-ups, Q&A, leave import validation.
+- `application/` — ports (`JiraReader`, `JiraWriter`, repositories, `Clock`, `SecretBox`), `SyncFromJira`, and one
+  use-case module per screen returning read models.
+- `adapters/` — FastAPI (`/api/v1`, problem+json errors), SQLAlchemy + Alembic, Jira Cloud REST v3 reader (httpx),
+  the simulated Jira for demo mode, clocks, the sync scheduler.
+- `bootstrap.py` — picks adapters from the environment.
 
-- `GET /api/state` returns one snapshot: members, config, holidays, leave, functions (5 sub-tasks each),
-  other tasks, timesheet, settings. The server adds derived flags to every task (`late`, `lateDays`, `over`,
-  `tone`, `isCur`). Every mutation returns a fresh snapshot, and the UI just replaces its copy.
-- Writes that the UI confirms with "Written to Jira" (ticket edits, plan pushes, new functions) go through
-  the API store. **Jira is simulated.** There is no live Jira client yet: the connection test, epic lookup and
-  field-mapping check run against the seeded catalog. `backend/app/main.py` (`_jira_ok`, `add_epic`, and the
-  ticket/plan routes) is where a real Jira REST client would plug in.
-- Leave import accepts `.csv` and `.xlsx` (via openpyxl). Rows are validated server-side, and only valid rows are imported.
-- The design-system components (`Button`, `IconButton`, `Select`, `TextField`, `Tabs`, `Toast`, `Icon`) are ported
-  to typed React in `frontend/src/ds/`. The tokens live in `frontend/src/styles/tokens.css`, including dark theme.
-  Icons come from `lucide-react` (the design loaded lucide-static from a CDN).
+Layer rules are enforced by `import-linter` (part of the test suite). The API serves raw values (ISO dates, hours,
+enums); the browser formats them. The OpenAPI document is committed at `frontend/src/shared/api/openapi.json`; a
+backend test fails when it drifts — run `npm run gen:api` in `frontend/`.
+
+**Frontend** (`frontend/src`)
+
+- `app/` — router (every screen, tab and dialog has a URL; `?ticket=KEY` opens the ticket panel anywhere), shell.
+- `shared/` — design-system components, typed API client, formatting, small UI pieces.
+- `features/<screen>/` — `api.ts` (the only place that calls HTTP), `model/` (pure display logic with tests),
+  `components/`, `index.ts`.
+
+Import boundaries are checked by `src/architecture.test.ts`.
+
+| URL | Screen |
+|---|---|
+| `/my-work?member=&backlog=` | My Work |
+| `/anken`, `/anken/$epic` | Anken Overview |
+| `/anken/$epic/matrix?q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix, Add function |
+| `/planning?start=&weeks=&hide=` | Planning |
+| `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
+| `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
+| `/settings/$tab` | Settings (jira, field-mapping, status-mapping, name-rules, members, holidays, hours, extra-days, alerts) |
+
+## Tests
+
+`scripts/check.sh` runs: backend pytest (domain, use cases, persistence, Jira reader against REST v3 fixtures,
+API, characterization against the mock's numbers, OpenAPI drift), import-linter, generated-type check, `tsc`, ESLint,
+Vitest (display models, import boundaries, screens rendered with recorded API responses).
+
+- `pytest -m jira_live` reads a real site (set `TRACKER_JIRA_URL`, `_EMAIL`, `_TOKEN`, `_EPIC`).
+- `backend/scripts/record_jira_fixtures.py` records anonymised responses from a real site for new fixtures.
+- `scripts/check.sh --e2e` runs Playwright against a demo server (needs a browser installed for Playwright).

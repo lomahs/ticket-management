@@ -3,7 +3,10 @@ import { ApiError, type FieldError } from './errors';
 import type { paths } from './schema';
 
 /** Typed HTTP client for the Team Tracker API. Only feature api.ts modules use it. */
-export const http = createClient<paths>({ baseUrl: '' });
+export const http = createClient<paths>({
+  baseUrl: typeof location !== 'undefined' ? location.origin : '',
+  fetch: (request) => globalThis.fetch(request), // looked up per call so test interceptors (MSW) apply
+});
 
 interface Result<T> { data?: T; error?: unknown; response: Response }
 

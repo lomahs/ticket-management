@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router';
+import { createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect, type RouterHistory } from '@tanstack/react-router';
 import { z } from 'zod';
 // Search schemas, the overview query and the tab list are imported directly so each screen's code can load lazily.
 import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
@@ -65,8 +65,8 @@ const routeTree = root.addChildren([
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab,
 ]);
 
-export function makeRouter(queryClient: QueryClient) {
-  return createRouter({ routeTree, context: { queryClient }, defaultPreload: 'intent', scrollRestoration: true });
+export function makeRouter(queryClient: QueryClient, history?: RouterHistory) {
+  return createRouter({ routeTree, context: { queryClient }, history, defaultPreload: 'intent', scrollRestoration: true });
 }
 
 declare module '@tanstack/react-router' {
