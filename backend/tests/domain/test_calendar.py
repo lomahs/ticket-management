@@ -50,9 +50,10 @@ def test_extra_working_day_opens_a_weekend():
 
 
 def test_span_skips_holidays_and_records_them():
-    skipped: list[str] = []
+    skipped: list[tuple[str, str]] = []
     assert cal().span("2026-09-18", 2, "tanaka", skipped) == ("2026-09-18", "2026-09-24")
-    assert skipped == ["21/09 Respect for the Aged Day (JP)", "22/09 Citizens' Holiday (JP)", "23/09 Autumnal Equinox Day (JP)"]
+    assert skipped == [("2026-09-21", "Respect for the Aged Day (JP)"), ("2026-09-22", "Citizens' Holiday (JP)"),
+                       ("2026-09-23", "Autumnal Equinox Day (JP)")]
 
 
 def test_span_starts_on_next_working_day():

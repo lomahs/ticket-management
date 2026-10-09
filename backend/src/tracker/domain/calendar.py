@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable, Mapping
 
-from .dates import add_days, dm, weekday
+from .dates import add_days, weekday
 from .model import LEAVE_TYPES, Holiday, Leave, Member
 
 WEEKEND = "we"
@@ -56,16 +56,16 @@ class WorkCalendar:
         lv = self.leave(member_id, d)
         return 0.5 if lv and not LEAVE_TYPES[lv.type].full else 1
 
-    def next_work(self, d: str, member_id: str, skipped: list[str] | None = None) -> str:
+    def next_work(self, d: str, member_id: str, skipped: list[tuple[str, str]] | None = None) -> str:
         while True:
             reason = self.off(d, member_id)
             if not reason:
                 return d
             if reason != WEEKEND and skipped is not None:
-                skipped.append(f"{dm(d)} {reason}")
+                skipped.append((d, reason))
             d = add_days(d, 1)
 
-    def span(self, start: str, n: int, member_id: str, skipped: list[str] | None = None) -> tuple[str, str]:
+    def span(self, start: str, n: int, member_id: str, skipped: list[tuple[str, str]] | None = None) -> tuple[str, str]:
         """First and last day of n working days for the member, starting on or after `start`."""
         s = self.next_work(start, member_id, skipped)
         e = s
