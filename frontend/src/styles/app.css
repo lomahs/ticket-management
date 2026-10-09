@@ -1,0 +1,84 @@
+/* base.css */
+html { -webkit-font-smoothing: antialiased; }
+html, body, #root { margin: 0; height: 100%; }
+body { background: var(--surface-page); color: var(--text-body); font: var(--type-body-sm); }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { color: var(--text-heading); text-decoration: underline; }
+:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+
+/* App shell. Inside the app, form controls use 12px radius and 14px text. */
+.tt-root {
+  --radius-md: 12px;
+  --type-body-sm: 400 14px/1.43 var(--font-text);
+  display: flex; height: 100vh; overflow: hidden;
+  background: var(--app-bg); color: var(--text-body);
+  font: 400 13px/1.45 var(--font-text);
+}
+.tt-root button { font-family: inherit; }
+
+@keyframes ttspin { to { transform: rotate(360deg); } }
+
+/* Shared surfaces */
+.card { border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--surface-card); }
+.card-clip { overflow: hidden; }
+.h1 { margin: 0; font: 700 22px/1.2 var(--font-display); color: var(--text-heading); }
+.eyebrow { font-size: 12px; color: var(--text-muted); }
+.title { font-weight: 700; color: var(--text-heading); }
+.muted { color: var(--text-muted); }
+.heading { color: var(--text-heading); }
+.mono { font-family: var(--font-mono); }
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spacer { flex: 1; }
+.dot { display: inline-block; flex: none; border-radius: 50%; }
+.count { font: 600 11px/18px var(--font-text); padding: 0 7px; border-radius: 9px; }
+.key { font: 600 12px/1 var(--font-mono); color: var(--text-link); }
+.mini-label { font: 600 9px/1 var(--font-text); color: var(--text-muted); }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px; justify-self: start;
+  font: 600 11px/20px var(--font-text); padding: 0 8px; border-radius: 999px;
+  color: var(--text-heading); white-space: nowrap;
+}
+.legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
+.legend > span { display: flex; align-items: center; gap: 5px; }
+.swatch { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+.empty-row { padding: 12px 14px; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-muted); }
+.row-btn { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; padding: 0; }
+
+/* Hover states (design `style-hover`). !important wins over inline backgrounds. */
+.hv-bg:hover { background: var(--surface-hover) !important; }
+.hv-bd:hover { border-color: var(--text-heading) !important; }
+.hv-ring:hover { box-shadow: inset 0 0 0 1px var(--border-strong) !important; }
+.hv-dim:hover { filter: brightness(0.97); }
+.hv-dim2:hover { filter: brightness(0.95); }
+.hv-bright:hover { filter: brightness(1.12); }
+
+/* Segmented control (1 week / 2 weeks, By week / By month …) */
+.seg { display: flex; padding: 3px; border-radius: 99px; background: var(--surface-hover); }
+.seg-outline { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 999px; }
+.seg button {
+  height: 26px; padding: 0 12px; border: 0; border-radius: 99px;
+  font: 600 12px/1 var(--font-text); cursor: pointer;
+}
+.seg-outline button { height: 28px; padding: 0 14px; border: 0; border-radius: 999px; font: 600 12px/1 var(--font-text); cursor: pointer; }
+
+/* Modal / popover */
+.scrim {
+  position: fixed; inset: 0; z-index: 70; background: rgba(9, 30, 66, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.dialog {
+  background: var(--surface-card); border-radius: 16px; box-shadow: 0 16px 48px rgba(9, 30, 66, 0.3);
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.dialog-title { flex: 1; font: 700 17px/1.3 var(--font-display); color: var(--text-heading); }
+
+/* Day-grid header cells (Planning, Effort, Calendar) */
+.day-head { box-sizing: border-box; text-align: center; border-left: 1px solid var(--border-subtle); font-size: 10px; line-height: 1.3; }
+.day-head .n { font-size: 11px; }
+.sticky-col { position: sticky; left: 0; z-index: 2; background: var(--surface-card); border-right: 1px solid var(--border-subtle); box-sizing: border-box; flex: none; }
+.today-frame {
+  position: absolute; top: 0; bottom: 0; box-sizing: border-box; pointer-events: none; z-index: 1;
+  border: 1.5px solid color-mix(in oklch, var(--border-focus) 70%, transparent); border-radius: 6px;
+}
+
+input[type="date"] { color-scheme: light dark; }

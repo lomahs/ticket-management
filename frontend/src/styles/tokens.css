@@ -1,0 +1,137 @@
+/* Atlassian design system tokens (from the claude.ai/design project _ds/…/tokens/*.css).
+   Charlie Display / Charlie Text are proprietary; Figtree substitutes for both (loaded in index.html). */
+
+:root {
+  /* colors.css */
+  --color-primary: #101214;
+  --color-on-primary: #ffffff;
+  --color-background: #ffffff;
+  --color-surface: #cfe1fd;
+  --color-text: #292a2e;
+  --color-text-muted: #101214;
+  --color-accent: #1c2b42;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-primary-a04: rgba(16, 18, 20, .04);
+  --color-primary-a08: rgba(16, 18, 20, .08);
+  --color-primary-a14: rgba(16, 18, 20, .14);
+  --color-primary-a32: rgba(16, 18, 20, .32);
+  --color-primary-a50: rgba(16, 18, 20, .5);
+  --color-primary-a64: rgba(16, 18, 20, .64);
+  --color-surface-strong: #b3cff9;
+  --surface-page: var(--color-background);
+  --surface-card: var(--color-white);
+  --surface-tint: var(--color-surface);
+  --surface-tint-strong: var(--color-surface-strong);
+  --surface-inverse: var(--color-primary);
+  --surface-accent: var(--color-accent);
+  --surface-hover: var(--color-primary-a04);
+  --surface-pressed: var(--color-primary-a08);
+  --surface-overlay: var(--color-primary-a50);
+  --text-heading: var(--color-primary);
+  --text-body: var(--color-text);
+  --text-muted: var(--color-primary-a64);
+  --text-disabled: var(--color-primary-a32);
+  --text-inverse: var(--color-on-primary);
+  --text-link: var(--color-accent);
+  --border-subtle: var(--color-primary-a14);
+  --border-strong: var(--color-primary-a32);
+  --border-focus: var(--color-accent);
+  --border-inverse: var(--color-white);
+  --button-primary-bg: var(--color-accent);
+  --button-primary-bg-hover: var(--color-primary);
+  --button-primary-fg: var(--color-on-primary);
+  --control-checked: var(--color-accent);
+
+  /* typography.css */
+  --font-display: "Charlie Display", "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-text: "Charlie Text", "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fs-display: 40px; --lh-display: 1.2;
+  --fs-heading: 32px; --lh-heading: 1.19;
+  --fs-body: 20px; --lh-body: 1.4;
+  --fs-title: 24px; --lh-title: 1.33;
+  --fs-body-sm: 16px; --lh-body-sm: 1.5;
+  --fs-small: 14px; --lh-small: 1.43;
+  --fs-caption: 12px; --lh-caption: 1.5;
+  --type-display: var(--fw-bold) var(--fs-display)/var(--lh-display) var(--font-display);
+  --type-heading: var(--fw-bold) var(--fs-heading)/var(--lh-heading) var(--font-display);
+  --type-title: var(--fw-bold) var(--fs-title)/var(--lh-title) var(--font-display);
+  --type-body: var(--fw-regular) var(--fs-body)/var(--lh-body) var(--font-text);
+  --type-body-sm: var(--fw-regular) var(--fs-body-sm)/var(--lh-body-sm) var(--font-text);
+  --type-small: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--font-text);
+  --type-caption: var(--fw-regular) var(--fs-caption)/var(--lh-caption) var(--font-text);
+
+  /* spacing.css */
+  --space-base: 4px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-7: 28px; --space-8: 32px;
+  --content-max: 1200px;
+  --touch-target: 44px;
+
+  /* radius.css */
+  --radius-sm: 3px; --radius-md: 4px; --radius-lg: 8px; --radius-xl: 24px; --radius-pill: 9999px;
+
+  /* elevation.css — flat system: separation by colour and hairline borders, not depth */
+  --shadow-none: none;
+  --shadow-card: none;
+  --shadow-overlay: 0 0 0 1px var(--color-primary-a08), 0 8px 24px rgba(16, 18, 20, .16);
+  --focus-ring: 0 0 0 2px var(--color-white), 0 0 0 4px var(--border-focus);
+  --focus-outline: 2px solid var(--border-focus);
+  --focus-offset: 2px;
+
+  /* motion.css */
+  --duration-fast: 250ms;
+  --duration-base: 500ms;
+  --duration-slow: 750ms;
+  --easing-standard: ease-in-out;
+
+  /* Team Tracker app tokens: status (st), timeline tone (tn) and highlight (hl) colours */
+  --app-bg: #f6f7f9; --side-bg: #ffffff;
+  --st-nys: #b3b8bf; --st-nys-bg: #f3f4f6;
+  --st-wip: #1d6ce0; --st-wip-bg: #e2ecfc;
+  --st-res: #0e9488; --st-res-bg: #d9f2ef;
+  --st-clo: #3d424a; --st-clo-bg: #c9cdd3;
+  --tn-nys: #b3b8bf; --tn-nys-bg: #f3f4f6;
+  --tn-ontime: #1d6ce0; --tn-ontime-bg: #e2ecfc;
+  --tn-early: #6a4fd8; --tn-early-bg: #ebe6fc;
+  --tn-latestart: #b07a00; --tn-latestart-bg: #fbefd0;
+  --tn-delay: #c4281c; --tn-delay-bg: #fbe0dc;
+  --tn-res: #0e9488; --tn-res-bg: #d9f2ef;
+  --tn-clo: #3d424a; --tn-clo-bg: #c9cdd3;
+  --hl-red: #fbe0dc; --hl-red-fg: #b3261e;
+  --hl-amber: #fbefd0; --hl-amber-fg: #8a5a00;
+  --hl-ok: #e4f1e8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration-fast: 0ms; --duration-base: 0ms; --duration-slow: 0ms; --easing-standard: linear; }
+}
+
+[data-theme="dark"] {
+  --color-primary: #e9ebee; --color-on-primary: #101214; --color-background: #121417; --color-white: #1b1e22;
+  --color-text: #c7cad0; --color-surface: #22324b; --color-surface-strong: #2c4166; --color-accent: #a9c7f7;
+  --color-primary-a04: rgba(233, 235, 238, .05); --color-primary-a08: rgba(233, 235, 238, .09);
+  --color-primary-a14: rgba(233, 235, 238, .14); --color-primary-a32: rgba(233, 235, 238, .3);
+  --color-primary-a64: rgba(233, 235, 238, .64);
+  --surface-page: #121417; --surface-card: #1b1e22; --surface-tint: #22324b; --surface-tint-strong: #2c4166;
+  --surface-inverse: #e9ebee; --surface-accent: #a9c7f7; --surface-hover: rgba(233, 235, 238, .05);
+  --surface-pressed: rgba(233, 235, 238, .09); --surface-overlay: rgba(0, 0, 0, .6);
+  --text-heading: #e9ebee; --text-body: #c7cad0; --text-muted: rgba(233, 235, 238, .64);
+  --text-disabled: rgba(233, 235, 238, .32); --text-inverse: #101214; --text-link: #a9c7f7;
+  --border-subtle: rgba(233, 235, 238, .14); --border-strong: rgba(233, 235, 238, .3); --border-focus: #a9c7f7;
+  --button-primary-bg: #a9c7f7; --button-primary-bg-hover: #e9ebee; --button-primary-fg: #101214; --control-checked: #a9c7f7;
+  --app-bg: #121417; --side-bg: #16181c;
+  --st-nys: #6c7179; --st-nys-bg: #202328; --st-wip: #6fa3f5; --st-wip-bg: #1c2a44;
+  --st-res: #3cc4b7; --st-res-bg: #163634; --st-clo: #d0d4da; --st-clo-bg: #454a52;
+  --tn-nys: #6c7179; --tn-nys-bg: #202328; --tn-ontime: #6fa3f5; --tn-ontime-bg: #1c2a44;
+  --tn-early: #a993f5; --tn-early-bg: #2a2347; --tn-latestart: #f2c66b; --tn-latestart-bg: #3f3214;
+  --tn-delay: #ff9b92; --tn-delay-bg: #45211f; --tn-res: #3cc4b7; --tn-res-bg: #163634;
+  --tn-clo: #d0d4da; --tn-clo-bg: #454a52;
+  --hl-red: #45211f; --hl-red-fg: #ff9b92; --hl-amber: #3f3214; --hl-amber-fg: #f2c66b; --hl-ok: #1b2d21;
+  --shadow-overlay: 0 0 0 1px rgba(233, 235, 238, .1), 0 8px 24px rgba(0, 0, 0, .5);
+}
