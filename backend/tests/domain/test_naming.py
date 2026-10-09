@@ -60,3 +60,10 @@ def test_phase_from_parent_summary():
 def test_render_summary_fills_the_rule():
     assert render_summary(DEFAULT_RULE, phase_name="Implement_Coding", function_id="F13", function_name="Installment",
                           step="Create") == "[Implement_Coding][F13] Installment – Create"
+
+
+def test_step_hint_from_summary_suffix():
+    from tracker.domain.steps import step_hint
+    assert step_hint("Campaign export – Create") == StepKind.CREATE
+    assert step_hint("Loyalty tier spec – BAL Review") == StepKind.BAL_REVIEW
+    assert step_hint("Internal meeting / support") is None

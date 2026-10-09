@@ -25,3 +25,12 @@ STEPS: tuple[StepDef, ...] = (
 )
 STEP_INDEX: dict[StepKind, int] = {s.kind: i for i, s in enumerate(STEPS)}
 STEP_BY_KIND: dict[StepKind, StepDef] = {s.kind: s for s in STEPS}
+
+
+def step_hint(summary: str) -> StepKind | None:
+    """For tasks outside the naming rule: the step their Summary ends with ("… – BAL Review"), if any."""
+    s = summary.strip().lower()
+    for st in sorted(STEPS, key=lambda x: -len(x.label)):
+        if s.endswith(st.label.lower()):
+            return st.kind
+    return None
