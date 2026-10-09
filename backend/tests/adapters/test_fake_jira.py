@@ -42,3 +42,8 @@ def test_create_subtasks_allocates_new_keys():
     keys = j.create_subtasks("PAY-1102", [NewSubtask("[Implement_Coding][F13] X – Create", "acc-an", "2026-10-08", "2026-10-09", 8)])
     assert keys == ["PAY-1501"]
     assert j.get_issue("PAY-1501").fields["timeoriginalestimate"] == 8 * 3600
+
+
+def test_fake_field_catalog_has_the_mapped_fields():
+    ids = {f.id: f.type for f in jira().list_fields()}
+    assert ids["customfield_10020"] == "date" and ids["timeoriginalestimate"] == "number"

@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from tracker.application.dto import ChangeSnapshot, EpicSnapshot, IssueSnapshot, UserSnapshot, WorklogSnapshot
+from tracker.application.dto import ChangeSnapshot, EpicSnapshot, IssueSnapshot, JiraField, UserSnapshot, WorklogSnapshot
 from tracker.application.ports import JiraAuthError, JiraError
 
 BASE_FIELDS = ("summary", "status", "assignee", "parent", "project", "created", "updated", "worklog")
@@ -143,6 +143,12 @@ class JiraCloudReader:
             data = self._call(client, "GET", f"/rest/api/3/issue/{key}",
                               params={"fields": ",".join(BASE_FIELDS + cfg.fields), "expand": "changelog"})
             return self._snapshot(client, cfg, data) if data else None
+
+    def list_fields(self) -> list[JiraField]:
+        client, _ = self._client()
+        with client:
+            data = self._call(client, "GET", "/rest/api/3/field") or []
+        return [JiraField(f["id"], f.get("name", f["id"]), (f.get("schema") or {}).get("type", "")) for f in data]
 
     def test_connection(self) -> bool:
         try:

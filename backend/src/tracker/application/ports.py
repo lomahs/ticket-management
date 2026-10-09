@@ -7,7 +7,7 @@ from typing import Protocol
 
 from tracker.domain.model import Anken, Holiday, Issue, Leave, Member, Status
 
-from .dto import EpicSnapshot, IssueSnapshot, NewSubtask
+from .dto import EpicSnapshot, IssueSnapshot, JiraField, NewSubtask
 from .settings import TrackerSettings
 
 
@@ -26,6 +26,8 @@ class JiraReader(Protocol):
     def get_epic(self, key: str) -> EpicSnapshot | None: ...
 
     def get_issue(self, key: str) -> IssueSnapshot | None: ...
+
+    def list_fields(self) -> list[JiraField]: ...
 
     def test_connection(self) -> bool: ...
 

@@ -56,6 +56,13 @@ class EpicSnapshot:
 
 
 @dataclass(frozen=True)
+class JiraField:
+    id: str
+    name: str
+    type: str  # Jira schema type: date, datetime, number, string, … ("" when Jira gives none)
+
+
+@dataclass(frozen=True)
 class NewSubtask:
     summary: str
     assignee_account_id: str | None

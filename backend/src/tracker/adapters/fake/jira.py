@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from tracker.application.dto import (
-    ChangeSnapshot, EpicSnapshot, IssueSnapshot, NewSubtask, UserSnapshot, WorklogSnapshot,
+    ChangeSnapshot, EpicSnapshot, IssueSnapshot, JiraField, NewSubtask, UserSnapshot, WorklogSnapshot,
 )
 from tracker.application.ports import Clock, SecretBox, UnitOfWork
 from tracker.application.settings import FieldMapping, JiraConnection, StatusMapping, TrackerSettings
@@ -17,6 +17,12 @@ from .dataset import (
 
 _USERS = {mid: UserSnapshot(account_of(mid), full, email) for mid, _n, full, _r, _c, _col, email, _p, _x in MEMBERS}
 _FIELDS = FieldMapping()
+FIELD_CATALOG = [
+    JiraField("customfield_10015", "Start date", "date"), JiraField("customfield_10016", "Planned End", "date"),
+    JiraField("customfield_10020", "Planned Start", "date"), JiraField("duedate", "Due date", "date"),
+    JiraField("timeoriginalestimate", "Original estimate", "number"), JiraField("customfield_10040", "Effort (h)", "number"),
+    JiraField("summary", "Summary", "string"),
+]
 
 
 class FakeJira:
@@ -61,6 +67,9 @@ class FakeJira:
     def get_issue(self, key: str) -> IssueSnapshot | None:
         i = self.issues.get(key)
         return self._snapshot(i) if i else None
+
+    def list_fields(self) -> list[JiraField]:
+        return list(FIELD_CATALOG)
 
     def test_connection(self) -> bool:
         return True

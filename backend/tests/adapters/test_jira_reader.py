@@ -111,3 +111,15 @@ def test_requests_use_basic_auth():
     route = respx.get(f"{SITE}/rest/api/3/myself").mock(return_value=httpx.Response(200, json={}))
     reader().test_connection()
     assert route.calls[0].request.headers["authorization"].startswith("Basic ")
+
+
+@respx.mock
+def test_list_fields_reads_the_field_catalog():
+    respx.get(f"{SITE}/rest/api/3/field").mock(return_value=httpx.Response(200, json=[
+        {"id": "customfield_10020", "name": "Planned Start", "schema": {"type": "date"}},
+        {"id": "timeoriginalestimate", "name": "Original estimate", "schema": {"type": "number"}},
+        {"id": "summary", "name": "Summary", "schema": {"type": "string"}},
+        {"id": "issuekey", "name": "Key"},
+    ]))
+    fields = {f.id: (f.name, f.type) for f in reader().list_fields()}
+    assert fields["customfield_10020"] == ("Planned Start", "date") and fields["issuekey"] == ("Key", "")
