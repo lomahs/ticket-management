@@ -14,7 +14,7 @@ def test_overview_cards(deps):
     cards = {c.key: c for c in anken.overview(deps)}
     assert list(cards) == ["PAY-1100", "PAY-1300", "PAY-1420", "PAY-0980", "CRM-400", "OPS-200"]  # tracked order
     p = cards["PAY-1100"]
-    assert (p.plan, p.forecast, p.late_functions, p.has_functions) == ("2026-11-20", "2026-11-25", 6, True)
+    assert (p.plan, p.forecast, p.slip_days, p.late_functions, p.has_functions) == ("2026-11-20", "2026-11-25", 3, 6, True)
     assert [ph.name for ph in p.phases] == ["Prepare", "Implement_Coding", "Function Unit Test"]
     assert p.phases[1].pct == 50 and (p.phases[1].closed, p.phases[1].total) == (25, 60)
     assert set(p.member_ids) == {"an", "binh", "chi", "dung", "minh", "tanaka"}

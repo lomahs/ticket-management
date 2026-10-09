@@ -2049,6 +2049,10 @@
       ],
       "title": "Forecast"
      },
+     "slip_days": {
+      "type": "integer",
+      "title": "Slip Days"
+     },
      "late_functions": {
       "type": "integer",
       "title": "Late Functions"
@@ -2091,6 +2095,7 @@
      "project",
      "plan",
      "forecast",
+     "slip_days",
      "late_functions",
      "late_subtasks",
      "used_h",

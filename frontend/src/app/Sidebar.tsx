@@ -1,0 +1,72 @@
+import { Link, useRouterState } from '@tanstack/react-router';
+import { useState } from 'react';
+import { useMemberMap, useMeta } from '../shared/api/queries';
+import { Icon, IconButton, type IconName } from '../shared/ds';
+import { ROLE_LABEL } from '../shared/format/labels';
+import { usePref } from '../shared/state/prefs';
+import { Avatar, av } from '../shared/ui/bits';
+
+const NAV: { to: string; label: string; icon: IconName; active: (p: string) => boolean }[] = [
+  { to: '/my-work', label: 'My Work', icon: 'list-todo', active: (p) => p.startsWith('/my-work') },
+  { to: '/matrix', label: 'Function Matrix', icon: 'grid-3x3', active: (p) => /^\/anken\/[^/]+\/matrix/.test(p) },
+  { to: '/anken', label: 'Anken Overview', icon: 'layout-dashboard', active: (p) => p.startsWith('/anken') && !/\/matrix/.test(p) },
+  { to: '/planning', label: 'Planning', icon: 'chart-gantt', active: (p) => p.startsWith('/planning') },
+  { to: '/effort/timesheet', label: 'Effort', icon: 'timer', active: (p) => p.startsWith('/effort') },
+  { to: '/calendar', label: 'Team Calendar', icon: 'calendar-days', active: (p) => p.startsWith('/calendar') },
+  { to: '/settings/jira', label: 'Settings', icon: 'settings', active: (p) => p.startsWith('/settings') },
+];
+
+export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
+  const [open, setOpen] = useState(true);
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const meta = useMeta().data;
+  const members = useMemberMap();
+  const [me] = usePref('me', 'binh');
+  const meM = members[me];
+  const connection = !meta ? ' ' : meta.mode === 'demo' ? `Demo data · ${meta.projects.join(', ')}`
+    : meta.projects.length ? `Connected to Jira · ${meta.projects.join(', ')}` : 'Jira not set up yet';
+  return (
+    <aside style={{
+      width: open ? 216 : 60, flex: 'none', transition: 'width var(--duration-fast) var(--easing-standard)', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', background: 'var(--side-bg)', borderRight: '1px solid var(--border-subtle)',
+    }}>
+      <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: `0 10px 0 ${open ? 18 : 14}px`, borderBottom: '1px solid var(--border-subtle)' }}>
+        {open && (
+          <div style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
+            <div style={{ font: '700 17px/1.1 var(--font-display)', color: 'var(--text-heading)' }}>Team Tracker</div>
+            <div className="ellipsis" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{connection}</div>
+          </div>
+        )}
+        <IconButton icon={open ? 'panel-left-close' : 'panel-left-open'} label={open ? 'Hide sidebar' : 'Show sidebar'} size="sm" onClick={() => setOpen(!open)} />
+      </div>
+      <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 1 }}>
+        {NAV.map((n) => {
+          const on = n.active(path);
+          return (
+            <Link key={n.to} to={n.to} title={n.label} className="hv-bg" aria-current={on ? 'page' : undefined} style={{
+              display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', gap: 10, height: 34, padding: '0 10px',
+              borderRadius: 10, background: on ? 'var(--surface-tint)' : 'transparent', textDecoration: 'none',
+              color: on ? 'var(--text-heading)' : 'var(--text-body)', font: `${on ? 600 : 500} 13px/1 var(--font-text)`,
+            }}>
+              <Icon name={n.icon} size={16} />
+              {open && <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{n.label}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 10, padding: '12px 14px', borderTop: '1px solid var(--border-subtle)' }}>
+        <Avatar a={av(meM, me)} size={28} />
+        {open && (
+          <>
+            <div style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{meM?.name ?? me}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{meM?.role ? ROLE_LABEL[meM.role] : 'No role'}</div>
+            </div>
+            <span className="spacer" />
+          </>
+        )}
+        <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} size="sm" onClick={toggleTheme} />
+      </div>
+    </aside>
+  );
+}

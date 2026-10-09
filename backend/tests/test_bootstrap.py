@@ -22,3 +22,4 @@ def test_jira_mode_without_configuration_is_read_only_and_reports_sync_problems(
         r = c.post("/api/v1/settings/epics", json={"key": "PAY-1"})
         assert r.status_code == 502 and r.json()["code"] == "jira_unavailable"
         assert c.get("/api/v1/settings/jira").json()["status"] is None
+

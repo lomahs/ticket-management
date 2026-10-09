@@ -24,6 +24,7 @@ class AnkenCard:
     project: str
     plan: str | None
     forecast: str | None
+    slip_days: int  # working days the forecast is past the plan
     late_functions: int
     late_subtasks: int
     used_h: float
@@ -72,6 +73,7 @@ def _card(ctx: Context, key: str) -> AnkenCard:
     assignees = {i.assignee_id for i in subs if i.assignee_id}
     return AnkenCard(
         key=a.key, title=a.title, project=a.project, plan=plan, forecast=forecast_date(plan, worst) if plan else None,
+        slip_days=worst if plan else 0,
         late_functions=sum(1 for f in fns if any(c.key in late_keys for c in f.issues())), late_subtasks=len(late),
         used_h=round(sum(i.logged_h for i in subs), 2), estimate_h=round(sum(i.estimate_h for i in subs), 2),
         phases=phases, member_ids=[m for m in ctx.members if m in assignees], has_functions=bool(fns),
