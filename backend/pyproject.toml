@@ -30,5 +30,5 @@ tracker = ["adapters/persistence/migrations/*.py", "adapters/persistence/migrati
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["jira_live: reads a real Jira site (needs TRACKER_JIRA_* env, skipped by default)"]
-addopts = "-m 'not jira_live'"
+addopts = "-m 'not jira_live' --basetemp=../.tmp/pytest"
 filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient", "ignore:Using `httpx`:DeprecationWarning"]
