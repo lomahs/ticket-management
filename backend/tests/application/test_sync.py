@@ -140,3 +140,11 @@ def test_concurrent_runs_do_not_overlap(store):
     for t in threads:
         t.join()
     assert order == ["start", "end", "start", "end"]
+
+
+def test_full_sync_that_sees_nothing_keeps_existing_data(store):
+    """An empty answer for epics we already hold issues for is treated as a failure (e.g. lost permissions)."""
+    run(store, StubReader([PARENT, CREATE], {"PAY-1100": EPIC}))
+    r = run(store, StubReader([], {"PAY-1100": EPIC}), full=True)
+    assert r.status == "failed" and "no issues" in r.error
+    assert set(issues(store)) == {"PAY-1102", "PAY-1201"}

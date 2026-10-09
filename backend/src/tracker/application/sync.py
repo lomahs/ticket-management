@@ -23,6 +23,10 @@ MEMBER_COLORS = ["oklch(0.55 0.13 255)", "oklch(0.52 0.13 305)", "oklch(0.56 0.1
                  "oklch(0.5 0.1 210)", "oklch(0.48 0.04 260)", "oklch(0.55 0.15 0)", "oklch(0.5 0.12 100)"]
 
 
+class EmptySyncError(Exception):
+    """Jira returned nothing for epics that already have issues here."""
+
+
 @dataclass(frozen=True)
 class SyncResult:
     run_id: int
@@ -165,6 +169,9 @@ class SyncFromJira:
         uow.anken.delete_except(epics)
 
         snaps = list(self.reader.search(epics, since))
+        if full and not snaps and uow.issues.list(epics):
+            raise EmptySyncError("Jira returned no issues for the tracked epics; kept the existing data "
+                                 "(check the service account's access)")
         for s in snaps:
             settings.status_mapping.seen[s.status_name] = s.status_category
         mapper = _Mapper(uow, settings, epics)
