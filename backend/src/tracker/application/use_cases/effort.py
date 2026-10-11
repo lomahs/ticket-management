@@ -8,7 +8,7 @@ from tracker.domain.capacity import PlanItem, Plan, daily_plan
 from tracker.domain.dates import day_diff, days_between
 from tracker.domain.model import Role, Status, Worklog
 from tracker.domain.overview import ordered_phases
-from tracker.domain.steps import STEP_BY_KIND, STEPS
+from tracker.domain.steps import STEPS, is_fix_step
 from tracker.domain.timesheet import TimesheetRow, day_detail as domain_day_detail, timesheet as domain_timesheet
 
 from ..context import Context, Deps, load_context
@@ -83,9 +83,11 @@ def day_detail(d: Deps, member_id: str, date: str) -> DayDetailView:
             by_key[i.key] = logs
     dd = domain_day_detail(logs_by_key=by_key, plan=_plan(ctx), member_id=member_id, date=date)
     issues = {i.key: i for i in ctx.issues}
-    entries = [DayEntryView(e.key, issues[e.key].summary if e.key in issues else e.key, issues[e.key].function_id if e.key in issues else None,
-                            issues[e.key].step.value if e.key in issues and issues[e.key].step else None, e.logged_h, e.planned_h, e.notes)
-               for e in dd.entries]
+    entries = []
+    for e in dd.entries:
+        i = issues.get(e.key)
+        entries.append(DayEntryView(e.key, i.summary if i else e.key, i.function_id if i else None,
+                                    i.step.value if i and i.step else None, e.logged_h, e.planned_h, e.notes))
     return DayDetailView(member_id, date, dd.logged_h, dd.planned_h, entries)
 
 
@@ -127,7 +129,7 @@ def analysis(d: Deps, epic: str | None) -> EffortAnalysis:
     bas = [m for m, mem in ctx.members.items() if mem.role == Role.BA and any(f.owner_id == m for f in fns)]
     rework = rework_by_member(fns, bas, rounds)
     started = [c for c in cells if c.status != Status.NYS]
-    fixes = [c for c in cells if STEP_BY_KIND[c.step].fix and rounds.get(c.key, 0) > 0]
+    fixes = [c for c in cells if is_fix_step(c) and rounds.get(c.key, 0) > 0]
     create_h, fix_h = sum(r.create_h for r in rework), sum(r.fix_h for r in rework)
     kpis = EffortKpis(
         logged_h=round(sum(c.logged_h for c in started), 2), estimate_h=round(sum(c.estimate_h for c in started), 2),

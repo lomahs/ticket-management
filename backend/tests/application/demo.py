@@ -11,6 +11,20 @@ from tracker.application.context import Deps
 
 
 class _BadReader:
+    """A site that rejects the credentials."""
+
+    def search(self, epic_keys, updated_since):
+        return []
+
+    def get_epic(self, key):
+        return None
+
+    def get_issue(self, key):
+        return None
+
+    def list_fields(self):
+        return []
+
     def test_connection(self):
         return False
 

@@ -59,8 +59,9 @@ class _Mapper:
         self.ids = {m.id for m in uow.members.list()}
 
     def member(self, user: UserSnapshot | None) -> str | None:
-        if not user:
-            return None
+        return self.member_of(user) if user else None
+
+    def member_of(self, user: UserSnapshot) -> str:
         m = self.members.get(user.account_id)
         if not m:
             base = mid = slugify(user.display_name)
@@ -88,11 +89,12 @@ class _Mapper:
         return float(v) / 3600 if fid in SECONDS_FIELDS else float(v)
 
     def issue(self, snap: IssueSnapshot, parent: Issue | None) -> Issue:
-        is_parent = snap.parent_key in self.epics
+        epic = snap.parent_key if snap.parent_key in self.epics else None  # set for phase parent tickets
+        is_parent = epic is not None
         fm = self.s.field_mapping
         i = Issue(
             key=snap.key, project=snap.project,
-            epic_key=snap.parent_key if is_parent else (parent.epic_key if parent else ""),
+            epic_key=epic or (parent.epic_key if parent else ""),
             parent_key=snap.parent_key, kind=IssueKind.PARENT if is_parent else IssueKind.SUBTASK,
             summary=snap.summary,
             phase=parse_phase(snap.summary) if is_parent else (parent.phase if parent else ""),
@@ -105,7 +107,7 @@ class _Mapper:
             p = parse_summary(self.rule, snap.summary)
             if p and p.values.get("function_id"):
                 i.function_id, i.function_name, i.step = p.values["function_id"], p.values.get("function_name"), p.step
-        i.worklogs = [Worklog(w.date, self.member(w.author), w.hours, w.comment) for w in snap.worklogs]
+        i.worklogs = [Worklog(w.date, self.member_of(w.author), w.hours, w.comment) for w in snap.worklogs]
         for c in snap.changes:
             if c.field == "assignee":
                 i.events.append(IssueEvent(c.at, EventField.ASSIGNEE, self.member(c.from_user), self.member(c.to_user)))
@@ -151,7 +153,7 @@ class SyncFromJira:
                 snap = self.reader.get_issue(key)
                 if not snap:
                     continue
-                parent = uow.issues.get(snap.parent_key) if snap.parent_key not in mapper.epics else None
+                parent = uow.issues.get(snap.parent_key) if snap.parent_key and snap.parent_key not in mapper.epics else None
                 uow.issues.save(mapper.issue(snap, parent))
                 n += 1
             uow.commit()

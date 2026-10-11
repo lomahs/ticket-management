@@ -5,7 +5,7 @@ from tracker.domain.model import EventField, Issue, IssueEvent, IssueKind, Statu
 TODAY = "2026-10-07"
 
 
-def issue(key="PAY-1", *, status=Status.WIP, assignee="an", ps="2026-10-05", pe="2026-10-09", est=8.0, logged=0.0,
+def issue(key="PAY-1", *, status=Status.WIP, assignee="an", ps: str | None = "2026-10-05", pe: str | None = "2026-10-09", est=8.0, logged=0.0,
           log_date=None, step: StepKind | None = None, fid=None, fname="Fn", phase="Implement_Coding",
           events=(), created="2026-09-01", epic="PAY-1100", summary=None) -> Issue:
     logs = [Worklog(log_date or ps or TODAY, assignee, logged)] if logged else []

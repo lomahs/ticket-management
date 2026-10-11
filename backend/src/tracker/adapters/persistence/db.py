@@ -5,7 +5,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.engine import Engine
 
 from .repositories import SqlAnken, SqlCalendar, SqlIssues, SqlMembers, SqlSettings, SqlSyncRuns
 
@@ -17,12 +17,10 @@ class SqlUnitOfWork:
 
     def __init__(self, engine: Engine):
         self.engine = engine
-        self.conn: Connection | None = None
 
     def __enter__(self) -> "SqlUnitOfWork":
-        self.conn = self.engine.connect()
-        self.tx = self.conn.begin()
-        c = self.conn
+        self.conn = c = self.engine.connect()
+        self.tx = c.begin()
         self.members, self.issues, self.anken = SqlMembers(c), SqlIssues(c), SqlAnken(c)
         self.calendar, self.settings, self.sync_runs = SqlCalendar(c), SqlSettings(c), SqlSyncRuns(c)
         return self

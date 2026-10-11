@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 "$ROOT/scripts/setup.sh"
 echo "▸ backend tests";        (cd "$ROOT/backend" && .venv/bin/python -m pytest -q)
 echo "▸ layer contracts";      (cd "$ROOT/backend" && .venv/bin/lint-imports | tail -4)
+echo "▸ backend types";        (cd "$ROOT/backend" && .venv/bin/pyright | tail -1)
 echo "▸ API types up to date"; (cd "$ROOT/frontend" && mkdir -p "$ROOT/.tmp" && npx openapi-typescript src/shared/api/openapi.json -o "$ROOT/.tmp/schema.check.d.ts" >/dev/null \
                                  && diff -q src/shared/api/schema.d.ts "$ROOT/.tmp/schema.check.d.ts")
 echo "▸ typecheck";            (cd "$ROOT/frontend" && npx tsc -p tsconfig.json --noEmit)

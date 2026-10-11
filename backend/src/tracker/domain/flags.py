@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .dates import weekdays_after
 from .model import EventField, Issue, Status, Thresholds
-from .steps import STEP_BY_KIND, STEP_INDEX, STEPS
+from .steps import STEP_INDEX, STEPS, is_fix_step, step_def
 
 PROGRESS_WEIGHT = {Status.CLOSED: 1.0, Status.RESOLVED: 0.8, Status.WIP: 0.4, Status.NYS: 0.0}
 
@@ -43,7 +43,7 @@ def build_functions(issues: Iterable[Issue]) -> list[Function]:
     groups: dict[tuple[str, str], list[Issue | None]] = {}
     names: dict[tuple[str, str], str] = {}
     for i in issues:
-        if not i.is_function_step:
+        if i.function_id is None or i.step is None:
             continue
         k = (i.epic_key, i.function_id)
         slots = groups.setdefault(k, [None] * len(STEPS))
@@ -90,7 +90,8 @@ def function_progress(fn: Function, today: str, late_keys: set[str]) -> str:
 
 def worker_of(issue: Issue, owner_id: str | None) -> str | None:
     """Who does the work: the reviewer on review steps, the function owner on other steps, else the assignee."""
-    if issue.is_function_step and not STEP_BY_KIND[issue.step].review and owner_id:
+    step = step_def(issue)
+    if step and not step.review and owner_id:
         return owner_id
     return issue.assignee_id
 
@@ -140,7 +141,7 @@ def _held(i: Issue, today: str) -> int:
 
 
 def _rounds(i: Issue, owner_id: str | None) -> int:
-    if not (i.is_function_step and STEP_BY_KIND[i.step].fix):
+    if not is_fix_step(i):
         return 0
     n = sum(1 for e in i.events
             if e.field == EventField.ASSIGNEE and e.to_value == owner_id and e.from_value not in (None, owner_id))
@@ -154,7 +155,7 @@ def issue_flags(issue: Issue, *, is_current: bool, owner_id: str | None, today: 
     return IssueFlags(
         is_current=is_current,
         late=late,
-        late_days=weekdays_after(pe, today) if late else 0,
+        late_days=weekdays_after(pe, today) if late and pe else 0,
         soon=bool(not late and active and pe and pe >= today and weekdays_after(today, pe) <= thresholds.soon_days),
         over=issue.logged_h > issue.estimate_h,
         tone=_tone(issue, today),

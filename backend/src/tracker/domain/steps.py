@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from .model import Role, StepKind
+from .model import Issue, Role, StepKind
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,16 @@ STEPS: tuple[StepDef, ...] = (
 )
 STEP_INDEX: dict[StepKind, int] = {s.kind: i for i, s in enumerate(STEPS)}
 STEP_BY_KIND: dict[StepKind, StepDef] = {s.kind: s for s in STEPS}
+
+
+def step_def(issue: Issue) -> StepDef | None:
+    """The workflow step of a function sub-task; None for any other issue."""
+    return STEP_BY_KIND[issue.step] if issue.function_id is not None and issue.step is not None else None
+
+
+def is_fix_step(issue: Issue) -> bool:
+    step = step_def(issue)
+    return step is not None and step.fix
 
 
 def step_hint(summary: str) -> StepKind | None:

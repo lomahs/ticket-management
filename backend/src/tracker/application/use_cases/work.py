@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from tracker.domain.dates import add_days, monday_of
 from tracker.domain.model import Issue, Role, Status
-from tracker.domain.steps import STEP_BY_KIND
+from tracker.domain.steps import step_def
 
 from ..context import Context, Deps, TaskCard, load_context
 from ..errors import NotFound
@@ -39,9 +39,9 @@ def _by_end(i: Issue) -> tuple[str, str]:
 
 
 def _is_review_item(ctx: Context, i: Issue) -> bool:
-    if not i.is_function_step:
+    step = step_def(i)
+    if not step:
         return False
-    step = STEP_BY_KIND[i.step]
     f = ctx.flags[i.key]
     return (step.review and f.is_current and i.status in (Status.NYS, Status.WIP)) or (step.fix and i.status == Status.RESOLVED)
 

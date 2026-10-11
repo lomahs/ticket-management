@@ -9,3 +9,7 @@ frontend/dist/
 docs/
 .tmp/
 *.egg-info/
+.claude/
+.codegraph/
+.superpowers/
+.mcp.json

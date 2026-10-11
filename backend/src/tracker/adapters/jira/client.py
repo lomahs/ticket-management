@@ -47,8 +47,12 @@ def _adf_text(node: Any) -> str:
     return sep.join(p for p in parts if p)
 
 
+def _account(u: dict) -> UserSnapshot:
+    return UserSnapshot(u["accountId"], u.get("displayName", ""), u.get("emailAddress", ""))
+
+
 def _user(u: dict | None) -> UserSnapshot | None:
-    return UserSnapshot(u["accountId"], u.get("displayName", ""), u.get("emailAddress", "")) if u else None
+    return _account(u) if u else None
 
 
 def _dt(s: str) -> datetime:
@@ -186,7 +190,7 @@ class JiraCloudReader:
 
     def _snapshot(self, client: httpx.Client, cfg: JiraConfig, issue: dict) -> IssueSnapshot:
         key, f = issue["key"], issue["fields"]
-        logs = [WorklogSnapshot(_user(w["author"]), w["started"][:10], w.get("timeSpentSeconds", 0) / 3600, _adf_text(w.get("comment")))
+        logs = [WorklogSnapshot(_account(w["author"]), w["started"][:10], w.get("timeSpentSeconds", 0) / 3600, _adf_text(w.get("comment")))
                 for w in self._worklogs(client, key, f.get("worklog") or {})]
         changes = []
         for h in self._histories(client, key, issue.get("changelog") or {}):

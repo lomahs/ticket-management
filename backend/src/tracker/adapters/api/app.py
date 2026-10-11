@@ -1,5 +1,6 @@
 """FastAPI application: /api/v1 routers, problem+json errors, optional static frontend and sync scheduler."""
 
+import asyncio
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,7 +17,7 @@ from .routers import anken, calendar, effort, planning, settings, system, ticket
 API = "/api/v1"
 
 
-def create_app(deps: Deps, *, static_dir: Path | None = None, background: Callable[[Deps], object] | None = None) -> FastAPI:
+def create_app(deps: Deps, *, static_dir: Path | None = None, background: Callable[[Deps], asyncio.Task] | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         task = background(deps) if background else None

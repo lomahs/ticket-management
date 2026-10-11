@@ -3,12 +3,15 @@
 import json
 import sys
 from pathlib import Path
+from typing import cast
+
+from tracker.application.context import Deps
 
 from .app import create_app
 
 
 def document() -> dict:
-    return create_app(None).openapi()  # the schema does not depend on the wired adapters
+    return create_app(cast(Deps, None)).openapi()  # the schema does not depend on the wired adapters
 
 
 if __name__ == "__main__":

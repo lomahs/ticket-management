@@ -183,6 +183,9 @@ class StubReader:
     def get_issue(self, key):
         return next((i for i in self.issues if i.key == key), None)
 
+    def list_fields(self):
+        return []
+
     def test_connection(self):
         return not self.fail
 

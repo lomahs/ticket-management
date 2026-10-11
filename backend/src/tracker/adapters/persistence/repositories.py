@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, insert, select, update
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, CursorResult
 
 from tracker.application.ports import SyncRun
 from tracker.application.settings import SECTIONS, TrackerSettings, from_documents, to_documents
@@ -14,6 +14,13 @@ from tracker.domain.model import (
 )
 
 from . import tables as t
+
+
+def _new_id(result: CursorResult) -> int:
+    pk = result.inserted_primary_key
+    if pk is None:
+        raise RuntimeError("insert returned no primary key")
+    return pk[0]
 
 
 class _Repo:
@@ -124,7 +131,7 @@ class SqlCalendar(_Repo):
         if lv.id:
             self.c.execute(insert(t.leaves).values(id=lv.id, **row))
             return lv
-        new_id = self.c.execute(insert(t.leaves).values(**row)).inserted_primary_key[0]
+        new_id = _new_id(self.c.execute(insert(t.leaves).values(**row)))
         return replace(lv, id=new_id)
 
     def delete_leave(self, leave_id: int) -> None:
@@ -161,17 +168,18 @@ class SqlSettings(_Repo):
         self.c.execute(insert(t.settings), [dict(key=k, value=docs[k]) for k in SECTIONS])
 
 
-def _utc(dt: datetime | None) -> datetime | None:
-    return dt.replace(tzinfo=timezone.utc) if dt and dt.tzinfo is None else dt
+def _utc(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
 
 
 def _run(r) -> SyncRun:
-    return SyncRun(r.id, _utc(r.started_at), _utc(r.finished_at), bool(r.full), r.status, r.issues, r.error)
+    return SyncRun(r.id, _utc(r.started_at), _utc(r.finished_at) if r.finished_at else None, bool(r.full), r.status,
+                   r.issues, r.error)
 
 
 class SqlSyncRuns(_Repo):
     def start(self, full: bool, at: datetime) -> int:
-        return self.c.execute(insert(t.sync_runs).values(started_at=at, full=full, status="running", issues=0)).inserted_primary_key[0]
+        return _new_id(self.c.execute(insert(t.sync_runs).values(started_at=at, full=full, status="running", issues=0)))
 
     def finish(self, run_id: int, at: datetime, status: str, issues: int, error: str | None) -> None:
         self.c.execute(update(t.sync_runs).where(t.sync_runs.c.id == run_id)

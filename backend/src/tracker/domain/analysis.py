@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .flags import Function
 from .model import Issue, Status
-from .steps import STEP_BY_KIND, StepKind
+from .steps import StepKind, is_fix_step
 
 
 @dataclass(frozen=True)
@@ -40,8 +40,8 @@ def rework_by_member(functions: Sequence[Function], member_ids: Sequence[str], r
         fns = [f for f in functions if f.owner_id == mid]
         cells = [c for f in fns for c in f.issues()]
         create = sum(c.logged_h for c in cells if c.step == StepKind.CREATE)
-        fix = sum(c.logged_h for c in cells if STEP_BY_KIND[c.step].fix)
-        rs = [rounds.get(c.key, 0) for c in cells if STEP_BY_KIND[c.step].fix and rounds.get(c.key, 0) > 0]
+        fix = sum(c.logged_h for c in cells if is_fix_step(c))
+        rs = [rounds.get(c.key, 0) for c in cells if is_fix_step(c) and rounds.get(c.key, 0) > 0]
         out.append(Rework(mid, len(fns), create, fix, round(fix / create, 4) if create else 0,
                           round(sum(rs) / len(rs), 2) if rs else 0, max(rs, default=0)))
     return out

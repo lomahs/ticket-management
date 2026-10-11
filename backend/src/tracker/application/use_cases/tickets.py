@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from tracker.domain.model import EventField, Status, Worklog
 from tracker.domain.qa import Answer, QaContext, answer
-from tracker.domain.steps import STEP_BY_KIND
+from tracker.domain.steps import is_fix_step
 
 from ..context import Deps, TaskCard, load_context
 from ..errors import CapabilityDisabled, Invalid, NotFound
@@ -44,7 +44,7 @@ def detail(d: Deps, key: str) -> TicketDetail:
         warns.append(TicketWarning("late", c.late_days))
     if c.over:
         warns.append(TicketWarning("over", round(c.logged_h - c.estimate_h, 2)))
-    if i.is_function_step and STEP_BY_KIND[i.step].fix and c.rounds >= ctx.settings.thresholds.review_rounds:
+    if is_fix_step(i) and c.rounds >= ctx.settings.thresholds.review_rounds:
         warns.append(TicketWarning("rounds", c.rounds))
     history = [Handover(e.at, e.from_value, e.to_value) for e in sorted(i.events, key=lambda e: e.at) if e.field == EventField.ASSIGNEE]
     logs = sorted(i.worklogs, key=lambda w: w.date, reverse=True)
@@ -67,10 +67,11 @@ def patch(d: Deps, key: str, p: TicketPatch) -> TicketDetail:
         member = u.members.get(p.assignee_id) if p.assignee_id else None
     if not issue:
         raise NotFound(f"Ticket {key} was not found", "key")
-    if p.assignee_id and not member:
-        raise Invalid(f"Unknown member {p.assignee_id}", "assignee_id")
-    if p.assignee_id and not member.jira_account_id:
-        raise Invalid(f"{member.name} has no Jira account", "assignee_id")
+    if p.assignee_id:
+        if not member:
+            raise Invalid(f"Unknown member {p.assignee_id}", "assignee_id")
+        if not member.jira_account_id:
+            raise Invalid(f"{member.name} has no Jira account", "assignee_id")
     start = p.planned_start or issue.planned_start
     end = p.planned_end or issue.planned_end
     if start and end and end < start:

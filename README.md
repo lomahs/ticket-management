@@ -87,7 +87,7 @@ Import boundaries are checked by `src/architecture.test.ts`.
 ## Tests
 
 `scripts/check.sh` runs: backend pytest (domain, use cases, persistence, Jira reader against REST v3 fixtures,
-API, characterization against the mock's numbers, OpenAPI drift), import-linter, generated-type check, `tsc`, ESLint,
+API, characterization against the mock's numbers, OpenAPI drift), import-linter, pyright, generated-type check, `tsc`, ESLint,
 Vitest (display models, import boundaries, screens rendered with recorded API responses).
 
 - `pytest -m jira_live` reads a real site (set `TRACKER_JIRA_URL`, `_EMAIL`, `_TOKEN`, `_EPIC`).

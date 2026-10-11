@@ -87,7 +87,7 @@ def test_epic_becomes_anken_and_statuses_are_recorded(store):
 def test_failed_read_keeps_existing_data_and_records_error(store):
     run(store, StubReader([PARENT, CREATE], {"PAY-1100": EPIC}))
     r = run(store, StubReader(fail=JiraAuthError("401 Unauthorized")))
-    assert r.status == "failed" and "401" in r.error
+    assert r.status == "failed" and r.error and "401" in r.error
     assert set(issues(store)) == {"PAY-1102", "PAY-1201"}
 
 
@@ -146,5 +146,5 @@ def test_full_sync_that_sees_nothing_keeps_existing_data(store):
     """An empty answer for epics we already hold issues for is treated as a failure (e.g. lost permissions)."""
     run(store, StubReader([PARENT, CREATE], {"PAY-1100": EPIC}))
     r = run(store, StubReader([], {"PAY-1100": EPIC}), full=True)
-    assert r.status == "failed" and "no issues" in r.error
+    assert r.status == "failed" and r.error and "no issues" in r.error
     assert set(issues(store)) == {"PAY-1102", "PAY-1201"}

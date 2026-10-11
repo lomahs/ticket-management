@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from tracker.domain.calendar import WEEKEND
 from tracker.domain.capacity import PlanItem, WeekLoad, weekly_capacity
 from tracker.domain.dates import add_days, monday_of
-from tracker.domain.model import LEAVE_TYPES, IssueKind
+from tracker.domain.model import LEAVE_TYPES, Issue, IssueKind
 from tracker.domain.scheduling import shift_plan
 from tracker.domain.steps import step_hint
 
@@ -101,18 +101,20 @@ def _day_cell(ctx: Context, mid: str, day: str) -> DayCell:
     return DayCell(day, None, None, False)
 
 
-def _planned(ctx: Context):
-    return [i for i in ctx.issues if i.kind == IssueKind.SUBTASK and i.planned_start and i.planned_end]
+def _planned(ctx: Context) -> list[tuple[Issue, str, str]]:
+    """Sub-tasks with both planned dates, alongside those dates."""
+    return [(i, i.planned_start, i.planned_end) for i in ctx.issues
+            if i.kind == IssueKind.SUBTASK and i.planned_start and i.planned_end]
 
 
 def _capacity(ctx: Context, start: str, moved: dict[str, ChangePreview]) -> list[MemberCapacity]:
     items = []
-    for i in _planned(ctx):
+    for i, ps, pe in _planned(ctx):
         c = moved.get(i.key)
         if c:
             items.append(PlanItem(i.key, c.to_member, c.to_start, c.to_end, i.estimate_h))
-        elif ctx.worker(i):
-            items.append(PlanItem(i.key, ctx.worker(i), i.planned_start, i.planned_end, i.estimate_h))
+        elif worker := ctx.worker(i):
+            items.append(PlanItem(i.key, worker, ps, pe, i.estimate_h))
     wh = ctx.settings.working_hours
     loads = weekly_capacity(items, ctx.cal, list(ctx.members), start=monday_of(start), hours_per_day=wh.hours_per_day,
                             cap_pct=ctx.settings.thresholds.capacity_pct, weeks=CAPACITY_WEEKS)
@@ -128,7 +130,7 @@ def view(d: Deps, start: str, weeks: int) -> PlanningView:
     days = [add_days(first, n) for n in range(weeks * 7) if ctx.cal.visible(add_days(first, n))]
     rows = []
     for mid in ctx.members:
-        items = [i for i in _planned(ctx) if ctx.worker(i) == mid and i.planned_end >= first and i.planned_start <= last]
+        items = [i for i, ps, pe in _planned(ctx) if ctx.worker(i) == mid and pe >= first and ps <= last]
         items.sort(key=lambda i: (i.planned_start, i.planned_end, i.key))
         blocks = [PlanBlock(ctx.card(i), k.value if (k := i.step or step_hint(i.summary)) else "other") for i in items]
         rows.append(MemberLane(mid, [_day_cell(ctx, mid, x) for x in days], blocks))

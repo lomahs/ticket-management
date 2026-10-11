@@ -4,6 +4,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import Literal
 
 from tracker.domain.dates import dm, weekday
 from tracker.domain.model import Holiday, Member, Permission, Role, StepKind, Thresholds, WorkingHours
@@ -64,7 +65,7 @@ def jira_settings(d: Deps) -> JiraSettingsView:
                             runs_ok.finished_at if runs_ok else None)
 
 
-def test_jira(d: Deps, url: str, email: str, token: str | None) -> str:
+def test_jira(d: Deps, url: str, email: str, token: str | None) -> Literal["ok", "fail"]:
     stored = d.secrets.decrypt(_load(d).jira.token_encrypted)
     try:
         return "ok" if d.reader_for(url.strip(), email.strip(), token or stored).test_connection() else "fail"

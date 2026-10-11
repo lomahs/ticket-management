@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "respx>=0.21", "import-linter>=2.1"]
+dev = ["pytest>=8", "respx>=0.21", "import-linter>=2.1", "pyright>=1.1.390"]
 
 [build-system]
 requires = ["setuptools>=69"]
@@ -32,3 +32,15 @@ testpaths = ["tests"]
 markers = ["jira_live: reads a real Jira site (needs TRACKER_JIRA_* env, skipped by default)"]
 addopts = "-m 'not jira_live' --basetemp=../.tmp/pytest"
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]  # Starlette suggests httpx2; httpx works
+
+[tool.pyright]
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+# Tests read results they just asserted to exist; a None there fails the test anyway.
+executionEnvironments = [
+  { root = "tests", extraPaths = ["."], reportOptionalMemberAccess = false },
+  { root = "src" },
+]

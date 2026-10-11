@@ -141,6 +141,7 @@ def import_confirm(d: Deps, rows: Sequence[Sequence[object]]) -> ImportResult:
     n = 0
     with d.uow() as u:
         for r in ok:
+            assert r.member_id and r.type, "a row without errors has a member and a leave type"
             for x in days_between(r.date_from, r.date_to):
                 if weekday(x) in settings.working_hours.days:
                     u.calendar.add_leave(Leave(0, r.member_id, x, r.type, r.note))

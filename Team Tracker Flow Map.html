@@ -1,0 +1,803 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Team Tracker Flow Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky table of contents on the left, one long reference column on the right; stacks on phones. */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef1f5; --line: #dbe0e7;
+  --fg: #1b2230; --muted: #5d6879; --accent: #1f6f8b; --accent-soft: #e2f0f5;
+  --get: #1d7a4f; --get-bg: #e3f4ea; --post: #2357b8; --post-bg: #e5ecfa;
+  --put: #9a5a00; --put-bg: #fbf0dc; --patch: #6b3fb0; --patch-bg: #efe8fa;
+  --del: #b4332f; --del-bg: #fbe6e5; --warn: #9a5a00; --warn-bg: #fbf0dc;
+  --font-text: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161d; --surface: #1a2029; --surface-2: #222a35; --line: #303a47;
+  --fg: #e4e8ef; --muted: #9aa5b5; --accent: #6cc0dc; --accent-soft: #1d3440;
+  --get: #6fd3a0; --get-bg: #17352a; --post: #8db2f5; --post-bg: #1c2a47;
+  --put: #f0bd6a; --put-bg: #3a2c14; --patch: #c3a3f2; --patch-bg: #2e2347;
+  --del: #f19a96; --del-bg: #43201f; --warn: #f0bd6a; --warn-bg: #3a2c14; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a2029; --surface-2: #222a35; --line: #303a47;
+  --fg: #e4e8ef; --muted: #9aa5b5; --accent: #6cc0dc; --accent-soft: #1d3440;
+  --get: #6fd3a0; --get-bg: #17352a; --post: #8db2f5; --post-bg: #1c2a47;
+  --put: #f0bd6a; --put-bg: #3a2c14; --patch: #c3a3f2; --patch-bg: #2e2347;
+  --del: #f19a96; --del-bg: #43201f; --warn: #f0bd6a; --warn-bg: #3a2c14; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 14.5px/1.6 var(--font-text); }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+h1, h2, h3 { text-wrap: balance; color: var(--fg); margin: 0; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; max-width: 1240px; margin: 0 auto; padding-inline: 24px; padding-block: 28px 64px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; max-height: 100vh; overflow: auto; padding-block: 4px; display: flex; flex-direction: column; gap: 2px; }
+nav.toc a { text-decoration: none; color: var(--muted); font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--surface-2); color: var(--fg); outline: none; }
+nav.toc .grp { margin-top: 12px; padding: 0 10px 4px; }
+main { display: flex; flex-direction: column; gap: 40px; min-width: 0; }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; scroll-margin-top: 16px; }
+
+header.top { display: flex; flex-direction: column; gap: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram pre.mermaid { margin: 0; background: transparent; min-width: 640px; }
+.caption { font-size: 13px; color: var(--muted); }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.facts .panel { display: flex; flex-direction: column; gap: 6px; }
+.facts b { font-size: 13.5px; }
+.facts p { font-size: 13px; color: var(--muted); }
+
+.m { display: inline-block; min-width: 54px; text-align: center; font: 600 11px/1 var(--font-mono); padding: 5px 6px; border-radius: 5px; letter-spacing: 0.02em; }
+.m.GET { color: var(--get); background: var(--get-bg); }
+.m.POST { color: var(--post); background: var(--post-bg); }
+.m.PUT { color: var(--put); background: var(--put-bg); }
+.m.PATCH { color: var(--patch); background: var(--patch-bg); }
+.m.DELETE { color: var(--del); background: var(--del-bg); }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.write { color: var(--del); border-color: currentColor; }
+.tag.full { color: var(--warn); border-color: currentColor; }
+.tag.read { color: var(--accent); border-color: currentColor; }
+
+/* Screen cards */
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; scroll-margin-top: 16px; }
+.screen-head { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.routes { display: flex; flex-wrap: wrap; gap: 6px; }
+.route { font: 500 12px/1.4 var(--font-mono); padding: 3px 8px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+.screen-body { display: flex; flex-direction: column; gap: 14px; padding: 14px 18px 18px; }
+.block-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.notes { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+
+details.ep { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+details.ep + details.ep { margin-top: 6px; }
+details.ep > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 12px; }
+details.ep > summary::-webkit-details-marker { display: none; }
+details.ep > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+details.ep[open] > summary { border-bottom: 1px dashed var(--line); }
+.sum-main { display: flex; flex-direction: column; min-width: 0; }
+.path { font: 500 13px/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.trigger { font-size: 12.5px; color: var(--muted); }
+.sum-tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ep-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; }
+.ep-body ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 3px; }
+.ep-body ol li::marker { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+.kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* API index */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters input { flex: 1 1 240px; min-width: 0; font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.filters input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip { font: 600 12px/1 var(--font-text); padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--surface-2); }
+td a { text-decoration: none; }
+.count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); padding-inline: 16px; gap: 20px; }
+  nav.toc { position: static; max-height: none; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  nav.toc .grp { display: none; }
+  nav.toc a { background: var(--surface); border: 1px solid var(--line); }
+  details.ep > summary { grid-template-columns: auto minmax(0, 1fr); }
+  .sum-tags { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Mục lục">
+    <div class="grp eyebrow">Tổng quan</div>
+    <a href="#arch">Kiến trúc 1 request</a>
+    <a href="#screens-map">Screen flow</a>
+    <a href="#context">load_context</a>
+    <a href="#sync">Sync với Jira</a>
+    <a href="#writes">Các flow ghi</a>
+    <div class="grp eyebrow">Màn hình</div>
+    <div id="toc-screens" style="display:contents"></div>
+    <div class="grp eyebrow">Tra cứu</div>
+    <a href="#index">Bảng tất cả API</a>
+  </nav>
+
+  <main>
+    <header class="top">
+      <span class="eyebrow">signboard · branch feature/clean-architecture</span>
+      <h1>Team Tracker: màn hình, API và xử lý</h1>
+      <p>Bản đồ để catch up nhanh: user đi qua những màn hình nào, mỗi màn hình gọi API gì khi mở và khi bấm, và backend xử lý từng API ra sao (router → use case → domain → DB/Jira). Tất cả API nằm dưới <code>/api/v1</code>.</p>
+      <div class="legend">
+        <span><span class="m GET">GET</span> đọc</span>
+        <span><span class="m POST">POST</span></span>
+        <span><span class="m PUT">PUT</span></span>
+        <span><span class="m PATCH">PATCH</span></span>
+        <span><span class="m DELETE">DELETE</span></span>
+        <span><span class="tag read">Jira đọc</span> gọi JiraReader trực tiếp</span>
+        <span><span class="tag write">Jira ghi</span> cần JiraWriter, phase 1 trả 403</span>
+        <span><span class="tag full">full sync</span> chạy lại sync toàn bộ</span>
+      </div>
+    </header>
+
+    <section id="arch">
+      <h2>Một request chạy qua những lớp nào</h2>
+      <p>Mọi màn hình đọc dữ liệu từ SQLite, không gọi Jira khi render. Jira chỉ được chạm khi sync, khi ghi (rồi <code>refresh</code> lại các issue vừa ghi), và ở vài API trong Settings.</p>
+      <div class="diagram"><pre class="mermaid">
+flowchart LR
+  subgraph FE["Frontend · React + TanStack Router/Query"]
+    R["Route + search params"] --> P["Page component"]
+    P --> Q["features/*/api.ts&lt;br/&gt;useQuery / useMutation"]
+    Q --> H["shared/api/client.ts&lt;br/&gt;openapi-fetch + unwrap()"]
+  end
+  subgraph BE["Backend · FastAPI /api/v1"]
+    RT["adapters/api/routers/*"] --> UC["application/use_cases/*"]
+    UC --> LC["load_context()"]
+    LC --> DB[("SQLite qua UnitOfWork")]
+    LC --> DM["domain/*&lt;br/&gt;flags · calendar · capacity · scheduling"]
+    UC -->|"ghi"| JW["JiraWriter&lt;br/&gt;demo: FakeJira · jira: None"]
+    UC -->|"sau khi ghi"| SY["SyncFromJira&lt;br/&gt;refresh / run"]
+    SY --> JR["JiraReader"]
+    SY --> DB
+  end
+  H -->|"HTTP JSON"| RT
+  RT -.->|"AppError → problem+json"| H
+  SCH["scheduler · chỉ jira mode"] -->|"mỗi N phút"| SY
+</pre></div>
+      <div class="facts">
+        <div class="panel"><b>Hai mode chạy</b><p><code>TRACKER_MODE=demo</code>: DB mới, seed team mẫu, FakeJira vừa đọc vừa ghi, ngày cố định. <code>jira</code>: JiraCloudReader, <code>writer=None</code> nên mọi API ghi Jira trả 403, có scheduler sync định kỳ.</p></div>
+        <div class="panel"><b>Ai là "tôi"?</b><p>Phase 1 chưa có login. My Work và Sidebar lấy member từ <code>localStorage</code> pref <code>me</code> (mặc định <code>binh</code>) hoặc <code>?member=</code>.</p></div>
+        <div class="panel"><b>Cache sau khi ghi</b><p>Mọi mutation thành công gọi <code>queryClient.invalidateQueries()</code> không tham số, nên tất cả màn hình refetch. Mutation ghi Jira có <code>mutationKey ['write', …]</code> để SyncPill hiện "Writing…".</p></div>
+        <div class="panel"><b>Lỗi</b><p><code>Invalid</code> 422 · <code>NotFound</code> 404 · <code>Conflict</code> 409 · <code>CapabilityDisabled</code> 403 · Jira lỗi 502. Frontend <code>unwrap()</code> biến thành <code>ApiError</code>; mất mạng thành status 0.</p></div>
+      </div>
+    </section>
+
+    <section id="screens-map">
+      <h2>Screen flow</h2>
+      <p>Mỗi màn hình là một route lazy-load. Ticket panel không phải route riêng: nó là search param <code>?ticket=KEY</code> gắn lên bất kỳ route nào. Nút Ask mở chat panel nổi ở góc phải.</p>
+      <div class="diagram"><pre class="mermaid">
+flowchart LR
+  SB["Sidebar · 7 mục"]
+  ROOT["/"] -->|"redirect"| MW["My Work&lt;br/&gt;/my-work"]
+  SB --> MW
+  SB --> MX0["/matrix"]
+  MX0 -->|"GET /anken, lấy anken đầu tiên có function"| MX
+  SB --> OV["Anken Overview&lt;br/&gt;/anken"]
+  OV -->|"click card"| OVD["Anken detail&lt;br/&gt;/anken/$epic"]
+  OVD -->|"link Matrix"| MX["Function Matrix&lt;br/&gt;/anken/$epic/matrix"]
+  MX -->|"tab Add function"| NF["Add function&lt;br/&gt;/anken/$epic/matrix/new"]
+  NF -->|"Create xong / Cancel"| MX
+  OV -.->|"chưa có epic"| STT
+  SB --> PL["Planning&lt;br/&gt;/planning"]
+  SB --> TS["Effort · Timesheet&lt;br/&gt;/effort/timesheet"]
+  TS -->|"tab"| AN["Effort · Analysis&lt;br/&gt;/effort/analysis"]
+  AN -->|"tab"| TS
+  SB --> CAL["Team Calendar&lt;br/&gt;/calendar"]
+  CAL --> LV["Leave dialog&lt;br/&gt;/calendar/leave/new · /leave/$id"]
+  CAL --> IM["Import wizard&lt;br/&gt;/calendar/import/1..4"]
+  LV -->|"đóng / lưu"| CAL
+  IM -->|"import xong"| CAL
+  SB --> STT["Settings&lt;br/&gt;/settings/$tab · 9 tab"]
+  TK["Ticket panel&lt;br/&gt;?ticket=KEY trên mọi route"]
+  MW -.->|"click task"| TK
+  OVD -.-> TK
+  MX -.-> TK
+  PL -.-> TK
+  TS -.-> TK
+  ASK["Ask chat panel"] -.->|"link trong câu trả lời"| TK
+</pre></div>
+    </section>
+
+    <section id="context">
+      <h2>load_context: pipeline chung của hầu hết API đọc</h2>
+      <p>My Work, Anken, Matrix, Planning, Effort, Ticket và Q&amp;A đều bắt đầu bằng <code>load_context(uow, today)</code> trong <code>application/context.py</code>. Nó load toàn bộ issue của các epic đang track rồi tính flag trong bộ nhớ, nên mỗi request là một lần tính lại từ đầu. Team Calendar và Settings không dùng nó.</p>
+      <div class="diagram"><pre class="mermaid">
+flowchart LR
+  A["settings.load()"] --> B["members.list()"]
+  B --> C["make_calendar()&lt;br/&gt;leaves · holidays · extra days · ngày làm việc"]
+  C --> D["anken.list()&lt;br/&gt;lọc theo epics đang track"]
+  D --> E["issues.list(tracked)"]
+  E --> F["build_functions(subtasks)&lt;br/&gt;gom theo (epic, function_id) thành 5 ô step"]
+  F --> G["issue_flags() cho từng issue&lt;br/&gt;is_current · late · soon · over · tone · held_days · rounds"]
+  G --> H["Context.card(issue) → TaskCard"]
+</pre></div>
+      <div class="facts">
+        <div class="panel"><b>5 step của một function</b><p>Create (BA) → BAL Review (BAL) → Fix comment BAL (BA) → JM Review (JM) → Fix comment JM (BA). Function id, tên và step được parse từ summary sub-task theo Name rule.</p></div>
+        <div class="panel"><b>Status nội bộ</b><p><code>N</code> Not yet started · <code>W</code> WIP · <code>R</code> Resolved · <code>C</code> Closed. Map từ status Jira theo tên (Status mapping) hoặc theo category new / indeterminate / done.</p></div>
+        <div class="panel"><b>worker vs assignee</b><p><code>worker_of()</code>: step review do assignee làm, step không phải review tính cho owner của function (assignee của Create). Planning và Timesheet xếp việc theo worker.</p></div>
+      </div>
+    </section>
+
+    <section id="sync">
+      <h2>Sync với Jira</h2>
+      <p>Có ba nguồn kích hoạt <code>SyncFromJira.run()</code>, cùng một khoá <code>_RUN_LOCK</code> nên mỗi process chỉ chạy một sync tại một thời điểm. Lỗi được ghi vào <code>sync_runs</code> chứ không ném ra ngoài, nên <code>POST /sync</code> vẫn trả 200 với <code>status: failed</code>.</p>
+      <div class="diagram"><pre class="mermaid">
+flowchart TD
+  T1["SyncPill · POST /sync full=false"] --> RUN
+  T2["scheduler · mỗi N phút, jira mode"] --> RUN
+  T3["Settings · thêm/xoá epic, field/status mapping, name rule"] -->|"full=true"| RUN
+  RUN["SyncFromJira.run() giữ _RUN_LOCK"] --> S1["tạo sync_run status=running"]
+  S1 --> S2{"full hoặc chưa từng sync ok?"}
+  S2 -->|"có"| S3a["since = None"]
+  S2 -->|"không"| S3b["since = last_ok.started_at − 5 phút"]
+  S3a --> S4["get_epic từng epic → upsert anken, xoá anken không còn track"]
+  S3b --> S4
+  S4 --> S5["reader.search(epics, since)"]
+  S5 --> S6{"full, Jira trả rỗng, DB đang có data?"}
+  S6 -->|"có"| FAIL["EmptySyncError → run failed, giữ nguyên data"]
+  S6 -->|"không"| S7["_Mapper, parent trước sub-task&lt;br/&gt;status · giờ estimate · assignee, tự tạo Member mới&lt;br/&gt;function_id/step từ summary · worklog · changelog"]
+  S7 --> S8{"full?"}
+  S8 -->|"có"| S9["xoá issue không còn thấy trên Jira"]
+  S8 -->|"không"| S10["lưu settings, status đã thấy → run ok"]
+  S9 --> S10
+  W["Sau mỗi lần ghi Jira&lt;br/&gt;create function · push plan · patch ticket"] --> RF["sync.refresh(keys)&lt;br/&gt;đọc lại đúng các issue vừa ghi"]
+</pre></div>
+    </section>
+
+    <section id="writes">
+      <h2>Các flow ghi chính</h2>
+      <p>Ba flow ghi Jira đều theo mẫu preview trước (không ghi gì), rồi mới ghi thật và refresh. Ở jira mode phase 1, bước ghi trả 403 và UI disable nút qua <code>useCapability('jiraWrite')</code>.</p>
+      <h3>Add function</h3>
+      <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant F as AddFunctionPage
+  participant API as /anken/{epic}/functions
+  participant UC as anken use case
+  participant JW as JiraWriter
+  participant S as SyncFromJira
+  U->>F: chọn parent, tên, BA/BAL/JM, giờ Create
+  F->>API: POST /preview với draft
+  API->>UC: preview_function → _plan()
+  UC-->>F: 5 step, assignee, ngày đề xuất, summary
+  U->>F: sửa ngày từng step (overrides)
+  F->>API: POST /preview lại
+  U->>F: bấm Create
+  F->>API: POST /functions
+  API->>UC: create_function()
+  alt writer = None (jira phase 1)
+    UC-->>F: 403 capability_disabled
+  else demo hoặc phase 2
+    UC->>JW: create_subtasks(parent, 5 sub-task)
+    JW-->>UC: keys
+    UC->>S: refresh(keys)
+    UC-->>F: 201 keys
+    F->>F: invalidateQueries() rồi về Matrix
+  end
+</pre></div>
+      <h3>Planning: kéo thả rồi push</h3>
+      <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant P as PlanningPage
+  participant API as /planning
+  participant UC as planning use case
+  participant JW as JiraWriter
+  U->>P: mở /planning?start=…&amp;weeks=2
+  P->>API: GET /planning
+  API->>UC: view() → lane theo member + capacity 5 tuần
+  U->>P: kéo block sang ngày khác hoặc member khác
+  P->>P: lưu pending change ở client
+  P->>API: POST /planning/preview với start, changes
+  UC-->>P: from/to, ngày nghỉ bị đụng, capacity sau khi dời
+  U->>P: bấm Push
+  P->>API: POST /planning/push
+  alt writer = None
+    API-->>P: 403
+  else
+    UC->>JW: update_issue cho từng change
+    UC->>UC: sync.refresh(keys)
+    API-->>P: keys → invalidateQueries()
+  end
+</pre></div>
+      <h3>Import nghỉ phép từ Excel</h3>
+      <div class="diagram"><pre class="mermaid">
+flowchart LR
+  C["/calendar"] -->|"Import Excel"| S1["Bước 1 · hướng dẫn&lt;br/&gt;GET /leaves/template"]
+  S1 --> S2["Bước 2 · chọn file .xlsx/.csv hoặc sample"]
+  S2 -->|"POST /leaves/import/preview"| S3["Bước 3 · xem dòng hợp lệ và dòng lỗi"]
+  S3 --> S4["Bước 4 · xác nhận"]
+  S4 -->|"POST /leaves/import, chỉ gửi dòng hợp lệ"| D["về /calendar?month= tháng của dòng đầu"]
+</pre></div>
+      <p class="caption">Kết quả preview giữ ở state phía client. Vào thẳng bước 3 hoặc 4 khi chưa có state sẽ bị đẩy về bước 2.</p>
+    </section>
+
+    <div id="screen-sections" style="display:flex;flex-direction:column;gap:40px"></div>
+
+    <section id="index">
+      <h2>Bảng tất cả API</h2>
+      <p>Tổng hợp 51 endpoint. Bấm path để nhảy tới phần mô tả xử lý trong màn hình gọi nó.</p>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Lọc theo path, use case, màn hình…" aria-label="Lọc API">
+        <div id="method-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <div class="count" id="count"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Method</th><th>Path</th><th>Use case</th><th>Màn hình</th><th>Jira</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const UC = 'backend/src/tracker/application/use_cases/';
+// Every endpoint: method, path, use case, jira touch, processing steps, result, frontend notes.
+const EP = {
+  meta: { m: 'GET', p: '/meta', uc: 'system.meta', jira: '', steps: [
+    'Mở UoW, <code>anken.list()</code> → danh sách project (unique, sort).',
+    '<code>sync_runs.latest()</code> + <code>latest_ok()</code> → SyncStatus (status, started/finished, error, last_ok_at).',
+    '<code>capabilities.jira_write = writer is not None</code>: demo là true, jira phase 1 là false.',
+    'Trả kèm <code>mode</code> và <code>today</code> từ Clock.'],
+    ret: 'Meta { mode, today, capabilities, sync, projects }',
+    fe: 'staleTime 30s. Dùng ở Sidebar (nhãn kết nối), SyncPill, Calendar, Planning, Timesheet, Settings và useCapability().' },
+  members: { m: 'GET', p: '/members', uc: 'system.members', jira: '', steps: ['<code>uow.members.list()</code>.'],
+    ret: 'list[Member]', fe: 'staleTime 60s. useMemberMap() dựng map id → member cho avatar/tên ở mọi màn hình; Members tab cũng dùng.' },
+  sync: { m: 'POST', p: '/sync', uc: 'system.run_sync → SyncFromJira.run', jira: 'read', body: '{ full: bool }', steps: [
+    'Khoá <code>_RUN_LOCK</code>, tạo bản ghi <code>sync_run</code> = running.',
+    '<code>since</code> = lần sync ok gần nhất − 5 phút; <code>None</code> nếu full.',
+    'Đọc từng epic đang track → upsert anken, xoá anken không còn track.',
+    '<code>reader.search(epics, since)</code>. Nếu full mà Jira trả rỗng trong khi DB có data → run failed, giữ data.',
+    '<code>_Mapper</code> chuyển snapshot thành Issue (parent trước), tự tạo Member cho account Jira mới.',
+    'Full sync: xoá issue không còn thấy. Lưu settings (status đã thấy), kết thúc run ok/failed.',
+    'Trả <code>sync_status()</code>.'],
+    ret: 'SyncStatus', fe: 'SyncPill gọi với full=false. onSettled → invalidateQueries() toàn bộ; status=failed thì toast lỗi.' },
+  syncLatest: { m: 'GET', p: '/sync/runs/latest', uc: 'system.sync_status', jira: '', steps: ['Đọc run mới nhất và run ok mới nhất.'],
+    ret: 'SyncStatus', fe: 'Frontend không gọi; trạng thái sync đã có trong /meta.' },
+
+  myWork: { m: 'GET', p: '/my-work?member&backlog', uc: 'work.my_work', jira: '', steps: [
+    '<code>load_context()</code>. Member không tồn tại → 404.',
+    '<code>mine</code> = sub-task có assignee là member, chưa Closed, sắp theo planned_end.',
+    '<code>tasks</code> = bỏ Resolved, trừ "review item" (step review đang current và N/W, hoặc step fix đã Resolved).',
+    '<code>next_day</code> = ngày làm việc kế tiếp của member (tính holiday và nghỉ phép).',
+    'Tách <code>delay</code> / <code>due_today</code> / <code>due_next</code> theo planned_end.',
+    'Backlog nhóm theo overdue · tuần (thứ Hai) hoặc tháng · unplanned, mỗi nhóm có remaining_h.',
+    '<code>related</code>: BAL thấy step 0, 2, 3, 4 của function mình review; còn lại thấy step 1–4 của function mình own. Bỏ Closed.'],
+    ret: 'MyWork { delay, due_today, due_next, backlog[], related[], related_scope, open_count, remaining_h }',
+    fe: 'queryKey [my-work, member, backlog]. Đổi Week/Month là đổi search param và refetch.' },
+
+  ankenList: { m: 'GET', p: '/anken', uc: 'anken.overview', jira: '', steps: [
+    '<code>load_context()</code>, sắp anken theo thứ tự epic trong Settings.',
+    '<code>_card()</code>: gom sub-task theo phase của parent → <code>phase_rollup</code>.',
+    'late_subtasks = sub-task có flag late; late_functions = function có ít nhất 1 ô late.',
+    'plan = due date của epic hoặc max planned_end; forecast = plan + late_days tệ nhất (ngày làm việc); slip_days.',
+    'used_h / estimate_h, member_ids, has_functions.'],
+    ret: 'list[AnkenCard]', fe: 'Route /matrix cũng gọi (ensureQueryData) để chọn anken đầu tiên có function rồi redirect.' },
+  ankenDetail: { m: 'GET', p: '/anken/{epic}', uc: 'anken.detail', jira: '', steps: [
+    '<code>load_context()</code>. Epic không được track → 404.',
+    '<code>attention_groups()</code> theo thresholds: overdue · stuck_resolved · many_rounds · waiting_client.',
+    'Mỗi nhóm trả count + tối đa 6 TaskCard.'],
+    ret: 'AnkenDetail { card, attention[] }', fe: 'Hiển thị bên dưới danh sách card khi đang ở /anken/$epic.' },
+  matrix: { m: 'GET', p: '/anken/{epic}/matrix', uc: 'anken.matrix', jira: '', steps: [
+    '<code>load_context()</code>. Epic không được track → 404.',
+    'Lấy các Function của epic (mỗi function có 5 ô, null khi step chưa có sub-task).',
+    'Mỗi row: current step, state (done/nys/delay/ontime), progress (early/ontime/late), group N/W/D.',
+    'pct = trọng số C=1, R=0.8, W=0.4, N=0, chia cho 5 step.',
+    'Stats: % tiến độ, số function done/total, late, over, giờ log/estimate.',
+    'Kèm danh sách parent ticket và <code>next_function_id</code> (prefix phổ biến nhất, số lớn nhất + 1) cho form Add function.'],
+    ret: 'MatrixView { stats, functions[], parents[], next_function_id }',
+    fe: 'Filter q / members / status / prog / sort / r0..r4 nằm trên URL và lọc ở client, không gọi lại API.' },
+  fnPreview: { m: 'POST', p: '/anken/{epic}/functions/preview', uc: 'anken.preview_function', jira: '', body: 'FunctionDraftIn', steps: [
+    '<code>load_context()</code>. Epic không được track → 404.',
+    'Validate: parent thuộc epic, ba/bal/jm là member, create_hours > 0 (422 kèm field).',
+    'Pad overrides cho đủ 5 step; function_id = next id.',
+    '<code>suggest_function_plan()</code>: bắt đầu từ ngày mai, assignee lần lượt BA, BAL, BA, JM, BA, né ngày nghỉ của từng người, áp overrides.',
+    'Summary từng sub-task render theo Name rule (phase, function id/name, step, anken).'],
+    ret: 'FunctionPreview { phase, function_id, steps[] }', fe: 'Gọi như một query (key theo draft), keepPreviousData, retry=false. Không ghi gì.' },
+  fnCreate: { m: 'POST', p: '/anken/{epic}/functions', uc: 'anken.create_function', jira: 'write', body: 'FunctionCreateIn', steps: [
+    '<code>writer is None</code> → 403 capability_disabled.',
+    '<code>load_context()</code>, 404 nếu epic không track; tên rỗng → 422; function_id đã có → 409.',
+    'Chạy lại <code>_plan()</code> giống preview.',
+    'Mỗi assignee phải có jira_account_id (422).',
+    '<code>writer.create_subtasks(parent_key, 5 sub-task)</code> → keys.',
+    '<code>sync.refresh(keys)</code> đọc lại các issue mới vào DB.'],
+    ret: '201 { keys }', fe: 'mutationKey [write, function, epic]. Thành công → invalidateQueries() và quay về Matrix.' },
+
+  planning: { m: 'GET', p: '/planning?start&weeks', uc: 'planning.view', jira: '', steps: [
+    'weeks phải là 1 hoặc 2 (422).',
+    '<code>load_context()</code>; cửa sổ từ thứ Hai của start, chỉ giữ ngày visible (ngày làm việc + extra day).',
+    'Mỗi member một lane: sub-task có đủ planned dates, worker là member, chồng lên cửa sổ.',
+    'Màu block theo step (hoặc <code>step_hint</code> đoán từ summary).',
+    'Ô ngày: holiday / leave / leave_half (+ tentative).',
+    'Capacity: <code>weekly_capacity()</code> 5 tuần, ngưỡng cap_pct từ Alerts.'],
+    ret: 'PlanningView { days[], rows[], capacity[], projects }', fe: 'keepPreviousData khi chuyển tuần. ?hide= ẩn project ở client.' },
+  planPreview: { m: 'POST', p: '/planning/preview', uc: 'planning.preview', jira: '', body: '{ start, changes[] }', steps: [
+    '<code>load_context()</code>.',
+    'Mỗi change: issue phải có plan (422), member phải tồn tại (422).',
+    '<code>shift_plan()</code> dời sang start mới, giữ độ dài.',
+    'Đánh dấu nếu start/end mới rơi vào weekend, holiday hoặc nghỉ phép của member mới.',
+    'Tính lại capacity với các item đã dời.'],
+    ret: 'PlanningPreview { changes[], capacity[] }', fe: 'Query chỉ bật khi có pending change. Không ghi gì.' },
+  planPush: { m: 'POST', p: '/planning/push', uc: 'planning.push', jira: 'write', body: '{ changes[] }', steps: [
+    '<code>writer is None</code> → 403.',
+    'Tính lại previews như trên.',
+    'Đổi người: member mới phải có jira_account_id (422).',
+    '<code>writer.update_issue(key, planned_start, planned_end, assignee)</code> cho từng change.',
+    '<code>sync.refresh(keys)</code>.'],
+    ret: '{ keys }', fe: 'mutationKey [write, plan]. Thành công → invalidateQueries() và xoá pending.' },
+
+  timesheet: { m: 'GET', p: '/effort/timesheet?from&to', uc: 'effort.timesheet', jira: '', steps: [
+    'to < from hoặc khoảng ≥ 62 ngày → 422.',
+    '<code>load_context()</code>, lấy ngày visible trong khoảng.',
+    'Gom worklog theo (member, ngày).',
+    '<code>daily_plan()</code>: rải estimate của mỗi sub-task có plan lên các ngày làm việc của worker.',
+    'Mỗi ô so logged với planned và expected (hours_per_day); lệch quá tolerance thì đánh dấu.'],
+    ret: 'TimesheetView { days[], rows[] }', fe: 'keepPreviousData khi đổi khoảng ngày.' },
+  dayDetail: { m: 'GET', p: '/effort/timesheet/{member}/{date}', uc: 'effort.day_detail', jira: '', steps: [
+    '<code>load_context()</code>. Member không tồn tại → 404.',
+    'Lấy worklog của member trong ngày, nhóm theo ticket.',
+    'Ghép planned_h của ngày đó từ daily_plan, kèm notes.',
+    'Bổ sung summary, function, step cho từng entry.'],
+    ret: 'DayDetailView { logged_h, planned_h, entries[] }', fe: 'Gọi khi bấm một ô trong bảng; entry mở được Ticket panel.' },
+  analysis: { m: 'GET', p: '/effort/analysis?anken', uc: 'effort.analysis', jira: '', steps: [
+    '<code>load_context()</code>. Không truyền anken thì lấy epic đầu tiên có function; epic không track → 404.',
+    'by_phase: estimate vs logged theo phase.',
+    'by_step: estimate vs logged theo 5 step.',
+    '<code>rework_by_member()</code>: giờ Fix / giờ Create cho từng BA owner.',
+    'KPIs: logged/estimate của sub-task đã bắt đầu, rework_rate, avg_rounds, fix_tickets, over_subtasks.'],
+    ret: 'EffortAnalysis { kpis, by_phase[], by_step[], rework[] }', fe: 'queryKey [effort-analysis, anken].' },
+
+  calendar: { m: 'GET', p: '/calendar?month=YYYY-MM', uc: 'calendar.month', jira: '', steps: [
+    'Không load issue: chỉ settings, members và <code>make_calendar()</code>.',
+    'Lấy ngày visible trong tháng.',
+    'Mỗi member: ô holiday (theo country) / leave (nhãn loại nghỉ) / trống.',
+    'days_off: nghỉ cả ngày tính 1, nửa ngày tính 0.5.'],
+    ret: 'CalendarView { days[], rows[] }', fe: 'Leave dialog cũng đọc lại query này để tìm leave đang sửa.' },
+  leaveAdd: { m: 'POST', p: '/leaves', uc: 'calendar.save_leave', jira: '', body: 'LeaveIn', steps: [
+    'to < from → 422; member không tồn tại → 422.',
+    'Duyệt từng ngày trong khoảng (tối đa 60), bỏ ngày không làm việc.',
+    'Ngày đã có leave của member đó thì thay thế.',
+    'Thêm một bản ghi leave cho mỗi ngày, commit.'],
+    ret: '201 { days }', fe: 'invalidateQueries() vì nghỉ phép ảnh hưởng Planning, capacity và Timesheet.' },
+  leaveEdit: { m: 'PUT', p: '/leaves/{leave_id}', uc: 'calendar.save_leave', jira: '', body: 'LeaveIn', steps: [
+    'Như POST /leaves, thêm bước: leave id không có → 404, xoá bản cũ trước khi ghi lại theo khoảng ngày mới.'],
+    ret: '{ days }', fe: 'invalidateQueries().' },
+  leaveDel: { m: 'DELETE', p: '/leaves/{leave_id}', uc: 'calendar.delete_leave', jira: '', steps: ['Không có → 404.', 'Xoá, commit.'],
+    ret: '204', fe: 'invalidateQueries().' },
+  importPreview: { m: 'POST', p: '/leaves/import/preview', uc: 'calendar.import_preview', jira: '', body: 'multipart file hoặc ?sample=true', steps: [
+    'sample=true → dữ liệu mẫu; file > 5 MB → 422; không có file → 422.',
+    '<code>read_rows()</code> đọc .xlsx/.csv thành mảng dòng.',
+    '<code>validate_rows(rows, members, leaves hiện có)</code>: lỗi theo từng dòng.',
+    'working_days = số ngày làm việc các dòng hợp lệ sẽ thêm.'],
+    ret: '{ file, rows[], working_days }', fe: 'Mutation, kết quả lưu ở state client cho bước 3–4. Không ghi gì.' },
+  importConfirm: { m: 'POST', p: '/leaves/import', uc: 'calendar.import_confirm', jira: '', body: '{ rows: string[][] }', steps: [
+    'Validate lại toàn bộ rows.',
+    'Dòng hợp lệ: thêm leave cho mỗi ngày làm việc trong khoảng.',
+    'Commit.'],
+    ret: '{ imported, month }', fe: 'Chỉ gửi dòng hợp lệ. invalidateQueries(), điều hướng tới tháng trả về.' },
+  template: { m: 'GET', p: '/leaves/template', uc: '(router) TEMPLATE_CSV', jira: '', steps: ['Trả file CSV mẫu, Content-Disposition attachment.'],
+    ret: 'text/csv', fe: 'Link download trực tiếp ở bước 1 của wizard.' },
+  export: { m: 'GET', p: '/leaves/export?month', uc: 'calendar.export', jira: '', steps: [
+    'Leave trong tháng sắp theo ngày, member (who = full name).',
+    'Thêm holiday trong tháng (who = danh sách country).',
+    'Router dựng file .xls.'],
+    ret: 'application/vnd.ms-excel', fe: 'Nút Export tạo thẻ &lt;a&gt; trỏ thẳng tới URL.' },
+
+  ticket: { m: 'GET', p: '/tickets/{key}', uc: 'tickets.detail', jira: '', steps: [
+    '<code>load_context()</code>. Key không có → 404.',
+    'card = TaskCard với flags.',
+    'Warnings: late (số ngày), over (giờ vượt estimate), rounds (step fix ≥ ngưỡng review_rounds).',
+    'History: các lần đổi assignee từ changelog.',
+    'Worklogs mới nhất trước.'],
+    ret: 'TicketDetail { card, owner_id, warnings[], history[], worklogs[] }', fe: 'Mở khi URL có ?ticket=KEY.' },
+  ticketPatch: { m: 'PATCH', p: '/tickets/{key}', uc: 'tickets.patch', jira: 'write', body: 'TicketPatchIn', steps: [
+    '<code>writer is None</code> → 403.',
+    'Issue không có → 404; assignee không tồn tại hoặc không có Jira account → 422.',
+    'planned_end trước planned_start → 422.',
+    'Có status → <code>writer.transition()</code>; có ngày/assignee → <code>writer.update_issue()</code>.',
+    '<code>sync.refresh([key])</code> rồi trả lại <code>detail()</code>.'],
+    ret: 'TicketDetail', fe: 'mutationKey [write, ticket, key]; invalidateQueries().' },
+  qa: { m: 'POST', p: '/qa', uc: 'tickets.ask → domain.qa.answer', jira: '', body: '{ q }', steps: [
+    'Câu hỏi rỗng → 422.',
+    '<code>load_context()</code>.',
+    '<code>answer()</code> dò tên member và từ khoá trong câu hỏi, trả lời từ functions, flags, worklogs. Rule-based, không gọi LLM.'],
+    ret: 'Answer', fe: 'Mutation từ Ask chat panel; link trong câu trả lời mở Ticket panel.' },
+
+  jiraGet: { m: 'GET', p: '/settings/jira', uc: 'admin.jira_settings', jira: '', steps: [
+    'Đọc settings, anken, lần sync ok gần nhất.',
+    'Giải mã token, chỉ trả 12 ký tự đầu + mask.',
+    'Danh sách epic kèm title/project.'],
+    ret: 'JiraSettingsView', fe: '' },
+  jiraPut: { m: 'PUT', p: '/settings/jira', uc: 'admin.save_jira', jira: 'read', body: 'JiraIn', steps: [
+    'interval không hợp lệ hoặc URL không bắt đầu bằng https:// → 422.',
+    'Có token mới → mã hoá Fernet rồi lưu.',
+    'Chạy <code>test_jira()</code> để cập nhật trạng thái kết nối.',
+    'Lưu settings (không sync).'],
+    ret: 'JiraSettingsView', fe: 'Đổi interval có hiệu lực ở vòng lặp scheduler kế tiếp.' },
+  jiraTest: { m: 'POST', p: '/settings/jira/test', uc: 'admin.test_jira', jira: 'read', body: 'JiraTestIn', steps: [
+    '<code>reader_for(url, email, token hoặc token đã lưu).test_connection()</code>.',
+    'JiraError → "fail". Không lưu gì.'],
+    ret: '{ status: ok | fail }', fe: '' },
+  epicAdd: { m: 'POST', p: '/settings/epics', uc: 'admin.add_epic', jira: 'full', body: '{ key }', steps: [
+    'Chuẩn hoá chữ hoa; sai định dạng → 422; đã track → 409.',
+    '<code>reader.get_epic(key)</code>: không phải epic → 404; Jira lỗi → 502.',
+    'Thêm vào settings.jira.epics.',
+    '<code>sync.run(full=True)</code> đồng bộ ngay trong request.'],
+    ret: 'JiraSettingsView', fe: 'Request chậm vì chờ full sync.' },
+  epicDel: { m: 'DELETE', p: '/settings/epics/{key}', uc: 'admin.remove_epic', jira: 'full', steps: [
+    'Không track → 404.', 'Xoá khỏi danh sách.', '<code>sync.run(full=True)</code>: anken và issue không còn thấy bị xoá khỏi DB.'],
+    ret: 'JiraSettingsView', fe: '' },
+  fmGet: { m: 'GET', p: '/settings/field-mapping', uc: 'admin.field_mapping', jira: 'read', steps: [
+    'Mapping hiện tại: planned_start, planned_end, effort.', 'Catalog field từ <code>reader.list_fields()</code> (Jira lỗi → []).'],
+    ret: 'FieldMappingView', fe: '' },
+  fmPut: { m: 'PUT', p: '/settings/field-mapping', uc: 'admin.save_field_mapping', jira: 'full', body: 'FieldMappingIn', steps: ['Lưu field id mới.', '<code>sync.run(full=True)</code>.'],
+    ret: 'FieldMappingView', fe: '' },
+  fmCheck: { m: 'POST', p: '/settings/field-mapping/check', uc: 'admin.check_field_mapping', jira: 'read', body: 'FieldCheckIn', steps: [
+    '<code>reader.get_issue(sample)</code>; không có → 404.',
+    'Mỗi target: not_mapped / not_found / type_mismatch / ok kèm giá trị đọc được (effort từ giây sang giờ).'],
+    ret: 'FieldMappingCheck', fe: 'Thử mapping trên một ticket mẫu trước khi lưu.' },
+  smGet: { m: 'GET', p: '/settings/status-mapping', uc: 'admin.status_mapping', jira: '', steps: [
+    'Ghép các status Jira đã thấy khi sync (kèm category) với mapping tay.',
+    'effective = mapping tay, nếu không có thì theo category: new → N, indeterminate → W, done → C.'],
+    ret: 'list[StatusRow]', fe: '' },
+  smPut: { m: 'PUT', p: '/settings/status-mapping', uc: 'admin.save_status_mapping', jira: 'full', body: '{ mapping }', steps: [
+    'Giá trị không thuộc N/W/R/C → 422.', 'Lưu.', '<code>sync.run(full=True)</code>.'],
+    ret: 'list[StatusRow]', fe: '' },
+  nrGet: { m: 'GET', p: '/settings/name-rules', uc: 'admin.name_rules', jira: '', steps: ['rule + aliases hiện tại.', 'coverage: bao nhiêu summary đã lưu parse được theo rule.'],
+    ret: 'NameRulesView', fe: '' },
+  nrPreview: { m: 'POST', p: '/settings/name-rules/preview', uc: 'admin.preview_name_rule', jira: '', body: 'NameRulePreviewIn', steps: [
+    '<code>compile_rule()</code>; rule lỗi thì trả error trong body (không raise).',
+    'Parse sample → values + step.',
+    'Tính coverage trên toàn bộ summary.'],
+    ret: 'NameRulePreview', fe: 'Gọi như query theo body đang gõ, keepPreviousData.' },
+  nrPut: { m: 'PUT', p: '/settings/name-rules', uc: 'admin.save_name_rules', jira: 'full', body: 'NameRulesIn', steps: [
+    'compile_rule kiểm tra; lỗi → 422.', 'Lưu.', '<code>sync.run(full=True)</code> để parse lại function_id/step cho mọi issue.'],
+    ret: 'NameRulesView', fe: '' },
+  memberPatch: { m: 'PATCH', p: '/members/{member_id}', uc: 'admin.update_member', jira: '', body: 'MemberPatchIn', steps: [
+    'country không hợp lệ hoặc name rỗng → 422; member không có → 404.',
+    'Cập nhật name / role / permission / country (clear_role để bỏ role).'],
+    ret: 'Member', fe: 'Role quyết định My Work hiển thị related theo owner hay reviewer.' },
+  holGet: { m: 'GET', p: '/holidays', uc: 'admin.holidays', jira: '', steps: ['Danh sách holiday.'], ret: 'list[Holiday]', fe: '' },
+  holAdd: { m: 'POST', p: '/holidays', uc: 'admin.add_holiday', jira: '', body: 'HolidayIn', steps: ['Validate, lưu holiday cho các country.'], ret: '201 list[Holiday]', fe: '' },
+  holDel: { m: 'DELETE', p: '/holidays/{date}', uc: 'admin.delete_holiday', jira: '', steps: ['Xoá holiday theo ngày.'], ret: 'list[Holiday]', fe: '' },
+  xdGet: { m: 'GET', p: '/extra-days', uc: 'admin.extra_days', jira: '', steps: ['Map ngày → ghi chú của các ngày làm bù.'], ret: 'dict[date, note]', fe: '' },
+  xdAdd: { m: 'POST', p: '/extra-days', uc: 'admin.add_extra_day', jira: '', body: 'ExtraDayIn', steps: ['Validate, lưu ngày làm bù.'], ret: '201 dict', fe: '' },
+  xdDel: { m: 'DELETE', p: '/extra-days/{date}', uc: 'admin.delete_extra_day', jira: '', steps: ['Xoá ngày làm bù.'], ret: 'dict', fe: '' },
+  whGet: { m: 'GET', p: '/settings/working-hours', uc: 'admin.working_hours', jira: '', steps: ['Đọc hours_per_day, days, timesheet_tolerance_h.'], ret: 'WorkingHours', fe: '' },
+  whPut: { m: 'PUT', p: '/settings/working-hours', uc: 'admin.save_working_hours', jira: '', body: 'WorkingHoursIn', steps: [
+    'hours_per_day trong (0, 24], tolerance ≥ 0, ít nhất 1 ngày làm việc → nếu sai 422.', 'Lưu (days sort, unique).'],
+    ret: 'WorkingHours', fe: 'Ảnh hưởng calendar, capacity, timesheet ở mọi màn hình.' },
+  alGet: { m: 'GET', p: '/settings/alerts', uc: 'admin.alerts', jira: '', steps: ['Đọc thresholds.'], ret: 'Thresholds', fe: '' },
+  alPut: { m: 'PUT', p: '/settings/alerts', uc: 'admin.save_alerts', jira: '', body: 'AlertsIn', steps: ['Giá trị âm → 422.', 'Lưu.'],
+    ret: 'Thresholds', fe: 'Ngưỡng dùng cho late/soon/over, attention groups, capacity, review rounds.' },
+};
+
+// Screens: what each loads on open and what each action calls.
+const SCREENS = [
+  { id: 'shell', name: 'Khung app (mọi màn hình)', routes: ['AppShell', 'Sidebar', 'SyncPill'],
+    desc: 'Bao quanh mọi route. Sidebar hiện nhãn kết nối Jira và user hiện tại. SyncPill nằm trên header của Function Matrix.',
+    load: [['meta', 'Sidebar, SyncPill'], ['members', 'Sidebar và mọi màn hình cần tên/avatar']],
+    act: [['sync', 'Bấm nút refresh trên SyncPill']],
+    notes: ['/ redirect về /my-work; /effort về /effort/timesheet; /settings về /settings/jira.', 'Đổi theme chỉ ghi localStorage, không gọi API.'] },
+  { id: 'my-work', name: 'My Work', routes: ['/my-work?member=&backlog=week|month'],
+    desc: 'Việc của một member: trễ, hạn hôm nay, hạn ngày làm việc kế tiếp, backlog theo tuần/tháng, và các step liên quan của function mình own hoặc review.',
+    load: [['myWork', 'Khi mở hoặc đổi member/backlog']], act: [],
+    notes: ['Click task → thêm ?ticket=KEY, mở Ticket panel.'] },
+  { id: 'overview', name: 'Anken Overview', routes: ['/anken', '/anken/$epic'],
+    desc: 'Card cho từng epic đang track: phase rollup, plan vs forecast, trễ, giờ. Chọn một card để xem các nhóm cần chú ý.',
+    load: [['ankenList', 'Khi mở /anken'], ['ankenDetail', 'Khi đang ở /anken/$epic']], act: [],
+    notes: ['Link "Matrix" trên card → /anken/$epic/matrix.', 'Chưa có epic nào → link sang Settings → Jira.'] },
+  { id: 'matrix', name: 'Function Matrix', routes: ['/matrix (redirect)', '/anken/$epic/matrix'],
+    desc: 'Bảng function × 5 step của một epic, mỗi ô là một sub-task với status và flag.',
+    load: [['ankenList', '/matrix: chọn anken đầu tiên có function rồi redirect'], ['matrix', 'Khi mở']],
+    act: [['sync', 'SyncPill trên header']],
+    notes: ['Lọc, sắp xếp, ẩn/hiện step đều nằm trên URL và chạy ở client.', 'Click ô → Ticket panel.'] },
+  { id: 'add-function', name: 'Add function', routes: ['/anken/$epic/matrix/new'],
+    desc: 'Form tạo function mới: hệ thống đề xuất lịch 5 step, user chỉnh rồi tạo 5 sub-task trên Jira.',
+    load: [['matrix', 'Lấy danh sách parent và next_function_id'], ['fnPreview', 'Mỗi lần draft hợp lệ thay đổi']],
+    act: [['fnCreate', 'Bấm Create']], notes: ['Jira mode phase 1: nút Create bị disable ("Updating Jira arrives in phase 2").'] },
+  { id: 'planning', name: 'Planning', routes: ['/planning?start=&weeks=1|2&hide='],
+    desc: 'Gantt theo member trong 1–2 tuần, kèm capacity 5 tuần. Kéo block để dời ngày hoặc đổi người, xem trước, rồi push lên Jira.',
+    load: [['planning', 'Khi mở hoặc đổi tuần'], ['planPreview', 'Khi có pending change']],
+    act: [['planPush', 'Bấm Push']], notes: ['Pending change chỉ nằm ở client cho tới khi push.'] },
+  { id: 'timesheet', name: 'Effort · Timesheet', routes: ['/effort/timesheet?from=&to='],
+    desc: 'Bảng member × ngày: giờ log so với giờ kế hoạch và giờ kỳ vọng.',
+    load: [['timesheet', 'Khi mở hoặc đổi khoảng ngày']], act: [['dayDetail', 'Bấm một ô member-ngày']], notes: [] },
+  { id: 'analysis', name: 'Effort · Analysis', routes: ['/effort/analysis?anken='],
+    desc: 'Estimate vs logged theo phase và theo step, tỷ lệ rework của từng BA.',
+    load: [['analysis', 'Khi mở hoặc đổi anken']], act: [], notes: [] },
+  { id: 'calendar', name: 'Team Calendar', routes: ['/calendar?month=', '/calendar/leave/new', '/calendar/leave/$id', '/calendar/import/$step'],
+    desc: 'Lịch tháng: holiday và nghỉ phép của từng member. Thêm/sửa nghỉ qua dialog, import từ Excel qua wizard 4 bước, export ra .xls.',
+    load: [['calendar', 'Khi mở hoặc đổi tháng']],
+    act: [['leaveAdd', 'Leave dialog · lưu mới'], ['leaveEdit', 'Leave dialog · lưu khi sửa'], ['leaveDel', 'Leave dialog · xoá'],
+          ['template', 'Wizard bước 1 · Download template'], ['importPreview', 'Wizard bước 2 · chọn file hoặc sample'],
+          ['importConfirm', 'Wizard bước 4 · Import'], ['export', 'Nút Export']],
+    notes: ['Click ô trống → /calendar/leave/new?member=&date= điền sẵn; click ô có leave → /calendar/leave/$id.'] },
+  { id: 'settings', name: 'Settings', routes: ['/settings/jira', '/field-mapping', '/status-mapping', '/name-rules', '/members', '/holidays', '/hours', '/extra-days', '/alerts'],
+    desc: '9 tab cấu hình. Các thay đổi ảnh hưởng cách đọc dữ liệu Jira (epic, field, status, name rule) đều chạy full sync ngay trong request.',
+    load: [['jiraGet', 'Tab Jira'], ['fmGet', 'Tab Field mapping'], ['smGet', 'Tab Status mapping'], ['nrGet', 'Tab Name rules'],
+           ['nrPreview', 'Tab Name rules · khi gõ rule/sample'], ['members', 'Tab Members'], ['holGet', 'Tab Holidays'],
+           ['whGet', 'Tab Hours'], ['xdGet', 'Tab Extra working days'], ['alGet', 'Tab Alerts']],
+    act: [['jiraTest', 'Jira · Test connection'], ['jiraPut', 'Jira · Save'], ['epicAdd', 'Jira · thêm epic'], ['epicDel', 'Jira · bỏ epic'],
+          ['fmCheck', 'Field mapping · Check trên ticket mẫu'], ['fmPut', 'Field mapping · Save'], ['smPut', 'Status mapping · Save'],
+          ['nrPut', 'Name rules · Save'], ['memberPatch', 'Members · sửa'], ['holAdd', 'Holidays · thêm'], ['holDel', 'Holidays · xoá'],
+          ['whPut', 'Hours · Save'], ['xdAdd', 'Extra days · thêm'], ['xdDel', 'Extra days · xoá'], ['alPut', 'Alerts · Save']],
+    notes: ['Mọi write trong Settings gọi invalidateQueries() toàn bộ.'] },
+  { id: 'ticket', name: 'Ticket panel', routes: ['?ticket=KEY (overlay trên mọi route)'],
+    desc: 'Panel bên phải: chi tiết sub-task, cảnh báo, lịch sử bàn giao, worklog, và form sửa status/ngày/assignee.',
+    load: [['ticket', 'Khi ?ticket= có giá trị']], act: [['ticketPatch', 'Sửa status, ngày, assignee']],
+    notes: ['Đóng panel = xoá ?ticket khỏi URL, giữ nguyên màn hình bên dưới.'] },
+  { id: 'ask', name: 'Ask (Task Q&A)', routes: ['nút Ask góc phải'],
+    desc: 'Chat panel hỏi đáp nhanh về tiến độ, ai đang trễ, giờ log…',
+    load: [], act: [['qa', 'Gửi câu hỏi']], notes: [] },
+];
+
+const JIRA_TAG = { read: '<span class="tag read">Jira đọc</span>', write: '<span class="tag write">Jira ghi</span>', full: '<span class="tag full">full sync</span>' };
+const firstHome = {};
+
+function epHtml(id, trigger) {
+  const e = EP[id];
+  const anchor = firstHome[id] ? '' : ` id="ep-${id}"`;
+  firstHome[id] = firstHome[id] || true;
+  const kv = [['Use case', `<code>${e.uc}</code>`], e.body ? ['Body', `<code>${e.body}</code>`] : null, ['Trả về', e.ret], e.fe ? ['Frontend', e.fe] : null]
+    .filter(Boolean).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  return `<details class="ep"${anchor}><summary><span class="m ${e.m}">${e.m}</span>
+    <span class="sum-main"><span class="path">${e.p}</span><span class="trigger">${trigger}</span></span>
+    <span class="sum-tags">${JIRA_TAG[e.jira] || ''}</span></summary>
+    <div class="ep-body"><ol>${e.steps.map((s) => `<li>${s}</li>`).join('')}</ol><dl class="kv">${kv}</dl></div></details>`;
+}
+
+const usedBy = {};
+const host = document.getElementById('screen-sections');
+const toc = document.getElementById('toc-screens');
+host.innerHTML = SCREENS.map((s) => {
+  [...s.load, ...s.act].forEach(([id]) => { (usedBy[id] = usedBy[id] || []).includes(s.name) || usedBy[id].push(s.name); });
+  toc.insertAdjacentHTML('beforeend', `<a href="#s-${s.id}">${s.name}</a>`);
+  const load = s.load.length ? `<div><div class="block-label">Khi mở màn hình</div>${s.load.map(([id, t]) => epHtml(id, t)).join('')}</div>` : '';
+  const act = s.act.length ? `<div><div class="block-label">Khi user thao tác</div>${s.act.map(([id, t]) => epHtml(id, t)).join('')}</div>` : '';
+  const notes = s.notes.length ? `<ul class="notes">${s.notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : '';
+  return `<article class="screen" id="s-${s.id}"><div class="screen-head"><h3>${s.name}</h3>
+    <div class="routes">${s.routes.map((r) => `<span class="route">${r}</span>`).join('')}</div><p>${s.desc}</p></div>
+    <div class="screen-body">${load}${act}${notes}</div></article>`;
+}).join('');
+usedBy.syncLatest = ['(không màn hình nào)'];
+
+// API index
+const rowsEl = document.getElementById('rows');
+const methods = ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+let method = 'ALL';
+const chips = document.getElementById('method-chips');
+chips.innerHTML = methods.map((m) => `<button type="button" class="chip" aria-pressed="${m === method}" data-m="${m}">${m === 'ALL' ? 'Tất cả' : m}</button>`).join('');
+const all = Object.entries(EP).map(([id, e]) => ({ id, ...e, screens: usedBy[id] || [] }));
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const list = all.filter((e) => (method === 'ALL' || e.m === method) &&
+    (!q || [e.p, e.uc, e.screens.join(' ')].join(' ').toLowerCase().includes(q)));
+  rowsEl.innerHTML = list.map((e) => `<tr><td><span class="m ${e.m}">${e.m}</span></td>
+    <td class="mono">${document.getElementById('ep-' + e.id) ? `<a href="#ep-${e.id}" data-open="${e.id}">${e.p}</a>` : e.p}</td>
+    <td class="mono">${e.uc}</td><td>${e.screens.join(', ')}</td><td>${JIRA_TAG[e.jira] || '<span class="tag">không</span>'}</td></tr>`).join('');
+  document.getElementById('count').textContent = `${list.length} / ${all.length} endpoint`;
+}
+chips.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-m]'); if (!b) return;
+  method = b.dataset.m;
+  chips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.m === method)));
+  render();
+});
+document.getElementById('q').addEventListener('input', render);
+rowsEl.addEventListener('click', (ev) => {
+  const a = ev.target.closest('[data-open]'); if (!a) return;
+  const d = document.getElementById('ep-' + a.dataset.open); if (d) d.open = true;
+});
+render();
+</script>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>
