@@ -1,0 +1,29 @@
+{
+  "issues": [
+    {
+      "key": "PAY-1201",
+      "fields": {
+        "summary": "[Implement_Coding][F01] Payment method selection – Create",
+        "status": {"name": "Done", "statusCategory": {"key": "done"}},
+        "assignee": {"accountId": "557058:an", "displayName": "Nguyễn Thị An"},
+        "parent": {"key": "PAY-1102"},
+        "project": {"key": "PAY"},
+        "created": "2026-09-11T08:00:00.000+0700",
+        "updated": "2026-09-16T17:30:00.000+0700",
+        "customfield_10020": "2026-09-14",
+        "customfield_10016": "2026-09-15",
+        "timeoriginalestimate": 36000,
+        "worklog": {"startAt": 0, "maxResults": 20, "total": 2, "worklogs": [
+          {"author": {"accountId": "557058:an", "displayName": "Nguyễn Thị An"}, "started": "2026-09-15T09:00:00.000+0700", "timeSpentSeconds": 18000,
+           "comment": {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Write spec"}]}]}},
+          {"author": {"accountId": "557058:an", "displayName": "Nguyễn Thị An"}, "started": "2026-09-14T13:00:00.000+0700", "timeSpentSeconds": 18000}
+        ]}
+      },
+      "changelog": {"startAt": 0, "maxResults": 100, "total": 1, "histories": [
+        {"created": "2026-09-16T17:30:00.000+0700", "items": [{"field": "status", "fieldtype": "jira", "from": "3", "fromString": "In Progress", "to": "10001", "toString": "Done"}]}
+      ]}
+    }
+  ],
+  "nextPageToken": "page-2",
+  "isLast": false
+}

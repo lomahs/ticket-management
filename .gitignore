@@ -13,3 +13,5 @@ docs/
 .codegraph/
 .superpowers/
 .mcp.json
+backend-java/target/
+backend-java/data/
