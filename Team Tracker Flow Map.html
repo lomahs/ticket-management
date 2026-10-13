@@ -131,7 +131,7 @@ html { scroll-behavior: smooth; }
     <div class="grp eyebrow">Tổng quan</div>
     <a href="#arch">Kiến trúc 1 request</a>
     <a href="#screens-map">Screen flow</a>
-    <a href="#context">load_context</a>
+    <a href="#context">TrackerContextLoader</a>
     <a href="#sync">Sync với Jira</a>
     <a href="#writes">Các flow ghi</a>
     <div class="grp eyebrow">Màn hình</div>
@@ -167,25 +167,25 @@ flowchart LR
     P --> Q["features/*/api.ts&lt;br/&gt;useQuery / useMutation"]
     Q --> H["shared/api/client.ts&lt;br/&gt;openapi-fetch + unwrap()"]
   end
-  subgraph BE["Backend · FastAPI /api/v1"]
-    RT["adapters/api/routers/*"] --> UC["application/use_cases/*"]
-    UC --> LC["load_context()"]
-    LC --> DB[("SQLite qua UnitOfWork")]
+  subgraph BE["Backend · Spring Boot /api/v1"]
+    RT["adapters/web/*Api&lt;br/&gt;controller + Bean Validation"] --> UC["application/service/*Service"]
+    UC --> LC["TrackerContextLoader.load()"]
+    LC --> DB[("SQLite qua @Repository + JdbcClient")]
     LC --> DM["domain/*&lt;br/&gt;flags · calendar · capacity · scheduling"]
-    UC -->|"ghi"| JW["JiraWriter&lt;br/&gt;demo: FakeJira · jira: None"]
-    UC -->|"sau khi ghi"| SY["SyncFromJira&lt;br/&gt;refresh / run"]
+    UC -->|"ghi"| JW["JiraWriter&lt;br/&gt;demo: FakeJira · jira: không có bean"]
+    UC -->|"sau khi ghi"| SY["SyncService&lt;br/&gt;refresh / run"]
     SY --> JR["JiraReader"]
     SY --> DB
   end
   H -->|"HTTP JSON"| RT
-  RT -.->|"AppError → problem+json"| H
-  SCH["scheduler · chỉ jira mode"] -->|"mỗi N phút"| SY
+  RT -.->|"lỗi → problem detail (RFC 9457)"| H
+  SCH["@Scheduled · không có profile demo"] -->|"đến hạn theo interval"| SY
 </pre></div>
       <div class="facts">
-        <div class="panel"><b>Hai mode chạy</b><p><code>TRACKER_MODE=demo</code>: DB mới, seed team mẫu, FakeJira vừa đọc vừa ghi, ngày cố định. <code>jira</code>: JiraCloudReader, <code>writer=None</code> nên mọi API ghi Jira trả 403, có scheduler sync định kỳ.</p></div>
+        <div class="panel"><b>Hai mode chạy</b><p>Profile <code>demo</code> (<code>SPRING_PROFILES_ACTIVE=demo</code>): DB mới, seed team mẫu, FakeJira vừa đọc vừa ghi, ngày cố định. Không có profile: JiraCloudReader, không có bean <code>JiraWriter</code> nên mọi API ghi Jira trả 403, có <code>@Scheduled</code> sync định kỳ.</p></div>
         <div class="panel"><b>Ai là "tôi"?</b><p>Phase 1 chưa có login. My Work và Sidebar lấy member từ <code>localStorage</code> pref <code>me</code> (mặc định <code>binh</code>) hoặc <code>?member=</code>.</p></div>
         <div class="panel"><b>Cache sau khi ghi</b><p>Mọi mutation thành công gọi <code>queryClient.invalidateQueries()</code> không tham số, nên tất cả màn hình refetch. Mutation ghi Jira có <code>mutationKey ['write', …]</code> để SyncPill hiện "Writing…".</p></div>
-        <div class="panel"><b>Lỗi</b><p><code>Invalid</code> 422 · <code>NotFound</code> 404 · <code>Conflict</code> 409 · <code>CapabilityDisabled</code> 403 · Jira lỗi 502. Frontend <code>unwrap()</code> biến thành <code>ApiError</code>; mất mạng thành status 0.</p></div>
+        <div class="panel"><b>Lỗi</b><p>Request sai (Bean Validation, JSON hỏng, sai kiểu) 400 · <code>Invalid</code> 422 · <code>NotFound</code> 404 · <code>Conflict</code> 409 · <code>CapabilityDisabled</code> 403 · file quá 5 MB 413 · Jira lỗi 502. Body là problem detail (RFC 9457) kèm <code>code</code> và <code>errors</code>. Frontend <code>unwrap()</code> biến thành <code>ApiError</code>; mất mạng thành status 0.</p></div>
       </div>
     </section>
 
@@ -226,46 +226,46 @@ flowchart LR
     </section>
 
     <section id="context">
-      <h2>load_context: pipeline chung của hầu hết API đọc</h2>
-      <p>My Work, Anken, Matrix, Planning, Effort, Ticket và Q&amp;A đều bắt đầu bằng <code>load_context(uow, today)</code> trong <code>application/context.py</code>. Nó load toàn bộ issue của các epic đang track rồi tính flag trong bộ nhớ, nên mỗi request là một lần tính lại từ đầu. Team Calendar và Settings không dùng nó.</p>
+      <h2>TrackerContextLoader: pipeline chung của hầu hết API đọc</h2>
+      <p>My Work, Anken, Matrix, Planning, Effort, Ticket và Q&amp;A đều bắt đầu bằng <code>TrackerContextLoader.load()</code> (<code>application/TrackerContextLoader.java</code>). Nó load toàn bộ issue của các epic đang track rồi tính flag trong bộ nhớ, nên mỗi request là một lần tính lại từ đầu. Team Calendar và Settings không dùng nó.</p>
       <div class="diagram"><pre class="mermaid">
 flowchart LR
-  A["settings.load()"] --> B["members.list()"]
-  B --> C["make_calendar()&lt;br/&gt;leaves · holidays · extra days · ngày làm việc"]
-  C --> D["anken.list()&lt;br/&gt;lọc theo epics đang track"]
-  D --> E["issues.list(tracked)"]
-  E --> F["build_functions(subtasks)&lt;br/&gt;gom theo (epic, function_id) thành 5 ô step"]
-  F --> G["issue_flags() cho từng issue&lt;br/&gt;is_current · late · soon · over · tone · held_days · rounds"]
-  G --> H["Context.card(issue) → TaskCard"]
+  A["settings.load()"] --> B["members.findAll()"]
+  B --> C["calendar()&lt;br/&gt;leaves · holidays · extra days · ngày làm việc"]
+  C --> D["anken.findAll()&lt;br/&gt;lọc theo epics đang track"]
+  D --> E["issues.findByEpics(tracked)"]
+  E --> F["Flags.buildFunctions(subtasks)&lt;br/&gt;gom theo (epic, function_id) thành 5 ô step"]
+  F --> G["Flags.issueFlags() cho từng issue&lt;br/&gt;is_current · late · soon · over · tone · held_days · rounds"]
+  G --> H["TrackerContext.card(issue) → TaskCard"]
 </pre></div>
       <div class="facts">
         <div class="panel"><b>5 step của một function</b><p>Create (BA) → BAL Review (BAL) → Fix comment BAL (BA) → JM Review (JM) → Fix comment JM (BA). Function id, tên và step được parse từ summary sub-task theo Name rule.</p></div>
         <div class="panel"><b>Status nội bộ</b><p><code>N</code> Not yet started · <code>W</code> WIP · <code>R</code> Resolved · <code>C</code> Closed. Map từ status Jira theo tên (Status mapping) hoặc theo category new / indeterminate / done.</p></div>
-        <div class="panel"><b>worker vs assignee</b><p><code>worker_of()</code>: step review do assignee làm, step không phải review tính cho owner của function (assignee của Create). Planning và Timesheet xếp việc theo worker.</p></div>
+        <div class="panel"><b>worker vs assignee</b><p><code>Flags.workerOf()</code>: step review do assignee làm, step không phải review tính cho owner của function (assignee của Create). Planning và Timesheet xếp việc theo worker.</p></div>
       </div>
     </section>
 
     <section id="sync">
       <h2>Sync với Jira</h2>
-      <p>Có ba nguồn kích hoạt <code>SyncFromJira.run()</code>, cùng một khoá <code>_RUN_LOCK</code> nên mỗi process chỉ chạy một sync tại một thời điểm. Lỗi được ghi vào <code>sync_runs</code> chứ không ném ra ngoài, nên <code>POST /sync</code> vẫn trả 200 với <code>status: failed</code>.</p>
+      <p>Có ba nguồn kích hoạt <code>SyncService.run()</code>, cùng một khoá <code>running</code> nên mỗi process chỉ chạy một sync tại một thời điểm. Mọi thứ được đọc từ Jira trước, rồi mới ghi vào DB trong một transaction ngắn, nên Jira chậm không giữ khoá ghi của SQLite. Lỗi được ghi vào <code>sync_runs</code> chứ không ném ra ngoài, nên <code>POST /sync</code> vẫn trả 200 với <code>status: failed</code>.</p>
       <div class="diagram"><pre class="mermaid">
 flowchart TD
   T1["SyncPill · POST /sync full=false"] --> RUN
-  T2["scheduler · mỗi N phút, jira mode"] --> RUN
+  T2["@Scheduled · mỗi phút kiểm tra interval, không có profile demo"] --> RUN
   T3["Settings · thêm/xoá epic, field/status mapping, name rule"] -->|"full=true"| RUN
-  RUN["SyncFromJira.run() giữ _RUN_LOCK"] --> S1["tạo sync_run status=running"]
+  RUN["SyncService.run() giữ khoá running"] --> S1["tạo sync_run status=running"]
   S1 --> S2{"full hoặc chưa từng sync ok?"}
-  S2 -->|"có"| S3a["since = None"]
+  S2 -->|"có"| S3a["since = null"]
   S2 -->|"không"| S3b["since = last_ok.started_at − 5 phút"]
-  S3a --> S4["get_epic từng epic → upsert anken, xoá anken không còn track"]
+  S3a --> S4["đọc Jira: findEpic từng epic"]
   S3b --> S4
-  S4 --> S5["reader.search(epics, since)"]
+  S4 --> S5["reader.search(epics, since)&lt;br/&gt;rồi mở transaction: upsert anken, xoá anken không còn track"]
   S5 --> S6{"full, Jira trả rỗng, DB đang có data?"}
-  S6 -->|"có"| FAIL["EmptySyncError → run failed, giữ nguyên data"]
-  S6 -->|"không"| S7["_Mapper, parent trước sub-task&lt;br/&gt;status · giờ estimate · assignee, tự tạo Member mới&lt;br/&gt;function_id/step từ summary · worklog · changelog"]
+  S6 -->|"có"| FAIL["EmptySyncException → rollback, run failed, giữ nguyên data"]
+  S6 -->|"không"| S7["Mapper, parent trước sub-task&lt;br/&gt;status · giờ estimate · assignee, tự tạo Member mới&lt;br/&gt;function_id/step từ summary · worklog · changelog"]
   S7 --> S8{"full?"}
   S8 -->|"có"| S9["xoá issue không còn thấy trên Jira"]
-  S8 -->|"không"| S10["lưu settings, status đã thấy → run ok"]
+  S8 -->|"không"| S10["lưu settings, status đã thấy, commit → run ok"]
   S9 --> S10
   W["Sau mỗi lần ghi Jira&lt;br/&gt;create function · push plan · patch ticket"] --> RF["sync.refresh(keys)&lt;br/&gt;đọc lại đúng các issue vừa ghi"]
 </pre></div>
@@ -281,22 +281,22 @@ sequenceDiagram
   actor U as User
   participant F as AddFunctionPage
   participant API as /anken/{epic}/functions
-  participant UC as anken use case
+  participant UC as AnkenService
   participant JW as JiraWriter
-  participant S as SyncFromJira
+  participant S as SyncService
   U->>F: chọn parent, tên, BA/BAL/JM, giờ Create
   F->>API: POST /preview với draft
-  API->>UC: preview_function → _plan()
+  API->>UC: previewFunction() → plan()
   UC-->>F: 5 step, assignee, ngày đề xuất, summary
   U->>F: sửa ngày từng step (overrides)
   F->>API: POST /preview lại
   U->>F: bấm Create
   F->>API: POST /functions
-  API->>UC: create_function()
-  alt writer = None (jira phase 1)
+  API->>UC: createFunction()
+  alt không có JiraWriter (jira phase 1)
     UC-->>F: 403 capability_disabled
   else demo hoặc phase 2
-    UC->>JW: create_subtasks(parent, 5 sub-task)
+    UC->>JW: createSubtasks(parent, 5 sub-task)
     JW-->>UC: keys
     UC->>S: refresh(keys)
     UC-->>F: 201 keys
@@ -310,7 +310,7 @@ sequenceDiagram
   actor U as User
   participant P as PlanningPage
   participant API as /planning
-  participant UC as planning use case
+  participant UC as PlanningService
   participant JW as JiraWriter
   U->>P: mở /planning?start=…&amp;weeks=2
   P->>API: GET /planning
@@ -321,10 +321,10 @@ sequenceDiagram
   UC-->>P: from/to, ngày nghỉ bị đụng, capacity sau khi dời
   U->>P: bấm Push
   P->>API: POST /planning/push
-  alt writer = None
+  alt không có JiraWriter
     API-->>P: 403
   else
-    UC->>JW: update_issue cho từng change
+    UC->>JW: updateIssue cho từng change
     UC->>UC: sync.refresh(keys)
     API-->>P: keys → invalidateQueries()
   end
@@ -362,32 +362,32 @@ flowchart LR
 </div>
 
 <script>
-const UC = 'backend/src/tracker/application/use_cases/';
+const UC = 'backend/src/main/java/tracker/application/service/';
 // Every endpoint: method, path, use case, jira touch, processing steps, result, frontend notes.
 const EP = {
-  meta: { m: 'GET', p: '/meta', uc: 'system.meta', jira: '', steps: [
-    'Mở UoW, <code>anken.list()</code> → danh sách project (unique, sort).',
-    '<code>sync_runs.latest()</code> + <code>latest_ok()</code> → SyncStatus (status, started/finished, error, last_ok_at).',
-    '<code>capabilities.jira_write = writer is not None</code>: demo là true, jira phase 1 là false.',
-    'Trả kèm <code>mode</code> và <code>today</code> từ Clock.'],
+  meta: { m: 'GET', p: '/meta', uc: 'SystemService.meta', jira: '', steps: [
+    '<code>anken.findAll()</code> → danh sách project (unique, sort).',
+    '<code>runs.findLatest()</code> + <code>findLatestOk()</code> → SyncStatus (status, started/finished, error, last_ok_at).',
+    '<code>capabilities.jira_write = writer.isPresent()</code>: demo là true, jira phase 1 là false.',
+    'Trả kèm <code>mode</code> và <code>today</code> (từ bean <code>java.time.Clock</code>).'],
     ret: 'Meta { mode, today, capabilities, sync, projects }',
     fe: 'staleTime 30s. Dùng ở Sidebar (nhãn kết nối), SyncPill, Calendar, Planning, Timesheet, Settings và useCapability().' },
-  members: { m: 'GET', p: '/members', uc: 'system.members', jira: '', steps: ['<code>uow.members.list()</code>.'],
-    ret: 'list[Member]', fe: 'staleTime 60s. useMemberMap() dựng map id → member cho avatar/tên ở mọi màn hình; Members tab cũng dùng.' },
-  sync: { m: 'POST', p: '/sync', uc: 'system.run_sync → SyncFromJira.run', jira: 'read', body: '{ full: bool }', steps: [
-    'Khoá <code>_RUN_LOCK</code>, tạo bản ghi <code>sync_run</code> = running.',
-    '<code>since</code> = lần sync ok gần nhất − 5 phút; <code>None</code> nếu full.',
-    'Đọc từng epic đang track → upsert anken, xoá anken không còn track.',
-    '<code>reader.search(epics, since)</code>. Nếu full mà Jira trả rỗng trong khi DB có data → run failed, giữ data.',
-    '<code>_Mapper</code> chuyển snapshot thành Issue (parent trước), tự tạo Member cho account Jira mới.',
-    'Full sync: xoá issue không còn thấy. Lưu settings (status đã thấy), kết thúc run ok/failed.',
-    'Trả <code>sync_status()</code>.'],
+  members: { m: 'GET', p: '/members', uc: 'SystemService.members', jira: '', steps: ['<code>members.findAll()</code>.'],
+    ret: 'Member[]', fe: 'staleTime 60s. useMemberMap() dựng map id → member cho avatar/tên ở mọi màn hình; Members tab cũng dùng.' },
+  sync: { m: 'POST', p: '/sync', uc: 'SystemService.runSync → SyncService.run', jira: 'read', body: '{ full: bool }', steps: [
+    'Khoá <code>running</code>, tạo bản ghi sync run = running.',
+    '<code>since</code> = lần sync ok gần nhất − 5 phút; <code>null</code> nếu full.',
+    'Đọc Jira trước: từng epic đang track và <code>reader.search(epics, since)</code>.',
+    'Một transaction: upsert anken, xoá anken không còn track. Nếu full mà Jira trả rỗng trong khi DB có data → rollback, run failed, giữ data.',
+    '<code>Mapper</code> chuyển snapshot thành Issue (parent trước), tự tạo Member cho account Jira mới.',
+    'Full sync: xoá issue không còn thấy. Lưu settings (status đã thấy), commit, kết thúc run ok/failed.',
+    'Trả <code>syncStatus()</code>.'],
     ret: 'SyncStatus', fe: 'SyncPill gọi với full=false. onSettled → invalidateQueries() toàn bộ; status=failed thì toast lỗi.' },
-  syncLatest: { m: 'GET', p: '/sync/runs/latest', uc: 'system.sync_status', jira: '', steps: ['Đọc run mới nhất và run ok mới nhất.'],
+  syncLatest: { m: 'GET', p: '/sync/runs/latest', uc: 'SystemService.syncStatus', jira: '', steps: ['Đọc run mới nhất và run ok mới nhất.'],
     ret: 'SyncStatus', fe: 'Frontend không gọi; trạng thái sync đã có trong /meta.' },
 
-  myWork: { m: 'GET', p: '/my-work?member&backlog', uc: 'work.my_work', jira: '', steps: [
-    '<code>load_context()</code>. Member không tồn tại → 404.',
+  myWork: { m: 'GET', p: '/my-work?member&backlog', uc: 'WorkService.myWork', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Member không tồn tại → 404.',
     '<code>mine</code> = sub-task có assignee là member, chưa Closed, sắp theo planned_end.',
     '<code>tasks</code> = bỏ Resolved, trừ "review item" (step review đang current và N/W, hoặc step fix đã Resolved).',
     '<code>next_day</code> = ngày làm việc kế tiếp của member (tính holiday và nghỉ phép).',
@@ -397,20 +397,20 @@ const EP = {
     ret: 'MyWork { delay, due_today, due_next, backlog[], related[], related_scope, open_count, remaining_h }',
     fe: 'queryKey [my-work, member, backlog]. Đổi Week/Month là đổi search param và refetch.' },
 
-  ankenList: { m: 'GET', p: '/anken', uc: 'anken.overview', jira: '', steps: [
-    '<code>load_context()</code>, sắp anken theo thứ tự epic trong Settings.',
-    '<code>_card()</code>: gom sub-task theo phase của parent → <code>phase_rollup</code>.',
+  ankenList: { m: 'GET', p: '/anken', uc: 'AnkenService.overview', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>, sắp anken theo thứ tự epic trong Settings.',
+    '<code>card()</code>: gom sub-task theo phase của parent → <code>Overview.phaseRollup()</code>.',
     'late_subtasks = sub-task có flag late; late_functions = function có ít nhất 1 ô late.',
     'plan = due date của epic hoặc max planned_end; forecast = plan + late_days tệ nhất (ngày làm việc); slip_days.',
     'used_h / estimate_h, member_ids, has_functions.'],
-    ret: 'list[AnkenCard]', fe: 'Route /matrix cũng gọi (ensureQueryData) để chọn anken đầu tiên có function rồi redirect.' },
-  ankenDetail: { m: 'GET', p: '/anken/{epic}', uc: 'anken.detail', jira: '', steps: [
-    '<code>load_context()</code>. Epic không được track → 404.',
-    '<code>attention_groups()</code> theo thresholds: overdue · stuck_resolved · many_rounds · waiting_client.',
+    ret: 'AnkenCard[]', fe: 'Route /matrix cũng gọi (ensureQueryData) để chọn anken đầu tiên có function rồi redirect.' },
+  ankenDetail: { m: 'GET', p: '/anken/{epic}', uc: 'AnkenService.detail', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Epic không được track → 404.',
+    '<code>Overview.attentionGroups()</code> theo thresholds: overdue · stuck_resolved · many_rounds · waiting_client.',
     'Mỗi nhóm trả count + tối đa 6 TaskCard.'],
     ret: 'AnkenDetail { card, attention[] }', fe: 'Hiển thị bên dưới danh sách card khi đang ở /anken/$epic.' },
-  matrix: { m: 'GET', p: '/anken/{epic}/matrix', uc: 'anken.matrix', jira: '', steps: [
-    '<code>load_context()</code>. Epic không được track → 404.',
+  matrix: { m: 'GET', p: '/anken/{epic}/matrix', uc: 'AnkenService.matrix', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Epic không được track → 404.',
     'Lấy các Function của epic (mỗi function có 5 ô, null khi step chưa có sub-task).',
     'Mỗi row: current step, state (done/nys/delay/ontime), progress (early/ontime/late), group N/W/D.',
     'pct = trọng số C=1, R=0.8, W=0.4, N=0, chia cho 5 step.',
@@ -418,188 +418,187 @@ const EP = {
     'Kèm danh sách parent ticket và <code>next_function_id</code> (prefix phổ biến nhất, số lớn nhất + 1) cho form Add function.'],
     ret: 'MatrixView { stats, functions[], parents[], next_function_id }',
     fe: 'Filter q / members / status / prog / sort / r0..r4 nằm trên URL và lọc ở client, không gọi lại API.' },
-  fnPreview: { m: 'POST', p: '/anken/{epic}/functions/preview', uc: 'anken.preview_function', jira: '', body: 'FunctionDraftIn', steps: [
-    '<code>load_context()</code>. Epic không được track → 404.',
-    'Validate: parent thuộc epic, ba/bal/jm là member, create_hours > 0 (422 kèm field).',
+  fnPreview: { m: 'POST', p: '/anken/{epic}/functions/preview', uc: 'AnkenService.previewFunction', jira: '', body: 'FunctionDraftIn', steps: [
+    '<code>TrackerContextLoader.load()</code>. Epic không được track → 404.',
+    'Body: create_hours trong (0, 1000], tối đa 5 override (400 kèm field). Service: parent thuộc epic, ba/bal/jm là member (422 kèm field).',
     'Pad overrides cho đủ 5 step; function_id = next id.',
-    '<code>suggest_function_plan()</code>: bắt đầu từ ngày mai, assignee lần lượt BA, BAL, BA, JM, BA, né ngày nghỉ của từng người, áp overrides.',
+    '<code>Scheduling.suggestFunctionPlan()</code>: bắt đầu từ ngày mai, assignee lần lượt BA, BAL, BA, JM, BA, né ngày nghỉ của từng người, áp overrides.',
     'Summary từng sub-task render theo Name rule (phase, function id/name, step, anken).'],
     ret: 'FunctionPreview { phase, function_id, steps[] }', fe: 'Gọi như một query (key theo draft), keepPreviousData, retry=false. Không ghi gì.' },
-  fnCreate: { m: 'POST', p: '/anken/{epic}/functions', uc: 'anken.create_function', jira: 'write', body: 'FunctionCreateIn', steps: [
-    '<code>writer is None</code> → 403 capability_disabled.',
-    '<code>load_context()</code>, 404 nếu epic không track; tên rỗng → 422; function_id đã có → 409.',
-    'Chạy lại <code>_plan()</code> giống preview.',
+  fnCreate: { m: 'POST', p: '/anken/{epic}/functions', uc: 'AnkenService.createFunction', jira: 'write', body: 'FunctionCreateIn', steps: [
+    'Không có <code>JiraWriter</code> → 403 capability_disabled.',
+    '<code>TrackerContextLoader.load()</code>, 404 nếu epic không track; tên rỗng → 400; function_id đã có → 409.',
+    'Chạy lại <code>plan()</code> giống preview.',
     'Mỗi assignee phải có jira_account_id (422).',
-    '<code>writer.create_subtasks(parent_key, 5 sub-task)</code> → keys.',
+    '<code>writer.createSubtasks(parentKey, 5 sub-task)</code> → keys.',
     '<code>sync.refresh(keys)</code> đọc lại các issue mới vào DB.'],
     ret: '201 { keys }', fe: 'mutationKey [write, function, epic]. Thành công → invalidateQueries() và quay về Matrix.' },
 
-  planning: { m: 'GET', p: '/planning?start&weeks', uc: 'planning.view', jira: '', steps: [
-    'weeks phải là 1 hoặc 2 (422).',
-    '<code>load_context()</code>; cửa sổ từ thứ Hai của start, chỉ giữ ngày visible (ngày làm việc + extra day).',
+  planning: { m: 'GET', p: '/planning?start&weeks', uc: 'PlanningService.view', jira: '', steps: [
+    'weeks phải là 1 hoặc 2 (400).',
+    '<code>TrackerContextLoader.load()</code>; cửa sổ từ thứ Hai của start, chỉ giữ ngày visible (ngày làm việc + extra day).',
     'Mỗi member một lane: sub-task có đủ planned dates, worker là member, chồng lên cửa sổ.',
-    'Màu block theo step (hoặc <code>step_hint</code> đoán từ summary).',
+    'Màu block theo step (hoặc <code>Steps.stepHint()</code> đoán từ summary).',
     'Ô ngày: holiday / leave / leave_half (+ tentative).',
-    'Capacity: <code>weekly_capacity()</code> 5 tuần, ngưỡng cap_pct từ Alerts.'],
+    'Capacity: <code>Capacity.weeklyCapacity()</code> 5 tuần, ngưỡng cap_pct từ Alerts.'],
     ret: 'PlanningView { days[], rows[], capacity[], projects }', fe: 'keepPreviousData khi chuyển tuần. ?hide= ẩn project ở client.' },
-  planPreview: { m: 'POST', p: '/planning/preview', uc: 'planning.preview', jira: '', body: '{ start, changes[] }', steps: [
-    '<code>load_context()</code>.',
+  planPreview: { m: 'POST', p: '/planning/preview', uc: 'PlanningService.preview', jira: '', body: '{ start, changes[] }', steps: [
+    '<code>TrackerContextLoader.load()</code>.',
     'Mỗi change: issue phải có plan (422), member phải tồn tại (422).',
-    '<code>shift_plan()</code> dời sang start mới, giữ độ dài.',
+    '<code>Scheduling.shiftPlan()</code> dời sang start mới, giữ độ dài.',
     'Đánh dấu nếu start/end mới rơi vào weekend, holiday hoặc nghỉ phép của member mới.',
     'Tính lại capacity với các item đã dời.'],
     ret: 'PlanningPreview { changes[], capacity[] }', fe: 'Query chỉ bật khi có pending change. Không ghi gì.' },
-  planPush: { m: 'POST', p: '/planning/push', uc: 'planning.push', jira: 'write', body: '{ changes[] }', steps: [
-    '<code>writer is None</code> → 403.',
+  planPush: { m: 'POST', p: '/planning/push', uc: 'PlanningService.push', jira: 'write', body: '{ changes[] }', steps: [
+    'Không có <code>JiraWriter</code> → 403.',
     'Tính lại previews như trên.',
     'Đổi người: member mới phải có jira_account_id (422).',
-    '<code>writer.update_issue(key, planned_start, planned_end, assignee)</code> cho từng change.',
+    '<code>writer.updateIssue(key, plannedStart, plannedEnd, accountId)</code> cho từng change.',
     '<code>sync.refresh(keys)</code>.'],
     ret: '{ keys }', fe: 'mutationKey [write, plan]. Thành công → invalidateQueries() và xoá pending.' },
 
-  timesheet: { m: 'GET', p: '/effort/timesheet?from&to', uc: 'effort.timesheet', jira: '', steps: [
+  timesheet: { m: 'GET', p: '/effort/timesheet?from&to', uc: 'EffortService.timesheet', jira: '', steps: [
     'to < from hoặc khoảng ≥ 62 ngày → 422.',
-    '<code>load_context()</code>, lấy ngày visible trong khoảng.',
+    '<code>TrackerContextLoader.load()</code>, lấy ngày visible trong khoảng.',
     'Gom worklog theo (member, ngày).',
-    '<code>daily_plan()</code>: rải estimate của mỗi sub-task có plan lên các ngày làm việc của worker.',
+    '<code>Capacity.dailyPlan()</code>: rải estimate của mỗi sub-task có plan lên các ngày làm việc của worker.',
     'Mỗi ô so logged với planned và expected (hours_per_day); lệch quá tolerance thì đánh dấu.'],
     ret: 'TimesheetView { days[], rows[] }', fe: 'keepPreviousData khi đổi khoảng ngày.' },
-  dayDetail: { m: 'GET', p: '/effort/timesheet/{member}/{date}', uc: 'effort.day_detail', jira: '', steps: [
-    '<code>load_context()</code>. Member không tồn tại → 404.',
+  dayDetail: { m: 'GET', p: '/effort/timesheet/{member}/{date}', uc: 'EffortService.dayDetail', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Member không tồn tại → 404.',
     'Lấy worklog của member trong ngày, nhóm theo ticket.',
     'Ghép planned_h của ngày đó từ daily_plan, kèm notes.',
     'Bổ sung summary, function, step cho từng entry.'],
     ret: 'DayDetailView { logged_h, planned_h, entries[] }', fe: 'Gọi khi bấm một ô trong bảng; entry mở được Ticket panel.' },
-  analysis: { m: 'GET', p: '/effort/analysis?anken', uc: 'effort.analysis', jira: '', steps: [
-    '<code>load_context()</code>. Không truyền anken thì lấy epic đầu tiên có function; epic không track → 404.',
+  analysis: { m: 'GET', p: '/effort/analysis?anken', uc: 'EffortService.analysis', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Không truyền anken thì lấy epic đầu tiên có function; epic không track → 404.',
     'by_phase: estimate vs logged theo phase.',
     'by_step: estimate vs logged theo 5 step.',
-    '<code>rework_by_member()</code>: giờ Fix / giờ Create cho từng BA owner.',
+    '<code>Analysis.reworkByMember()</code>: giờ Fix / giờ Create cho từng BA owner.',
     'KPIs: logged/estimate của sub-task đã bắt đầu, rework_rate, avg_rounds, fix_tickets, over_subtasks.'],
     ret: 'EffortAnalysis { kpis, by_phase[], by_step[], rework[] }', fe: 'queryKey [effort-analysis, anken].' },
 
-  calendar: { m: 'GET', p: '/calendar?month=YYYY-MM', uc: 'calendar.month', jira: '', steps: [
-    'Không load issue: chỉ settings, members và <code>make_calendar()</code>.',
+  calendar: { m: 'GET', p: '/calendar?month=YYYY-MM', uc: 'CalendarService.month', jira: '', steps: [
+    'Không load issue: chỉ settings, members và <code>TrackerContextLoader.calendar()</code>.',
     'Lấy ngày visible trong tháng.',
     'Mỗi member: ô holiday (theo country) / leave (nhãn loại nghỉ) / trống.',
     'days_off: nghỉ cả ngày tính 1, nửa ngày tính 0.5.'],
     ret: 'CalendarView { days[], rows[] }', fe: 'Leave dialog cũng đọc lại query này để tìm leave đang sửa.' },
-  leaveAdd: { m: 'POST', p: '/leaves', uc: 'calendar.save_leave', jira: '', body: 'LeaveIn', steps: [
+  leaveAdd: { m: 'POST', p: '/leaves', uc: 'CalendarService.saveLeave', jira: '', body: 'LeaveIn', steps: [
     'to < from → 422; member không tồn tại → 422.',
     'Duyệt từng ngày trong khoảng (tối đa 60), bỏ ngày không làm việc.',
     'Ngày đã có leave của member đó thì thay thế.',
-    'Thêm một bản ghi leave cho mỗi ngày, commit.'],
+    'Thêm một bản ghi leave cho mỗi ngày, tất cả trong một transaction.'],
     ret: '201 { days }', fe: 'invalidateQueries() vì nghỉ phép ảnh hưởng Planning, capacity và Timesheet.' },
-  leaveEdit: { m: 'PUT', p: '/leaves/{leave_id}', uc: 'calendar.save_leave', jira: '', body: 'LeaveIn', steps: [
+  leaveEdit: { m: 'PUT', p: '/leaves/{leave_id}', uc: 'CalendarService.saveLeave', jira: '', body: 'LeaveIn', steps: [
     'Như POST /leaves, thêm bước: leave id không có → 404, xoá bản cũ trước khi ghi lại theo khoảng ngày mới.'],
     ret: '{ days }', fe: 'invalidateQueries().' },
-  leaveDel: { m: 'DELETE', p: '/leaves/{leave_id}', uc: 'calendar.delete_leave', jira: '', steps: ['Không có → 404.', 'Xoá, commit.'],
+  leaveDel: { m: 'DELETE', p: '/leaves/{leave_id}', uc: 'CalendarService.deleteLeave', jira: '', steps: ['Không có → 404.', 'Xoá (transaction).'],
     ret: '204', fe: 'invalidateQueries().' },
-  importPreview: { m: 'POST', p: '/leaves/import/preview', uc: 'calendar.import_preview', jira: '', body: 'multipart file hoặc ?sample=true', steps: [
-    'sample=true → dữ liệu mẫu; file > 5 MB → 422; không có file → 422.',
-    '<code>read_rows()</code> đọc .xlsx/.csv thành mảng dòng.',
-    '<code>validate_rows(rows, members, leaves hiện có)</code>: lỗi theo từng dòng.',
+  importPreview: { m: 'POST', p: '/leaves/import/preview', uc: 'CalendarService.importPreview', jira: '', body: 'multipart file hoặc ?sample=true', steps: [
+    'sample=true → dữ liệu mẫu; file > 5 MB → 413; không có file hoặc không phải .xlsx/.csv → 422.',
+    '<code>LeaveFiles.readRows()</code> đọc .xlsx/.csv thành mảng dòng.',
+    '<code>LeaveImport.validateRows(rows, members, leaves hiện có)</code>: lỗi theo từng dòng.',
     'working_days = số ngày làm việc các dòng hợp lệ sẽ thêm.'],
     ret: '{ file, rows[], working_days }', fe: 'Mutation, kết quả lưu ở state client cho bước 3–4. Không ghi gì.' },
-  importConfirm: { m: 'POST', p: '/leaves/import', uc: 'calendar.import_confirm', jira: '', body: '{ rows: string[][] }', steps: [
+  importConfirm: { m: 'POST', p: '/leaves/import', uc: 'CalendarService.importConfirm', jira: '', body: '{ rows: string[][] }', steps: [
     'Validate lại toàn bộ rows.',
-    'Dòng hợp lệ: thêm leave cho mỗi ngày làm việc trong khoảng.',
-    'Commit.'],
+    'Dòng hợp lệ: thêm leave cho mỗi ngày làm việc trong khoảng, trong một transaction.'],
     ret: '{ imported, month }', fe: 'Chỉ gửi dòng hợp lệ. invalidateQueries(), điều hướng tới tháng trả về.' },
-  template: { m: 'GET', p: '/leaves/template', uc: '(router) TEMPLATE_CSV', jira: '', steps: ['Trả file CSV mẫu, Content-Disposition attachment.'],
+  template: { m: 'GET', p: '/leaves/template', uc: '(controller) LeaveFiles.TEMPLATE_CSV', jira: '', steps: ['Trả file CSV mẫu, Content-Disposition attachment.'],
     ret: 'text/csv', fe: 'Link download trực tiếp ở bước 1 của wizard.' },
-  export: { m: 'GET', p: '/leaves/export?month', uc: 'calendar.export', jira: '', steps: [
+  export: { m: 'GET', p: '/leaves/export?month', uc: 'CalendarService.export', jira: '', steps: [
     'Leave trong tháng sắp theo ngày, member (who = full name).',
     'Thêm holiday trong tháng (who = danh sách country).',
-    'Router dựng file .xls.'],
+    'Controller dựng file .xls (LeaveFiles.exportXls).'],
     ret: 'application/vnd.ms-excel', fe: 'Nút Export tạo thẻ &lt;a&gt; trỏ thẳng tới URL.' },
 
-  ticket: { m: 'GET', p: '/tickets/{key}', uc: 'tickets.detail', jira: '', steps: [
-    '<code>load_context()</code>. Key không có → 404.',
+  ticket: { m: 'GET', p: '/tickets/{key}', uc: 'TicketService.detail', jira: '', steps: [
+    '<code>TrackerContextLoader.load()</code>. Key không có → 404.',
     'card = TaskCard với flags.',
     'Warnings: late (số ngày), over (giờ vượt estimate), rounds (step fix ≥ ngưỡng review_rounds).',
     'History: các lần đổi assignee từ changelog.',
     'Worklogs mới nhất trước.'],
     ret: 'TicketDetail { card, owner_id, warnings[], history[], worklogs[] }', fe: 'Mở khi URL có ?ticket=KEY.' },
-  ticketPatch: { m: 'PATCH', p: '/tickets/{key}', uc: 'tickets.patch', jira: 'write', body: 'TicketPatchIn', steps: [
-    '<code>writer is None</code> → 403.',
+  ticketPatch: { m: 'PATCH', p: '/tickets/{key}', uc: 'TicketService.patch', jira: 'write', body: 'TicketPatchIn', steps: [
+    'Không có <code>JiraWriter</code> → 403.',
     'Issue không có → 404; assignee không tồn tại hoặc không có Jira account → 422.',
     'planned_end trước planned_start → 422.',
-    'Có status → <code>writer.transition()</code>; có ngày/assignee → <code>writer.update_issue()</code>.',
-    '<code>sync.refresh([key])</code> rồi trả lại <code>detail()</code>.'],
+    'Có status → <code>writer.transition()</code>; có ngày/assignee → <code>writer.updateIssue()</code>.',
+    '<code>sync.refresh(List.of(key))</code> rồi trả lại <code>detail()</code>.'],
     ret: 'TicketDetail', fe: 'mutationKey [write, ticket, key]; invalidateQueries().' },
-  qa: { m: 'POST', p: '/qa', uc: 'tickets.ask → domain.qa.answer', jira: '', body: '{ q }', steps: [
-    'Câu hỏi rỗng → 422.',
-    '<code>load_context()</code>.',
-    '<code>answer()</code> dò tên member và từ khoá trong câu hỏi, trả lời từ functions, flags, worklogs. Rule-based, không gọi LLM.'],
+  qa: { m: 'POST', p: '/qa', uc: 'TicketService.ask → Qa.answer', jira: '', body: '{ q }', steps: [
+    'Câu hỏi rỗng hoặc quá 500 ký tự → 400.',
+    '<code>TrackerContextLoader.load()</code>.',
+    '<code>Qa.answer()</code> dò tên member và từ khoá trong câu hỏi, trả lời từ functions, flags, worklogs. Rule-based, không gọi LLM.'],
     ret: 'Answer', fe: 'Mutation từ Ask chat panel; link trong câu trả lời mở Ticket panel.' },
 
-  jiraGet: { m: 'GET', p: '/settings/jira', uc: 'admin.jira_settings', jira: '', steps: [
+  jiraGet: { m: 'GET', p: '/settings/jira', uc: 'JiraSettingsService.jiraSettings', jira: '', steps: [
     'Đọc settings, anken, lần sync ok gần nhất.',
     'Giải mã token, chỉ trả 12 ký tự đầu + mask.',
     'Danh sách epic kèm title/project.'],
     ret: 'JiraSettingsView', fe: '' },
-  jiraPut: { m: 'PUT', p: '/settings/jira', uc: 'admin.save_jira', jira: 'read', body: 'JiraIn', steps: [
-    'interval không hợp lệ hoặc URL không bắt đầu bằng https:// → 422.',
-    'Có token mới → mã hoá Fernet rồi lưu.',
-    'Chạy <code>test_jira()</code> để cập nhật trạng thái kết nối.',
+  jiraPut: { m: 'PUT', p: '/settings/jira', uc: 'JiraSettingsService.saveJira', jira: 'read', body: 'JiraIn', steps: [
+    'Thiếu url/email/interval → 400; interval không hợp lệ hoặc URL không bắt đầu bằng https:// → 422.',
+    'Có token mới → mã hoá AES-256-GCM (Spring Security Crypto) rồi lưu.',
+    'Chạy <code>testJira()</code> để cập nhật trạng thái kết nối.',
     'Lưu settings (không sync).'],
-    ret: 'JiraSettingsView', fe: 'Đổi interval có hiệu lực ở vòng lặp scheduler kế tiếp.' },
-  jiraTest: { m: 'POST', p: '/settings/jira/test', uc: 'admin.test_jira', jira: 'read', body: 'JiraTestIn', steps: [
-    '<code>reader_for(url, email, token hoặc token đã lưu).test_connection()</code>.',
+    ret: 'JiraSettingsView', fe: 'Scheduler kiểm tra interval mỗi phút nên đổi interval có hiệu lực ngay.' },
+  jiraTest: { m: 'POST', p: '/settings/jira/test', uc: 'JiraSettingsService.testJira', jira: 'read', body: 'JiraTestIn', steps: [
+    '<code>readers.create(url, email, token hoặc token đã lưu).testConnection()</code>.',
     'JiraError → "fail". Không lưu gì.'],
     ret: '{ status: ok | fail }', fe: '' },
-  epicAdd: { m: 'POST', p: '/settings/epics', uc: 'admin.add_epic', jira: 'full', body: '{ key }', steps: [
+  epicAdd: { m: 'POST', p: '/settings/epics', uc: 'JiraSettingsService.addEpic', jira: 'full', body: '{ key }', steps: [
     'Chuẩn hoá chữ hoa; sai định dạng → 422; đã track → 409.',
-    '<code>reader.get_epic(key)</code>: không phải epic → 404; Jira lỗi → 502.',
+    '<code>reader.findEpic(key)</code>: không phải epic → 404; Jira lỗi → 502.',
     'Thêm vào settings.jira.epics.',
-    '<code>sync.run(full=True)</code> đồng bộ ngay trong request.'],
+    '<code>sync.run(true)</code> đồng bộ ngay trong request.'],
     ret: 'JiraSettingsView', fe: 'Request chậm vì chờ full sync.' },
-  epicDel: { m: 'DELETE', p: '/settings/epics/{key}', uc: 'admin.remove_epic', jira: 'full', steps: [
-    'Không track → 404.', 'Xoá khỏi danh sách.', '<code>sync.run(full=True)</code>: anken và issue không còn thấy bị xoá khỏi DB.'],
+  epicDel: { m: 'DELETE', p: '/settings/epics/{key}', uc: 'JiraSettingsService.removeEpic', jira: 'full', steps: [
+    'Không track → 404.', 'Xoá khỏi danh sách.', '<code>sync.run(true)</code>: anken và issue không còn thấy bị xoá khỏi DB.'],
     ret: 'JiraSettingsView', fe: '' },
-  fmGet: { m: 'GET', p: '/settings/field-mapping', uc: 'admin.field_mapping', jira: 'read', steps: [
-    'Mapping hiện tại: planned_start, planned_end, effort.', 'Catalog field từ <code>reader.list_fields()</code> (Jira lỗi → []).'],
+  fmGet: { m: 'GET', p: '/settings/field-mapping', uc: 'JiraSettingsService.fieldMapping', jira: 'read', steps: [
+    'Mapping hiện tại: planned_start, planned_end, effort.', 'Catalog field từ <code>reader.listFields()</code> (Jira lỗi → []).'],
     ret: 'FieldMappingView', fe: '' },
-  fmPut: { m: 'PUT', p: '/settings/field-mapping', uc: 'admin.save_field_mapping', jira: 'full', body: 'FieldMappingIn', steps: ['Lưu field id mới.', '<code>sync.run(full=True)</code>.'],
+  fmPut: { m: 'PUT', p: '/settings/field-mapping', uc: 'JiraSettingsService.saveFieldMapping', jira: 'full', body: 'FieldMappingIn', steps: ['Lưu field id mới.', '<code>sync.run(true)</code>.'],
     ret: 'FieldMappingView', fe: '' },
-  fmCheck: { m: 'POST', p: '/settings/field-mapping/check', uc: 'admin.check_field_mapping', jira: 'read', body: 'FieldCheckIn', steps: [
-    '<code>reader.get_issue(sample)</code>; không có → 404.',
+  fmCheck: { m: 'POST', p: '/settings/field-mapping/check', uc: 'JiraSettingsService.checkFieldMapping', jira: 'read', body: 'FieldCheckIn', steps: [
+    '<code>reader.findIssue(sample)</code>; không có → 404.',
     'Mỗi target: not_mapped / not_found / type_mismatch / ok kèm giá trị đọc được (effort từ giây sang giờ).'],
     ret: 'FieldMappingCheck', fe: 'Thử mapping trên một ticket mẫu trước khi lưu.' },
-  smGet: { m: 'GET', p: '/settings/status-mapping', uc: 'admin.status_mapping', jira: '', steps: [
+  smGet: { m: 'GET', p: '/settings/status-mapping', uc: 'JiraSettingsService.statusMapping', jira: '', steps: [
     'Ghép các status Jira đã thấy khi sync (kèm category) với mapping tay.',
     'effective = mapping tay, nếu không có thì theo category: new → N, indeterminate → W, done → C.'],
-    ret: 'list[StatusRow]', fe: '' },
-  smPut: { m: 'PUT', p: '/settings/status-mapping', uc: 'admin.save_status_mapping', jira: 'full', body: '{ mapping }', steps: [
-    'Giá trị không thuộc N/W/R/C → 422.', 'Lưu.', '<code>sync.run(full=True)</code>.'],
-    ret: 'list[StatusRow]', fe: '' },
-  nrGet: { m: 'GET', p: '/settings/name-rules', uc: 'admin.name_rules', jira: '', steps: ['rule + aliases hiện tại.', 'coverage: bao nhiêu summary đã lưu parse được theo rule.'],
+    ret: 'StatusRow[]', fe: '' },
+  smPut: { m: 'PUT', p: '/settings/status-mapping', uc: 'JiraSettingsService.saveStatusMapping', jira: 'full', body: '{ mapping }', steps: [
+    'Giá trị không thuộc N/W/R/C → 400.', 'Lưu.', '<code>sync.run(true)</code>.'],
+    ret: 'StatusRow[]', fe: '' },
+  nrGet: { m: 'GET', p: '/settings/name-rules', uc: 'JiraSettingsService.nameRules', jira: '', steps: ['rule + aliases hiện tại.', 'coverage: bao nhiêu summary đã lưu parse được theo rule.'],
     ret: 'NameRulesView', fe: '' },
-  nrPreview: { m: 'POST', p: '/settings/name-rules/preview', uc: 'admin.preview_name_rule', jira: '', body: 'NameRulePreviewIn', steps: [
-    '<code>compile_rule()</code>; rule lỗi thì trả error trong body (không raise).',
+  nrPreview: { m: 'POST', p: '/settings/name-rules/preview', uc: 'JiraSettingsService.previewNameRule', jira: '', body: 'NameRulePreviewIn', steps: [
+    '<code>Naming.compileRule()</code>; rule lỗi thì trả error trong body (không ném lỗi).',
     'Parse sample → values + step.',
     'Tính coverage trên toàn bộ summary.'],
     ret: 'NameRulePreview', fe: 'Gọi như query theo body đang gõ, keepPreviousData.' },
-  nrPut: { m: 'PUT', p: '/settings/name-rules', uc: 'admin.save_name_rules', jira: 'full', body: 'NameRulesIn', steps: [
-    'compile_rule kiểm tra; lỗi → 422.', 'Lưu.', '<code>sync.run(full=True)</code> để parse lại function_id/step cho mọi issue.'],
+  nrPut: { m: 'PUT', p: '/settings/name-rules', uc: 'JiraSettingsService.saveNameRules', jira: 'full', body: 'NameRulesIn', steps: [
+    '<code>Naming.compileRule()</code> kiểm tra; lỗi → 422.', 'Lưu.', '<code>sync.run(true)</code> để parse lại function_id/step cho mọi issue.'],
     ret: 'NameRulesView', fe: '' },
-  memberPatch: { m: 'PATCH', p: '/members/{member_id}', uc: 'admin.update_member', jira: '', body: 'MemberPatchIn', steps: [
-    'country không hợp lệ hoặc name rỗng → 422; member không có → 404.',
+  memberPatch: { m: 'PATCH', p: '/members/{member_id}', uc: 'TeamSettingsService.updateMember', jira: '', body: 'MemberPatchIn', steps: [
+    'country/role/permission không hợp lệ → 400; name rỗng → 422; member không có → 404.',
     'Cập nhật name / role / permission / country (clear_role để bỏ role).'],
     ret: 'Member', fe: 'Role quyết định My Work hiển thị related theo owner hay reviewer.' },
-  holGet: { m: 'GET', p: '/holidays', uc: 'admin.holidays', jira: '', steps: ['Danh sách holiday.'], ret: 'list[Holiday]', fe: '' },
-  holAdd: { m: 'POST', p: '/holidays', uc: 'admin.add_holiday', jira: '', body: 'HolidayIn', steps: ['Validate, lưu holiday cho các country.'], ret: '201 list[Holiday]', fe: '' },
-  holDel: { m: 'DELETE', p: '/holidays/{date}', uc: 'admin.delete_holiday', jira: '', steps: ['Xoá holiday theo ngày.'], ret: 'list[Holiday]', fe: '' },
-  xdGet: { m: 'GET', p: '/extra-days', uc: 'admin.extra_days', jira: '', steps: ['Map ngày → ghi chú của các ngày làm bù.'], ret: 'dict[date, note]', fe: '' },
-  xdAdd: { m: 'POST', p: '/extra-days', uc: 'admin.add_extra_day', jira: '', body: 'ExtraDayIn', steps: ['Validate, lưu ngày làm bù.'], ret: '201 dict', fe: '' },
-  xdDel: { m: 'DELETE', p: '/extra-days/{date}', uc: 'admin.delete_extra_day', jira: '', steps: ['Xoá ngày làm bù.'], ret: 'dict', fe: '' },
-  whGet: { m: 'GET', p: '/settings/working-hours', uc: 'admin.working_hours', jira: '', steps: ['Đọc hours_per_day, days, timesheet_tolerance_h.'], ret: 'WorkingHours', fe: '' },
-  whPut: { m: 'PUT', p: '/settings/working-hours', uc: 'admin.save_working_hours', jira: '', body: 'WorkingHoursIn', steps: [
-    'hours_per_day trong (0, 24], tolerance ≥ 0, ít nhất 1 ngày làm việc → nếu sai 422.', 'Lưu (days sort, unique).'],
+  holGet: { m: 'GET', p: '/holidays', uc: 'TeamSettingsService.holidays', jira: '', steps: ['Danh sách holiday.'], ret: 'Holiday[]', fe: '' },
+  holAdd: { m: 'POST', p: '/holidays', uc: 'TeamSettingsService.addHoliday', jira: '', body: 'HolidayIn', steps: ['Validate, lưu holiday cho các country.'], ret: '201 Holiday[]', fe: '' },
+  holDel: { m: 'DELETE', p: '/holidays/{date}', uc: 'TeamSettingsService.deleteHoliday', jira: '', steps: ['Xoá holiday theo ngày.'], ret: 'Holiday[]', fe: '' },
+  xdGet: { m: 'GET', p: '/extra-days', uc: 'TeamSettingsService.extraDays', jira: '', steps: ['Map ngày → ghi chú của các ngày làm bù.'], ret: '{ date: note }', fe: '' },
+  xdAdd: { m: 'POST', p: '/extra-days', uc: 'TeamSettingsService.addExtraDay', jira: '', body: 'ExtraDayIn', steps: ['Validate, lưu ngày làm bù.'], ret: '201 { date: note }', fe: '' },
+  xdDel: { m: 'DELETE', p: '/extra-days/{date}', uc: 'TeamSettingsService.deleteExtraDay', jira: '', steps: ['Xoá ngày làm bù.'], ret: 'dict', fe: '' },
+  whGet: { m: 'GET', p: '/settings/working-hours', uc: 'TeamSettingsService.workingHours', jira: '', steps: ['Đọc hours_per_day, days, timesheet_tolerance_h.'], ret: 'WorkingHours', fe: '' },
+  whPut: { m: 'PUT', p: '/settings/working-hours', uc: 'TeamSettingsService.saveWorkingHours', jira: '', body: 'WorkingHoursIn', steps: [
+    'hours_per_day trong (0, 24], tolerance ≥ 0, ít nhất 1 ngày làm việc → nếu sai 400; ngày ngoài 0–6 → 422.', 'Lưu (days sort, unique).'],
     ret: 'WorkingHours', fe: 'Ảnh hưởng calendar, capacity, timesheet ở mọi màn hình.' },
-  alGet: { m: 'GET', p: '/settings/alerts', uc: 'admin.alerts', jira: '', steps: ['Đọc thresholds.'], ret: 'Thresholds', fe: '' },
-  alPut: { m: 'PUT', p: '/settings/alerts', uc: 'admin.save_alerts', jira: '', body: 'AlertsIn', steps: ['Giá trị âm → 422.', 'Lưu.'],
+  alGet: { m: 'GET', p: '/settings/alerts', uc: 'TeamSettingsService.alerts', jira: '', steps: ['Đọc thresholds.'], ret: 'Thresholds', fe: '' },
+  alPut: { m: 'PUT', p: '/settings/alerts', uc: 'TeamSettingsService.saveAlerts', jira: '', body: 'AlertsIn', steps: ['Giá trị âm → 400.', 'Lưu.'],
     ret: 'Thresholds', fe: 'Ngưỡng dùng cho late/soon/over, attention groups, capacity, review rounds.' },
 };
 

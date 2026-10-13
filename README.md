@@ -5,7 +5,7 @@ Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning
 "Team Tracker" (`Team Tracker.dc.html`) on the Atlassian design-system tokens.
 
 ```
-backend/   Python · FastAPI · SQLAlchemy/SQLite · clean architecture (domain → application → adapters → bootstrap)
+backend/   Java 21 · Spring Boot 3 · JdbcClient/SQLite · Flyway · layered (domain → application → adapters → config)
 frontend/  React · Vite · TypeScript · TanStack Router/Query · feature-sliced, typed client generated from OpenAPI
 scripts/   setup.sh · demo.sh · dev.sh · check.sh
 ```
@@ -14,23 +14,24 @@ scripts/   setup.sh · demo.sh · dev.sh · check.sh
 
 ```bash
 scripts/demo.sh          # demo data on http://localhost:8000 — same code as the real app, simulated Jira
-scripts/dev.sh           # development: API :8000 (auto-reload) + Vite :5173, demo mode
+scripts/dev.sh           # development: API :8000 + Vite :5173, demo profile
 scripts/dev.sh jira      # development against real Jira (set it up in Settings → Jira)
 scripts/check.sh         # every automated check; add --e2e for the Playwright suite
 ```
 
-`scripts/setup.sh` (run by the others) creates `backend/.venv` and installs `frontend/node_modules`; everything stays
-inside the repository. The original mock-data build is tagged: `git checkout ui-mock-v0 && scripts/demo.sh`.
+`scripts/setup.sh` (run by the others) checks for a JDK 21 and installs `frontend/node_modules`; Maven comes with the
+backend's wrapper (`backend/mvnw`). The original mock-data build is tagged: `git checkout ui-mock-v0 && scripts/demo.sh`.
 
 ## Modes
 
-| `TRACKER_MODE` | Jira | Writes | "Today" | Database |
+| Spring profile | Jira | Writes | "Today" | Database |
 |---|---|---|---|---|
 | `demo` | simulated site with the design's data | enabled (to the simulated site) | 2026-10-07 | `.tmp/demo/tracker.db`, recreated on start |
-| `jira` (default) | your Jira Cloud site, read-only in phase 1 | disabled; the UI says so | real date (Asia/Ho_Chi_Minh) | `backend/data/tracker.db` |
+| none (default) | your Jira Cloud site, read-only in phase 1 | disabled; the UI says so | real date (Asia/Ho_Chi_Minh) | `backend/data/tracker.db` |
 
-Other settings: `TRACKER_DB_URL` (SQLAlchemy URL), `TRACKER_TODAY` (pin the date), `TRACKER_SECRET_KEY` (Fernet key for
-the stored Jira token; otherwise `backend/data/secret.key` is created), `TRACKER_STATIC_DIR` (built frontend to serve).
+Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRACKER_TODAY` (pin the date),
+`TRACKER_SECRET_KEY` (key that encrypts the stored Jira token; otherwise `backend/data/secret.key` is created),
+`TRACKER_STATIC_DIR` (built frontend to serve), `PORT`. See `backend/README.md`.
 
 ### Connecting a real Jira site (phase 1: read)
 
@@ -51,19 +52,20 @@ The API syncs on the chosen interval and from the Sync button; screens read only
 
 ## Architecture
 
-**Backend** (`backend/src/tracker`)
+**Backend** (`backend/src/main/java/tracker`, details in `backend/README.md`)
 
-- `domain/` — pure rules: working-day calendar, flags (late, over, tone, held days, review rounds), scheduling,
+- `domain/` — plain Java rules: working-day calendar, flags (late, over, tone, held days, review rounds), scheduling,
   naming rules, capacity, timesheet, analysis, anken roll-ups, Q&A, leave import validation.
-- `application/` — ports (`JiraReader`, `JiraWriter`, repositories, `Clock`, `SecretBox`), `SyncFromJira`, and one
-  use-case module per screen returning read models.
-- `adapters/` — FastAPI (`/api/v1`, problem+json errors), SQLAlchemy + Alembic, Jira Cloud REST v3 reader (httpx),
-  the simulated Jira for demo mode, clocks, the sync scheduler.
-- `bootstrap.py` — picks adapters from the environment.
+- `application/` — ports (`JiraReader`, `JiraWriter`, repositories, `SecretBox`), `SyncService`, settings, and one
+  `@Service` per screen returning read models.
+- `adapters/` — Spring MVC (`/api/v1`, Bean Validation, RFC 9457 problem details, springdoc), `@Repository` classes on
+  `JdbcClient` + Flyway, the Jira Cloud REST v3 reader, the simulated Jira for the demo profile, token encryption, the
+  scheduled sync.
+- `config/` — `TrackerProperties`, the clock and encryption, the demo and Jira-site configurations.
 
-Layer rules are enforced by `import-linter` (part of the test suite). The API serves raw values (ISO dates, hours,
-enums); the browser formats them. The OpenAPI document is committed at `frontend/src/shared/api/openapi.json`; a
-backend test fails when it drifts — run `npm run gen:api` in `frontend/`.
+Layer rules are enforced by ArchUnit (part of the test suite). The API serves raw values (ISO dates, hours, enums); the
+browser formats them. The OpenAPI document is committed at `frontend/src/shared/api/openapi.json`; a backend test fails
+when it drifts — run `npm run gen:api` in `frontend/`.
 
 **Frontend** (`frontend/src`)
 
@@ -86,10 +88,10 @@ Import boundaries are checked by `src/architecture.test.ts`.
 
 ## Tests
 
-`scripts/check.sh` runs: backend pytest (domain, use cases, persistence, Jira reader against REST v3 fixtures,
-API, characterization against the mock's numbers, OpenAPI drift), import-linter, pyright, generated-type check, `tsc`, ESLint,
+`scripts/check.sh` runs: the backend tests (domain, services, persistence, Jira reader against REST v3 fixtures, API,
+characterization against the mock's numbers, layer rules, OpenAPI drift), the generated-type check, `tsc`, ESLint,
 Vitest (display models, import boundaries, screens rendered with recorded API responses).
 
-- `pytest -m jira_live` reads a real site (set `TRACKER_JIRA_URL`, `_EMAIL`, `_TOKEN`, `_EPIC`).
-- `backend/scripts/record_jira_fixtures.py` records anonymised responses from a real site for new fixtures.
+- `./mvnw test -Dgroups=jira_live -DexcludedGroups=` in `backend/` reads a real site (set `TRACKER_JIRA_URL`, `_EMAIL`,
+  `_TOKEN`, `_EPIC`).
 - `scripts/check.sh --e2e` runs Playwright against a demo server (needs a browser installed for Playwright).

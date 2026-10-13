@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Development: API with auto-reload on :8000 and Vite on :5173 (proxying /api).
-#   scripts/dev.sh          # demo mode (simulated Jira, fixed "today")
-#   scripts/dev.sh jira     # real Jira mode (configure the site in Settings → Jira)
+# Development: the API on :8000 (spring-boot:run) and Vite on :5173 (proxying /api).
+#   scripts/dev.sh          # demo profile (simulated Jira, fixed "today")
+#   scripts/dev.sh jira     # your Jira site (configure it in Settings → Jira)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-demo}"
+PROFILES=""
+[ "$MODE" = "demo" ] && PROFILES="demo"
 "$ROOT/scripts/setup.sh"
 trap 'kill 0' EXIT
-(cd "$ROOT/backend" && TRACKER_MODE="$MODE" .venv/bin/uvicorn tracker.bootstrap:create_app_from_env --factory --reload --reload-dir src --port 8000) &
+(cd "$ROOT/backend" && SPRING_PROFILES_ACTIVE="$PROFILES" TRACKER_STATIC_DIR=/nonexistent ./mvnw -q spring-boot:run) &
 (cd "$ROOT/frontend" && npm run dev) &
 wait
