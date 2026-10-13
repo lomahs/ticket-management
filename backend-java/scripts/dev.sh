@@ -6,8 +6,10 @@ set -euo pipefail
 BACKEND="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT="$(dirname "$BACKEND")"
 MODE="${1:-demo}"
+PROFILES=""
+[ "$MODE" = "demo" ] && PROFILES="demo"
 if [ ! -d "$ROOT/frontend/node_modules" ]; then (cd "$ROOT/frontend" && npm install); fi
 trap 'kill 0' EXIT
-(cd "$BACKEND" && TRACKER_MODE="$MODE" TRACKER_STATIC_DIR=/nonexistent ./mvnw -q spring-boot:run) &
+(cd "$BACKEND" && SPRING_PROFILES_ACTIVE="$PROFILES" TRACKER_STATIC_DIR=/nonexistent ./mvnw -q spring-boot:run) &
 (cd "$ROOT/frontend" && npm run dev) &
 wait

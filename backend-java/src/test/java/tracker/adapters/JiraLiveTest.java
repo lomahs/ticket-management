@@ -43,7 +43,7 @@ class JiraLiveTest {
     @Test
     void epicAndItsIssuesCanBeRead() {
         String epic = System.getenv("TRACKER_JIRA_EPIC");
-        assertThat(reader.getEpic(epic)).isNotNull();
+        assertThat(reader.findEpic(epic)).isPresent();
         List<IssueSnapshot> snaps = new ArrayList<>();
         reader.search(List.of(epic), null).forEach(snaps::add);
         assertThat(snaps).as("the epic has no child issues").isNotEmpty();

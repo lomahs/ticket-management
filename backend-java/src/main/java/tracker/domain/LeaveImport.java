@@ -1,5 +1,7 @@
 package tracker.domain;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,12 +22,12 @@ public final class LeaveImport {
      * @param error empty when valid
      */
     public record ImportRow(int row, String member, String dateFrom, String dateTo, String typeText, String note,
-                            String memberId, LeaveType type, String error) {
+                            @Nullable String memberId, @Nullable LeaveType type, String error) {
     }
 
     private static String cell(List<?> raw, int i) {
         Object v = i < raw.size() ? raw.get(i) : "";
-        return v == null ? "" : Py.str(v).strip();
+        return v == null ? "" : String.valueOf(v).strip();
     }
 
     public static List<ImportRow> validateRows(List<? extends List<?>> rows, Map<String, Member> members, Iterable<Leave> existing) {
@@ -43,7 +45,7 @@ public final class LeaveImport {
                     .filter(e -> e.getValue().label().toLowerCase(Locale.ROOT).equals(ty.toLowerCase(Locale.ROOT))
                             || e.getKey().value().toLowerCase(Locale.ROOT).equals(ty.toLowerCase(Locale.ROOT)))
                     .map(Map.Entry::getKey).findFirst().orElse(null);
-            String to = Py.or(t, f);
+            String to = Text.orElse(t, f);
             String err;
             if (mid == null) {
                 err = "Unknown member \"" + mn + "\"";

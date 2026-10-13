@@ -1,5 +1,7 @@
 package tracker.domain;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,7 +47,7 @@ public final class Capacity {
             }
             List<String> days = new ArrayList<>();
             for (String d : Dates.daysBetween(it.start(), it.end())) {
-                if (!Py.truthy(cal.off(d, it.memberId()))) {
+                if (!Text.hasText(cal.off(d, it.memberId()))) {
                     days.add(d);
                 }
             }
@@ -63,7 +65,7 @@ public final class Capacity {
     }
 
     /** @param pct null when the member has no available hours that week; level is idle | ok | near | over */
-    public record WeekLoad(String weekStart, double plannedH, double availableH, Integer pct, String level) {
+    public record WeekLoad(String weekStart, double plannedH, double availableH, @Nullable Integer pct, String level) {
     }
 
     private static String level(Integer pct, double capPct) {
@@ -94,10 +96,10 @@ public final class Capacity {
             List<WeekLoad> rows = new ArrayList<>();
             for (int w = 0; w < weeks; w++) {
                 String ws = Dates.addDays(start, w * 7L);
-                double avail = Num.sum(Dates.daysBetween(ws, Dates.addDays(ws, 6)).stream()
-                        .mapToDouble(d -> hoursPerDay * cal.capacityFactor(mid, d)));
-                Integer pct = avail != 0 ? Num.round(loads[w] / avail * 100) : null;
-                rows.add(new WeekLoad(ws, Num.round(loads[w], 2), avail, pct, level(pct, capPct)));
+                double avail = Dates.daysBetween(ws, Dates.addDays(ws, 6)).stream()
+                        .mapToDouble(d -> hoursPerDay * cal.capacityFactor(mid, d)).sum();
+                Integer pct = avail != 0 ? (int) Math.round(loads[w] / avail * 100) : null;
+                rows.add(new WeekLoad(ws, Numbers.round(loads[w], 2), avail, pct, level(pct, capPct)));
             }
             out.put(mid, rows);
         }

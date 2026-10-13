@@ -16,6 +16,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.DoubleConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -24,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import org.jspecify.annotations.Nullable;
 
 import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
@@ -203,7 +206,7 @@ public final class JiraCloudReader implements JiraReader {
     }
 
     @Override
-    public Iterable<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
+    public List<IssueSnapshot> search(List<String> epicKeys, @Nullable Instant updatedSince) {
         Client client = client();
         List<IssueSnapshot> out = new ArrayList<>();
         List<JsonNode> parents = search(client, "parent in (" + quote(epicKeys) + ") ORDER BY key");
@@ -229,25 +232,25 @@ public final class JiraCloudReader implements JiraReader {
     }
 
     @Override
-    public EpicSnapshot getEpic(String key) {
+    public Optional<EpicSnapshot> findEpic(String key) {
         Client client = client();
         JsonNode data = call(client, "GET", "/rest/api/3/issue/" + key, Map.of("fields", "summary,issuetype,project,duedate"), null);
         if (data == null || data.isNull()) {
-            return null;
+            return Optional.empty();
         }
         JsonNode f = data.path("fields");
         JsonNode it = obj(f.get("issuetype"));
         boolean epic = "Epic".equals(textOrNull(it, "name")) || (it.has("hierarchyLevel") && it.get("hierarchyLevel").isNumber()
                 && it.get("hierarchyLevel").asInt() == 1);
         if (!epic) {
-            return null;
+            return Optional.empty();
         }
-        return new EpicSnapshot(data.path("key").asText(), f.path("project").path("key").asText(), text(f, "summary", ""),
-                textOrNull(f, "duedate"));
+        return Optional.of(new EpicSnapshot(data.path("key").asText(), f.path("project").path("key").asText(), text(f, "summary", ""),
+                textOrNull(f, "duedate")));
     }
 
     @Override
-    public IssueSnapshot getIssue(String key) {
+    public Optional<IssueSnapshot> findIssue(String key) {
         Client client = client();
         List<String> fields = new ArrayList<>(BASE_FIELDS);
         fields.addAll(client.cfg().fields());
@@ -255,7 +258,7 @@ public final class JiraCloudReader implements JiraReader {
         params.put("fields", String.join(",", fields));
         params.put("expand", "changelog");
         JsonNode data = call(client, "GET", "/rest/api/3/issue/" + key, params, null);
-        return data != null && !data.isNull() ? snapshot(client, data) : null;
+        return data != null && !data.isNull() ? Optional.of(snapshot(client, data)) : Optional.empty();
     }
 
     @Override

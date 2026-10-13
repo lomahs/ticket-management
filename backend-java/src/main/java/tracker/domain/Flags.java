@@ -27,7 +27,7 @@ public final class Flags {
             List<String> k = List.of(i.epicKey(), i.functionId());
             Issue[] slots = groups.computeIfAbsent(k, x -> new Issue[Steps.COUNT]);
             slots[Steps.index(i.step())] = i;
-            names.putIfAbsent(k, Py.or(i.functionName(), i.functionId()));
+            names.putIfAbsent(k, Text.orElse(i.functionName(), i.functionId()));
         }
         List<Function> out = new ArrayList<>();
         groups.forEach((k, cells) -> out.add(new Function(k.get(0), k.get(1), names.get(k), Arrays.asList(cells))));
@@ -35,8 +35,8 @@ public final class Flags {
     }
 
     public static int progressPct(Function fn) {
-        double weights = Num.sum(fn.issues().stream().mapToDouble(c -> PROGRESS_WEIGHT.get(c.status())));
-        return Num.round(weights / Steps.COUNT * 100);
+        double weights = fn.issues().stream().mapToDouble(c -> PROGRESS_WEIGHT.get(c.status())).sum();
+        return (int) Math.round(weights / Steps.COUNT * 100);
     }
 
     public static Status currentStatus(Function fn) {
@@ -80,7 +80,7 @@ public final class Flags {
     /** Who does the work: the reviewer on review steps, the function owner on other steps, else the assignee. */
     public static String workerOf(Issue issue, String ownerId) {
         StepDef step = Steps.stepDef(issue);
-        if (step != null && !step.review() && Py.truthy(ownerId)) {
+        if (step != null && !step.review() && Text.hasText(ownerId)) {
             return ownerId;
         }
         return issue.assigneeId();
@@ -96,11 +96,11 @@ public final class Flags {
         if (i.status() == Status.CLOSED) {
             return "clo";
         }
-        if (Py.truthy(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0) {
+        if (Text.hasText(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0) {
             return "delay";
         }
         String first = i.worklogs().stream().map(Worklog::date).min(String::compareTo).orElse(null);
-        if (first != null && Py.truthy(i.plannedStart())) {
+        if (first != null && Text.hasText(i.plannedStart())) {
             if (first.compareTo(i.plannedStart()) > 0) {
                 return "latestart";
             }
@@ -123,10 +123,10 @@ public final class Flags {
             return 0;
         }
         String since = i.status() == Status.RESOLVED ? lastEvent(i, EventField.STATUS, Status.RESOLVED.value()) : null;
-        if (!Py.truthy(since)) {
+        if (!Text.hasText(since)) {
             since = lastEvent(i, EventField.ASSIGNEE, null);
         }
-        return Py.truthy(since) ? Dates.weekdaysAfter(since, today) : 0;
+        return Text.hasText(since) ? Dates.weekdaysAfter(since, today) : 0;
     }
 
     private static int rounds(Issue i, String ownerId) {
@@ -146,8 +146,8 @@ public final class Flags {
     public static IssueFlags issueFlags(Issue issue, boolean isCurrent, String ownerId, String today, Thresholds thresholds) {
         boolean active = issue.status() == Status.WIP || (issue.status() == Status.NYS && isCurrent);
         String pe = issue.plannedEnd();
-        boolean late = active && Py.truthy(pe) && pe.compareTo(today) < 0;
-        boolean soon = !late && active && Py.truthy(pe) && pe.compareTo(today) >= 0
+        boolean late = active && Text.hasText(pe) && pe.compareTo(today) < 0;
+        boolean soon = !late && active && Text.hasText(pe) && pe.compareTo(today) >= 0
                 && Dates.weekdaysAfter(today, pe) <= thresholds.soonDays();
         return new IssueFlags(
                 isCurrent,

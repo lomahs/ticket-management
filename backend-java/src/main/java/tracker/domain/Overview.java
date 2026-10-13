@@ -1,5 +1,7 @@
 package tracker.domain;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -14,14 +16,14 @@ public final class Overview {
 
     public static final List<String> DEFAULT_PHASE_ORDER = List.of("Prepare", "Implement_Coding", "Function Unit Test");
 
-    public record PhaseRollup(String name, int pct, int closed, int total, String start, String end) {
+    public record PhaseRollup(String name, int pct, int closed, int total, @Nullable String start, @Nullable String end) {
     }
 
     public static PhaseRollup phaseRollup(String name, List<Issue> issues) {
-        String start = issues.stream().map(Issue::plannedStart).filter(Py::truthy).min(String::compareTo).orElse(null);
-        String end = issues.stream().map(Issue::plannedEnd).filter(Py::truthy).max(String::compareTo).orElse(null);
+        String start = issues.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
+        String end = issues.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
         int pct = issues.isEmpty() ? 0
-                : Num.round(Num.sum(issues.stream().mapToDouble(i -> Flags.PROGRESS_WEIGHT.get(i.status()))) / issues.size() * 100);
+                : (int) Math.round(issues.stream().mapToDouble(i -> Flags.PROGRESS_WEIGHT.get(i.status())).sum() / issues.size() * 100);
         int closed = (int) issues.stream().filter(i -> i.status() == Status.CLOSED).count();
         return new PhaseRollup(name, pct, closed, issues.size(), start, end);
     }
@@ -54,7 +56,7 @@ public final class Overview {
 
     public static List<AttentionGroup> attentionGroups(List<Issue> issues, Map<String, IssueFlags> flags,
                                                        Map<String, Member> members, Thresholds t) {
-        java.util.function.Predicate<String> isClient = mid -> Py.truthy(mid) && members.get(mid) != null
+        java.util.function.Predicate<String> isClient = mid -> Text.hasText(mid) && members.get(mid) != null
                 && members.get(mid).role() == Role.JM;
         List<Issue> overdue = new ArrayList<>(issues.stream().filter(i -> flags.get(i.key()).late()).toList());
         overdue.sort(Comparator.comparingInt(i -> -flags.get(i.key()).lateDays()));

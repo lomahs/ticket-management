@@ -20,8 +20,8 @@ public final class Analysis {
         List<EffortBar> out = new ArrayList<>();
         for (Group g : groups) {
             List<Issue> started = g.issues().stream().filter(i -> i.status() != Status.NYS).toList();
-            out.add(new EffortBar(g.label(), Num.sum(started.stream().mapToDouble(Issue::estimateH)),
-                    Num.sum(started.stream().mapToDouble(Issue::loggedH))));
+            out.add(new EffortBar(g.label(), started.stream().mapToDouble(Issue::estimateH).sum(),
+                    started.stream().mapToDouble(Issue::loggedH).sum()));
         }
         return out;
     }
@@ -36,12 +36,12 @@ public final class Analysis {
         for (String mid : memberIds) {
             List<Function> fns = functions.stream().filter(f -> Objects.equals(f.ownerId(), mid)).toList();
             List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
-            double create = Num.sum(cells.stream().filter(c -> c.step() == StepKind.CREATE).mapToDouble(Issue::loggedH));
-            double fix = Num.sum(cells.stream().filter(Steps::isFixStep).mapToDouble(Issue::loggedH));
+            double create = cells.stream().filter(c -> c.step() == StepKind.CREATE).mapToDouble(Issue::loggedH).sum();
+            double fix = cells.stream().filter(Steps::isFixStep).mapToDouble(Issue::loggedH).sum();
             List<Integer> rs = cells.stream().filter(c -> Steps.isFixStep(c) && rounds.getOrDefault(c.key(), 0) > 0)
                     .map(c -> rounds.getOrDefault(c.key(), 0)).toList();
-            double avg = rs.isEmpty() ? 0 : Num.round(rs.stream().mapToInt(Integer::intValue).sum() / (double) rs.size(), 2);
-            out.add(new Rework(mid, fns.size(), create, fix, create != 0 ? Num.round(fix / create, 4) : 0, avg,
+            double avg = rs.isEmpty() ? 0 : Numbers.round(rs.stream().mapToInt(Integer::intValue).sum() / (double) rs.size(), 2);
+            out.add(new Rework(mid, fns.size(), create, fix, create != 0 ? Numbers.round(fix / create, 4) : 0, avg,
                     rs.stream().mapToInt(Integer::intValue).max().orElse(0)));
         }
         return out;

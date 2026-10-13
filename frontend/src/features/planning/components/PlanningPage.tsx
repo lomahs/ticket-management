@@ -273,7 +273,7 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
                     <span className="muted">{f}</span><span className="muted" style={{ textDecoration: 'line-through' }}>{a}</span><span className="muted">→</span><b className="heading">{b}</b>
                   </span>
                 ))}
-                {c.day_off.length > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--hl-amber-fg)' }}>Lands on a day off: {c.day_off.map(([d, r]) => `${dm(d)} ${r}`).join(', ')}</span>}
+                {c.day_off.length > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--hl-amber-fg)' }}>Lands on a day off: {c.day_off.map(({ date, reason }) => `${dm(date)} ${reason}`).join(', ')}</span>}
               </div>
               <IconButton icon="undo-2" label="Revert" size="sm" onClick={() => revert(c.key)} />
             </div>

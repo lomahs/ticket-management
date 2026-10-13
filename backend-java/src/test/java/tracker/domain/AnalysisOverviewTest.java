@@ -66,13 +66,13 @@ class AnalysisOverviewTest {
     }
 
     @Test
-    void numericHelpersFollowPython() {
-        assertThat(Num.round(2.5)).isEqualTo(2);
-        assertThat(Num.round(3.5)).isEqualTo(4);
-        assertThat(Num.round(2.675, 2)).isEqualTo(2.67); // the binary value is below the tie
-        assertThat(Num.round(0.125, 2)).isEqualTo(0.12); // an exact tie rounds to even
-        assertThat(Num.sum(java.util.stream.DoubleStream.of(0.1, 0.2, 0.3))).isEqualTo(0.6);
-        assertThat(Py.repr(7.5)).isEqualTo("7.5");
-        assertThat(Py.repr(36000.0)).isEqualTo("36000.0");
+    void numbersRoundHalfUpAndFormatPlainly() {
+        assertThat(Numbers.round(2.675, 2)).isEqualTo(2.68);
+        assertThat(Numbers.round(0.125, 2)).isEqualTo(0.13);
+        assertThat(Numbers.round(1.0 / 3, 4)).isEqualTo(0.3333);
+        assertThat(Numbers.format(7.5)).isEqualTo("7.5");
+        assertThat(Numbers.format(36000.0)).isEqualTo("36000");
+        assertThat(Text.orElse("", "x")).isEqualTo("x");
+        assertThat(Text.hasText(null)).isFalse();
     }
 }

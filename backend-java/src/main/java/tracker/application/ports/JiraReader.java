@@ -2,18 +2,23 @@ package tracker.application.ports;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+
+import org.jspecify.annotations.Nullable;
 
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
 
+/** Reads a Jira site. Failures to reach it raise {@link JiraError}. */
 public interface JiraReader {
     /** Parent tickets of the epics and their sub-tasks, optionally only those updated since a moment (null: all). */
-    Iterable<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince);
+    List<IssueSnapshot> search(List<String> epicKeys, @Nullable Instant updatedSince);
 
-    EpicSnapshot getEpic(String key);
+    /** The epic, or empty when there is no such issue or it is not an epic. */
+    Optional<EpicSnapshot> findEpic(String key);
 
-    IssueSnapshot getIssue(String key);
+    Optional<IssueSnapshot> findIssue(String key);
 
     List<JiraField> listFields();
 

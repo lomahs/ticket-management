@@ -8,25 +8,32 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
-/** Clean architecture layers, as the original backend enforced with import-linter. */
+/**
+ * Layers: domain ← application ← adapters ← config. The domain is plain Java; the application uses Spring only for
+ * components and transactions, never web, JDBC or JSON.
+ */
 @AnalyzeClasses(packages = "tracker", importOptions = ImportOption.DoNotIncludeTests.class)
 class ArchitectureTest {
 
     @ArchTest
     static final ArchRule layers = layeredArchitecture().consideringOnlyDependenciesInLayers()
-            .layer("bootstrap").definedBy("tracker.bootstrap..")
+            .layer("config").definedBy("tracker.config..")
             .layer("adapters").definedBy("tracker.adapters..")
             .layer("application").definedBy("tracker.application..")
             .layer("domain").definedBy("tracker.domain..")
-            .whereLayer("bootstrap").mayNotBeAccessedByAnyLayer()
-            .whereLayer("adapters").mayOnlyBeAccessedByLayers("bootstrap")
-            .whereLayer("application").mayOnlyBeAccessedByLayers("adapters", "bootstrap")
-            .whereLayer("domain").mayOnlyBeAccessedByLayers("application", "adapters", "bootstrap");
+            .whereLayer("config").mayNotBeAccessedByAnyLayer()
+            .whereLayer("adapters").mayOnlyBeAccessedByLayers("config")
+            .whereLayer("application").mayOnlyBeAccessedByLayers("adapters", "config")
+            .whereLayer("domain").mayOnlyBeAccessedByLayers("application", "adapters", "config");
 
-    /** Domain and application have no framework or IO imports. */
     @ArchTest
-    static final ArchRule pure = noClasses().that().resideInAnyPackage("tracker.domain..", "tracker.application..")
-            .should().dependOnClassesThat().resideInAnyPackage("org.springframework..", "com.fasterxml..", "java.sql..",
-                    "javax.sql..", "java.net.http..", "org.apache.poi..", "javax.crypto..", "com.zaxxer..", "org.sqlite..",
-                    "jakarta..");
+    static final ArchRule plainDomain = noClasses().that().resideInAPackage("tracker.domain..")
+            .should().dependOnClassesThat().resideInAnyPackage("org.springframework..", "jakarta..", "com.fasterxml..",
+                    "java.sql..", "javax.sql..", "java.net..", "java.nio.file..", "org.slf4j..");
+
+    @ArchTest
+    static final ArchRule applicationWithoutInfrastructure = noClasses().that().resideInAPackage("tracker.application..")
+            .should().dependOnClassesThat().resideInAnyPackage("org.springframework.web..", "org.springframework.jdbc..",
+                    "org.springframework.http..", "jakarta.servlet..", "jakarta.validation..", "com.fasterxml..", "java.sql..",
+                    "javax.sql..", "java.net.http..", "org.apache.poi..", "org.sqlite..", "com.zaxxer..");
 }

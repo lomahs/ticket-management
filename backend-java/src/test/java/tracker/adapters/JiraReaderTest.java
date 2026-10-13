@@ -150,7 +150,7 @@ class JiraReaderTest {
     void serverErrorsBackOffThenGiveUp() {
         FakeSite site = new FakeSite().on("GET", "/rest/api/3/issue/PAY-1", c -> status(503));
         List<Double> sleeps = new ArrayList<>();
-        assertThatThrownBy(() -> reader(site, sleeps).getIssue("PAY-1")).isInstanceOf(JiraError.class)
+        assertThatThrownBy(() -> reader(site, sleeps).findIssue("PAY-1")).isInstanceOf(JiraError.class)
                 .hasMessage("503 Service Unavailable from Jira after 5 attempts");
         assertThat(sleeps).containsExactly(1.0, 2.0, 4.0, 8.0);
     }
@@ -164,14 +164,13 @@ class JiraReaderTest {
     }
 
     @Test
-    void getEpicOnlyReturnsEpics() {
+    void findEpicOnlyReturnsEpics() {
         FakeSite site = new FakeSite().on("GET", "/rest/api/3/issue/PAY-1100", c -> ok(fx("epic_PAY-1100.json")))
                 .on("GET", "/rest/api/3/issue/PAY-1201", c -> ok(fx("story_PAY-1201.json")));
         JiraCloudReader r = reader(site, new ArrayList<>());
-        EpicSnapshot e = r.getEpic("PAY-1100");
-        assertThat(e).isEqualTo(new EpicSnapshot("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
-        assertThat(r.getEpic("PAY-1201")).isNull();
-        assertThat(r.getEpic("PAY-9")).isNull();
+        assertThat(r.findEpic("PAY-1100")).contains(new EpicSnapshot("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
+        assertThat(r.findEpic("PAY-1201")).isEmpty();
+        assertThat(r.findEpic("PAY-9")).isEmpty();
     }
 
     @Test
@@ -197,7 +196,7 @@ class JiraReaderTest {
     @Test
     void missingSiteUrlIsAJiraError() {
         JiraCloudReader r = new JiraCloudReader(() -> new JiraConfig("", "", "", List.of()), s -> { }, new FakeSite());
-        assertThatThrownBy(() -> r.getEpic("PAY-1")).isInstanceOf(JiraError.class).hasMessage("Jira site URL is not configured");
+        assertThatThrownBy(() -> r.findEpic("PAY-1")).isInstanceOf(JiraError.class).hasMessage("Jira site URL is not configured");
         assertThat(r.testConnection()).isFalse();
     }
 }

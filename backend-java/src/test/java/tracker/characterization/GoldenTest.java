@@ -3,8 +3,6 @@ package tracker.characterization;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,52 +12,37 @@ import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import tracker.adapters.clock.FixedClock;
+import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
-import tracker.adapters.fake.FakeJira;
-import tracker.adapters.persistence.Database;
-import tracker.adapters.persistence.FernetSecretBox;
-import tracker.application.SyncFromJira;
-import tracker.application.ports.UnitOfWork;
+import tracker.application.ports.IssueRepository;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueFlags;
 import tracker.domain.Naming;
-import tracker.domain.Num;
 import tracker.domain.Thresholds;
 
 /**
  * The demo data, synced through the real pipeline, must reproduce what ui-mock-v0 showed. golden.json is the file the
  * original backend's characterization test uses (captured from the ui-mock-v0 implementation).
  */
+@DemoTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GoldenTest {
     Map<String, Object> golden;
     List<Function> fns;
     Map<String, IssueFlags> flags = new LinkedHashMap<>();
 
+    /** The demo profile seeded and synced the data at start-up. */
     @SuppressWarnings("unchecked")
     @BeforeAll
-    void sync() throws IOException {
+    void load(@Autowired IssueRepository repository) throws IOException {
         golden = new ObjectMapper().readValue(GoldenTest.class.getResourceAsStream("/characterization/golden.json"), Map.class);
-        Path tmp = Files.createTempDirectory("golden");
-        Database db = new Database("sqlite:///" + tmp.resolve("demo.db"));
-        db.migrate();
-        try (UnitOfWork u = db.begin()) {
-            FakeJira.seedTracker(u, FernetSecretBox.fromKeyFile(tmp.resolve("secret.key")));
-            u.commit();
-        }
-        FixedClock clock = new FixedClock(Dataset.DEMO_TODAY);
-        SyncFromJira.SyncResult result = new SyncFromJira(db, new FakeJira(clock), clock).run(true);
-        assertThat(result.status()).as(String.valueOf(result.error())).isEqualTo("ok");
-        List<Issue> issues;
-        try (UnitOfWork u = db.begin()) {
-            issues = u.issues().list(List.of("PAY-1100"));
-        }
+        List<Issue> issues = repository.findByEpics(List.of("PAY-1100"));
         fns = Flags.buildFunctions(issues).stream().filter(f -> f.epicKey().equals("PAY-1100")).toList();
         for (Function f : fns) {
             for (int i = 0; i < f.cells().size(); i++) {
@@ -142,14 +125,14 @@ class GoldenTest {
         java.util.Set<String> lateKeys = new java.util.HashSet<>(flags.entrySet().stream().filter(e -> e.getValue().late())
                 .map(Map.Entry::getKey).toList());
         Map<String, Object> want = section("matrix_stats");
-        assertThat(Num.round(fns.stream().mapToInt(Flags::progressPct).sum() / (double) fns.size())).isEqualTo(((Number) want.get("progress_pct")).intValue());
+        assertThat(Math.round(fns.stream().mapToInt(Flags::progressPct).sum() / (double) fns.size())).isEqualTo(((Number) want.get("progress_pct")).longValue());
         assertThat(fns.stream().filter(f -> f.current() == 5).count()).isEqualTo(((Number) want.get("functions_done")).longValue());
         assertThat(fns.stream().filter(f -> f.cells().stream().anyMatch(c -> lateKeys.contains(c.key()))).count())
                 .isEqualTo(((Number) want.get("late_functions")).longValue());
         assertThat(lateKeys).hasSize(((Number) want.get("late_subtasks")).intValue());
         assertThat(flags.values().stream().filter(IssueFlags::over).count()).isEqualTo(((Number) want.get("over_subtasks")).longValue());
-        assertThat(Num.sum(cells.stream().mapToDouble(Issue::loggedH))).isEqualTo(num(want.get("logged_h")));
-        assertThat(Num.sum(cells.stream().mapToDouble(Issue::estimateH))).isEqualTo(num(want.get("estimate_h")));
+        assertThat(cells.stream().mapToDouble(Issue::loggedH).sum()).isEqualTo(num(want.get("logged_h")));
+        assertThat(cells.stream().mapToDouble(Issue::estimateH).sum()).isEqualTo(num(want.get("estimate_h")));
     }
 
     @Test

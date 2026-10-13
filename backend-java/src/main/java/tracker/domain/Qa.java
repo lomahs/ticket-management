@@ -126,8 +126,8 @@ public final class Qa {
             String id = m.id();
             List<Worklog> logs = ctx.worklogs().stream().filter(w -> Objects.equals(w.memberId(), id)
                     && mon.compareTo(w.date()) <= 0 && w.date().compareTo(ctx.today()) <= 0).toList();
-            double total = Num.sum(logs.stream().mapToDouble(Worklog::hours));
-            double todayH = Num.sum(logs.stream().filter(w -> w.date().equals(ctx.today())).mapToDouble(Worklog::hours));
+            double total = logs.stream().mapToDouble(Worklog::hours).sum();
+            double todayH = logs.stream().filter(w -> w.date().equals(ctx.today())).mapToDouble(Worklog::hours).sum();
             double expected = ctx.hoursPerDay() * workdays.size();
             List<Issue> open = cells.stream().filter(c -> Objects.equals(c.assigneeId(), id) && c.loggedH() > 0
                     && c.status() != Status.CLOSED).toList();
@@ -142,6 +142,6 @@ public final class Qa {
 
     private static String h(double x) {
         double v = Dates.oneDecimal(x);
-        return v == (long) v ? Long.toString((long) v) : Py.repr(v);
+        return Numbers.format(v);
     }
 }

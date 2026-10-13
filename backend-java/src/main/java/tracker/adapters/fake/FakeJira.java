@@ -8,9 +8,14 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
+
+import org.jspecify.annotations.Nullable;
 
 import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
@@ -19,11 +24,8 @@ import tracker.application.dto.JiraField;
 import tracker.application.dto.NewSubtask;
 import tracker.application.dto.UserSnapshot;
 import tracker.application.dto.WorklogSnapshot;
-import tracker.application.ports.Clock;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraWriter;
-import tracker.application.ports.SecretBox;
-import tracker.application.ports.UnitOfWork;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Holiday;
 import tracker.domain.Leave;
@@ -97,7 +99,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
     }
 
     @Override
-    public synchronized Iterable<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
+    public synchronized List<IssueSnapshot> search(List<String> epicKeys, @Nullable Instant updatedSince) {
         Set<String> epics = new HashSet<>(epicKeys);
         Set<String> parents = new HashSet<>();
         issues.forEach((k, i) -> {
@@ -116,15 +118,13 @@ public final class FakeJira implements JiraReader, JiraWriter {
     }
 
     @Override
-    public EpicSnapshot getEpic(String key) {
-        Dataset.Epic e = Dataset.EPICS.get(key);
-        return e != null ? new EpicSnapshot(key, e.project(), e.summary(), e.dueDate()) : null;
+    public Optional<EpicSnapshot> findEpic(String key) {
+        return Optional.ofNullable(Dataset.EPICS.get(key)).map(e -> new EpicSnapshot(key, e.project(), e.summary(), e.dueDate()));
     }
 
     @Override
-    public synchronized IssueSnapshot getIssue(String key) {
-        FakeIssue i = issues.get(key);
-        return i != null ? snapshot(i) : null;
+    public synchronized Optional<IssueSnapshot> findIssue(String key) {
+        return Optional.ofNullable(issues.get(key)).map(this::snapshot);
     }
 
     @Override
@@ -140,7 +140,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
     // --- JiraWriter -------------------------------------------------------------------------------------------------
 
     private void touch(FakeIssue i) {
-        i.updated = isoformat(clock.now());
+        i.updated = isoformat(Instant.now(clock));
     }
 
     private static String removeAccPrefix(String account) {
@@ -162,7 +162,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
         if (assigneeAccountId != null && !assigneeAccountId.isEmpty()) {
             String to = removeAccPrefix(assigneeAccountId);
             if (!to.equals(i.assignee)) {
-                i.changes.add(new FakeIssue.Change(clock.today(), "assignee", i.assignee, to));
+                i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "assignee", i.assignee, to));
                 i.assignee = to;
             }
         }
@@ -176,7 +176,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
             throw new IllegalArgumentException("KeyError: '" + key + "'");
         }
         if (!status.value().equals(i.status)) {
-            i.changes.add(new FakeIssue.Change(clock.today(), "status", i.status, status.value()));
+            i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "status", i.status, status.value()));
             i.status = status.value();
         }
         touch(i);
@@ -191,30 +191,11 @@ public final class FakeJira implements JiraReader, JiraWriter {
             nextKey++;
             String assignee = s.assigneeAccountId() == null ? "" : removeAccPrefix(s.assigneeAccountId());
             FakeIssue issue = new FakeIssue(key, s.summary(), parentKey, "N", assignee.isEmpty() ? null : assignee,
-                    s.plannedStart(), s.plannedEnd(), s.estimateH(), clock.today());
+                    s.plannedStart(), s.plannedEnd(), s.estimateH(), LocalDate.now(clock).toString());
             issues.put(key, issue);
             touch(issue);
             keys.add(key);
         }
         return keys;
-    }
-
-    /** Tracker-local data an admin configures: members and roles, calendar, settings. */
-    public static void seedTracker(UnitOfWork uow, SecretBox box) {
-        for (Member m : Dataset.demoMembers()) {
-            uow.members().save(m);
-        }
-        for (Holiday h : Dataset.demoHolidays().values()) {
-            uow.calendar().saveHoliday(h);
-        }
-        for (Leave lv : Dataset.demoLeaves()) {
-            uow.calendar().addLeave(lv);
-        }
-        Dataset.EXTRA_DAYS.forEach((d, note) -> uow.calendar().saveExtraDay(d, note));
-        TrackerSettings s = new TrackerSettings();
-        s.jira = new TrackerSettings.JiraConnection("https://acme-pay.atlassian.net", "tracker-bot@acme.vn",
-                box.encrypt("ATATT3xFfGF0-demo-token"), "15", Dataset.TRACKED_EPICS, "ok");
-        s.statusMapping = new TrackerSettings.StatusMapping(Dataset.STATUS_BY_NAME);
-        uow.settings().save(s);
     }
 }

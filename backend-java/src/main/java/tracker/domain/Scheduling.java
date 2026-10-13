@@ -30,7 +30,7 @@ public final class Scheduling {
         List<DateReason> offs = new ArrayList<>();
         for (String d : new LinkedHashSet<>(List.of(days))) {
             String r = cal.off(d, memberId);
-            if (Py.truthy(r)) {
+            if (Text.hasText(r)) {
                 offs.add(new DateReason(d, r.equals(WorkCalendar.WEEKEND) ? "weekend" : r));
             }
         }
@@ -52,11 +52,11 @@ public final class Scheduling {
             Map<String, String> o = overrides.get(i) != null ? overrides.get(i) : Map.of();
             String oStart = o.get("start");
             String oEnd = o.get("end");
-            String start = Py.or(oStart, suggested[0]);
-            String end = Py.truthy(oEnd) ? oEnd : Py.truthy(oStart) ? cal.span(oStart, dur, who)[1] : suggested[1];
+            String start = Text.orElse(oStart, suggested[0]);
+            String end = Text.hasText(oEnd) ? oEnd : Text.hasText(oStart) ? cal.span(oStart, dur, who)[1] : suggested[1];
             end = Dates.max(end, start);
             cur = Dates.addDays(end, 1);
-            if (Py.truthy(oStart) || Py.truthy(oEnd)) {
+            if (Text.hasText(oStart) || Text.hasText(oEnd)) {
                 List<DateReason> offs = daysOff(cal, who, start, end);
                 out.add(new PlannedStep(st.kind(), who, est, start, end, offs.isEmpty() ? "edited" : "dayoff", offs));
             } else {

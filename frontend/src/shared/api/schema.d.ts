@@ -4,91 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/meta": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Meta */
-        get: operations["meta_api_v1_meta_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Members */
-        get: operations["members_api_v1_members_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sync": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Sync */
-        post: operations["sync_api_v1_sync_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sync/runs/latest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Latest Sync */
-        get: operations["latest_sync_api_v1_sync_runs_latest_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/my-work": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** My Work */
-        get: operations["my_work_api_v1_my_work_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/anken": {
         parameters: {
             query?: never;
@@ -96,8 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Overview */
-        get: operations["overview_api_v1_anken_get"];
+        get: operations["overview"];
         put?: never;
         post?: never;
         delete?: never;
@@ -113,44 +27,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Detail */
-        get: operations["detail_api_v1_anken__epic__get"];
+        get: operations["detail_1"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/anken/{epic}/matrix": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Matrix */
-        get: operations["matrix_api_v1_anken__epic__matrix_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/anken/{epic}/functions/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Preview Function */
-        post: operations["preview_function_api_v1_anken__epic__functions_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -166,32 +45,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Function */
-        post: operations["create_function_api_v1_anken__epic__functions_post"];
+        post: operations["createFunction"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/planning": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** View */
-        get: operations["view_api_v1_planning_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/planning/preview": {
+    "/api/v1/anken/{epic}/functions/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -200,74 +61,21 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview */
-        post: operations["preview_api_v1_planning_preview_post"];
+        post: operations["previewFunction"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/planning/push": {
+    "/api/v1/anken/{epic}/matrix": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Push */
-        post: operations["push_api_v1_planning_push_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/effort/timesheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Timesheet */
-        get: operations["timesheet_api_v1_effort_timesheet_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/effort/timesheet/{member}/{date}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Day */
-        get: operations["day_api_v1_effort_timesheet__member___date__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/effort/analysis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Analysis */
-        get: operations["analysis_api_v1_effort_analysis_get"];
+        get: operations["matrix"];
         put?: never;
         post?: never;
         delete?: never;
@@ -283,11 +91,122 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Month */
-        get: operations["month_api_v1_calendar_get"];
+        get: operations["month"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/effort/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/effort/timesheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["timesheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/effort/timesheet/{member}/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["day"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/extra-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["extraDays"];
+        put?: never;
+        post: operations["addExtraDay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/extra-days/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteExtraDay"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["holidays"];
+        put?: never;
+        post: operations["addHoliday"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/holidays/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteHoliday"];
         options?: never;
         head?: never;
         patch?: never;
@@ -302,43 +221,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add Leave */
-        post: operations["add_leave_api_v1_leaves_post"];
+        post: operations["addLeave"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/leaves/{leave_id}": {
+    "/api/v1/leaves/export": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        /** Edit Leave */
-        put: operations["edit_leave_api_v1_leaves__leave_id__put"];
-        post?: never;
-        /** Delete Leave */
-        delete: operations["delete_leave_api_v1_leaves__leave_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/leaves/import/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
+        get: operations["export"];
         put?: never;
-        /** Import Preview */
-        post: operations["import_preview_api_v1_leaves_import_preview_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -354,8 +253,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import Confirm */
-        post: operations["import_confirm_api_v1_leaves_import_post"];
+        post: operations["importConfirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/leaves/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importPreview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -369,8 +283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Template */
-        get: operations["template_api_v1_leaves_template_get"];
+        get: operations["template"];
         put?: never;
         post?: never;
         delete?: never;
@@ -379,42 +292,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/leaves/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export */
-        get: operations["export_api_v1_leaves_export_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tickets/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Detail */
-        get: operations["detail_api_v1_tickets__key__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Patch */
-        patch: operations["patch_api_v1_tickets__key__patch"];
-        trace?: never;
-    };
-    "/api/v1/qa": {
+    "/api/v1/leaves/{leave_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -422,166 +300,24 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
-        /** Ask */
-        post: operations["ask_api_v1_qa_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/jira": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Jira */
-        get: operations["jira_api_v1_settings_jira_get"];
-        /** Save Jira */
-        put: operations["save_jira_api_v1_settings_jira_put"];
+        put: operations["editLeave"];
         post?: never;
-        delete?: never;
+        delete: operations["deleteLeave"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/settings/jira/test": {
+    "/api/v1/members": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Test Jira */
-        post: operations["test_jira_api_v1_settings_jira_test_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/epics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Epic */
-        post: operations["add_epic_api_v1_settings_epics_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/epics/{key}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
+        get: operations["members"];
         put?: never;
         post?: never;
-        /** Remove Epic */
-        delete: operations["remove_epic_api_v1_settings_epics__key__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/field-mapping": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Field Mapping */
-        get: operations["field_mapping_api_v1_settings_field_mapping_get"];
-        /** Save Field Mapping */
-        put: operations["save_field_mapping_api_v1_settings_field_mapping_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/field-mapping/check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Check Field Mapping */
-        post: operations["check_field_mapping_api_v1_settings_field_mapping_check_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/status-mapping": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Status Mapping */
-        get: operations["status_mapping_api_v1_settings_status_mapping_get"];
-        /** Save Status Mapping */
-        put: operations["save_status_mapping_api_v1_settings_status_mapping_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/name-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Name Rules */
-        get: operations["name_rules_api_v1_settings_name_rules_get"];
-        /** Save Name Rules */
-        put: operations["save_name_rules_api_v1_settings_name_rules_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/settings/name-rules/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Preview Name Rule */
-        post: operations["preview_name_rule_api_v1_settings_name_rules_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -601,29 +337,58 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Member */
-        patch: operations["update_member_api_v1_members__member_id__patch"];
+        patch: operations["updateMember"];
         trace?: never;
     };
-    "/api/v1/holidays": {
+    "/api/v1/meta": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Holidays */
-        get: operations["holidays_api_v1_holidays_get"];
+        get: operations["meta"];
         put?: never;
-        /** Add Holiday */
-        post: operations["add_holiday_api_v1_holidays_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/holidays/{date}": {
+    "/api/v1/my-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["myWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["view"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/preview": {
         parameters: {
             query?: never;
             header?: never;
@@ -632,33 +397,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        /** Delete Holiday */
-        delete: operations["delete_holiday_api_v1_holidays__date__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/extra-days": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Extra Days */
-        get: operations["extra_days_api_v1_extra_days_get"];
-        put?: never;
-        /** Add Extra Day */
-        post: operations["add_extra_day_api_v1_extra_days_post"];
+        post: operations["preview"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/extra-days/{date}": {
+    "/api/v1/planning/push": {
         parameters: {
             query?: never;
             header?: never;
@@ -667,26 +413,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        /** Delete Extra Day */
-        delete: operations["delete_extra_day_api_v1_extra_days__date__delete"];
+        post: operations["push"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/settings/working-hours": {
+    "/api/v1/qa": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Working Hours */
-        get: operations["working_hours_api_v1_settings_working_hours_get"];
-        /** Save Working Hours */
-        put: operations["save_working_hours_api_v1_settings_working_hours_put"];
-        post?: never;
+        get?: never;
+        put?: never;
+        post: operations["ask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -700,10 +443,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Alerts */
-        get: operations["alerts_api_v1_settings_alerts_get"];
-        /** Save Alerts */
-        put: operations["save_alerts_api_v1_settings_alerts_put"];
+        get: operations["alerts"];
+        put: operations["saveAlerts"];
         post?: never;
         delete?: never;
         options?: never;
@@ -711,1157 +452,892 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/epics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addEpic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/epics/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removeEpic"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/field-mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["fieldMapping"];
+        put: operations["saveFieldMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/field-mapping/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["checkFieldMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/jira": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["jira"];
+        put: operations["saveJira"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/jira/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["testJira"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/name-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["nameRules"];
+        put: operations["saveNameRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/name-rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewNameRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/status-mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["statusMapping"];
+        put: operations["saveStatusMapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/working-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["workingHours"];
+        put: operations["saveWorkingHours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/runs/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["latestSync"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AlertsIn */
         AlertsIn: {
-            /** Soon Days */
-            soon_days: number;
-            /** Effort Warn Pct */
-            effort_warn_pct: number;
-            /** Held Days */
-            held_days: number;
-            /** Review Rounds */
-            review_rounds: number;
-            /** Capacity Pct */
+            /** Format: double */
             capacity_pct: number;
+            /** Format: double */
+            effort_warn_pct: number;
+            /** Format: double */
+            held_days: number;
+            /** Format: double */
+            review_rounds: number;
+            /** Format: double */
+            soon_days: number;
         };
-        /** AnkenCard */
         AnkenCard: {
-            /** Key */
-            key: string;
-            /** Title */
-            title: string;
-            /** Project */
-            project: string;
-            /** Plan */
-            plan: string | null;
-            /** Forecast */
-            forecast: string | null;
-            /** Slip Days */
-            slip_days: number;
-            /** Late Functions */
-            late_functions: number;
-            /** Late Subtasks */
-            late_subtasks: number;
-            /** Used H */
-            used_h: number;
-            /** Estimate H */
+            /** Format: double */
             estimate_h: number;
-            /** Phases */
-            phases: components["schemas"]["PhaseRollup"][];
-            /** Member Ids */
-            member_ids: string[];
-            /** Has Functions */
+            forecast: string | null;
             has_functions: boolean;
+            key: string;
+            /** Format: int32 */
+            late_functions: number;
+            /** Format: int32 */
+            late_subtasks: number;
+            member_ids: string[];
+            phases: components["schemas"]["PhaseRollup"][];
+            plan: string | null;
+            project: string;
+            /** Format: int32 */
+            slip_days: number;
+            title: string;
+            /** Format: double */
+            used_h: number;
         };
-        /** AnkenDetail */
         AnkenDetail: {
-            card: components["schemas"]["AnkenCard"];
-            /** Attention */
             attention: components["schemas"]["AttentionView"][];
+            card: components["schemas"]["AnkenCard"];
         };
-        /** Answer */
         Answer: {
-            /** Text */
-            text: string;
-            /** Chips */
             chips: string[];
+            text: string;
         };
-        /** AttentionView */
         AttentionView: {
-            /** Kind */
-            kind: string;
-            /** Count */
+            /** Format: int32 */
             count: number;
-            /** Items */
             items: components["schemas"]["TaskCard"][];
-        };
-        /** BacklogGroup */
-        BacklogGroup: {
-            /** Kind */
             kind: string;
-            /** Start */
-            start: string | null;
-            /** Current */
+        };
+        BacklogGroup: {
             current: boolean;
-            /** Items */
             items: components["schemas"]["TaskCard"][];
-            /** Remaining H */
+            kind: string;
+            /** Format: double */
             remaining_h: number;
+            start: string | null;
         };
-        /** Body_import_preview_api_v1_leaves_import_preview_post */
-        Body_import_preview_api_v1_leaves_import_preview_post: {
-            /** File */
-            file?: string | null;
-        };
-        /** CalendarCell */
         CalendarCell: {
-            /** Date */
             date: string;
-            /** Kind */
             kind: string | null;
-            /** Label */
             label: string | null;
             leave: components["schemas"]["Leave"] | null;
         };
-        /** CalendarRow */
         CalendarRow: {
-            /** Member Id */
-            member_id: string;
-            /** Cells */
             cells: components["schemas"]["CalendarCell"][];
-            /** Days Off */
+            /** Format: double */
             days_off: number;
+            member_id: string;
         };
-        /** CalendarView */
         CalendarView: {
-            /** Month */
-            month: string;
-            /** Days */
             days: components["schemas"]["DayHead"][];
-            /** Rows */
+            month: string;
             rows: components["schemas"]["CalendarRow"][];
         };
-        /** Capabilities */
         Capabilities: {
-            /** Jira Write */
             jira_write: boolean;
         };
-        /** ChangePreview */
         ChangePreview: {
-            /** Key */
-            key: string;
-            /** From Start */
-            from_start: string;
-            /** From End */
+            day_off: components["schemas"]["DateReason"][];
             from_end: string;
-            /** From Member */
             from_member: string | null;
-            /** To Start */
-            to_start: string;
-            /** To End */
+            from_start: string;
+            key: string;
             to_end: string;
-            /** To Member */
             to_member: string;
-            /** Day Off */
-            day_off: [
-                string,
-                string
-            ][];
+            to_start: string;
         };
-        /** DayCell */
-        DayCell: {
-            /** Date */
+        DateReason: {
             date: string;
-            /** Kind */
+            reason: string;
+        };
+        DayCell: {
+            date: string;
             kind: string | null;
-            /** Label */
             label: string | null;
-            /** Tentative */
             tentative: boolean;
         };
-        /** DayDetailView */
         DayDetailView: {
-            /** Member Id */
-            member_id: string;
-            /** Date */
             date: string;
-            /** Logged H */
-            logged_h: number;
-            /** Planned H */
-            planned_h: number;
-            /** Entries */
             entries: components["schemas"]["DayEntryView"][];
-        };
-        /** DayEntryView */
-        DayEntryView: {
-            /** Key */
-            key: string;
-            /** Summary */
-            summary: string;
-            /** Function Id */
-            function_id: string | null;
-            /** Step */
-            step: string | null;
-            /** Logged H */
+            /** Format: double */
             logged_h: number;
-            /** Planned H */
+            member_id: string;
+            /** Format: double */
             planned_h: number;
-            /** Notes */
+        };
+        DayEntryView: {
+            function_id: string | null;
+            key: string;
+            /** Format: double */
+            logged_h: number;
             notes: string[];
+            /** Format: double */
+            planned_h: number;
+            step: string | null;
+            summary: string;
         };
-        /** DayHead */
         DayHead: {
-            /** Date */
             date: string;
-            /** Is Today */
-            is_today: boolean;
-            /** Extra Note */
             extra_note: string | null;
+            is_today: boolean;
         };
-        /** DaysOut */
         DaysOut: {
-            /** Days */
+            /** Format: int32 */
             days: number;
         };
-        /** EffortAnalysis */
         EffortAnalysis: {
-            /** Epic Key */
-            epic_key: string | null;
-            /** Title */
-            title: string;
-            kpis: components["schemas"]["EffortKpis"];
-            /** By Phase */
             by_phase: components["schemas"]["EffortBar"][];
-            /** By Step */
             by_step: components["schemas"]["EffortBar"][];
-            /** Rework */
+            epic_key: string | null;
+            kpis: components["schemas"]["EffortKpis"];
             rework: components["schemas"]["Rework"][];
-        };
-        /** EffortBar */
-        EffortBar: {
-            /** Label */
-            label: string;
-            /** Estimate H */
-            estimate_h: number;
-            /** Logged H */
-            logged_h: number;
-        };
-        /** EffortKpis */
-        EffortKpis: {
-            /** Logged H */
-            logged_h: number;
-            /** Estimate H */
-            estimate_h: number;
-            /** Rework Rate */
-            rework_rate: number | null;
-            /** Avg Rounds */
-            avg_rounds: number | null;
-            /** Fix Tickets */
-            fix_tickets: number;
-            /** Over Subtasks */
-            over_subtasks: number;
-        };
-        /** EpicIn */
-        EpicIn: {
-            /** Key */
-            key: string;
-        };
-        /** EpicView */
-        EpicView: {
-            /** Key */
-            key: string;
-            /** Title */
             title: string;
-            /** Project */
-            project: string;
         };
-        /** ExtraDayIn */
-        ExtraDayIn: {
-            /** Date */
-            date: string;
-            /**
-             * Note
-             * @default
-             */
-            note: string;
+        EffortBar: {
+            /** Format: double */
+            estimate_h: number;
+            label: string;
+            /** Format: double */
+            logged_h: number;
         };
-        /** FieldCheck */
-        FieldCheck: {
-            /** Target */
-            target: string;
-            /** Field Id */
-            field_id: string;
-            /** Status */
-            status: string;
-            /** Value */
-            value: string | number | null;
+        EffortKpis: {
+            /** Format: double */
+            avg_rounds: number | null;
+            /** Format: double */
+            estimate_h: number;
+            /** Format: int32 */
+            fix_tickets: number;
+            /** Format: double */
+            logged_h: number;
+            /** Format: int32 */
+            over_subtasks: number;
+            /** Format: double */
+            rework_rate: number | null;
         };
-        /** FieldCheckIn */
-        FieldCheckIn: {
-            /** Sample */
-            sample: string;
-            /** Planned Start */
-            planned_start?: string | null;
-            /** Planned End */
-            planned_end?: string | null;
-            /** Effort */
-            effort?: string | null;
-        };
-        /** FieldMappingCheck */
-        FieldMappingCheck: {
-            /** Key */
+        EpicIn: {
             key: string;
-            /** Summary */
-            summary: string;
-            /** Results */
+        };
+        EpicView: {
+            key: string;
+            project: string;
+            title: string;
+        };
+        ExtraDayIn: {
+            date: string;
+            note?: string | null;
+        };
+        FieldCheck: {
+            field_id: string;
+            status: string;
+            target: string;
+            value: string | number | boolean | null;
+        };
+        FieldCheckIn: {
+            effort?: string | null;
+            planned_end?: string | null;
+            planned_start?: string | null;
+            sample: string;
+        };
+        FieldMappingCheck: {
+            key: string;
             results: components["schemas"]["FieldCheck"][];
+            summary: string;
         };
-        /** FieldMappingIn */
         FieldMappingIn: {
-            /**
-             * Planned Start
-             * @default
-             */
-            planned_start: string;
-            /**
-             * Planned End
-             * @default
-             */
-            planned_end: string;
-            /**
-             * Effort
-             * @default
-             */
-            effort: string;
+            effort?: string | null;
+            planned_end?: string | null;
+            planned_start?: string | null;
         };
-        /** FieldMappingView */
         FieldMappingView: {
-            /** Planned Start */
-            planned_start: string;
-            /** Planned End */
-            planned_end: string;
-            /** Effort */
-            effort: string;
-            /** Catalog */
             catalog: components["schemas"]["JiraField"][];
+            effort: string;
+            planned_end: string;
+            planned_start: string;
         };
-        /** FunctionCreateIn */
         FunctionCreateIn: {
-            /** Parent Key */
-            parent_key: string;
-            /** Name */
-            name: string;
-            /** Ba */
             ba: string;
-            /** Bal */
             bal: string;
-            /** Jm */
-            jm: string;
-            /** Create Hours */
+            /** Format: double */
             create_hours: number;
-            /** Overrides */
-            overrides?: (components["schemas"]["StepOverride"] | null)[];
-            /** Function Id */
             function_id?: string | null;
-        };
-        /** FunctionDraftIn */
-        FunctionDraftIn: {
-            /** Parent Key */
-            parent_key: string;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
-            /** Ba */
-            ba: string;
-            /** Bal */
-            bal: string;
-            /** Jm */
             jm: string;
-            /** Create Hours */
-            create_hours: number;
-            /** Overrides */
-            overrides?: (components["schemas"]["StepOverride"] | null)[];
+            name: string;
+            overrides?: (components["schemas"]["StepOverride"] | null)[] | null;
+            parent_key: string;
         };
-        /** FunctionPreview */
+        FunctionDraftIn: {
+            ba: string;
+            bal: string;
+            /** Format: double */
+            create_hours: number;
+            jm: string;
+            name?: string | null;
+            overrides?: (components["schemas"]["StepOverride"] | null)[] | null;
+            parent_key: string;
+        };
         FunctionPreview: {
-            /** Phase */
-            phase: string;
-            /** Function Id */
             function_id: string;
-            /** Steps */
+            phase: string;
             steps: components["schemas"]["PreviewStep"][];
         };
-        /** FunctionRow */
         FunctionRow: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Owner Id */
-            owner_id: string | null;
-            /** Reviewer Id */
-            reviewer_id: string | null;
-            /** Current */
-            current: number;
-            /** State */
-            state: string;
-            /** Progress */
-            progress: string;
-            /** Group */
-            group: string;
-            /** Pct */
-            pct: number;
-            /** Cells */
             cells: (components["schemas"]["TaskCard"] | null)[];
-            /** Logged H */
-            logged_h: number;
-            /** Estimate H */
+            /** Format: int32 */
+            current: number;
+            /** Format: double */
             estimate_h: number;
+            group: string;
+            id: string;
+            /** Format: double */
+            logged_h: number;
+            name: string;
+            owner_id: string | null;
+            /** Format: int32 */
+            pct: number;
+            progress: string;
+            reviewer_id: string | null;
+            state: string;
         };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** Handover */
         Handover: {
-            /** Date */
             date: string;
-            /** From Id */
             from_id: string | null;
-            /** To Id */
             to_id: string | null;
         };
-        /** Holiday */
         Holiday: {
-            /** Date */
-            date: string;
-            /** Countries */
             countries: string[];
-            /** Name */
-            name: string;
-        };
-        /** HolidayIn */
-        HolidayIn: {
-            /** Date */
             date: string;
-            /** Name */
             name: string;
-            /** Countries */
-            countries: ("VN" | "JP")[];
         };
-        /** ImportIn */
+        HolidayIn: {
+            countries: ("VN" | "JP")[];
+            date: string;
+            name: string;
+        };
         ImportIn: {
-            /** Rows */
             rows: string[][];
         };
-        /** ImportPreviewOut */
         ImportPreviewOut: {
-            /** File */
             file: string;
-            /** Rows */
             rows: components["schemas"]["ImportRow"][];
-            /** Working Days */
+            /** Format: int32 */
             working_days: number;
         };
-        /** ImportResult */
         ImportResult: {
-            /** Imported */
+            /** Format: int32 */
             imported: number;
-            /** Month */
             month: string | null;
         };
-        /** ImportRow */
         ImportRow: {
-            /** Row */
-            row: number;
-            /** Member */
-            member: string;
-            /** Date From */
             date_from: string;
-            /** Date To */
             date_to: string;
-            /** Type Text */
-            type_text: string;
-            /** Note */
-            note: string;
-            /** Member Id */
-            member_id: string | null;
-            type: components["schemas"]["LeaveType"] | null;
-            /** Error */
             error: string;
+            member: string;
+            member_id: string | null;
+            note: string;
+            /** Format: int32 */
+            row: number;
+            /** @enum {string|null} */
+            type: "full" | "half" | "fullTent" | "halfTent" | null;
+            type_text: string;
         };
-        /** JiraField */
+        ImportUpload: {
+            /** Format: binary */
+            file?: string | null;
+        };
         JiraField: {
-            /** Id */
             id: string;
-            /** Name */
             name: string;
-            /** Type */
             type: string;
         };
-        /** JiraIn */
         JiraIn: {
-            /** Url */
-            url: string;
-            /** Email */
             email: string;
-            /** Token */
-            token?: string | null;
-            /**
-             * Interval
-             * @enum {string}
-             */
+            /** @enum {string} */
             interval: "5" | "15" | "60" | "manual";
-        };
-        /** JiraSettingsView */
-        JiraSettingsView: {
-            /** Url */
-            url: string;
-            /** Email */
-            email: string;
-            /** Token Masked */
-            token_masked: string;
-            /** Interval */
-            interval: string;
-            /** Status */
-            status: string | null;
-            /** Epics */
-            epics: components["schemas"]["EpicView"][];
-            /** Last Full Sync */
-            last_full_sync: string | null;
-        };
-        /** JiraTestIn */
-        JiraTestIn: {
-            /** Url */
-            url: string;
-            /**
-             * Email
-             * @default
-             */
-            email: string;
-            /** Token */
             token?: string | null;
+            url: string;
         };
-        /** JiraTestOut */
+        JiraSettingsView: {
+            email: string;
+            epics: components["schemas"]["EpicView"][];
+            interval: string;
+            /** Format: date-time */
+            last_full_sync: string | null;
+            status: string | null;
+            token_masked: string;
+            url: string;
+        };
+        JiraTestIn: {
+            email?: string | null;
+            token?: string | null;
+            url: string;
+        };
         JiraTestOut: {
-            /**
-             * Status
-             * @enum {string}
-             */
+            /** @enum {string} */
             status: "ok" | "fail";
         };
-        /** KeysOut */
         KeysOut: {
-            /** Keys */
             keys: string[];
         };
-        /** Leave */
         Leave: {
-            /** Id */
-            id: number;
-            /** Member Id */
-            member_id: string;
-            /** Date */
             date: string;
-            type: components["schemas"]["LeaveType"];
-            /**
-             * Note
-             * @default
-             */
-            note: string;
-        };
-        /** LeaveIn */
-        LeaveIn: {
-            /** Member Id */
+            /** Format: int32 */
+            id: number;
             member_id: string;
-            type: components["schemas"]["LeaveType"];
-            /** Date From */
-            date_from: string;
-            /** Date To */
-            date_to: string;
-            /**
-             * Note
-             * @default
-             */
             note: string;
+            /** @enum {string} */
+            type: "full" | "half" | "fullTent" | "halfTent";
         };
-        /**
-         * LeaveType
-         * @enum {string}
-         */
-        LeaveType: "full" | "half" | "fullTent" | "halfTent";
-        /** MatrixStats */
+        LeaveIn: {
+            date_from: string;
+            date_to: string;
+            member_id: string;
+            note?: string | null;
+            /** @enum {string} */
+            type: "full" | "half" | "fullTent" | "halfTent";
+        };
         MatrixStats: {
-            /** Progress Pct */
-            progress_pct: number;
-            /** Functions Done */
-            functions_done: number;
-            /** Functions Total */
-            functions_total: number;
-            /** Late Functions */
-            late_functions: number;
-            /** Late Subtasks */
-            late_subtasks: number;
-            /** Over Subtasks */
-            over_subtasks: number;
-            /** Logged H */
-            logged_h: number;
-            /** Estimate H */
+            /** Format: double */
             estimate_h: number;
+            /** Format: int32 */
+            functions_done: number;
+            /** Format: int32 */
+            functions_total: number;
+            /** Format: int32 */
+            late_functions: number;
+            /** Format: int32 */
+            late_subtasks: number;
+            /** Format: double */
+            logged_h: number;
+            /** Format: int32 */
+            over_subtasks: number;
+            /** Format: int32 */
+            progress_pct: number;
         };
-        /** MatrixView */
         MatrixView: {
-            /** Epic Key */
             epic_key: string;
-            /** Title */
-            title: string;
-            /** Phase */
+            functions: components["schemas"]["FunctionRow"][];
+            next_function_id: string;
+            parents: components["schemas"]["ParentOption"][];
             phase: string;
             stats: components["schemas"]["MatrixStats"];
-            /** Functions */
-            functions: components["schemas"]["FunctionRow"][];
-            /** Parents */
-            parents: components["schemas"]["ParentOption"][];
-            /** Next Function Id */
-            next_function_id: string;
+            title: string;
         };
-        /** Member */
         Member: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Full Name */
-            full_name: string;
-            role: components["schemas"]["Role"] | null;
-            /** Country */
-            country: string;
-            /** Color */
             color: string;
-            /**
-             * Email
-             * @default
-             */
+            country: string;
             email: string;
-            /** @default user */
-            permission: components["schemas"]["Permission"];
-            /**
-             * External
-             * @default false
-             */
             external: boolean;
-            /** Jira Account Id */
-            jira_account_id?: string | null;
+            full_name: string;
+            id: string;
+            jira_account_id: string | null;
+            name: string;
+            /** @enum {string} */
+            permission: "admin" | "user";
+            /** @enum {string|null} */
+            role: "BA" | "BAL" | "JM" | null;
         };
-        /** MemberCapacity */
         MemberCapacity: {
-            /** Member Id */
             member_id: string;
-            /** Weeks */
             weeks: components["schemas"]["WeekLoad"][];
         };
-        /** MemberLane */
         MemberLane: {
-            /** Member Id */
-            member_id: string;
-            /** Days */
             days: components["schemas"]["DayCell"][];
-            /** Items */
             items: components["schemas"]["PlanBlock"][];
-        };
-        /** MemberPatchIn */
-        MemberPatchIn: {
-            /** Name */
-            name?: string | null;
-            role?: components["schemas"]["Role"] | null;
-            /**
-             * Clear Role
-             * @default false
-             */
-            clear_role: boolean;
-            permission?: components["schemas"]["Permission"] | null;
-            /** Country */
-            country?: ("VN" | "JP") | null;
-        };
-        /** Meta */
-        Meta: {
-            /** Mode */
-            mode: string;
-            /** Today */
-            today: string;
-            capabilities: components["schemas"]["Capabilities"];
-            sync: components["schemas"]["SyncStatus"];
-            /** Projects */
-            projects: string[];
-        };
-        /** MyWork */
-        MyWork: {
-            /** Member Id */
             member_id: string;
-            /** Today */
-            today: string;
-            /** Next Day */
-            next_day: string;
-            /** Delay */
-            delay: components["schemas"]["TaskCard"][];
-            /** Due Today */
-            due_today: components["schemas"]["TaskCard"][];
-            /** Due Next */
-            due_next: components["schemas"]["TaskCard"][];
-            /** Backlog */
-            backlog: components["schemas"]["BacklogGroup"][];
-            /** Related */
-            related: components["schemas"]["TaskCard"][];
-            /** Related Scope */
-            related_scope: string;
-            /** Open Count */
-            open_count: number;
-            /** Remaining H */
-            remaining_h: number;
         };
-        /** NameRulePreview */
+        MemberPatchIn: {
+            clear_role?: boolean | null;
+            /** @enum {string|null} */
+            country?: "VN" | "JP" | null;
+            name?: string | null;
+            /** @enum {string|null} */
+            permission?: "admin" | "user" | null;
+            /** @enum {string|null} */
+            role?: "BA" | "BAL" | "JM" | null;
+        };
+        Meta: {
+            capabilities: components["schemas"]["Capabilities"];
+            mode: string;
+            projects: string[];
+            sync: components["schemas"]["SyncStatus"];
+            today: string;
+        };
+        MyWork: {
+            backlog: components["schemas"]["BacklogGroup"][];
+            delay: components["schemas"]["TaskCard"][];
+            due_next: components["schemas"]["TaskCard"][];
+            due_today: components["schemas"]["TaskCard"][];
+            member_id: string;
+            next_day: string;
+            /** Format: int32 */
+            open_count: number;
+            related: components["schemas"]["TaskCard"][];
+            related_scope: string;
+            /** Format: double */
+            remaining_h: number;
+            today: string;
+        };
         NameRulePreview: {
-            /** Error */
             error: string | null;
-            /** Tokens */
+            /** Format: int32 */
+            matched: number;
+            sample_matches: boolean;
+            step: string | null;
             tokens: string[];
-            /** Values */
+            /** Format: int32 */
+            total: number;
             values: {
                 [key: string]: string;
             };
-            /** Step */
-            step: string | null;
-            /** Sample Matches */
-            sample_matches: boolean;
-            /** Matched */
-            matched: number;
-            /** Total */
-            total: number;
         };
-        /** NameRulePreviewIn */
         NameRulePreviewIn: {
-            /** Rule */
-            rule: string;
-            /** Aliases */
             aliases?: {
                 [key: string]: string;
             } | null;
-            /**
-             * Sample
-             * @default
-             */
-            sample: string;
+            rule: string;
+            sample?: string | null;
         };
-        /** NameRulesIn */
         NameRulesIn: {
-            /** Rule */
-            rule: string;
-            /** Aliases */
             aliases: {
                 [key: string]: string;
             };
+            rule: string;
         };
-        /** NameRulesView */
         NameRulesView: {
-            /** Rule */
-            rule: string;
-            /** Aliases */
             aliases: {
                 [key: string]: string;
             };
-            /** Matched */
+            /** Format: int32 */
             matched: number;
-            /** Total */
+            rule: string;
+            /** Format: int32 */
             total: number;
         };
-        /** ParentOption */
         ParentOption: {
-            /** Key */
             key: string;
-            /** Summary */
-            summary: string;
-            /** Phase */
             phase: string;
+            summary: string;
         };
-        /**
-         * Permission
-         * @enum {string}
-         */
-        Permission: "admin" | "user";
-        /** PhaseRollup */
         PhaseRollup: {
-            /** Name */
-            name: string;
-            /** Pct */
-            pct: number;
-            /** Closed */
+            /** Format: int32 */
             closed: number;
-            /** Total */
-            total: number;
-            /** Start */
-            start: string | null;
-            /** End */
             end: string | null;
+            name: string;
+            /** Format: int32 */
+            pct: number;
+            start: string | null;
+            /** Format: int32 */
+            total: number;
         };
-        /** PlanBlock */
         PlanBlock: {
             card: components["schemas"]["TaskCard"];
-            /** Color Step */
             color_step: string;
         };
-        /** PlanChangeIn */
         PlanChangeIn: {
-            /** Key */
             key: string;
-            /** Start */
-            start: string;
-            /** Member Id */
             member_id: string;
+            start: string;
         };
-        /** PlanningPreview */
         PlanningPreview: {
-            /** Changes */
+            capacity: components["schemas"]["MemberCapacity"][];
             changes: components["schemas"]["ChangePreview"][];
-            /** Capacity */
-            capacity: components["schemas"]["MemberCapacity"][];
         };
-        /** PlanningPreviewIn */
         PlanningPreviewIn: {
-            /** Start */
-            start: string;
-            /** Changes */
             changes: components["schemas"]["PlanChangeIn"][];
+            start: string;
         };
-        /** PlanningPushIn */
         PlanningPushIn: {
-            /** Changes */
             changes: components["schemas"]["PlanChangeIn"][];
         };
-        /** PlanningView */
         PlanningView: {
-            /** Start */
-            start: string;
-            /** End */
-            end: string;
-            /** Days */
-            days: components["schemas"]["DayHead"][];
-            /** Projects */
-            projects: string[];
-            /** Rows */
-            rows: components["schemas"]["MemberLane"][];
-            /** Capacity */
             capacity: components["schemas"]["MemberCapacity"][];
-        };
-        /** PreviewStep */
-        PreviewStep: {
-            /** Step */
-            step: string;
-            /** Summary */
-            summary: string;
-            /** Assignee Id */
-            assignee_id: string;
-            /** Estimate H */
-            estimate_h: number;
-            /** Start */
-            start: string;
-            /** End */
+            days: components["schemas"]["DayHead"][];
             end: string;
-            /** Note */
-            note: string;
-            /** Reasons */
-            reasons: [
-                string,
-                string
-            ][];
+            projects: string[];
+            rows: components["schemas"]["MemberLane"][];
+            start: string;
         };
-        /** QuestionIn */
+        PreviewStep: {
+            assignee_id: string;
+            end: string;
+            /** Format: double */
+            estimate_h: number;
+            note: string;
+            reasons: components["schemas"]["DateReason"][];
+            start: string;
+            step: string;
+            summary: string;
+        };
         QuestionIn: {
-            /** Q */
             q: string;
         };
-        /** Rework */
         Rework: {
-            /** Member Id */
-            member_id: string;
-            /** Functions */
-            functions: number;
-            /** Create H */
-            create_h: number;
-            /** Fix H */
-            fix_h: number;
-            /** Rate */
-            rate: number;
-            /** Avg Rounds */
+            /** Format: double */
             avg_rounds: number;
-            /** Max Rounds */
+            /** Format: double */
+            create_h: number;
+            /** Format: double */
+            fix_h: number;
+            /** Format: int32 */
+            functions: number;
+            /** Format: int32 */
             max_rounds: number;
+            member_id: string;
+            /** Format: double */
+            rate: number;
         };
-        /**
-         * Role
-         * @enum {string}
-         */
-        Role: "BA" | "BAL" | "JM";
-        /** StatusMappingIn */
         StatusMappingIn: {
-            /** Mapping */
             mapping: {
-                [key: string]: ("N" | "W" | "R" | "C") | null;
+                [key: string]: "N" | "W" | "R" | "C" | null;
             };
         };
-        /** StatusRow */
         StatusRow: {
-            /** Name */
-            name: string;
-            /** Category */
             category: string;
-            /** Mapped */
-            mapped: string | null;
-            /** Effective */
             effective: string;
+            mapped: string | null;
+            name: string;
         };
-        /** StepOverride */
         StepOverride: {
-            /** Start */
-            start?: string | null;
-            /** End */
             end?: string | null;
+            start?: string | null;
         };
-        /** SyncIn */
         SyncIn: {
-            /**
-             * Full
-             * @default false
-             */
-            full: boolean;
+            full?: boolean | null;
         };
-        /** SyncStatus */
         SyncStatus: {
-            /** Status */
-            status: string | null;
-            /** Started At */
-            started_at: string | null;
-            /** Finished At */
-            finished_at: string | null;
-            /** Error */
             error: string | null;
-            /** Last Ok At */
+            /** Format: date-time */
+            finished_at: string | null;
+            /** Format: date-time */
             last_ok_at: string | null;
+            /** Format: date-time */
+            started_at: string | null;
+            status: string | null;
         };
-        /**
-         * TaskCard
-         * @description One issue as screens show it: raw values plus the flags the domain derived.
-         */
         TaskCard: {
-            /** Key */
-            key: string;
-            /** Summary */
-            summary: string;
-            /** Project */
-            project: string;
-            /** Epic Key */
-            epic_key: string;
-            /** Phase */
-            phase: string;
-            /** Function Id */
-            function_id: string | null;
-            /** Function Name */
-            function_name: string | null;
-            /** Step */
-            step: string | null;
-            /** Status */
-            status: string;
-            /** Jira Status */
-            jira_status: string;
-            /** Assignee Id */
-            assignee_id: string | null;
-            /** Worker Id */
-            worker_id: string | null;
-            /** Planned Start */
-            planned_start: string | null;
-            /** Planned End */
-            planned_end: string | null;
-            /** Estimate H */
-            estimate_h: number;
-            /** Logged H */
-            logged_h: number;
-            /** Remaining H */
-            remaining_h: number;
-            /** Actual Start */
-            actual_start: string | null;
-            /** Actual End */
             actual_end: string | null;
-            /** Is Current */
+            actual_start: string | null;
+            assignee_id: string | null;
+            epic_key: string;
+            /** Format: double */
+            estimate_h: number;
+            function_id: string | null;
+            function_name: string | null;
+            /** Format: int32 */
+            held_days: number;
             is_current: boolean;
-            /** Late */
+            jira_status: string;
+            key: string;
             late: boolean;
-            /** Late Days */
+            /** Format: int32 */
             late_days: number;
-            /** Soon */
-            soon: boolean;
-            /** Over */
+            /** Format: double */
+            logged_h: number;
             over: boolean;
-            /** Tone */
-            tone: string;
-            /** Held Days */
-            held_days: number;
-            /** Rounds */
+            phase: string;
+            planned_end: string | null;
+            planned_start: string | null;
+            project: string;
+            /** Format: double */
+            remaining_h: number;
+            /** Format: int32 */
             rounds: number;
+            soon: boolean;
+            status: string;
+            step: string | null;
+            summary: string;
+            tone: string;
+            worker_id: string | null;
         };
-        /** Thresholds */
         Thresholds: {
-            /**
-             * Soon Days
-             * @default 2
-             */
-            soon_days: number;
-            /**
-             * Effort Warn Pct
-             * @default 80
-             */
-            effort_warn_pct: number;
-            /**
-             * Held Days
-             * @default 3
-             */
-            held_days: number;
-            /**
-             * Review Rounds
-             * @default 3
-             */
-            review_rounds: number;
-            /**
-             * Capacity Pct
-             * @default 100
-             */
+            /** Format: double */
             capacity_pct: number;
+            /** Format: double */
+            effort_warn_pct: number;
+            /** Format: double */
+            held_days: number;
+            /** Format: double */
+            review_rounds: number;
+            /** Format: double */
+            soon_days: number;
         };
-        /** TicketDetail */
         TicketDetail: {
             card: components["schemas"]["TaskCard"];
-            /** Owner Id */
-            owner_id: string | null;
-            /** Warnings */
-            warnings: components["schemas"]["TicketWarning"][];
-            /** History */
             history: components["schemas"]["Handover"][];
-            /** Worklogs */
+            owner_id: string | null;
+            warnings: components["schemas"]["TicketWarning"][];
             worklogs: components["schemas"]["Worklog"][];
         };
-        /** TicketPatchIn */
         TicketPatchIn: {
-            /** Status */
-            status?: ("N" | "W" | "R" | "C") | null;
-            /** Assignee Id */
             assignee_id?: string | null;
-            /** Planned Start */
-            planned_start?: string | null;
-            /** Planned End */
             planned_end?: string | null;
+            planned_start?: string | null;
+            /** @enum {string|null} */
+            status?: "N" | "W" | "R" | "C" | null;
         };
-        /** TicketWarning */
         TicketWarning: {
-            /** Kind */
             kind: string;
-            /** Value */
+            /** Format: double */
             value: number;
         };
-        /** TimesheetCell */
         TimesheetCell: {
-            /** Date */
             date: string;
-            /** Logged H */
-            logged_h: number;
-            /** Planned H */
-            planned_h: number;
-            /** Expected H */
+            /** Format: double */
             expected_h: number;
-            /** State */
-            state: string;
-            /** Off Reason */
+            /** Format: double */
+            logged_h: number;
             off_reason: string | null;
+            /** Format: double */
+            planned_h: number;
+            state: string;
         };
-        /** TimesheetRow */
         TimesheetRow: {
-            /** Member Id */
-            member_id: string;
-            /** Cells */
             cells: components["schemas"]["TimesheetCell"][];
-            /** Logged H */
-            logged_h: number;
-            /** Expected H */
+            /** Format: double */
             expected_h: number;
-            /** Over Days */
+            /** Format: double */
+            logged_h: number;
+            member_id: string;
+            /** Format: int32 */
             over_days: number;
         };
-        /** TimesheetView */
         TimesheetView: {
-            /** Start */
-            start: string;
-            /** End */
-            end: string;
-            /** Days */
             days: components["schemas"]["DayHead"][];
-            /** Rows */
+            end: string;
             rows: components["schemas"]["TimesheetRow"][];
+            start: string;
         };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-        /** WeekLoad */
         WeekLoad: {
-            /** Week Start */
-            week_start: string;
-            /** Planned H */
-            planned_h: number;
-            /** Available H */
+            /** Format: double */
             available_h: number;
-            /** Pct */
-            pct: number | null;
-            /** Level */
             level: string;
+            /** Format: int32 */
+            pct: number | null;
+            /** Format: double */
+            planned_h: number;
+            week_start: string;
         };
-        /** WorkingHours */
         WorkingHours: {
-            /**
-             * Hours Per Day
-             * @default 8
-             */
-            hours_per_day: number;
-            /**
-             * Days
-             * @default [
-             *       1,
-             *       2,
-             *       3,
-             *       4,
-             *       5
-             *     ]
-             */
             days: number[];
-            /**
-             * Timesheet Tolerance H
-             * @default 1
-             */
+            /** Format: double */
+            hours_per_day: number;
+            /** Format: double */
             timesheet_tolerance_h: number;
         };
-        /** WorkingHoursIn */
         WorkingHoursIn: {
-            /** Hours Per Day */
-            hours_per_day: number;
-            /** Days */
             days: number[];
-            /** Timesheet Tolerance H */
+            /** Format: double */
+            hours_per_day: number;
+            /** Format: double */
             timesheet_tolerance_h: number;
         };
-        /** Worklog */
         Worklog: {
-            /** Date */
             date: string;
-            /** Member Id */
-            member_id: string;
-            /** Hours */
+            /** Format: double */
             hours: number;
-            /**
-             * Note
-             * @default
-             */
+            member_id: string;
             note: string;
         };
     };
@@ -1873,7 +1349,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    meta_api_v1_meta_get: {
+    overview: {
         parameters: {
             query?: never;
             header?: never;
@@ -1882,132 +1358,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Meta"];
-                };
-            };
-        };
-    };
-    members_api_v1_members_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Member"][];
-                };
-            };
-        };
-    };
-    sync_api_v1_sync_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SyncIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SyncStatus"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    latest_sync_api_v1_sync_runs_latest_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SyncStatus"];
-                };
-            };
-        };
-    };
-    my_work_api_v1_my_work_get: {
-        parameters: {
-            query: {
-                member: string;
-                backlog?: "week" | "month";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MyWork"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    overview_api_v1_anken_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2018,7 +1369,7 @@ export interface operations {
             };
         };
     };
-    detail_api_v1_anken__epic__get: {
+    detail_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2029,7 +1380,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2038,84 +1389,9 @@ export interface operations {
                     "application/json": components["schemas"]["AnkenDetail"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    matrix_api_v1_anken__epic__matrix_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                epic: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatrixView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    preview_function_api_v1_anken__epic__functions_preview_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                epic: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FunctionDraftIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FunctionPreview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_function_api_v1_anken__epic__functions_post: {
+    createFunction: {
         parameters: {
             query?: never;
             header?: never;
@@ -2130,7 +1406,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2139,22 +1415,60 @@ export interface operations {
                     "application/json": components["schemas"]["KeysOut"];
                 };
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    previewFunction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FunctionDraftIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["FunctionPreview"];
                 };
             };
         };
     };
-    view_api_v1_planning_get: {
+    matrix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatrixView"];
+                };
+            };
+        };
+    };
+    month: {
         parameters: {
             query: {
-                start: string;
-                weeks?: number;
+                month: string;
             };
             header?: never;
             path?: never;
@@ -2162,93 +1476,40 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlanningView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["CalendarView"];
                 };
             };
         };
     };
-    preview_api_v1_planning_preview_post: {
+    analysis: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlanningPreviewIn"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlanningPreview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["EffortAnalysis"];
                 };
             };
         };
     };
-    push_api_v1_planning_push_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlanningPushIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KeysOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    timesheet_api_v1_effort_timesheet_get: {
+    timesheet: {
         parameters: {
             query: {
                 from: string;
@@ -2260,7 +1521,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2269,18 +1530,9 @@ export interface operations {
                     "application/json": components["schemas"]["TimesheetView"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    day_api_v1_effort_timesheet__member___date__get: {
+    day: {
         parameters: {
             query?: never;
             header?: never;
@@ -2292,7 +1544,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2301,49 +1553,171 @@ export interface operations {
                     "application/json": components["schemas"]["DayDetailView"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    analysis_api_v1_effort_analysis_get: {
+    extraDays: {
         parameters: {
-            query?: {
-                anken?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EffortAnalysis"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
     };
-    month_api_v1_calendar_get: {
+    addExtraDay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtraDayIn"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteExtraDay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    holidays: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Holiday"][];
+                };
+            };
+        };
+    };
+    addHoliday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayIn"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Holiday"][];
+                };
+            };
+        };
+    };
+    deleteHoliday: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Holiday"][];
+                };
+            };
+        };
+    };
+    addLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaveIn"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaysOut"];
+                };
+            };
+        };
+    };
+    export: {
         parameters: {
             query: {
                 month: string;
@@ -2354,159 +1728,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CalendarView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/vnd.ms-excel": string;
                 };
             };
         };
     };
-    add_leave_api_v1_leaves_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LeaveIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DaysOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    edit_leave_api_v1_leaves__leave_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                leave_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LeaveIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DaysOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_leave_api_v1_leaves__leave_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                leave_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_preview_api_v1_leaves_import_preview_post: {
-        parameters: {
-            query?: {
-                sample?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_import_preview_api_v1_leaves_import_preview_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportPreviewOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_confirm_api_v1_leaves_import_post: {
+    importConfirm: {
         parameters: {
             query?: never;
             header?: never;
@@ -2519,7 +1752,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2528,18 +1761,35 @@ export interface operations {
                     "application/json": components["schemas"]["ImportResult"];
                 };
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    importPreview: {
+        parameters: {
+            query?: {
+                sample?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["ImportUpload"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ImportPreviewOut"];
                 };
             };
         };
     };
-    template_api_v1_leaves_template_get: {
+    template: {
         parameters: {
             query?: never;
             header?: never;
@@ -2548,8 +1798,56 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    editLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leave_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaveIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaysOut"];
+                };
+            };
+        };
+    };
+    deleteLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leave_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2557,135 +1855,7 @@ export interface operations {
             };
         };
     };
-    export_api_v1_leaves_export_get: {
-        parameters: {
-            query: {
-                month: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    detail_api_v1_tickets__key__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TicketDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch_api_v1_tickets__key__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TicketPatchIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TicketDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    ask_api_v1_qa_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuestionIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Answer"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    jira_api_v1_settings_jira_get: {
+    members: {
         parameters: {
             query?: never;
             header?: never;
@@ -2694,373 +1864,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JiraSettingsView"];
+                    "application/json": components["schemas"]["Member"][];
                 };
             };
         };
     };
-    save_jira_api_v1_settings_jira_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JiraIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JiraSettingsView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    test_jira_api_v1_settings_jira_test_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JiraTestIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JiraTestOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_epic_api_v1_settings_epics_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EpicIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JiraSettingsView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_epic_api_v1_settings_epics__key__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JiraSettingsView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    field_mapping_api_v1_settings_field_mapping_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FieldMappingView"];
-                };
-            };
-        };
-    };
-    save_field_mapping_api_v1_settings_field_mapping_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FieldMappingIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FieldMappingView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    check_field_mapping_api_v1_settings_field_mapping_check_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FieldCheckIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FieldMappingCheck"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    status_mapping_api_v1_settings_status_mapping_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StatusRow"][];
-                };
-            };
-        };
-    };
-    save_status_mapping_api_v1_settings_status_mapping_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StatusMappingIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StatusRow"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    name_rules_api_v1_settings_name_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NameRulesView"];
-                };
-            };
-        };
-    };
-    save_name_rules_api_v1_settings_name_rules_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NameRulesIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NameRulesView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    preview_name_rule_api_v1_settings_name_rules_preview_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NameRulePreviewIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NameRulePreview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_member_api_v1_members__member_id__patch: {
+    updateMember: {
         parameters: {
             query?: never;
             header?: never;
@@ -3075,7 +1890,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3084,18 +1899,9 @@ export interface operations {
                     "application/json": components["schemas"]["Member"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    holidays_api_v1_holidays_get: {
+    meta: {
         parameters: {
             query?: never;
             header?: never;
@@ -3104,18 +1910,64 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Holiday"][];
+                    "application/json": components["schemas"]["Meta"];
                 };
             };
         };
     };
-    add_holiday_api_v1_holidays_post: {
+    myWork: {
+        parameters: {
+            query: {
+                member: string;
+                backlog?: "week" | "month";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyWork"];
+                };
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query: {
+                start: string;
+                weeks?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningView"];
+                };
+            };
+        };
+    };
+    preview: {
         parameters: {
             query?: never;
             header?: never;
@@ -3124,84 +1976,22 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HolidayIn"];
+                "application/json": components["schemas"]["PlanningPreviewIn"];
             };
         };
         responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Holiday"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_holiday_api_v1_holidays__date__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                date: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Holiday"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["PlanningPreview"];
                 };
             };
         };
     };
-    extra_days_api_v1_extra_days_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-        };
-    };
-    add_extra_day_api_v1_extra_days_post: {
+    push: {
         parameters: {
             query?: never;
             header?: never;
@@ -3210,86 +2000,22 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ExtraDayIn"];
+                "application/json": components["schemas"]["PlanningPushIn"];
             };
         };
         responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_extra_day_api_v1_extra_days__date__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                date: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["KeysOut"];
                 };
             };
         };
     };
-    working_hours_api_v1_settings_working_hours_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkingHours"];
-                };
-            };
-        };
-    };
-    save_working_hours_api_v1_settings_working_hours_put: {
+    ask: {
         parameters: {
             query?: never;
             header?: never;
@@ -3298,31 +2024,22 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WorkingHoursIn"];
+                "application/json": components["schemas"]["QuestionIn"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkingHours"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["Answer"];
                 };
             };
         };
     };
-    alerts_api_v1_settings_alerts_get: {
+    alerts: {
         parameters: {
             query?: never;
             header?: never;
@@ -3331,7 +2048,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3342,7 +2059,7 @@ export interface operations {
             };
         };
     };
-    save_alerts_api_v1_settings_alerts_put: {
+    saveAlerts: {
         parameters: {
             query?: never;
             header?: never;
@@ -3355,7 +2072,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3364,13 +2081,434 @@ export interface operations {
                     "application/json": components["schemas"]["Thresholds"];
                 };
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    addEpic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpicIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["JiraSettingsView"];
+                };
+            };
+        };
+    };
+    removeEpic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSettingsView"];
+                };
+            };
+        };
+    };
+    fieldMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldMappingView"];
+                };
+            };
+        };
+    };
+    saveFieldMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldMappingIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldMappingView"];
+                };
+            };
+        };
+    };
+    checkFieldMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldCheckIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldMappingCheck"];
+                };
+            };
+        };
+    };
+    jira: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSettingsView"];
+                };
+            };
+        };
+    };
+    saveJira: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSettingsView"];
+                };
+            };
+        };
+    };
+    testJira: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraTestIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraTestOut"];
+                };
+            };
+        };
+    };
+    nameRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NameRulesView"];
+                };
+            };
+        };
+    };
+    saveNameRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NameRulesIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NameRulesView"];
+                };
+            };
+        };
+    };
+    previewNameRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NameRulePreviewIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NameRulePreview"];
+                };
+            };
+        };
+    };
+    statusMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusRow"][];
+                };
+            };
+        };
+    };
+    saveStatusMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusMappingIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusRow"][];
+                };
+            };
+        };
+    };
+    workingHours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingHours"];
+                };
+            };
+        };
+    };
+    saveWorkingHours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkingHoursIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkingHours"];
+                };
+            };
+        };
+    };
+    sync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+        };
+    };
+    latestSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+        };
+    };
+    patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketPatchIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketDetail"];
                 };
             };
         };

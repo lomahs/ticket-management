@@ -2,7 +2,7 @@ package tracker.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,23 +11,29 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import tracker.adapters.persistence.Database;
-import tracker.application.SyncFromJira.SyncResult;
+import tracker.TrackerTest;
+import tracker.application.SyncService.SyncResult;
 import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
 import tracker.application.dto.UserSnapshot;
 import tracker.application.dto.WorklogSnapshot;
-import tracker.application.ports.Clock;
+import tracker.application.ports.AnkenRepository;
+import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraAuthError;
 import tracker.application.ports.JiraReader;
-import tracker.application.ports.UnitOfWork;
+import tracker.application.ports.MemberRepository;
+import tracker.application.ports.SettingsRepository;
+import tracker.application.ports.SyncRunRepository;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
@@ -37,23 +43,15 @@ import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 
+/** Syncs from a stub Jira into an empty database. */
+@TrackerTest
 class SyncTest {
     static final UserSnapshot AN = new UserSnapshot("acc-an", "Nguyễn Thị An", "an@acme.vn");
     static final UserSnapshot MINH = new UserSnapshot("acc-minh", "Hoàng Minh");
     static final UserSnapshot NEW = new UserSnapshot("acc-new", "Lê Văn Mới");
     static final EpicSnapshot EPIC = new EpicSnapshot("PAY-1100", "PAY", "Payment flow revision", "2026-11-20");
     static final Instant NOW = Instant.parse("2026-10-07T09:00:00Z");
-    static final Clock CLOCK = new Clock() {
-        @Override
-        public String today() {
-            return "2026-10-07";
-        }
-
-        @Override
-        public Instant now() {
-            return NOW;
-        }
-    };
+    static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     static IssueSnapshot snap(String key, String summary, String parent, String status, String cat, UserSnapshot assignee,
                               Map<String, Object> fields, List<WorklogSnapshot> worklogs, List<ChangeSnapshot> changes) {
@@ -95,7 +93,7 @@ class SyncTest {
         }
 
         @Override
-        public Iterable<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
+        public List<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
             since.add(updatedSince);
             if (fail != null) {
                 throw fail;
@@ -104,13 +102,13 @@ class SyncTest {
         }
 
         @Override
-        public EpicSnapshot getEpic(String key) {
-            return epics.get(key);
+        public Optional<EpicSnapshot> findEpic(String key) {
+            return Optional.ofNullable(epics.get(key));
         }
 
         @Override
-        public IssueSnapshot getIssue(String key) {
-            return issues.stream().filter(i -> i.key().equals(key)).findFirst().orElse(null);
+        public Optional<IssueSnapshot> findIssue(String key) {
+            return issues.stream().filter(i -> i.key().equals(key)).findFirst();
         }
 
         @Override
@@ -124,34 +122,40 @@ class SyncTest {
         }
     }
 
-    @TempDir
-    Path tmp;
-    Database store;
+    @Autowired
+    SettingsRepository settings;
+    @Autowired
+    MemberRepository members;
+    @Autowired
+    IssueRepository issueRepository;
+    @Autowired
+    AnkenRepository anken;
+    @Autowired
+    SyncRunRepository runs;
+    @Autowired
+    TransactionTemplate tx;
 
     @BeforeEach
     void setUp() {
-        store = new Database("sqlite:///" + tmp.resolve("t.db"));
-        store.migrate();
-        try (UnitOfWork u = store.begin()) {
-            u.members().save(new Member("an", "An", "Nguyễn Thị An", Role.BA, "VN", "#111", "", tracker.domain.Permission.USER, false, "acc-an"));
-            TrackerSettings s = u.settings().load();
-            s.jira.epics = new ArrayList<>(List.of("PAY-1100"));
-            s.statusMapping.byName = new LinkedHashMap<>(Map.of("Resolved", "R"));
-            u.settings().save(s);
-            u.commit();
-        }
+        members.save(new Member("an", "An", "Nguyễn Thị An", Role.BA, "VN", "#111", "", tracker.domain.Permission.USER, false, "acc-an"));
+        TrackerSettings s = settings.load();
+        s.jira.epics = new ArrayList<>(List.of("PAY-1100"));
+        s.statusMapping.byName = new LinkedHashMap<>(Map.of("Resolved", "R"));
+        settings.save(s);
+    }
+
+    SyncService sync(JiraReader reader) {
+        return new SyncService(reader, settings, members, issueRepository, anken, runs, tx, CLOCK);
     }
 
     SyncResult run(JiraReader reader, boolean full) {
-        return new SyncFromJira(store, reader, CLOCK).run(full);
+        return sync(reader).run(full);
     }
 
     Map<String, Issue> issues() {
-        try (UnitOfWork u = store.begin()) {
-            Map<String, Issue> out = new HashMap<>();
-            u.issues().list().forEach(i -> out.put(i.key(), i));
-            return out;
-        }
+        Map<String, Issue> out = new HashMap<>();
+        issueRepository.findAll().forEach(i -> out.put(i.key(), i));
+        return out;
     }
 
     @Test
@@ -182,22 +186,18 @@ class SyncTest {
     @Test
     void unknownAccountBecomesMemberWithoutRole() {
         run(new StubReader(List.of(PARENT, OTHER)), true);
-        try (UnitOfWork u = store.begin()) {
-            Member m = u.members().byAccount("acc-new");
-            assertThat(List.of(m.id(), m.name(), m.country())).containsExactly("le-van-moi", "Lê Văn Mới", "VN");
-            assertThat(m.role()).isNull();
-            assertThat(u.members().byAccount("acc-minh")).isNull(); // only accounts that appear on synced issues are created
-        }
+        Member m = members.findByJiraAccountId("acc-new").orElseThrow();
+        assertThat(List.of(m.id(), m.name(), m.country())).containsExactly("le-van-moi", "Lê Văn Mới", "VN");
+        assertThat(m.role()).isNull();
+        assertThat(members.findByJiraAccountId("acc-minh")).isEmpty(); // only accounts that appear on synced issues are created
     }
 
     @Test
     void epicBecomesAnkenAndStatusesAreRecorded() {
         run(new StubReader(List.of(PARENT, CREATE, REVIEW)), true);
-        try (UnitOfWork u = store.begin()) {
-            assertThat(u.anken().list()).containsExactly(new tracker.domain.Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
-            assertThat(u.settings().load().statusMapping.seen).containsExactly(Map.entry("In Progress", "indeterminate"),
-                    Map.entry("Resolved", "done"));
-        }
+        assertThat(anken.findAll()).containsExactly(new tracker.domain.Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
+        assertThat(settings.load().statusMapping.seen).containsExactly(Map.entry("In Progress", "indeterminate"),
+                Map.entry("Resolved", "done"));
     }
 
     @Test
@@ -229,9 +229,8 @@ class SyncTest {
 
     @Test
     void noTrackedEpicsIsASuccessfulEmptySync() {
-        Database empty = new Database("sqlite:///" + tmp.resolve("empty.db"));
-        empty.migrate();
-        assertThat(new SyncFromJira(empty, new StubReader(List.of()), CLOCK).run(true).status()).isEqualTo("ok");
+        settings.save(new TrackerSettings());
+        assertThat(run(new StubReader(List.of()), true).status()).isEqualTo("ok");
     }
 
     @Test
@@ -240,9 +239,8 @@ class SyncTest {
         run(reader, true);
         reader.issues = List.of(PARENT, snap("PAY-1201", CREATE.summary(), "PAY-1102", "Closed", "done", AN, Map.of(), List.of(), List.of()),
                 REVIEW);
-        SyncResult r = new SyncFromJira(store, reader, CLOCK).refresh(List.of("PAY-1201", "PAY-9999"));
-        assertThat(r.status()).isEqualTo("ok");
-        assertThat(r.issues()).isEqualTo(1);
+        sync(reader).refresh(List.of("PAY-1201", "PAY-9999"));
+        assertThat(issues()).doesNotContainKey("PAY-9999");
         Issue got = issues().get("PAY-1201");
         assertThat(got.status()).isEqualTo(Status.CLOSED);
         assertThat(got.phase()).isEqualTo("Implement_Coding");
@@ -253,7 +251,7 @@ class SyncTest {
         List<String> order = Collections.synchronizedList(new ArrayList<>());
         StubReader slow = new StubReader(List.of(PARENT)) {
             @Override
-            public Iterable<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
+            public List<IssueSnapshot> search(List<String> epicKeys, Instant updatedSince) {
                 order.add("start");
                 try {
                     Thread.sleep(50);
@@ -264,7 +262,7 @@ class SyncTest {
                 return List.of(PARENT);
             }
         };
-        SyncFromJira sync = new SyncFromJira(store, slow, CLOCK);
+        SyncService sync = sync(slow);
         Thread a = new Thread(() -> sync.run(true));
         Thread b = new Thread(() -> sync.run(true));
         a.start();
@@ -285,13 +283,13 @@ class SyncTest {
 
     @Test
     void slugsAndColours() {
-        assertThat(SyncFromJira.slugify("Lê Văn Mới")).isEqualTo("le-van-moi");
-        assertThat(SyncFromJira.slugify("Đặng Đức")).isEqualTo("dang-duc");
-        assertThat(SyncFromJira.slugify("!!!")).isEqualTo("member");
+        assertThat(SyncService.slugify("Lê Văn Mới")).isEqualTo("le-van-moi");
+        assertThat(SyncService.slugify("Đặng Đức")).isEqualTo("dang-duc");
+        assertThat(SyncService.slugify("!!!")).isEqualTo("member");
         // the same colours zlib.crc32 picked in the original backend
-        assertThat(SyncFromJira.memberColor("le-van-moi")).isEqualTo("oklch(0.56 0.14 35)");
-        assertThat(SyncFromJira.memberColor("an")).isEqualTo("oklch(0.55 0.15 0)");
-        assertThat(SyncFromJira.memberColor("tanaka")).isEqualTo("oklch(0.5 0.1 210)");
-        assertThat(SyncFromJira.memberColor("x-2")).isEqualTo("oklch(0.48 0.04 260)");
+        assertThat(SyncService.memberColor("le-van-moi")).isEqualTo("oklch(0.56 0.14 35)");
+        assertThat(SyncService.memberColor("an")).isEqualTo("oklch(0.55 0.15 0)");
+        assertThat(SyncService.memberColor("tanaka")).isEqualTo("oklch(0.5 0.1 210)");
+        assertThat(SyncService.memberColor("x-2")).isEqualTo("oklch(0.48 0.04 260)");
     }
 }

@@ -126,7 +126,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
           </div>
           {(preview.data?.steps ?? []).map((s, i) => {
             const a = av(members[s.assignee_id], s.assignee_id);
-            const reasons = s.reasons.map(([d, r]) => `${dm(d)} ${r}`).join(', ');
+            const reasons = s.reasons.map(({ date, reason }) => `${dm(date)} ${reason}`).join(', ');
             const note = s.note === 'dayoff' ? 'Falls on a day off: ' + reasons : s.note === 'edited' ? 'Edited manually'
               : s.note === 'skips' ? 'Suggested · skips ' + reasons : 'Auto-suggested';
             const fg = s.note === 'dayoff' ? 'var(--hl-red-fg)' : s.note === 'skips' ? 'var(--hl-amber-fg)' : 'var(--text-muted)';

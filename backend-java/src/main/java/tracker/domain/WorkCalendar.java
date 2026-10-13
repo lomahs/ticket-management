@@ -71,7 +71,7 @@ public final class WorkCalendar {
 
     /** Share of a standard working day the member is available: 0, 0.5 (half-day leave) or 1. */
     public double capacityFactor(String memberId, String d) {
-        if (Py.truthy(off(d, memberId))) {
+        if (Text.hasText(off(d, memberId))) {
             return 0;
         }
         Leave lv = leave(memberId, d);
@@ -85,7 +85,7 @@ public final class WorkCalendar {
     public String nextWork(String d, String memberId, List<DateReason> skipped) {
         while (true) {
             String reason = off(d, memberId);
-            if (!Py.truthy(reason)) {
+            if (!Text.hasText(reason)) {
                 return d;
             }
             if (!reason.equals(WEEKEND) && skipped != null) {

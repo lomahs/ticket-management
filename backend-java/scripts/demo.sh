@@ -14,4 +14,4 @@ if [ ! -d "$ROOT/frontend/node_modules" ]; then (cd "$ROOT/frontend" && npm inst
 
 echo "Team Tracker demo (Spring Boot) → http://localhost:$PORT"
 cd "$BACKEND"
-TRACKER_MODE=demo PORT="$PORT" exec java -jar target/tracker.jar
+SPRING_PROFILES_ACTIVE=demo PORT="$PORT" exec java -jar target/tracker.jar

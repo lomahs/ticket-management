@@ -2,6 +2,9 @@ package tracker.adapters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -10,7 +13,6 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import tracker.adapters.clock.FixedClock;
 import tracker.adapters.fake.Dataset;
 import tracker.adapters.fake.FakeJira;
 import tracker.application.dto.IssueSnapshot;
@@ -20,7 +22,7 @@ import tracker.domain.Status;
 
 class FakeJiraTest {
     static FakeJira jira() {
-        return new FakeJira(new FixedClock(Dataset.DEMO_TODAY));
+        return new FakeJira(Clock.fixed(Instant.parse(Dataset.DEMO_TODAY + "T02:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
     }
 
     @Test
@@ -40,8 +42,8 @@ class FakeJiraTest {
 
     @Test
     void unknownEpicAndNonEpicKeys() {
-        assertThat(jira().getEpic("PAY-1500").summary()).isEqualTo("Refund automation");
-        assertThat(jira().getEpic("PAY-1201")).isNull();
+        assertThat(jira().findEpic("PAY-1500").orElseThrow().summary()).isEqualTo("Refund automation");
+        assertThat(jira().findEpic("PAY-1201")).isEmpty();
     }
 
     @Test
@@ -49,12 +51,12 @@ class FakeJiraTest {
         FakeJira j = jira();
         j.updateIssue("PAY-1214", "2026-10-12", "2026-10-13", "acc-an");
         j.transition("PAY-1214", Status.WIP);
-        IssueSnapshot s = j.getIssue("PAY-1214");
+        IssueSnapshot s = j.findIssue("PAY-1214").orElseThrow();
         assertThat(List.of(s.fields().get("customfield_10020"), s.fields().get("customfield_10016"), s.assignee().accountId(), s.statusName()))
                 .containsExactly("2026-10-12", "2026-10-13", "acc-an", "In Progress");
         assertThat(s.changes().subList(s.changes().size() - 2, s.changes().size())).extracting(c -> c.field())
                 .containsExactly("assignee", "status");
-        assertThat(s.updated()).isGreaterThan("2026-10-06T10:00:00+00:00");
+        assertThat(s.updated()).isGreaterThan("2026-10-06T10:00:00+00:00"); // the fixed clock: 2026-10-07T02:00Z
     }
 
     @Test
@@ -63,7 +65,7 @@ class FakeJiraTest {
         List<String> keys = j.createSubtasks("PAY-1102", List.of(new NewSubtask("[Implement_Coding][F13] X – Create", "acc-an",
                 "2026-10-08", "2026-10-09", 8)));
         assertThat(keys).containsExactly("PAY-1501");
-        assertThat(((Number) j.getIssue("PAY-1501").fields().get("timeoriginalestimate")).longValue()).isEqualTo(8 * 3600);
+        assertThat(((Number) j.findIssue("PAY-1501").orElseThrow().fields().get("timeoriginalestimate")).longValue()).isEqualTo(8 * 3600);
     }
 
     @Test

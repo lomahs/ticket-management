@@ -6,20 +6,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import tracker.adapters.persistence.Database;
-import tracker.adapters.persistence.FernetSecretBox;
-import tracker.application.ports.Repositories.SyncRun;
-import tracker.application.ports.UnitOfWork;
+import tracker.TrackerTest;
+import tracker.adapters.crypto.CryptoSecretBox;
+import tracker.application.ports.AnkenRepository;
+import tracker.application.ports.CalendarRepository;
+import tracker.application.ports.IssueRepository;
+import tracker.application.ports.MemberRepository;
+import tracker.application.ports.SettingsRepository;
+import tracker.application.ports.SyncRunRepository;
+import tracker.application.ports.SyncRunRepository.SyncRun;
+import tracker.application.settings.SettingsStore;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
 import tracker.domain.EventField;
@@ -37,18 +43,29 @@ import tracker.domain.StepKind;
 import tracker.domain.WorkingHours;
 import tracker.domain.Worklog;
 
+/** The JDBC repositories on a migrated SQLite database, and how transactions behave on it. */
+@TrackerTest
 class PersistenceTest {
-    static final Instant AT = Instant.parse("2026-10-07T09:00:00Z");
+    static final Instant AT = Instant.parse("2026-10-07T09:00:00.123456Z");
 
-    @TempDir
-    Path tmp;
-    Database db;
-
-    @BeforeEach
-    void setUp() {
-        db = new Database("sqlite:///" + tmp.resolve("tracker.db"));
-        db.migrate();
-    }
+    @Autowired
+    MemberRepository members;
+    @Autowired
+    IssueRepository issues;
+    @Autowired
+    AnkenRepository anken;
+    @Autowired
+    CalendarRepository calendar;
+    @Autowired
+    SettingsRepository settings;
+    @Autowired
+    SettingsStore store;
+    @Autowired
+    SyncRunRepository runs;
+    @Autowired
+    TransactionTemplate tx;
+    @Autowired
+    JdbcClient jdbc;
 
     static Issue issue(List<Worklog> logs) {
         return new Issue("PAY-1201", "PAY", "PAY-1100", "PAY-1102", IssueKind.SUBTASK, "[Implement_Coding][F01] X – Create",
@@ -57,179 +74,136 @@ class PersistenceTest {
     }
 
     @Test
-    void migrateIsIdempotent() {
-        db.migrate();
+    void flywayAppliedTheSchema() {
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1");
     }
 
     @Test
     void membersRoundTrip() {
         Member m = new Member("an", "An", "Nguyễn Thị An", Role.BA, "VN", "#111", "an@acme.vn", Permission.ADMIN, false, "acc-an");
-        try (UnitOfWork u = db.begin()) {
-            u.members().save(m);
-            u.members().save(new Member("x", "X", "X", null, "JP", "#222"));
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.members().get("an")).isEqualTo(m);
-            assertThat(u.members().byAccount("acc-an")).isEqualTo(m);
-            assertThat(u.members().get("x").role()).isNull();
-            assertThat(u.members().list()).extracting(Member::id).containsExactly("an", "x");
-        }
+        members.save(m);
+        members.save(new Member("x", "X", "X", null, "JP", "#222"));
+        assertThat(members.findById("an")).contains(m);
+        assertThat(members.findByJiraAccountId("acc-an")).contains(m);
+        assertThat(members.findById("x").orElseThrow().role()).isNull();
+        assertThat(members.findAll()).extracting(Member::id).containsExactly("an", "x");
+        members.save(new Member("an", "Ann", "Nguyễn Thị An", Role.BAL, "JP", "#111", "an@acme.vn", Permission.USER, false, "acc-an"));
+        assertThat(members.findById("an").orElseThrow().role()).isEqualTo(Role.BAL);
     }
 
     @Test
     void issueRoundTripReplacesChildren() {
         Issue i = issue(List.of(new Worklog("2026-09-15", "an", 2.5, "spec")));
-        try (UnitOfWork u = db.begin()) {
-            u.issues().save(i);
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            Issue got = u.issues().get("PAY-1201");
-            assertThat(got).isEqualTo(i);
-            u.issues().save(got.withWorklogs(List.of(new Worklog("2026-09-16", "an", 1, ""))));
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.issues().get("PAY-1201").worklogs()).extracting(Worklog::hours).containsExactly(1.0);
-            assertThat(u.issues().list(List.of("PAY-1100"))).extracting(Issue::key).containsExactly("PAY-1201");
-            assertThat(u.issues().list(List.of("X"))).isEmpty();
-            u.issues().delete(List.of("PAY-1201"));
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.issues().get("PAY-1201")).isNull();
-        }
+        issues.save(i);
+        Issue got = issues.findByKey("PAY-1201").orElseThrow();
+        assertThat(got).isEqualTo(i);
+        issues.save(got.withWorklogs(List.of(new Worklog("2026-09-16", "an", 1, ""))));
+        assertThat(issues.findByKey("PAY-1201").orElseThrow().worklogs()).extracting(Worklog::hours).containsExactly(1.0);
+        assertThat(issues.findByEpics(List.of("PAY-1100"))).extracting(Issue::key).containsExactly("PAY-1201");
+        assertThat(issues.findByEpics(List.of("X"))).isEmpty();
+        issues.deleteAll(List.of("PAY-1201"));
+        assertThat(issues.findByKey("PAY-1201")).isEmpty();
+        assertThat(jdbc.sql("SELECT count(*) FROM worklogs").query(Integer.class).single()).isZero(); // ON DELETE CASCADE
     }
 
     @Test
-    void uncommittedWorkIsRolledBack() {
-        try (UnitOfWork u = db.begin()) {
-            u.issues().save(issue(List.of()));
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.issues().get("PAY-1201")).isNull();
-        }
+    void aFailedTransactionIsRolledBack() {
+        tx.executeWithoutResult(status -> {
+            issues.save(issue(List.of()));
+            status.setRollbackOnly();
+        });
+        assertThat(issues.findByKey("PAY-1201")).isEmpty();
     }
 
-    /** Reads do not pin a snapshot: a unit of work can still write after another one committed (as with pysqlite). */
+    /**
+     * A write transaction holds the write lock from its start, so another one waits for it instead of failing or losing
+     * an update.
+     */
     @Test
-    void writeAfterAnotherCommitSucceeds() {
-        try (UnitOfWork a = db.begin()) {
-            TrackerSettings s = a.settings().load();
-            try (UnitOfWork b = db.begin()) {
-                TrackerSettings other = b.settings().load();
-                other.defaultCountry = "JP";
-                b.settings().save(other);
-                b.commit();
+    void writeTransactionsRunOneAfterTheOther() throws Exception {
+        CompletableFuture<?>[] other = new CompletableFuture<?>[1];
+        tx.executeWithoutResult(status -> {
+            TrackerSettings s = settings.load();
+            other[0] = CompletableFuture.runAsync(() -> store.update(x -> x.defaultCountry = "JP"));
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
+            assertThat(other[0]).isNotDone();
             s.jira.interval = "60";
-            a.settings().save(s);
-            a.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.settings().load().jira.interval).isEqualTo("60");
-        }
+            settings.save(s);
+        });
+        other[0].get(5, TimeUnit.SECONDS);
+        TrackerSettings saved = settings.load();
+        assertThat(List.of(saved.jira.interval, saved.defaultCountry)).containsExactly("60", "JP");
     }
 
-    /** A long write (a sync) does not block readers. */
+    /** A long write (a sync) does not block readers; they see the last committed data. */
     @Test
     void readersAreNotBlockedByAnOpenWrite() {
-        try (UnitOfWork w = db.begin()) {
-            w.anken().save(new Anken("PAY-1", "PAY", "x", null));
-            try (UnitOfWork r = db.begin()) {
-                assertThat(r.anken().list()).isEmpty();
-            }
-            w.commit();
-        }
+        tx.executeWithoutResult(status -> {
+            anken.save(new Anken("PAY-1", "PAY", "x", null));
+            List<Anken> seen = CompletableFuture.supplyAsync(anken::findAll).orTimeout(2, TimeUnit.SECONDS).join();
+            assertThat(seen).isEmpty();
+        });
+        assertThat(anken.findAll()).hasSize(1);
     }
 
     @Test
     void calendarRoundTrip() {
-        Leave lv;
-        try (UnitOfWork u = db.begin()) {
-            lv = u.calendar().addLeave(new Leave(0, "an", "2026-10-16", LeaveType.FULL, "trip"));
-            u.calendar().saveHoliday(new Holiday("2026-09-02", List.of("VN"), "National Day"));
-            u.calendar().saveExtraDay("2026-10-10", "Release");
-            u.commit();
-        }
+        Leave lv = calendar.saveLeave(new Leave(0, "an", "2026-10-16", LeaveType.FULL, "trip"));
+        calendar.saveHoliday(new Holiday("2026-09-02", List.of("VN"), "National Day"));
+        calendar.saveExtraDay("2026-10-10", "Release");
         assertThat(lv.id()).isPositive();
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.calendar().leaves()).containsExactly(lv);
-            assertThat(u.calendar().holidays()).isEqualTo(Map.of("2026-09-02", new Holiday("2026-09-02", List.of("VN"), "National Day")));
-            assertThat(u.calendar().extraDays()).isEqualTo(Map.of("2026-10-10", "Release"));
-            u.calendar().deleteLeave(lv.id());
-            u.calendar().deleteHoliday("2026-09-02");
-            u.calendar().deleteExtraDay("2026-10-10");
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            assertThat(u.calendar().leaves()).isEmpty();
-            assertThat(u.calendar().holidays()).isEmpty();
-            assertThat(u.calendar().extraDays()).isEmpty();
-        }
+        assertThat(calendar.findLeaves()).containsExactly(lv);
+        assertThat(calendar.findHolidays()).isEqualTo(Map.of("2026-09-02", new Holiday("2026-09-02", List.of("VN"), "National Day")));
+        assertThat(calendar.findExtraDays()).isEqualTo(Map.of("2026-10-10", "Release"));
+        calendar.deleteLeave(lv.id());
+        calendar.deleteHoliday("2026-09-02");
+        calendar.deleteExtraDay("2026-10-10");
+        assertThat(calendar.findLeaves()).isEmpty();
+        assertThat(calendar.findHolidays()).isEmpty();
+        assertThat(calendar.findExtraDays()).isEmpty();
     }
 
     @Test
     void settingsAnkenAndRuns() {
-        try (UnitOfWork u = db.begin()) {
-            TrackerSettings s = u.settings().load();
-            s.jira.epics = new ArrayList<>(List.of("PAY-1100"));
-            s.nameRules.aliases.put(StepKind.CREATE, "Create, Tạo");
-            s.workingHours = new WorkingHours(8, List.of(1, 2, 3, 4, 5, 6), 1);
-            u.settings().save(s);
-            u.anken().save(new Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
-            int rid = u.syncRuns().start(true, AT);
-            u.syncRuns().finish(rid, AT, "ok", 12, null);
-            u.commit();
-        }
-        try (UnitOfWork u = db.begin()) {
-            TrackerSettings s = u.settings().load();
-            assertThat(s.jira.epics).containsExactly("PAY-1100");
-            assertThat(s.nameRules.aliases.get(StepKind.CREATE)).isEqualTo("Create, Tạo");
-            assertThat(s.workingHours.days()).containsExactly(1, 2, 3, 4, 5, 6);
-            assertThat(u.anken().list()).containsExactly(new Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
-            SyncRun r = u.syncRuns().latest();
-            assertThat(List.of(r.status(), r.issues(), r.full(), r.startedAt())).containsExactly("ok", 12, true, AT);
-            assertThat(u.syncRuns().latestOk()).isEqualTo(r);
-        }
+        TrackerSettings s = settings.load();
+        s.jira.epics = new ArrayList<>(List.of("PAY-1100"));
+        s.nameRules.aliases.put(StepKind.CREATE, "Create, Tạo");
+        s.workingHours = new WorkingHours(8, List.of(1, 2, 3, 4, 5, 6), 1);
+        settings.save(s);
+        anken.save(new Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
+        int rid = runs.start(true, AT);
+        runs.finish(rid, AT, "ok", 12, null);
+
+        TrackerSettings got = settings.load();
+        assertThat(got.jira.epics).containsExactly("PAY-1100");
+        assertThat(got.nameRules.aliases.get(StepKind.CREATE)).isEqualTo("Create, Tạo");
+        assertThat(got.workingHours.days()).containsExactly(1, 2, 3, 4, 5, 6);
+        assertThat(anken.findAll()).containsExactly(new Anken("PAY-1100", "PAY", "Payment flow revision", "2026-11-20"));
+        SyncRun r = runs.findLatest().orElseThrow();
+        assertThat(List.of(r.status(), r.issues(), r.full(), r.startedAt())).containsExactly("ok", 12, true, AT);
+        assertThat(runs.findLatestOk()).contains(r);
     }
 
     @Test
-    void settingsAreStoredAsTheOriginalJsonDocuments() throws Exception {
-        try (UnitOfWork u = db.begin()) {
-            u.settings().save(new TrackerSettings());
-            u.commit();
-        }
-        Map<String, Object> docs = new LinkedHashMap<>();
-        try (var c = java.sql.DriverManager.getConnection("jdbc:sqlite:" + tmp.resolve("tracker.db"));
-             var rs = c.createStatement().executeQuery("select key, value from settings")) {
-            while (rs.next()) {
-                docs.put(rs.getString(1), new ObjectMapper().readValue(rs.getString(2), Object.class));
-            }
-        }
-        assertThat(docs.keySet()).containsExactlyInAnyOrder("jira", "field_mapping", "name_rules", "status_mapping", "thresholds",
-                "working_hours", "default_country");
-        assertThat(docs.get("field_mapping")).isEqualTo(Map.of("planned_start", "customfield_10020", "planned_end", "customfield_10016",
-                "effort", "timeoriginalestimate"));
-        assertThat(docs.get("default_country")).isEqualTo("VN");
+    void settingsAreOneJsonDocumentWithSnakeCaseNames() {
+        settings.save(new TrackerSettings());
+        String json = jdbc.sql("SELECT value FROM settings").query(String.class).single();
+        assertThat(json).contains("\"field_mapping\":{\"planned_start\":\"customfield_10020\"").contains("\"default_country\":\"VN\"")
+                .contains("\"aliases\":{\"create\":\"Create\"");
     }
 
     @Test
-    void secretBoxRoundTripAndKeyFile() {
-        FernetSecretBox box = FernetSecretBox.fromKeyFile(tmp.resolve("secret.key"));
+    void secretBoxRoundTripAndKeyFile() throws Exception {
+        Path dir = Files.createTempDirectory("keys");
+        CryptoSecretBox box = CryptoSecretBox.fromKeyFile(dir.resolve("secret.key"));
         String token = box.encrypt("ATATT3xFfGF0-real-token");
-        assertThat(token).isNotEqualTo("ATATT3xFfGF0-real-token").startsWith("gAAAAA");
-        assertThat(FernetSecretBox.fromKeyFile(tmp.resolve("secret.key")).decrypt(token)).isEqualTo("ATATT3xFfGF0-real-token");
-        assertThat(box.encrypt("")).isEmpty();
-        assertThat(box.decrypt("")).isEmpty();
-    }
-
-    @Test
-    void secretBoxReadsTokensOfTheOriginalBackend() throws Exception {
-        @SuppressWarnings("unchecked")
-        Map<String, String> fx = new ObjectMapper().readValue(Files.readString(Path.of(
-                PersistenceTest.class.getResource("/fernet_python.json").toURI())), Map.class);
-        assertThat(new FernetSecretBox(fx.get("key")).decrypt(fx.get("token"))).isEqualTo(fx.get("plain"));
+        assertThat(token).isNotEqualTo("ATATT3xFfGF0-real-token").doesNotContain("ATATT");
+        assertThat(CryptoSecretBox.fromKeyFile(dir.resolve("secret.key")).decrypt(token)).isEqualTo("ATATT3xFfGF0-real-token");
+        assertThat(Files.readString(dir.resolve("secret.key"))).hasSize(64);
+        assertThat(new CryptoSecretBox("other-key").encrypt("x")).isNotEqualTo(new CryptoSecretBox("other-key").encrypt("x")); // random IV
     }
 }

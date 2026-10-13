@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "gen:api": "cd ../backend && .venv/bin/python -m tracker.adapters.api.openapi ../frontend/src/shared/api/openapi.json && cd ../frontend && openapi-typescript src/shared/api/openapi.json -o src/shared/api/schema.d.ts",
+    "gen:api": "cd ../backend-java && ./mvnw -q test -Dtest=BootTest -Dopenapi.write=true && cd ../frontend && openapi-typescript src/shared/api/openapi.json -o src/shared/api/schema.d.ts",
     "preview": "vite preview",
     "e2e": "playwright test"
   },
