@@ -40,11 +40,44 @@ describe('screens render API data at their URLs', () => {
     expect(within(panel).getByText(/Updating Jira arrives in phase 2/)).toBeTruthy();
   });
 
+  it('switches the matrix to another Task through the URL', async () => {
+    const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
+    const select = await screen.findByLabelText('Task');
+    expect((select as HTMLSelectElement).value).toBe('PAY-1102');
+    fireEvent.change(select, { target: { value: 'PAY-1101' } });
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ task: 'PAY-1101' }));
+    expect(router.state.location.search).not.toHaveProperty('members'); // filters belong to the Task that was shown
+  });
+
   it('shows API errors instead of a blank screen', async () => {
     server.use(http.get('*/api/v1/my-work', () => HttpResponse.json(
       { code: 'not_found', detail: 'Member zz was not found', errors: [] }, { status: 404, headers: { 'Content-Type': 'application/problem+json' } })));
     renderApp('/my-work?member=zz');
     expect((await screen.findByRole('alert')).textContent).toBe('Member zz was not found');
+  });
+
+  it('edits phases and Task templates and saves them', async () => {
+    const view = {
+      phases: ['UC', 'FUT'],
+      tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
+      seen: [
+        { key: 'PAY-1110', epic_key: 'PAY-1100', summary: 'FUT create test case', phase: 'FUT', template: 0 },
+        { key: 'PAY-1113', epic_key: 'PAY-1100', summary: 'Work Request management', phase: '', template: null },
+      ],
+    };
+    let saved: unknown;
+    server.use(
+      http.get('*/api/v1/settings/structure', () => HttpResponse.json(view)),
+      http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(view)),
+      http.put('*/api/v1/settings/structure', async ({ request }) => { saved = await request.json(); return HttpResponse.json(view); }),
+    );
+    renderApp('/settings/structure');
+    const jira = await screen.findByRole('region', { name: 'Tasks in Jira' });
+    expect(within(jira).getByText('No match')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    fireEvent.change(screen.getByLabelText('Phase 3'), { target: { value: 'ITA' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks }));
   });
 
   it('falls back to the Jira tab for an unknown settings tab', async () => {

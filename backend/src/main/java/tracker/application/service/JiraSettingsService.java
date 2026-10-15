@@ -2,10 +2,13 @@ package tracker.application.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 
@@ -36,7 +39,9 @@ import tracker.domain.Naming;
 import tracker.domain.RuleError;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
+import tracker.domain.WorkStructure;
 
 /**
  * Settings that decide what is read from Jira: the connection and tracked epics, the field and status mappings, and the
@@ -264,6 +269,69 @@ public class JiraSettingsService {
         return statusMapping();
     }
 
+    // --- phases & tasks ---------------------------------------------------------------------------------------------
+
+    /** @param template index of the matching Task template; null when none matches */
+    public record SeenTask(String key, String epicKey, String summary, String phase, @Nullable Integer template) {
+    }
+
+    /** @param seen the tracked epics' Tasks, classified with these phases and tasks */
+    public record StructureView(List<String> phases, List<TaskTemplate> tasks, List<SeenTask> seen) {
+    }
+
+    private StructureView structureView(WorkStructure ws) {
+        List<Issue> parents = new ArrayList<>(issues.findByEpics(settings.load().jira.epics).stream()
+                .filter(i -> i.kind() == IssueKind.PARENT).toList());
+        parents.sort(Comparator.comparing(Issue::epicKey).thenComparing(Issue::key));
+        List<SeenTask> seen = parents.stream().map(p -> {
+            int t = ws.templateIndex(p.summary());
+            return new SeenTask(p.key(), p.epicKey(), p.summary(), ws.phaseOfTask(p.summary()), t < 0 ? null : t);
+        }).toList();
+        return new StructureView(ws.phases(), ws.tasks(), seen);
+    }
+
+    private static WorkStructure checked(WorkStructure ws) {
+        List<String> phases = ws.phases().stream().map(p -> p == null ? "" : p.strip()).toList();
+        if (phases.stream().anyMatch(String::isEmpty)) {
+            throw new Invalid("Phase name is required", "phases");
+        }
+        if (new HashSet<>(phases).size() != phases.size()) {
+            throw new Invalid("Phase names must be unique", "phases");
+        }
+        List<TaskTemplate> tasks = ws.tasks().stream()
+                .map(t -> new TaskTemplate(t.match().strip(), t.phase().strip(), t.prefix().strip(), t.workflow())).toList();
+        Set<String> names = new HashSet<>();
+        for (TaskTemplate t : tasks) {
+            if (t.match().isEmpty()) {
+                throw new Invalid("Task name is required", "tasks");
+            }
+            if (!phases.contains(t.phase())) {
+                throw new Invalid(t.match() + ": phase " + (t.phase().isEmpty() ? "(empty)" : t.phase()) + " is not in the phase list",
+                        "tasks");
+            }
+            if (!names.add(WorkStructure.normalise(t.match()))) {
+                throw new Invalid("Each Task name may appear only once: " + t.match(), "tasks");
+            }
+        }
+        return new WorkStructure(phases, tasks);
+    }
+
+    public StructureView structure() {
+        return structureView(settings.load().structure);
+    }
+
+    /** Classifies the Tasks with unsaved settings, so the screen can show matches while the admin types. */
+    public StructureView previewStructure(WorkStructure draft) {
+        return structureView(draft);
+    }
+
+    public StructureView saveStructure(WorkStructure draft) {
+        WorkStructure ws = checked(draft);
+        settings.update(s -> s.structure = ws);
+        sync.run(true);
+        return structure();
+    }
+
     // --- name rules -------------------------------------------------------------------------------------------------
 
     /** @param matched sub-task summaries the rule reads */
@@ -315,6 +383,7 @@ public class JiraSettingsService {
         Naming.CompiledRule compiled;
         try {
             compiled = Naming.compileRule(rule, al);
+            Naming.checkIdentity(compiled);
         } catch (RuleError e) {
             return new NameRulePreview(e.getMessage(), List.of(), Map.of(), null, false, 0, summaries.size());
         }
@@ -328,7 +397,7 @@ public class JiraSettingsService {
         Map<StepKind, String> al = aliases(rawAliases, Map.of());
         String r = Text.orElse(rule, Naming.DEFAULT_RULE);
         try {
-            Naming.compileRule(r, al);
+            Naming.checkIdentity(Naming.compileRule(r, al));
         } catch (RuleError e) {
             throw new Invalid(e.getMessage(), "rule");
         }

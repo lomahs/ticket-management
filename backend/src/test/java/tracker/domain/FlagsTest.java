@@ -52,6 +52,21 @@ class FlagsTest {
     }
 
     @Test
+    void sameFunctionUnderTwoTasksIsTwoFunctions() {
+        List<Issue> issues = new ArrayList<>();
+        five("Login", "CNNNN").forEach(i -> issues.add(withParent(i, "PAY-10")));
+        five("Login", "CCCCC").forEach(i -> issues.add(withParent(i, "PAY-20")));
+        assertThat(Flags.buildFunctions(issues)).extracting(f -> f.parentKey() + "/" + f.id() + "/" + f.current())
+                .containsExactly("PAY-10/Login/1", "PAY-20/Login/5");
+    }
+
+    static Issue withParent(Issue i, String parent) {
+        return new Issue(i.key(), i.project(), i.epicKey(), parent, i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), i.estimateH(), i.created(), i.jiraStatus(), i.functionId(), i.functionName(),
+                i.step(), i.worklogs(), i.events());
+    }
+
+    @Test
     void missingStepLeavesAGapAndCountsAsNotDone() {
         List<Issue> cells = new ArrayList<>(five("F01", "CCCCC"));
         cells.remove(2);

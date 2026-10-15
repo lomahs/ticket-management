@@ -2,10 +2,8 @@ package tracker.domain;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 
@@ -13,8 +11,6 @@ import org.jspecify.annotations.Nullable;
 public final class Overview {
     private Overview() {
     }
-
-    public static final List<String> DEFAULT_PHASE_ORDER = List.of("Prepare", "Implement_Coding", "Function Unit Test");
 
     public record PhaseRollup(String name, int pct, int closed, int total, @Nullable String start, @Nullable String end) {
     }
@@ -26,14 +22,6 @@ public final class Overview {
                 : (int) Math.round(issues.stream().mapToDouble(i -> Flags.PROGRESS_WEIGHT.get(i.status())).sum() / issues.size() * 100);
         int closed = (int) issues.stream().filter(i -> i.status() == Status.CLOSED).count();
         return new PhaseRollup(name, pct, closed, issues.size(), start, end);
-    }
-
-    public static List<String> orderedPhases(Iterable<String> names) {
-        Set<String> all = new LinkedHashSet<>();
-        names.forEach(all::add);
-        List<String> out = new ArrayList<>(DEFAULT_PHASE_ORDER.stream().filter(all::contains).toList());
-        out.addAll(all.stream().filter(n -> !DEFAULT_PHASE_ORDER.contains(n)).sorted().toList());
-        return out;
     }
 
     /** The remaining schedule slips by the worst current delay, counted in Mon–Fri days. */

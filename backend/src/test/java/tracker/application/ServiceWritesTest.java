@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -31,11 +32,15 @@ import tracker.application.service.SystemService;
 import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
+import tracker.application.settings.SettingsStore;
 import tracker.domain.LeaveType;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
+import tracker.domain.WorkStructure;
 
 /** Services that write: each test starts from fresh demo data. */
 @DemoTest
@@ -69,12 +74,45 @@ class ServiceWritesTest {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
         List<String> keys = anken.createFunction("PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
-        AnkenService.MatrixView m = anken.matrix("PAY-1100");
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThat(m.nextFunctionId()).isEqualTo("F14");
         assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
+    }
+
+    /** The company's naming: Tasks recognised by name, sub-tasks named [prefix][function name]_Step without a function ID. */
+    @Test
+    void createFunctionWithCompanyNaming(@Autowired SettingsStore settings, @Autowired SyncService sync) {
+        settings.update(s -> {
+            s.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+            s.nameRules.aliases = new java.util.EnumMap<>(Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
+                    StepKind.FIX_BAL, "FixCommentBAL", StepKind.JM_REVIEW, "JMReview", StepKind.FIX_JM, "FixCommentJM"));
+            s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"),
+                    List.of(new TaskTemplate("[Implement_Coding] *", "Implement_Coding", "UCI"),
+                            new TaskTemplate("[Prepare] *", "Prepare", "PRE", false)));
+        });
+        sync.run(true);
+        FunctionDraft d = draft("PAY-1102", "Login", 8);
+        AnkenService.FunctionPreview p = anken.previewFunction("PAY-1100", d);
+        assertThat(List.of(p.phase(), p.prefix(), p.functionId())).containsExactly("Implement_Coding", "UCI", "");
+        assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
+                "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
+        List<String> keys = anken.createFunction("PAY-1100", d, null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", "PAY-1102"); // the demo's own functions no longer match the rule
+        assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
+        assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
+        assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
+        assertThatThrownBy(() -> anken.previewFunction("PAY-1100", draft("PAY-1101", "X", 8))).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void saveStructureResyncsPhases() {
+        jiraSettings.saveStructure(new WorkStructure(List.of("Coding", "Prepare"),
+                List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
+        AnkenService.AnkenCard card = anken.overview().stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
+        assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Function Unit Test");
     }
 
     /** Without a JiraWriter (the Jira profile in phase 1) nothing is written to Jira. */

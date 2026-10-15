@@ -37,8 +37,11 @@ import tracker.domain.Numbers;
 import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.Overview;
 import tracker.domain.Scheduling;
+import tracker.domain.StepKind;
 import tracker.domain.Steps;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
+import tracker.domain.WorkStructure;
 
 /** Anken (tracked epics): overview cards, detail with attention groups, the function matrix, and new functions. */
 @Service
@@ -88,7 +91,7 @@ public class AnkenService {
         Set<String> names = new LinkedHashSet<>();
         parents.forEach(p -> names.add(p.phase()));
         names.addAll(byPhase.keySet());
-        List<PhaseRollup> phases = Overview.orderedPhases(names).stream()
+        List<PhaseRollup> phases = ctx.settings.structure.orderedPhases(names).stream()
                 .map(n -> Overview.phaseRollup(n, byPhase.getOrDefault(n, List.of()))).toList();
         List<Issue> late = subs.stream().filter(i -> ctx.flags.get(i.key()).late()).toList();
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(key)).toList();
@@ -149,11 +152,17 @@ public class AnkenService {
                               int overSubtasks, double loggedH, double estimateH) {
     }
 
-    public record ParentOption(String key, String summary, String phase) {
+    /**
+     * @param prefix    the value of {prefix} for this Task's sub-tasks
+     * @param workflow  whether functions can be added under this Task
+     * @param functions how many functions the Task has
+     */
+    public record ParentOption(String key, String summary, String phase, String prefix, boolean workflow, int functions) {
     }
 
+    /** @param taskKey the Task whose functions are shown; null when the epic has no Task with functions */
     public record MatrixView(String epicKey, String title, String phase, MatrixStats stats, List<FunctionRow> functions,
-                             List<ParentOption> parents, String nextFunctionId) {
+                             List<ParentOption> parents, String nextFunctionId, @Nullable String taskKey) {
     }
 
     private static final Pattern FUNCTION_ID = Pattern.compile("([A-Za-z]+)(\\d+)");
@@ -191,10 +200,31 @@ public class AnkenService {
         return prefix + String.format("%0" + width + "d", next);
     }
 
-    public MatrixView matrix(String epic) {
+    /** The epic's Tasks in phase order, each with its template's prefix and workflow. */
+    private static List<ParentOption> parentOptions(TrackerContext ctx, String epic) {
+        WorkStructure st = ctx.settings.structure;
+        List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
+        List<String> order = st.orderedPhases(parents.stream().map(Issue::phase).toList());
+        List<Issue> sorted = new ArrayList<>(parents);
+        sorted.sort(Comparator.comparingInt((Issue p) -> order.indexOf(p.phase())).thenComparing(Issue::key));
+        return sorted.stream().map(p -> {
+            TaskTemplate t = st.taskTemplate(p.summary());
+            int functions = (int) ctx.functions.stream().filter(f -> f.parentKey().equals(p.key())).count();
+            return new ParentOption(p.key(), p.summary(), p.phase(), t != null ? t.prefix() : p.phase(), t == null || t.workflow(),
+                    functions);
+        }).toList();
+    }
+
+    /** @param task the Task to show; null shows the first Task that has functions */
+    public MatrixView matrix(String epic, @Nullable String task) {
         TrackerContext ctx = context.load();
         require(ctx, epic);
-        List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList();
+        List<ParentOption> parents = parentOptions(ctx, epic);
+        if (task != null && parents.stream().noneMatch(p -> p.key().equals(task))) {
+            throw new NotFound(task + " is not a Task of " + epic, "task");
+        }
+        String shown = task != null ? task : parents.stream().filter(p -> p.functions() > 0).map(ParentOption::key).findFirst().orElse(null);
+        List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(shown)).toList();
         Set<String> late = new HashSet<>();
         ctx.flags.forEach((k, f) -> {
             if (f.late()) {
@@ -217,12 +247,8 @@ public class AnkenService {
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
-        String phase = mostCommon(cells.stream().map(Issue::phase).toList());
-        List<Issue> parents = new ArrayList<>(ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList());
-        parents.sort(Comparator.comparing(Issue::key));
-        String title = anken(ctx, epic).title();
-        return new MatrixView(epic, title, phase != null ? phase : "", stats, rows,
-                parents.stream().map(p -> new ParentOption(p.key(), p.summary(), p.phase())).toList(), nextFunctionId(fns));
+        String phase = parents.stream().filter(p -> p.key().equals(shown)).map(ParentOption::phase).findFirst().orElse("");
+        return new MatrixView(epic, anken(ctx, epic).title(), phase, stats, rows, parents, nextFunctionId(fns), shown);
     }
 
     // --- new function -------------------------------------------------------------------------------------------------
@@ -237,14 +263,27 @@ public class AnkenService {
                               String note, List<DateReason> reasons) {
     }
 
-    public record FunctionPreview(String phase, String functionId, List<PreviewStep> steps) {
+    /** @param functionId "" when the name rule has no {function_id} */
+    public record FunctionPreview(String phase, String functionId, List<PreviewStep> steps, String prefix) {
+    }
+
+    /** How a step is written in new sub-task Summaries: its first alias in the name rules. */
+    private static String stepText(TrackerContext ctx, StepKind kind) {
+        String first = ctx.settings.nameRules.aliases.getOrDefault(kind, "").split(",", -1)[0].strip();
+        return first.isEmpty() ? Steps.STEPS.get(Steps.index(kind)).label() : first;
+    }
+
+    private static boolean ruleHasId(TrackerContext ctx) {
+        return ctx.settings.nameRules.rule.contains("{function_id}");
     }
 
     private static FunctionPreview plan(TrackerContext ctx, String epic, FunctionDraft draft, @Nullable String functionId) {
-        Issue parent = ctx.parents().stream()
-                .filter(p -> p.key().equals(draft.parentKey()) && p.epicKey().equals(epic)).findFirst().orElse(null);
+        ParentOption parent = parentOptions(ctx, epic).stream().filter(p -> p.key().equals(draft.parentKey())).findFirst().orElse(null);
         if (parent == null) {
             throw new Invalid(draft.parentKey() + " is not a parent ticket of " + epic, "parent");
+        }
+        if (!parent.workflow()) {
+            throw new Invalid(parent.summary() + " has no function workflow", "parent");
         }
         String[][] people = {{"ba", draft.ba()}, {"bal", draft.bal()}, {"jm", draft.jm()}};
         for (String[] p : people) {
@@ -261,7 +300,7 @@ public class AnkenService {
         }
         overrides = overrides.subList(0, 5);
         String fid = Text.hasText(functionId) ? functionId
-                : nextFunctionId(ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList());
+                : ruleHasId(ctx) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
                 List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()), ctx.cal, overrides);
         String rule = ctx.settings.nameRules.rule;
@@ -271,14 +310,15 @@ public class AnkenService {
             Scheduling.PlannedStep p = plan.get(i);
             Map<String, String> values = new HashMap<>();
             values.put("phase_name", parent.phase());
+            values.put("prefix", parent.prefix());
             values.put("function_id", fid);
             values.put("function_name", Text.orElse(draft.name(), "(function name)"));
-            values.put("step", Steps.STEPS.get(i).label());
+            values.put("step", stepText(ctx, p.step()));
             values.put("anken_name", ankenName);
             steps.add(new PreviewStep(p.step().value(), Naming.renderSummary(rule, values), p.assigneeId(), p.estimateH(),
                     p.start(), p.end(), p.note(), p.reasons()));
         }
-        return new FunctionPreview(parent.phase(), fid, steps);
+        return new FunctionPreview(parent.phase(), fid, steps, parent.prefix());
     }
 
     public FunctionPreview previewFunction(String epic, FunctionDraft draft) {
@@ -295,9 +335,14 @@ public class AnkenService {
         if (draft.name().strip().isEmpty()) {
             throw new Invalid("Function name is required", "name");
         }
-        if (Text.hasText(functionId)
-                && ctx.functions.stream().anyMatch(f -> f.epicKey().equals(epic) && f.id().equals(functionId))) {
-            throw new Conflict("Function " + functionId + " already exists in " + epic, "function_id");
+        List<Function> inTask = ctx.functions.stream()
+                .filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(draft.parentKey())).toList();
+        if (Text.hasText(functionId) && inTask.stream().anyMatch(f -> f.id().equals(functionId))) {
+            throw new Conflict("Function " + functionId + " already exists in " + draft.parentKey(), "function_id");
+        }
+        String name = draft.name().strip();
+        if (!ruleHasId(ctx) && inTask.stream().anyMatch(f -> f.id().equals(name))) {
+            throw new Conflict("Function " + name + " already exists in " + draft.parentKey(), "name");
         }
         FunctionPreview p = plan(ctx, epic, draft, functionId);
         List<NewSubtask> subs = new ArrayList<>();

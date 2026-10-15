@@ -44,6 +44,8 @@ import tracker.domain.DateReason;
 import tracker.domain.LeaveType;
 import tracker.domain.Numbers;
 import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
+import tracker.domain.WorkStructure;
 
 /** The services on the demo data, synced through the real pipeline; read-only checks share one context. */
 @DemoTest
@@ -100,7 +102,7 @@ class ServiceReadsTest {
 
     @Test
     void matrixRowsStatsAndParents() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100");
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
         assertThat(m.functions()).extracting(AnkenService.FunctionRow::id)
                 .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
         AnkenService.MatrixStats s = m.stats();
@@ -117,6 +119,16 @@ class ServiceReadsTest {
         assertThat(m.phase()).isEqualTo("Implement_Coding");
         assertThat(m.nextFunctionId()).isEqualTo("F13");
         assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1102", "PAY-1103");
+    }
+
+    @Test
+    void matrixShowsOneTaskAtATime() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
+        assertThat(m.taskKey()).isEqualTo("PAY-1102");
+        assertThat(m.parents()).extracting(p -> p.key() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
+                .containsExactly("PAY-1101/0/Prepare/true", "PAY-1102/12/Implement_Coding/true", "PAY-1103/0/Function Unit Test/true");
+        assertThat(anken.matrix("PAY-1100", "PAY-1101").functions()).isEmpty();
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1301")).isInstanceOf(NotFound.class); // a Task of another epic
     }
 
     @Test
@@ -325,6 +337,35 @@ class ServiceReadsTest {
     }
 
     @Test
+    void structureListsJiraTasksWithTheirTemplate() {
+        JiraSettingsService.StructureView v = jiraSettings.structure();
+        assertThat(v.phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
+        assertThat(v.tasks()).isEmpty();
+        assertThat(v.seen().stream().filter(t -> t.epicKey().equals("PAY-1100")))
+                .extracting(t -> t.key() + "/" + t.phase() + "/" + t.template())
+                .containsExactly("PAY-1101/Prepare/null", "PAY-1102/Implement_Coding/null", "PAY-1103/Function Unit Test/null");
+        WorkStructure draft = new WorkStructure(List.of("Coding"), List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI")));
+        JiraSettingsService.SeenTask t = jiraSettings.previewStructure(draft).seen().stream()
+                .filter(x -> x.key().equals("PAY-1102")).findFirst().orElseThrow();
+        assertThat(List.of(t.phase(), t.template())).containsExactly("Coding", 0);
+        assertThat(jiraSettings.structure().tasks()).isEmpty(); // a preview does not save
+    }
+
+    @Test
+    void saveStructureRejectsInvalidSettings() {
+        List<WorkStructure> bad = List.of(
+                new WorkStructure(List.of("A", "A"), List.of()),
+                new WorkStructure(List.of(" "), List.of()),
+                new WorkStructure(List.of("A"), List.of(new TaskTemplate("X", "B", ""))),
+                new WorkStructure(List.of("A"), List.of(new TaskTemplate("X", "A", ""), new TaskTemplate(" x ", "A", ""))),
+                new WorkStructure(List.of("A"), List.of(new TaskTemplate(" ", "A", ""))));
+        for (WorkStructure ws : bad) {
+            assertThatThrownBy(() -> jiraSettings.saveStructure(ws)).isInstanceOf(Invalid.class);
+        }
+        assertThat(jiraSettings.structure().phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
+    }
+
+    @Test
     void nameRulePreviewAndValidation() {
         JiraSettingsService.NameRulePreview p = jiraSettings.previewNameRule(tracker.domain.Naming.DEFAULT_RULE, null,
                 "[Implement_Coding][F03] Domestic card payment – Fix comment BAL");
@@ -333,6 +374,10 @@ class ServiceReadsTest {
         assertThat(p.values().get("function_id")).isEqualTo("F03");
         assertThat(p.matched()).isGreaterThanOrEqualTo(60).isLessThan(p.total());
         assertThat(jiraSettings.previewNameRule("[{phase}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase}");
+        assertThat(jiraSettings.previewNameRule("[{prefix}] {step}", null, "[X] Create").error())
+                .isEqualTo("Pattern must contain {function_id} or {function_name}");
+        assertThatThrownBy(() -> jiraSettings.saveNameRules("[{prefix}] {step}", Map.of("create", "Create")))
+                .isInstanceOf(Invalid.class);
     }
 
     @Test

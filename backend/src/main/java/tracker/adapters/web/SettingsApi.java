@@ -32,6 +32,7 @@ import tracker.application.service.JiraSettingsService.JiraSettingsView;
 import tracker.application.service.JiraSettingsService.NameRulePreview;
 import tracker.application.service.JiraSettingsService.NameRulesView;
 import tracker.application.service.JiraSettingsService.StatusRow;
+import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.JiraSettingsService;
 import tracker.application.service.TeamSettingsService.MemberPatch;
 import tracker.application.service.TeamSettingsService;
@@ -40,8 +41,10 @@ import tracker.domain.Member;
 import tracker.domain.Permission;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
+import tracker.domain.WorkStructure;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -150,6 +153,41 @@ public class SettingsApi {
     @PutMapping("/settings/status-mapping")
     public List<StatusRow> saveStatusMapping(@RequestBody @Valid StatusMappingIn body) {
         return jiraSettings.saveStatusMapping(body.mapping());
+    }
+
+    // --- phases & tasks ---------------------------------------------------------------------------------------------
+
+    /**
+     * @param match    the Jira Task Summary to recognise; case-insensitive, {@code *} matches any text
+     * @param prefix   the value of {prefix} in this Task's sub-task names; default ""
+     * @param workflow whether the sub-tasks follow the 5-step review workflow; default true
+     */
+    public record TaskTemplateIn(@NotNull String match, @NotNull String phase, @Nullable String prefix, @Nullable Boolean workflow) {
+        TaskTemplate domain() {
+            return new TaskTemplate(match, phase, prefix == null ? "" : prefix, workflow == null || workflow);
+        }
+    }
+
+    /** @param phases in project order */
+    public record StructureIn(@NotNull List<@NotNull String> phases, @Nullable List<@NotNull @Valid TaskTemplateIn> tasks) {
+        WorkStructure domain() {
+            return new WorkStructure(phases, tasks == null ? List.of() : tasks.stream().map(TaskTemplateIn::domain).toList());
+        }
+    }
+
+    @GetMapping("/settings/structure")
+    public StructureView structure() {
+        return jiraSettings.structure();
+    }
+
+    @PutMapping("/settings/structure")
+    public StructureView saveStructure(@RequestBody @Valid StructureIn body) {
+        return jiraSettings.saveStructure(body.domain());
+    }
+
+    @PostMapping("/settings/structure/preview")
+    public StructureView previewStructure(@RequestBody @Valid StructureIn body) {
+        return jiraSettings.previewStructure(body.domain());
     }
 
     // --- name rules -------------------------------------------------------------------------------------------------

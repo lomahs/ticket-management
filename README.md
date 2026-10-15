@@ -37,13 +37,22 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
 
 1. `scripts/dev.sh jira`, open Settings → Jira, enter the site URL, the service account e-mail and an
    [API token](https://id.atlassian.com/manage-profile/security/api-tokens), **Test connection**, **Save**.
-2. Add the epics to track. Each epic is an anken; its children are phase parent tickets (`[Prepare] …`,
-   `[Implement_Coding] …`), whose sub-tasks are the work items.
+2. Add the epics to track. Each epic is an anken; its children are Tasks (a fixed set under every epic), whose
+   sub-tasks are the work items.
 3. Field mapping: the custom field ids for Planned Start / Planned End and the effort field; **Check** against a ticket.
-4. Name rules: how sub-task Summaries encode function id, name and step (default
-   `[{phase_name}][{function_id}] {function_name} – {step}`); the preview shows how many synced sub-tasks match.
-5. Status mapping (after the first sync): which Jira statuses count as NYS / WIP / Resolved / Closed.
-6. Members appear as they are seen on issues; give them a role (BA / BAL / JM) and country.
+4. Phases & tasks: the phases in project order, and one row per Task of the fixed set — the Task name (matched against
+   the Task Summary, ignoring case; `*` matches any text), its phase, the prefix its sub-tasks use (`{prefix}`), and
+   whether its sub-tasks follow the 5-step review workflow (turn it off for Q&A, Work Request, Change Request…). The
+   "Tasks in Jira" table shows how the synced Tasks are classified before you save. A Task no row matches takes its
+   phase from a leading `[Phase]` in its Summary. Functions are grouped per Task, so the Function Matrix shows one Task
+   at a time. Saving runs a full sync.
+5. Name rules: how sub-task Summaries encode the function and the step, for example
+   `[{prefix}][{function_name}]_{step}` with the step aliases `Create`, `BALReview`, `FixCommentBAL`, `JMReview`,
+   `FixCommentJM` (default `[{phase_name}][{function_id}] {function_name} – {step}`). Without `{function_id}` the
+   function name identifies the function; the first alias of each step is used when the tracker creates sub-tasks.
+   The preview shows how many synced sub-tasks match.
+6. Status mapping (after the first sync): which Jira statuses count as NYS / WIP / Resolved / Closed.
+7. Members appear as they are seen on issues; give them a role (BA / BAL / JM) and country.
 
 The API syncs on the chosen interval and from the Sync button; screens read only the local database.
 
@@ -80,11 +89,11 @@ Import boundaries are checked by `src/architecture.test.ts`.
 |---|---|
 | `/my-work?member=&backlog=` | My Work |
 | `/anken`, `/anken/$epic` | Anken Overview |
-| `/anken/$epic/matrix?q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix, Add function |
+| `/anken/$epic/matrix?task=&q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix (one Task at a time), Add function |
 | `/planning?start=&weeks=&hide=` | Planning |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
-| `/settings/$tab` | Settings (jira, field-mapping, status-mapping, name-rules, members, holidays, hours, extra-days, alerts) |
+| `/settings/$tab` | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts) |
 
 ## Tests
 

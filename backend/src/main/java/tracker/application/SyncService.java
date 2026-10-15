@@ -276,10 +276,12 @@ public class SyncService {
             String functionId = null;
             String functionName = null;
             StepKind step = null;
-            if (!isParent) {
+            // Sub-tasks of a Task whose template turns the workflow off are never function steps.
+            if (!isParent && (parent == null || s.structure.hasWorkflow(parent.summary()))) {
                 Naming.Parsed p = Naming.parseSummary(rule, snap.summary());
-                if (p != null && Text.hasText(p.values().get("function_id"))) {
-                    functionId = p.values().get("function_id");
+                String key = p != null ? Naming.functionKey(p) : null;
+                if (key != null) {
+                    functionId = key;
                     functionName = p.values().get("function_name");
                     step = p.step();
                 }
@@ -301,7 +303,7 @@ public class SyncService {
                     snap.key(), snap.project(),
                     isParent ? snap.parentKey() : (parent != null ? parent.epicKey() : ""),
                     snap.parentKey(), isParent ? IssueKind.PARENT : IssueKind.SUBTASK, snap.summary(),
-                    isParent ? Naming.parsePhase(snap.summary()) : (parent != null ? parent.phase() : ""),
+                    isParent ? s.structure.phaseOfTask(snap.summary()) : (parent != null ? parent.phase() : ""),
                     status(s, snap.statusName(), snap.statusCategory()), assigneeId,
                     JiraValues.date(snap.fields().get(fm.plannedStart)), JiraValues.date(snap.fields().get(fm.plannedEnd)),
                     hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events);

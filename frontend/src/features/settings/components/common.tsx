@@ -1,4 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+
+/** The value, once it has stopped changing for `ms` milliseconds. */
+export function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
+  return v;
+}
 
 export function Section({ title, sub, children, pad = true }: { title: string; sub: ReactNode; children: ReactNode; pad?: boolean }) {
   return (

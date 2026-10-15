@@ -1,6 +1,7 @@
 package tracker.config;
 
 import java.time.Clock;
+import java.util.List;
 
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +19,7 @@ import tracker.application.ports.SecretBox;
 import tracker.application.ports.SettingsRepository;
 import tracker.application.service.SystemService.Mode;
 import tracker.application.settings.TrackerSettings;
+import tracker.domain.WorkStructure;
 
 /**
  * The {@code demo} profile: a simulated Jira site (writes enabled) and demo data. Every start begins with a new database
@@ -56,6 +58,7 @@ public class DemoConfig {
                 s.jira = new TrackerSettings.JiraConnection("https://acme-pay.atlassian.net", "tracker-bot@acme.vn",
                         secrets.encrypt("ATATT3xFfGF0-demo-token"), "15", Dataset.TRACKED_EPICS, "ok");
                 s.statusMapping = new TrackerSettings.StatusMapping(Dataset.STATUS_BY_NAME);
+                s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"), List.of());
                 settings.save(s);
             });
             sync.run(true);

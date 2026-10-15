@@ -92,4 +92,38 @@ class NamingTest {
         assertThat(Naming.parseSummary(r, "F01-tạo").step()).isEqualTo(StepKind.CREATE);
         assertThat(r.tokens()).containsExactly("function_id", "step");
     }
+
+    static final Map<StepKind, String> COMPANY_ALIASES = Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
+            StepKind.FIX_BAL, "FixCommentBAL", StepKind.JM_REVIEW, "JMReview", StepKind.FIX_JM, "FixCommentJM");
+    static final Naming.CompiledRule COMPANY = Naming.compileRule("[{prefix}][{function_name}]_{step}", COMPANY_ALIASES);
+
+    @ParameterizedTest
+    @CsvSource({"Create,create", "BALReview,balr", "FixCommentBAL,fixb", "JMReview,jmr", "FixCommentJM,fixj"})
+    void companyRuleWithPrefixAndNoFunctionId(String stepText, String step) {
+        Naming.Parsed p = Naming.parseSummary(COMPANY, "[FUTTC][Login]_" + stepText);
+        assertThat(p.values()).containsExactly(Map.entry("prefix", "FUTTC"), Map.entry("function_name", "Login"),
+                Map.entry("step", stepText));
+        assertThat(p.step()).isEqualTo(StepKind.of(step));
+        assertThat(Naming.functionKey(p)).isEqualTo("Login");
+    }
+
+    @Test
+    void functionNameMayContainUnderscores() {
+        Naming.Parsed p = Naming.parseSummary(COMPANY, "[UCI][Login_Screen]_Create");
+        assertThat(Naming.functionKey(p)).isEqualTo("Login_Screen");
+        assertThat(p.step()).isEqualTo(StepKind.CREATE);
+    }
+
+    @Test
+    void functionKeyPrefersTheId() {
+        assertThat(Naming.functionKey(Naming.parseSummary(RULE, "[P][F1] Login – Create"))).isEqualTo("F1");
+    }
+
+    @Test
+    void ruleMustNameTheFunction() {
+        Naming.checkIdentity(COMPANY);
+        Naming.checkIdentity(RULE);
+        assertThatThrownBy(() -> Naming.checkIdentity(Naming.compileRule("[{phase_name}] {step}", Naming.DEFAULT_ALIASES)))
+                .isInstanceOf(RuleError.class).hasMessage("Pattern must contain {function_id} or {function_name}");
+    }
 }

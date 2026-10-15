@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, TextField } from '../../../shared/ds';
@@ -7,16 +7,10 @@ import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { namePreviewQuery, nameRulesQuery, useSaveNameRules } from '../api';
-import { ErrText, Section } from './common';
+import { ErrText, Section, useDebounced } from './common';
 
-const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['os_task', 'OS task'], ['phase_name', 'Phase'], ['function_id', 'Function ID'], ['function_name', 'Function name'], ['step', 'Step']];
+const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['os_task', 'OS task'], ['prefix', 'Task prefix'], ['phase_name', 'Phase'], ['function_id', 'Function ID'], ['function_name', 'Function name'], ['step', 'Step']];
 const DEFAULT_RULE = '[{phase_name}][{function_id}] {function_name} – {step}';
-
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
-  return v;
-}
 
 export function NameRulesTab() {
   const q = useQuery(nameRulesQuery);

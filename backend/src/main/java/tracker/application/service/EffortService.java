@@ -24,7 +24,6 @@ import tracker.domain.Dates;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Numbers;
-import tracker.domain.Overview;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepDef;
@@ -164,7 +163,7 @@ public class EffortService {
                 createH != 0 ? Numbers.round(fixH / createH, 4) : null,
                 fixes.isEmpty() ? null : Numbers.round(fixes.stream().mapToInt(c -> rounds.get(c.key())).sum() / (double) fixes.size(), 2),
                 fixes.size(), (int) started.stream().filter(c -> ctx.flags.get(c.key()).over()).count());
-        List<Analysis.Group> phaseGroups = Overview.orderedPhases(byPhase.keySet()).stream()
+        List<Analysis.Group> phaseGroups = ctx.settings.structure.orderedPhases(byPhase.keySet()).stream()
                 .map(p -> new Analysis.Group(p, byPhase.get(p))).toList();
         List<Analysis.Group> stepGroups = new ArrayList<>();
         for (StepDef s : Steps.STEPS) {

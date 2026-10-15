@@ -16,7 +16,7 @@ public final class Flags {
     public static final Map<Status, Double> PROGRESS_WEIGHT = new EnumMap<>(Map.of(
             Status.CLOSED, 1.0, Status.RESOLVED, 0.8, Status.WIP, 0.4, Status.NYS, 0.0));
 
-    /** Groups function sub-tasks by (epic, function id), ordered by first appearance; non-function issues are ignored. */
+    /** Groups function sub-tasks by (epic, parent Task, function id), ordered by first appearance; non-function issues are ignored. */
     public static List<Function> buildFunctions(Iterable<Issue> issues) {
         Map<List<String>, Issue[]> groups = new LinkedHashMap<>();
         Map<List<String>, String> names = new LinkedHashMap<>();
@@ -24,13 +24,13 @@ public final class Flags {
             if (i.functionId() == null || i.step() == null) {
                 continue;
             }
-            List<String> k = List.of(i.epicKey(), i.functionId());
+            List<String> k = List.of(i.epicKey(), Text.orElse(i.parentKey(), ""), i.functionId());
             Issue[] slots = groups.computeIfAbsent(k, x -> new Issue[Steps.COUNT]);
             slots[Steps.index(i.step())] = i;
             names.putIfAbsent(k, Text.orElse(i.functionName(), i.functionId()));
         }
         List<Function> out = new ArrayList<>();
-        groups.forEach((k, cells) -> out.add(new Function(k.get(0), k.get(1), names.get(k), Arrays.asList(cells))));
+        groups.forEach((k, cells) -> out.add(new Function(k.get(0), k.get(1), k.get(2), names.get(k), Arrays.asList(cells))));
         return out;
     }
 

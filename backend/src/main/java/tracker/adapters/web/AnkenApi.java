@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -74,9 +75,10 @@ public class AnkenApi {
         return anken.detail(epic);
     }
 
+    /** @param task the Task (parent ticket) whose functions are shown; by default the first Task that has functions */
     @GetMapping("/{epic}/matrix")
-    public MatrixView matrix(@PathVariable("epic") String epic) {
-        return anken.matrix(epic);
+    public MatrixView matrix(@PathVariable("epic") String epic, @RequestParam(required = false) @Nullable String task) {
+        return anken.matrix(epic, task);
     }
 
     private static FunctionDraft draft(FunctionDraftIn in) {

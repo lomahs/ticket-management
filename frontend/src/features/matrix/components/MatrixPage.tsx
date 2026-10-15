@@ -4,7 +4,7 @@ import { useState, type MouseEvent } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import type { TaskCard, Tone } from '../../../shared/api/types';
-import { Button, Icon, IconButton, TextField } from '../../../shared/ds';
+import { Button, Icon, IconButton, Select, TextField } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { STEPS, TONE, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
@@ -28,7 +28,8 @@ const SCOLS: { k: string; kind: 'status' | 'prog'; label: string; dot: string; c
 
 export function MatrixPage() {
   const { epic } = route.useParams();
-  const q = useQuery(matrixQuery(epic));
+  const { task } = route.useSearch();
+  const q = useQuery(matrixQuery(epic, task));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
       <MatrixHeader epic={epic} title={q.data?.title} phase={q.data?.phase} tab="matrix" />
@@ -42,7 +43,10 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
   const navigate = route.useNavigate();
   const members = useMemberMap();
   const f = fromSearch(search);
-  const setF = (patch: Partial<MatrixFilter>) => navigate({ search: (p) => ({ ticket: (p as { ticket?: string }).ticket, ...toSearch({ ...f, ...patch }) }), replace: true });
+  const setF = (patch: Partial<MatrixFilter>) => navigate({
+    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task: (p as { task?: string }).task, ...toSearch({ ...f, ...patch }) }), replace: true,
+  });
+  const setTask = (task: string) => navigate({ search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task }) });
   const [sumOpen, setSumOpen] = useState(true);
   const [rangeOpen, setRangeOpen] = useState<{ i: number; top: number; left: number } | null>(null);
 
@@ -78,6 +82,10 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {m.parents.length > 1 && (
+        <Select label="Task" style={{ maxWidth: 480 }} value={m.task_key ?? ''} onChange={setTask}
+          options={m.parents.map((p) => ({ value: p.key, label: `${p.summary} · ${p.functions} function${p.functions === 1 ? '' : 's'}` }))} />
+      )}
       <div className="card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', overflow: 'hidden' }}>
         {stats.map((x, i) => (
           <div key={x.label} style={{ flex: '1 1 140px', padding: '10px 16px', borderLeft: i ? '1px solid var(--border-subtle)' : 0 }}>

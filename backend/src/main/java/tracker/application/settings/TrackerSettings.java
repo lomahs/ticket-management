@@ -9,6 +9,7 @@ import tracker.domain.Naming;
 import tracker.domain.StepKind;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
+import tracker.domain.WorkStructure;
 
 /** Tracker settings: what the admin configures, stored as JSON documents by key (see {@link SettingsDocuments}). */
 public class TrackerSettings {
@@ -19,6 +20,8 @@ public class TrackerSettings {
     public Thresholds thresholds = Thresholds.defaults();
     public WorkingHours workingHours = WorkingHours.defaults();
     public String defaultCountry = "VN";
+    /** Phases in order and the fixed set of Tasks under every epic. */
+    public WorkStructure structure = WorkStructure.empty();
 
     public static class JiraConnection {
         public String url = "";

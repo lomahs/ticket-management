@@ -40,8 +40,10 @@ import tracker.domain.Permission;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
 import tracker.domain.WorkingHours;
 import tracker.domain.Worklog;
+import tracker.domain.WorkStructure;
 
 /** The JDBC repositories on a migrated SQLite database, and how transactions behave on it. */
 @TrackerTest
@@ -186,6 +188,19 @@ class PersistenceTest {
         SyncRun r = runs.findLatest().orElseThrow();
         assertThat(List.of(r.status(), r.issues(), r.full(), r.startedAt())).containsExactly("ok", 12, true, AT);
         assertThat(runs.findLatestOk()).contains(r);
+    }
+
+    @Test
+    void structureRoundTripsAndDefaultsWhenMissing() {
+        jdbc.sql("INSERT INTO settings (id, value) VALUES (1, '{\"default_country\":\"JP\"}')").update(); // written before the setting existed
+        assertThat(settings.load().structure).isEqualTo(WorkStructure.empty());
+        TrackerSettings s = settings.load();
+        s.structure = new WorkStructure(List.of("Study", "FUT"), List.of(new TaskTemplate("FUT create test case", "FUT", "FUTTC"),
+                new TaskTemplate("QnA management for *", "FUT", "", false)));
+        settings.save(s);
+        assertThat(settings.load().structure).isEqualTo(s.structure);
+        assertThat(jdbc.sql("SELECT value FROM settings").query(String.class).single())
+                .contains("\"structure\":{\"phases\":[\"Study\",\"FUT\"],\"tasks\":[{\"match\":\"FUT create test case\"");
     }
 
     @Test

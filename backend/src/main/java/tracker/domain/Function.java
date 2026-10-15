@@ -6,11 +6,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A function: its sub-tasks grouped by (epic, function id).
+ * A function: its sub-tasks grouped by (epic, parent Task, function id).
  *
- * @param cells one slot per step, null when that sub-task does not exist
+ * @param parentKey the Jira Task the sub-tasks belong to
+ * @param cells     one slot per step, null when that sub-task does not exist
  */
-public record Function(String epicKey, String id, String name, List<Issue> cells) {
+public record Function(String epicKey, String parentKey, String id, String name, List<Issue> cells) {
 
     public Function {
         cells = Collections.unmodifiableList(new ArrayList<>(cells));

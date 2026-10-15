@@ -85,9 +85,29 @@ class ApiWritesTest extends ApiTestSupport {
         assertThat(call(json(patch("/api/v1/members/an"), Map.of("role", "BAL"))).json().get("role").asText()).isEqualTo("BAL");
         assertThat(call(json(put("/api/v1/settings/alerts"), Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3,
                 "review_rounds", 3, "capacity_pct", 100))).json().get("soon_days").asDouble()).isEqualTo(3);
-        JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "{step}", "sample", "Create"))).json();
+        JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function_name}] {step}", "sample", "[X] Create"))).json();
         assertThat(pv.get("sample_matches").asBoolean()).isTrue();
         assertThat(pv.get("step").asText()).isEqualTo("create");
+    }
+
+    @Test
+    void structureEndpoints() throws Exception {
+        assertThat(call(get("/api/v1/settings/structure")).json().get("phases").toString())
+                .isEqualTo("[\"Prepare\",\"Implement_Coding\",\"Function Unit Test\"]");
+        Map<String, Object> body = Map.of("phases", List.of("UC"),
+                "tasks", List.of(Map.of("match", "[Implement_Coding] *", "phase", "UC", "prefix", "UCI")));
+        JsonNode pv = call(json(post("/api/v1/settings/structure/preview"), body)).json();
+        assertThat(pv.get("seen").findValues("key").stream().map(JsonNode::asText).toList()).contains("PAY-1102");
+        for (JsonNode t : pv.get("seen")) {
+            if (t.get("key").asText().equals("PAY-1102")) {
+                assertThat(t.get("template").asInt()).isZero();
+            }
+        }
+        problem(call(json(put("/api/v1/settings/structure"), Map.of("phases", List.of("UC"),
+                "tasks", List.of(Map.of("match", "X", "phase", "QA"))))), 422, "invalid");
+        JsonNode saved = call(json(put("/api/v1/settings/structure"), body)).json();
+        assertThat(saved.get("tasks").get(0).get("prefix").asText()).isEqualTo("UCI");
+        assertThat(saved.get("tasks").get(0).get("workflow").asBoolean()).isTrue();
     }
 
     @Test

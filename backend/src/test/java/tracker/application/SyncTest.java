@@ -42,6 +42,8 @@ import tracker.domain.Member;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
+import tracker.domain.WorkStructure;
 
 /** Syncs from a stub Jira into an empty database. */
 @TrackerTest
@@ -181,6 +183,57 @@ class SyncTest {
         assertThat(o.functionId()).isNull();
         assertThat(o.status()).isEqualTo(Status.NYS);
         assertThat(o.phase()).isEqualTo("Implement_Coding");
+    }
+
+    static final IssueSnapshot UC_TASK = snap("PAY-1110", "Unit Code implement", "PAY-1100");
+    static final IssueSnapshot FUT_TASK = snap("PAY-1111", "FUT create test case", "PAY-1100");
+    static final IssueSnapshot QNA_TASK = snap("PAY-1112", "QnA management for FUT", "PAY-1100");
+    static final IssueSnapshot WR_TASK = snap("PAY-1113", "Work Request management", "PAY-1100");
+
+    /** The company's structure: Tasks recognised by name, sub-tasks named [prefix][function]_Step. */
+    void configure(String rule) {
+        TrackerSettings s = settings.load();
+        s.nameRules.rule = rule;
+        s.nameRules.aliases.put(StepKind.BAL_REVIEW, "BALReview, BAL Review");
+        s.structure = new WorkStructure(List.of("UC", "FUT"), List.of(new TaskTemplate("Unit Code implement", "UC", "UCI"),
+                new TaskTemplate("FUT create test case", "FUT", "FUTTC"), new TaskTemplate("QnA management for *", "FUT", "", false)));
+        settings.save(s);
+    }
+
+    @Test
+    void taskPhaseAndFunctionStepsFollowTheConfiguredStructure() {
+        configure("[{prefix}][{function_name}]_{step}");
+        run(new StubReader(List.of(UC_TASK, FUT_TASK, QNA_TASK, snap("PAY-1201", "[UCI][Login]_Create", "PAY-1110"),
+                snap("PAY-1202", "[FUTTC][Login]_Create", "PAY-1111"), snap("PAY-1203", "[FUTTC][Login]_BALReview", "PAY-1111"),
+                snap("PAY-1204", "[FUTTC][Login]_Create", "PAY-1112"))), true);
+        Map<String, Issue> got = issues();
+        assertThat(List.of(got.get("PAY-1110").phase(), got.get("PAY-1111").phase(), got.get("PAY-1112").phase()))
+                .containsExactly("UC", "FUT", "FUT");
+        Issue c = got.get("PAY-1202");
+        assertThat(List.of(c.functionId(), c.functionName(), c.step(), c.phase()))
+                .containsExactly("Login", "Login", StepKind.CREATE, "FUT");
+        assertThat(got.get("PAY-1203").step()).isEqualTo(StepKind.BAL_REVIEW);
+        assertThat(List.of(got.get("PAY-1201").functionId(), got.get("PAY-1201").phase())).containsExactly("Login", "UC");
+        Issue q = got.get("PAY-1204"); // matches the rule, but Q&A tasks have the workflow turned off
+        assertThat(q.functionId()).isNull();
+        assertThat(q.step()).isNull();
+    }
+
+    @Test
+    void taskWithoutATemplateKeepsTheBracketPhase() {
+        configure("[{prefix}][{function_name}]_{step}");
+        run(new StubReader(List.of(PARENT, WR_TASK)), true);
+        Map<String, Issue> got = issues();
+        assertThat(got.get("PAY-1102").phase()).isEqualTo("Implement_Coding");
+        assertThat(got.get("PAY-1113").phase()).isEmpty();
+    }
+
+    @Test
+    void ruleWithoutFunctionIdentitySyncsWithoutFunctions() {
+        configure("[{prefix}] {step}");
+        SyncResult r = run(new StubReader(List.of(FUT_TASK, snap("PAY-1202", "[FUTTC] Create", "PAY-1111"))), true);
+        assertThat(r.status()).isEqualTo("ok");
+        assertThat(issues().get("PAY-1202").functionId()).isNull();
     }
 
     @Test

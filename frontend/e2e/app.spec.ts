@@ -72,6 +72,16 @@ test('settings reject an unknown epic and preview name rules', async ({ page }) 
   await expect(page.getByText(/synced sub-tasks match this pattern/)).toBeVisible();
 });
 
+test('phases & tasks classify the Jira Tasks before saving', async ({ page }) => {
+  await page.goto('/settings/structure');
+  const jira = page.getByRole('region', { name: 'Tasks in Jira' });
+  await expect(jira.getByText('[Implement_Coding] Payment flow revision')).toBeVisible();
+  await page.getByRole('button', { name: 'Add task' }).click();
+  await page.getByLabel('Task 1 name').fill('[Implement_Coding] *');
+  await page.getByLabel('Task 1 phase').selectOption('Implement_Coding');
+  await expect(jira.getByText('[Implement_Coding] *').first()).toBeVisible();
+});
+
 test('dark theme toggles', async ({ page }) => {
   await page.goto('/my-work');
   await page.getByRole('button', { name: /Switch to (dark|light) theme/ }).click();

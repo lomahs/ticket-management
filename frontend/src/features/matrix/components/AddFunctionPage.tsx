@@ -45,8 +45,9 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
   const create = useCreateFunction(epic);
   const byRole = (r: string) => Object.values(members).filter((x) => x.role === r).map((x) => ({ value: x.id, label: x.name }));
   const baOpts = byRole('BA'), balOpts = byRole('BAL'), jmOpts = byRole('JM');
-  const implParent = m.parents.find((p) => p.phase === m.phase) ?? m.parents[0];
-  const [form, setForm] = useState({ parent: implParent?.key ?? '', name: '', ba: '', bal: '', jm: '', hours: '8' });
+  const workflowParents = m.parents.filter((p) => p.workflow);
+  const defaultParent = workflowParents.find((p) => p.key === m.task_key) ?? workflowParents[0];
+  const [form, setForm] = useState({ parent: defaultParent?.key ?? '', name: '', ba: '', bal: '', jm: '', hours: '8' });
   const [overrides, setOverrides] = useState<({ start?: string; end?: string } | null)[]>([null, null, null, null, null]);
   const [nameErr, setNameErr] = useState<string>();
   const ba = form.ba || baOpts[0]?.value || '', bal = form.bal || balOpts[0]?.value || '', jm = form.jm || jmOpts[0]?.value || '';
@@ -64,8 +65,8 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     if (!form.name.trim()) { setNameErr('Function name is required'); return; }
     create.mutate({ ...draft, name: form.name.trim(), overrides }, {
       onSuccess: (r) => {
-        toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${preview.data?.function_id ?? ''}`);
-        navigate({ to: '/anken/$epic/matrix', params: { epic } });
+        toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${preview.data?.function_id || form.name.trim()}`);
+        navigate({ to: '/anken/$epic/matrix', params: { epic }, search: { task: form.parent } });
       },
       onError: (e) => (e instanceof ApiError && e.field('name') ? setNameErr(e.field('name')) : toast(errorMessage(e), true)),
     });
@@ -76,15 +77,16 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 13, padding: '20px 22px' }}>
       <div>
         <div style={{ font: '700 17px/1.3 var(--font-display)', color: 'var(--text-heading)' }}>Add new function</div>
-        <div className="eyebrow">Creates 5 sequential sub-tasks from the template: Create → BAL Review → Fix comment BAL → JM Review → Fix comment JM</div>
+        <div className="eyebrow">Creates 5 sequential sub-tasks under the chosen Task, named by the name rule in Settings</div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Select label="Parent ticket" options={m.parents.map((p) => ({ value: p.key, label: `${p.key} · ${p.summary}` }))} value={form.parent} onChange={set('parent')} />
+          <Select label="Parent ticket" options={workflowParents.map((p) => ({ value: p.key, label: `${p.key} · ${p.summary}` }))} value={form.parent} onChange={set('parent')} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-muted)' }}>
-            <span>Phase from Summary:</span>
+            <span>Phase:</span>
             <span style={{ font: '600 11px/20px var(--font-text)', padding: '0 8px', borderRadius: 999, background: 'var(--surface-tint)', color: 'var(--text-heading)' }}>{preview.data?.phase ?? '…'}</span>
-            <span>· Auto-generated function ID: <b className="mono heading">{preview.data?.function_id ?? m.next_function_id}</b></span>
+            <span>· Prefix: <b className="mono heading">{preview.data?.prefix ?? '…'}</b></span>
+            {preview.data?.function_id && <span>· Auto-generated function ID: <b className="mono heading">{preview.data.function_id}</b></span>}
           </div>
         </div>
         <div>

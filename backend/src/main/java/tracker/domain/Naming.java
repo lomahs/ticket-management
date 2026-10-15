@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jspecify.annotations.Nullable;
+
 /** Sub-task Summary naming rule: placeholders are read as values, everything else must match literally. */
 public final class Naming {
     private Naming() {
@@ -28,6 +30,7 @@ public final class Naming {
         Map<String, String> t = new LinkedHashMap<>();
         t.put("anken_name", "Anken name");
         t.put("os_task", "OS task");
+        t.put("prefix", "Task prefix");
         t.put("phase_name", "Phase");
         t.put("function_id", "Function ID");
         t.put("function_name", "Function name");
@@ -164,6 +167,20 @@ public final class Naming {
             throw new IllegalStateException("KeyError: " + norm(values.get("step")));
         }
         return new Parsed(values, step);
+    }
+
+    /** What identifies the function: its ID when the rule has one, otherwise its name; null when neither is present. */
+    public static @Nullable String functionKey(Parsed p) {
+        String id = p.values().get("function_id");
+        String key = Text.hasText(id) ? id : p.values().get("function_name");
+        return Text.hasText(key) ? key.strip() : null;
+    }
+
+    /** Sub-tasks can only be grouped into functions when the rule names the function. */
+    public static void checkIdentity(CompiledRule rule) {
+        if (!rule.tokens().contains("function_id") && !rule.tokens().contains("function_name")) {
+            throw new RuleError("Pattern must contain {function_id} or {function_name}");
+        }
     }
 
     /** How many summaries match the rule. */

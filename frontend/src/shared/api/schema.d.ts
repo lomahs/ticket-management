@@ -596,6 +596,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["structure"];
+        put: operations["saveStructure"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/structure/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewStructure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/working-hours": {
         parameters: {
             query?: never;
@@ -880,6 +912,7 @@ export interface components {
         FunctionPreview: {
             function_id: string;
             phase: string;
+            prefix: string;
             steps: components["schemas"]["PreviewStep"][];
         };
         FunctionRow: {
@@ -1022,6 +1055,7 @@ export interface components {
             parents: components["schemas"]["ParentOption"][];
             phase: string;
             stats: components["schemas"]["MatrixStats"];
+            task_key: string | null;
             title: string;
         };
         Member: {
@@ -1116,9 +1150,13 @@ export interface components {
             total: number;
         };
         ParentOption: {
+            /** Format: int32 */
+            functions: number;
             key: string;
             phase: string;
+            prefix: string;
             summary: string;
+            workflow: boolean;
         };
         PhaseRollup: {
             /** Format: int32 */
@@ -1188,6 +1226,14 @@ export interface components {
             /** Format: double */
             rate: number;
         };
+        SeenTask: {
+            epic_key: string;
+            key: string;
+            phase: string;
+            summary: string;
+            /** Format: int32 */
+            template: number | null;
+        };
         StatusMappingIn: {
             mapping: {
                 [key: string]: "N" | "W" | "R" | "C" | null;
@@ -1202,6 +1248,15 @@ export interface components {
         StepOverride: {
             end?: string | null;
             start?: string | null;
+        };
+        StructureIn: {
+            phases: string[];
+            tasks?: components["schemas"]["TaskTemplateIn"][] | null;
+        };
+        StructureView: {
+            phases: string[];
+            seen: components["schemas"]["SeenTask"][];
+            tasks: components["schemas"]["TaskTemplate"][];
         };
         SyncIn: {
             full?: boolean | null;
@@ -1250,6 +1305,18 @@ export interface components {
             summary: string;
             tone: string;
             worker_id: string | null;
+        };
+        TaskTemplate: {
+            match: string;
+            phase: string;
+            prefix: string;
+            workflow: boolean;
+        };
+        TaskTemplateIn: {
+            match: string;
+            phase: string;
+            prefix?: string | null;
+            workflow?: boolean | null;
         };
         Thresholds: {
             /** Format: double */
@@ -1445,7 +1512,9 @@ export interface operations {
     };
     matrix: {
         parameters: {
-            query?: never;
+            query?: {
+                task?: string;
+            };
             header?: never;
             path: {
                 epic: string;
@@ -2373,6 +2442,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusRow"][];
+                };
+            };
+        };
+    };
+    structure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureView"];
+                };
+            };
+        };
+    };
+    saveStructure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StructureIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureView"];
+                };
+            };
+        };
+    };
+    previewStructure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StructureIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureView"];
                 };
             };
         };
