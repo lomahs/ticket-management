@@ -1,4 +1,4 @@
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 
 const root = getRouteApi('__root__');
 
@@ -9,6 +9,7 @@ export function useTicketKey(): string | undefined {
 
 /** Opens (or with null closes) the ticket panel on top of the current screen. */
 export function useOpenTicket(): (key: string | null) => void {
-  const navigate = root.useNavigate();
+  // Not root.useNavigate(): that resolves '.' from '/', which redirects to /my-work and drops ?ticket.
+  const navigate = useNavigate();
   return (key) => navigate({ to: '.', search: (prev) => ({ ...prev, ticket: key ?? undefined }) });
 }

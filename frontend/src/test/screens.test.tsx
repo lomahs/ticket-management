@@ -40,6 +40,14 @@ describe('screens render API data at their URLs', () => {
     expect(within(panel).getByText(/Updating Jira arrives in phase 2/)).toBeTruthy();
   });
 
+  it('opens the ticket panel over the matrix when a cell is clicked', async () => {
+    const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
+    fireEvent.click(await screen.findByRole('button', { name: /^PAY-1213 / }));
+    await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
+    expect(router.state.location.pathname).toBe('/anken/PAY-1100/matrix');
+    expect(router.state.location.search).toMatchObject({ members: 'binh', ticket: 'PAY-1213' });
+  });
+
   it('switches the matrix to another Task through the URL', async () => {
     const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
     const select = await screen.findByLabelText('Task');
