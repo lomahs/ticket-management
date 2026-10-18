@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, Link } from '@tanstack/react-router';
 import { useState, type MouseEvent } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
@@ -76,16 +76,28 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
     setF({ ranges });
   };
 
+  // The picker stays when the shown Task has no functions, so another Task can still be chosen.
+  const picker = m.parents.length > 1 && (
+    <Select label="Task" style={{ maxWidth: 480 }} value={m.task_key ?? ''} onChange={setTask}
+      options={m.parents.map((p) => ({ value: p.key, label: `${p.summary} · ${p.functions} function${p.functions === 1 ? '' : 's'}` }))} />
+  );
+
   if (!m.functions.length) {
-    return <div className="card" style={{ padding: 24, color: 'var(--text-muted)' }}>No sub-tasks in this anken follow the naming rule yet. Check Settings → Name rules.</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {picker}
+        <div className="card" style={{ padding: 24, color: 'var(--text-muted)' }}>
+          {m.parents.some((p) => p.functions > 0)
+            ? 'This Task has no functions yet. Pick another Task above.'
+            : <>No sub-tasks in this anken follow the naming rule yet. Check <Link to="/settings/$tab" params={{ tab: 'name-rules' }}>Settings → Name rules</Link>.</>}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {m.parents.length > 1 && (
-        <Select label="Task" style={{ maxWidth: 480 }} value={m.task_key ?? ''} onChange={setTask}
-          options={m.parents.map((p) => ({ value: p.key, label: `${p.summary} · ${p.functions} function${p.functions === 1 ? '' : 's'}` }))} />
-      )}
+      {picker}
       <div className="card" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', overflow: 'hidden' }}>
         {stats.map((x, i) => (
           <div key={x.label} style={{ flex: '1 1 140px', padding: '10px 16px', borderLeft: i ? '1px solid var(--border-subtle)' : 0 }}>

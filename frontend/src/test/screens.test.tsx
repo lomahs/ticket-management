@@ -49,6 +49,17 @@ describe('screens render API data at their URLs', () => {
     expect(router.state.location.search).toMatchObject({ phase: 'ITA' });
   });
 
+  it('keeps the Task picker when the shown Task has no functions', async () => {
+    const parents = [
+      { key: 'PAY-1101', summary: 'Prepare', phase: 'Prepare', prefix: 'Prepare', workflow: true, functions: 0 },
+      { key: 'PAY-1102', summary: 'Implement', phase: 'Implement', prefix: 'Implement', workflow: true, functions: 12 },
+    ];
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json({ ...fixtures.matrix, functions: [], parents, task_key: 'PAY-1101' })));
+    renderApp('/anken/PAY-1100/matrix?task=PAY-1101');
+    expect(await screen.findByText('This Task has no functions yet. Pick another Task above.')).toBeTruthy();
+    expect(screen.getByText(/Implement · 12 functions/)).toBeTruthy();
+  });
+
   it('opens the first anken\'s matrix from the sidebar even when no anken has functions yet', async () => {
     const empty = { ...fixtures.matrix, functions: [], parents: [], task_key: null };
     server.use(

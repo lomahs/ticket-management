@@ -245,8 +245,8 @@ public class AnkenService {
         TrackerContext ctx = context.load();
         require(ctx, epic);
         List<ParentOption> parents = parentOptions(ctx, epic);
+        Map<String, String> groups = groupOfTask(ctx, epic);
         if (phase != null) {
-            Map<String, String> groups = groupOfTask(ctx, epic);
             parents = parents.stream().filter(p -> phase.equals(groups.get(p.key()))).toList();
             if (parents.isEmpty()) {
                 throw new NotFound(phase + " is not a phase of " + epic, "phase");
@@ -280,8 +280,7 @@ public class AnkenService {
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
-        String shownPhase = phase != null ? phase
-                : parents.stream().filter(p -> p.key().equals(shown)).map(ParentOption::phase).findFirst().orElse("");
+        String shownPhase = phase != null ? phase : shown != null ? groups.getOrDefault(shown, "") : "";
         return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), shown);
     }
 
