@@ -194,13 +194,41 @@ class FlagsTest {
     }
 
     @Test
-    void actualSpanFromWorklogsExtendsToTodayWhileInProgress() {
+    void actualSpanFromWorklogsHasNoEndWhileInProgress() {
         Issue base = issue().logged(2).logDate("2026-10-02").build();
         List<Worklog> logs = new ArrayList<>(base.worklogs());
         logs.add(new Worklog("2026-10-05", "an", 1));
-        assertThat(Flags.actualSpan(base.withWorklogs(logs), TODAY)).containsExactly("2026-10-02", TODAY);
+        assertThat(Flags.actualSpan(base.withWorklogs(logs))).containsExactly("2026-10-02", null);
         Issue done = issue().status(Status.CLOSED).logged(2).logDate("2026-10-02").build();
-        assertThat(Flags.actualSpan(done, TODAY)).containsExactly("2026-10-02", "2026-10-02");
-        assertThat(Flags.actualSpan(issue().build(), TODAY)).isNull();
+        assertThat(Flags.actualSpan(done.withWorklogs(List.of(new Worklog("2026-10-02", "an", 1), new Worklog("2026-10-04", "an", 1)))))
+                .containsExactly("2026-10-02", "2026-10-04");
+        assertThat(Flags.actualSpan(issue().build())).isNull();
+    }
+
+    @Test
+    void actualStartIsTheMoveToInProgressAndEndTheMoveToResolved() {
+        // moved to In Progress in the morning, first worklog only at the end of the next day
+        Issue wip = issue().logged(2).logDate("2026-10-06").events(new IssueEvent("2026-10-05", EventField.STATUS, "N", "W")).build();
+        assertThat(Flags.actualSpan(wip)).containsExactly("2026-10-05", null);
+        Issue started = issue().logged(0).events(new IssueEvent("2026-10-07", EventField.STATUS, "N", "W")).build();
+        assertThat(Flags.actualSpan(started)).containsExactly("2026-10-07", null);
+        // a worklog before the move counts as the start
+        Issue early = issue().logged(1).logDate("2026-10-01").events(new IssueEvent("2026-10-02", EventField.STATUS, "N", "W")).build();
+        assertThat(Flags.actualStart(early)).isEqualTo("2026-10-01");
+        // resolved, reopened and resolved again: the last resolve ends it, even with a later worklog
+        Issue resolved = issue().status(Status.CLOSED).logged(3).logDate("2026-10-06").events(
+                new IssueEvent("2026-09-28", EventField.STATUS, "N", "W"), statusTo("2026-09-30", "R"),
+                new IssueEvent("2026-10-01", EventField.STATUS, "R", "W"), statusTo("2026-10-02", "R"),
+                new IssueEvent("2026-10-03", EventField.STATUS, "R", "C")).build();
+        assertThat(Flags.actualSpan(resolved)).containsExactly("2026-09-28", "2026-10-02");
+        Issue closedOnly = issue().status(Status.CLOSED).logged(0).events(new IssueEvent("2026-10-03", EventField.STATUS, "N", "C")).build();
+        assertThat(Flags.actualSpan(closedOnly)).containsExactly("2026-10-03", "2026-10-03");
+    }
+
+    @Test
+    void lateStartToneUsesTheMoveToInProgress() {
+        Issue i = issue().ps("2026-10-05").pe("2026-10-09").logged(1).logDate("2026-10-06")
+                .events(new IssueEvent("2026-10-05", EventField.STATUS, "N", "W")).build();
+        assertThat(flags(i).tone()).isEqualTo("ontime");
     }
 }

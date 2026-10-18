@@ -65,7 +65,7 @@ public final class TrackerContext {
 
     public TaskCard card(Issue i) {
         IssueFlags f = flags.get(i.key());
-        String[] span = Flags.actualSpan(i, today);
+        String[] span = Flags.actualSpan(i);
         boolean closed = i.status() == Status.CLOSED;
         return new TaskCard(
                 i.key(), i.summary(), i.project(), i.epicKey(), i.phase(), i.functionId(), i.functionName(),

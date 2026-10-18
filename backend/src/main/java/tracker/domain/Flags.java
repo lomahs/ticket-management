@@ -99,7 +99,7 @@ public final class Flags {
         if (Text.hasText(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0) {
             return "delay";
         }
-        String first = i.worklogs().stream().map(Worklog::date).min(String::compareTo).orElse(null);
+        String first = actualStart(i);
         if (first != null && Text.hasText(i.plannedStart())) {
             if (first.compareTo(i.plannedStart()) > 0) {
                 return "latestart";
@@ -160,14 +160,38 @@ public final class Flags {
                 rounds(issue, ownerId));
     }
 
-    /** First and last worklog day; an issue still in progress is drawn up to today. null without worklogs. */
-    public static String[] actualSpan(Issue issue, String today) {
-        List<String> dates = issue.worklogs().stream().map(Worklog::date).sorted().toList();
-        if (dates.isEmpty()) {
+    private static String earlier(String a, String b) {
+        return a == null || (b != null && b.compareTo(a) < 0) ? b : a;
+    }
+
+    /**
+     * The day work began: when the issue first left NYS (moved to In Progress, or straight to Resolved/Closed), or its
+     * first worklog when that is earlier or the changelog has no such move. null when neither exists.
+     */
+    public static String actualStart(Issue issue) {
+        String moved = issue.events().stream()
+                .filter(e -> e.field() == EventField.STATUS && e.toValue() != null && !e.toValue().equals(Status.NYS.value()))
+                .map(IssueEvent::at).min(String::compareTo).orElse(null);
+        String logged = issue.worklogs().stream().map(Worklog::date).min(String::compareTo).orElse(null);
+        return earlier(moved, logged);
+    }
+
+    /**
+     * Actual start and end. Start: {@link #actualStart}. Only a Resolved/Closed issue has an end: the day it was last
+     * resolved (else closed), else its last worklog. null before work began; the end is null while the issue is not done.
+     */
+    public static String[] actualSpan(Issue issue) {
+        String start = actualStart(issue);
+        if (start == null) {
             return null;
         }
-        String last = dates.get(dates.size() - 1);
-        String end = issue.status() == Status.WIP && last.compareTo(today) < 0 ? today : last;
-        return new String[]{dates.get(0), end};
+        if (issue.status() != Status.RESOLVED && issue.status() != Status.CLOSED) {
+            return new String[]{start, null};
+        }
+        String resolved = lastEvent(issue, EventField.STATUS, Status.RESOLVED.value());
+        String closed = lastEvent(issue, EventField.STATUS, Status.CLOSED.value());
+        String lastLog = issue.worklogs().stream().map(Worklog::date).max(String::compareTo).orElse(null);
+        String end = resolved != null ? resolved : closed != null ? closed : lastLog != null ? lastLog : start;
+        return new String[]{start, end.compareTo(start) < 0 ? start : end};
     }
 }

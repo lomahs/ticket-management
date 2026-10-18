@@ -102,6 +102,7 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
     onError: (e) => toast(errorMessage(e), true),
   });
   const ti = v.days.findIndex((d) => d.is_today);
+  const today = useMeta().data?.today;
   const weekGroups = [...new Set(days.map((d) => mondayOf(d)))].map((ws) => ({ ws, n: days.filter((d) => mondayOf(d) === ws).length }));
   const name = (id?: string | null) => (id ? members[id]?.name ?? id : '–');
 
@@ -188,11 +189,13 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
                       const x = byKey[bl.key];
                       const c = x.b.card;
                       const top = 6 + bl.lane * LANE_H;
-                      const act = c.actual_start && c.actual_end && c.actual_end >= v.start && c.actual_start <= v.end
-                        ? layoutLanes([{ key: 'a', start: c.actual_start, end: c.actual_end }], days).blocks[0] : undefined;
-                      const actLate = !!(c.actual_end && c.planned_end && c.actual_end > c.planned_end);
+                      // a ticket not done yet has no actual end: its bar runs up to today
+                      const actEnd = c.actual_end ?? (c.actual_start && today ? (today > c.actual_start ? today : c.actual_start) : null);
+                      const act = c.actual_start && actEnd && actEnd >= v.start && c.actual_start <= v.end
+                        ? layoutLanes([{ key: 'a', start: c.actual_start, end: actEnd }], days).blocks[0] : undefined;
+                      const actLate = !!(actEnd && c.planned_end && actEnd > c.planned_end);
                       const tip = `${c.key} · ${c.summary}\n${STEPS.find((s) => s.k === x.b.color_step)?.label ?? OTHER_STEP.label} · ${c.project}\n`
-                        + `Plan ${dm(x.start)} – ${dm(x.end)}\n${c.actual_start ? `Actual ${dm(c.actual_start)} – ${dm(c.actual_end)}` : 'Actual: not started'}\n`
+                        + `Plan ${dm(x.start)} – ${dm(x.end)}\n${c.actual_start ? `Actual ${dm(c.actual_start)} – ${c.actual_end ? dm(c.actual_end) : 'in progress'}` : 'Actual: not started'}\n`
                         + `${f1(c.logged_h)} / ${hrs(c.estimate_h)} · ${statusOf(c.status).label}${x.pend ? '\nPending push to Jira' : ''}${canWrite ? '\nDrag to change dates or assignee' : ''}`;
                       return (
                         <Fragment key={bl.key}>
