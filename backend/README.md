@@ -1,6 +1,6 @@
 # Team Tracker API
 
-The Team Tracker backend: Java 21 + Spring Boot 3. It serves the `/api/v1` HTTP API of the frontend and is the source of
+The Team Tracker backend: Java 25 + Spring Boot 3. It serves the `/api/v1` HTTP API of the frontend and is the source of
 its API contract: `frontend/src/shared/api/openapi.json` is this application's OpenAPI document.
 
 ```
@@ -48,7 +48,7 @@ application uses Spring only for components and transactions — no web, JDBC or
 
 ## Run
 
-Needs a JDK 21 (`java -version`). Maven comes with the wrapper (`./mvnw`). From the repository root,
+Needs a JDK 25 (`java -version`). Maven comes with the wrapper (`./mvnw`). From the repository root,
 `scripts/demo.sh`, `scripts/dev.sh [jira]` and `scripts/check.sh` build and run everything; from `backend/`:
 
 ```bash

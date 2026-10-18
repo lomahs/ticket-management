@@ -5,7 +5,7 @@ Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning
 "Team Tracker" (`Team Tracker.dc.html`) on the Atlassian design-system tokens.
 
 ```
-backend/   Java 21 · Spring Boot 3 · JdbcClient/SQLite · Flyway · layered (domain → application → adapters → config)
+backend/   Java 25 · Spring Boot 3 · JdbcClient/SQLite · Flyway · layered (domain → application → adapters → config)
 frontend/  React · Vite · TypeScript · TanStack Router/Query · feature-sliced, typed client generated from OpenAPI
 scripts/   setup.sh · demo.sh · dev.sh · check.sh
 ```
@@ -19,7 +19,7 @@ scripts/dev.sh jira      # development against real Jira (set it up in Settings 
 scripts/check.sh         # every automated check; add --e2e for the Playwright suite
 ```
 
-`scripts/setup.sh` (run by the others) checks for a JDK 21 and installs `frontend/node_modules`; Maven comes with the
+`scripts/setup.sh` (run by the others) checks for a JDK 25 and installs `frontend/node_modules`; Maven comes with the
 backend's wrapper (`backend/mvnw`). The original mock-data build is tagged: `git checkout ui-mock-v0 && scripts/demo.sh`.
 
 ## Modes

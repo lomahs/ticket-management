@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 /**
  * End-to-end tests against a demo server of the backend (simulated Jira, fixed "today", fresh data per run).
- * Needs a JDK 21 (java on PATH or JAVA_HOME).
+ * Needs a JDK 25 (java on PATH or JAVA_HOME).
  * Browser: PW_CHANNEL=chrome uses the installed Chrome; otherwise Playwright's own Chromium
  * (`npx playwright install chromium`).
  */

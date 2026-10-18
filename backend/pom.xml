@@ -17,7 +17,7 @@
   <description>Team Tracker API: Jira companion for BA teams (Spring Boot)</description>
 
   <properties>
-    <java.version>21</java.version>
+    <java.version>25</java.version>
     <sqlite-jdbc.version>3.46.1.3</sqlite-jdbc.version>
     <poi.version>5.3.0</poi.version>
     <archunit.version>1.3.0</archunit.version>
@@ -90,12 +90,29 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- sqlite-jdbc loads a native library; JDK 24+ warns unless native access is enabled. -->
+          <jvmArguments>--enable-native-access=ALL-UNNAMED</jvmArguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <excludedGroups>jira_live</excludedGroups>
+          <!-- Native access for sqlite-jdbc; dynamic agent loading for Mockito's inline mock maker. -->
+          <argLine>--enable-native-access=ALL-UNNAMED -XX:+EnableDynamicAgentLoading</argLine>
         </configuration>
       </plugin>
     </plugins>
