@@ -141,6 +141,13 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "phase",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1553,9 +1560,15 @@
           },
           "card" : {
             "$ref" : "#/components/schemas/AnkenCard"
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseTask"
+            }
           }
         },
-        "required" : [ "attention", "card" ]
+        "required" : [ "attention", "card", "tasks" ]
       },
       "Answer" : {
         "type" : "object",
@@ -2879,6 +2892,14 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "remaining_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "spent_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
           "start" : {
             "type" : [ "string", "null" ]
           },
@@ -2887,7 +2908,46 @@
             "format" : "int32"
           }
         },
-        "required" : [ "closed", "end", "name", "pct", "start", "total" ]
+        "required" : [ "closed", "end", "name", "pct", "remaining_h", "spent_h", "start", "total" ]
+      },
+      "PhaseTask" : {
+        "type" : "object",
+        "properties" : {
+          "closed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "pct" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "start" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "closed", "end", "key", "name", "pct", "phase", "start", "status", "summary", "total" ]
       },
       "PlanBlock" : {
         "type" : "object",

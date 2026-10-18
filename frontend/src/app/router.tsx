@@ -26,13 +26,13 @@ const root = createRootRouteWithContext<Ctx>()({
 const index = createRoute({ getParentRoute: () => root, path: '/', beforeLoad: () => { throw redirect({ to: '/my-work' }); } });
 const myWork = createRoute({ getParentRoute: () => root, path: 'my-work', validateSearch: myWorkSearch, component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage') });
 
-/** "Function Matrix" in the sidebar: the first tracked anken that has functions. */
+/** "Function Matrix" in the sidebar: the first tracked anken that has functions, else the first one (its matrix explains why it is empty). */
 const matrixEntry = createRoute({
   getParentRoute: () => root,
   path: 'matrix',
   beforeLoad: async ({ context }) => {
     const anken = await context.queryClient.ensureQueryData(overviewQuery);
-    const first = anken.find((a) => a.has_functions);
+    const first = anken.find((a) => a.has_functions) ?? anken[0];
     throw first ? redirect({ to: '/anken/$epic/matrix', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });

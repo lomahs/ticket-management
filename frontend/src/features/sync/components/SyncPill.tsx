@@ -1,5 +1,4 @@
 import { useIsMutating } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useMeta } from '../../../shared/api/queries';
 import { Icon } from '../../../shared/ds';
@@ -7,14 +6,7 @@ import { relTime } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Dot } from '../../../shared/ui/bits';
 import { useSyncNow } from '../api';
-
-function useTick(ms: number) {
-  const [, set] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => set((n) => n + 1), ms);
-    return () => clearInterval(t);
-  }, [ms]);
-}
+import { useTick } from './useTick';
 
 /** "Synced with Jira · 2 minutes ago" with a re-sync button; shows writes in flight and the last failure. */
 export function SyncPill() {

@@ -731,6 +731,7 @@ export interface components {
         AnkenDetail: {
             attention: components["schemas"]["AttentionView"][];
             card: components["schemas"]["AnkenCard"];
+            tasks: components["schemas"]["PhaseTask"][];
         };
         Answer: {
             chips: string[];
@@ -1165,7 +1166,26 @@ export interface components {
             name: string;
             /** Format: int32 */
             pct: number;
+            /** Format: double */
+            remaining_h: number;
+            /** Format: double */
+            spent_h: number;
             start: string | null;
+            /** Format: int32 */
+            total: number;
+        };
+        PhaseTask: {
+            /** Format: int32 */
+            closed: number;
+            end: string | null;
+            key: string;
+            name: string;
+            /** Format: int32 */
+            pct: number;
+            phase: string;
+            start: string | null;
+            status: string;
+            summary: string;
             /** Format: int32 */
             total: number;
         };
@@ -1514,6 +1534,7 @@ export interface operations {
         parameters: {
             query?: {
                 task?: string;
+                phase?: string;
             };
             header?: never;
             path: {

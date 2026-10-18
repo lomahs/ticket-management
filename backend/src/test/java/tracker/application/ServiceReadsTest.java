@@ -82,11 +82,33 @@ class ServiceReadsTest {
         assertThat(List.of(p.plan(), p.forecast(), p.slipDays(), p.lateFunctions(), p.hasFunctions()))
                 .containsExactly("2026-11-20", "2026-11-25", 3, 6, true);
         assertThat(p.phases()).extracting(x -> x.name()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
-        assertThat(p.phases().get(1).pct()).isEqualTo(50);
+        assertThat(p.phases().get(1).pct()).isEqualTo(42); // logged / (logged + remaining)
         assertThat(p.phases().get(1).closed()).isEqualTo(25);
         assertThat(p.phases().get(1).total()).isEqualTo(60);
         assertThat(p.memberIds()).containsExactlyInAnyOrder("an", "binh", "chi", "dung", "minh", "tanaka");
         assertThat(cards.get("CRM-400").hasFunctions()).isFalse();
+    }
+
+    @Test
+    void matrixPhaseLimitsTaskPicker() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Implement_Coding");
+        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1102");
+        assertThat(List.of(m.taskKey(), m.phase())).containsExactly("PAY-1102", "Implement_Coding");
+        assertThat(m.functions()).isNotEmpty();
+    }
+
+    @Test
+    void matrixPhaseWithoutFunctionsIsEmptyNotMissing() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Prepare");
+        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101");
+        assertThat(List.of(m.taskKey(), m.phase())).containsExactly("PAY-1101", "Prepare");
+        assertThat(m.functions()).isEmpty();
+    }
+
+    @Test
+    void matrixPhaseMustExistAndHoldTheTask() {
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", null, "Nope")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1101", "Implement_Coding")).isInstanceOf(NotFound.class);
     }
 
     @Test
@@ -101,8 +123,20 @@ class ServiceReadsTest {
     }
 
     @Test
+    void ankenDetailListsTasksUnderTheirPhase() {
+        AnkenService.AnkenDetail d = anken.detail("PAY-1100");
+        assertThat(d.tasks()).extracting(t -> t.key() + "/" + t.phase())
+                .containsExactlyInAnyOrder("PAY-1101/Prepare", "PAY-1102/Implement_Coding", "PAY-1103/Function Unit Test");
+        for (var p : d.card().phases()) {
+            var tasks = d.tasks().stream().filter(t -> t.phase().equals(p.name())).toList();
+            assertThat(tasks.stream().mapToInt(AnkenService.PhaseTask::total).sum()).as(p.name()).isEqualTo(p.total());
+            assertThat(tasks.stream().mapToInt(AnkenService.PhaseTask::closed).sum()).as(p.name()).isEqualTo(p.closed());
+        }
+    }
+
+    @Test
     void matrixRowsStatsAndParents() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
         assertThat(m.functions()).extracting(AnkenService.FunctionRow::id)
                 .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
         AnkenService.MatrixStats s = m.stats();
@@ -123,12 +157,12 @@ class ServiceReadsTest {
 
     @Test
     void matrixShowsOneTaskAtATime() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
         assertThat(m.taskKey()).isEqualTo("PAY-1102");
         assertThat(m.parents()).extracting(p -> p.key() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
                 .containsExactly("PAY-1101/0/Prepare/true", "PAY-1102/12/Implement_Coding/true", "PAY-1103/0/Function Unit Test/true");
-        assertThat(anken.matrix("PAY-1100", "PAY-1101").functions()).isEmpty();
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1301")).isInstanceOf(NotFound.class); // a Task of another epic
+        assertThat(anken.matrix("PAY-1100", "PAY-1101", null).functions()).isEmpty();
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1301", null)).isInstanceOf(NotFound.class); // a Task of another epic
     }
 
     @Test

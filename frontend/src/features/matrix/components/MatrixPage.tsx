@@ -28,8 +28,8 @@ const SCOLS: { k: string; kind: 'status' | 'prog'; label: string; dot: string; c
 
 export function MatrixPage() {
   const { epic } = route.useParams();
-  const { task } = route.useSearch();
-  const q = useQuery(matrixQuery(epic, task));
+  const { task, phase } = route.useSearch();
+  const q = useQuery(matrixQuery(epic, task, phase));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
       <MatrixHeader epic={epic} title={q.data?.title} phase={q.data?.phase} tab="matrix" />
@@ -44,9 +44,9 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
   const members = useMemberMap();
   const f = fromSearch(search);
   const setF = (patch: Partial<MatrixFilter>) => navigate({
-    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task: (p as { task?: string }).task, ...toSearch({ ...f, ...patch }) }), replace: true,
+    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task: (p as { task?: string }).task, phase: (p as { phase?: string }).phase, ...toSearch({ ...f, ...patch }) }), replace: true,
   });
-  const setTask = (task: string) => navigate({ search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task }) });
+  const setTask = (task: string) => navigate({ search: (p) => ({ ticket: (p as { ticket?: string }).ticket, phase: (p as { phase?: string }).phase, task }) });
   const [sumOpen, setSumOpen] = useState(true);
   const [rangeOpen, setRangeOpen] = useState<{ i: number; top: number; left: number } | null>(null);
 

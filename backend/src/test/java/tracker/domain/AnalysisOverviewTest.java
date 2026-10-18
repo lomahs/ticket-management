@@ -36,11 +36,22 @@ class AnalysisOverviewTest {
     }
 
     @Test
-    void phaseRollupWeightsStatuses() {
+    void phaseRollupUsesSpentOverSpentPlusRemaining() {
         Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(
-                issue().status(Status.CLOSED).ps("2026-09-01").pe("2026-09-05").build(),
-                issue().status(Status.WIP).ps("2026-09-03").pe("2026-09-11").build()));
-        assertThat(p).isEqualTo(new Overview.PhaseRollup("Prepare", 70, 1, 2, "2026-09-01", "2026-09-11"));
+                issue().status(Status.CLOSED).ps("2026-09-01").pe("2026-09-05").logged(6).remaining(0).build(),
+                issue().status(Status.WIP).ps("2026-09-03").pe("2026-09-11").logged(2).remaining(2).build()));
+        assertThat(p).isEqualTo(new Overview.PhaseRollup("Prepare", 80, 1, 2, "2026-09-01", "2026-09-11", 8.0, 2.0));
+    }
+
+    @Test
+    void phaseRollupOfNoSubtasksIsZero() {
+        assertThat(Overview.phaseRollup("X", List.of())).isEqualTo(new Overview.PhaseRollup("X", 0, 0, 0, null, null, 0, 0));
+        assertThat(Overview.phaseRollup("X", List.of(issue().remaining(0).build())).pct()).isZero();
+    }
+
+    @Test
+    void scheduleStateIsAStubForNow() {
+        assertThat(Overview.scheduleState(List.of(issue().build()), TODAY)).isEqualTo(Overview.Schedule.UNKNOWN);
     }
 
     @Test

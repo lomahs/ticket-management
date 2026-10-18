@@ -60,6 +60,8 @@ public class SyncService {
     private static final Logger log = LoggerFactory.getLogger(SyncService.class);
     /** Incremental syncs re-read what changed a little before the last good run started. */
     static final Duration INCREMENTAL_MARGIN = Duration.ofMinutes(5);
+    /** Jira Remaining Estimate (seconds); read on every issue in addition to the mapped fields. */
+    public static final String REMAINING_FIELD = "timeestimate";
     public static final Map<String, Status> CATEGORY_STATUS = Map.of(
             "new", Status.NYS, "indeterminate", Status.WIP, "done", Status.CLOSED);
     private static final List<String> MEMBER_COLORS = List.of(
@@ -299,6 +301,7 @@ public class SyncService {
             }
             TrackerSettings.FieldMapping fm = s.fieldMapping;
             Double hours = JiraValues.hours(snap.fields().get(fm.effort), fm.effort);
+            Double remaining = JiraValues.hours(snap.fields().get(REMAINING_FIELD), REMAINING_FIELD);
             return new Issue(
                     snap.key(), snap.project(),
                     isParent ? snap.parentKey() : (parent != null ? parent.epicKey() : ""),
@@ -306,7 +309,8 @@ public class SyncService {
                     isParent ? s.structure.phaseOfTask(snap.summary()) : (parent != null ? parent.phase() : ""),
                     status(s, snap.statusName(), snap.statusCategory()), assigneeId,
                     JiraValues.date(snap.fields().get(fm.plannedStart)), JiraValues.date(snap.fields().get(fm.plannedEnd)),
-                    hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events);
+                    hours != null ? hours : 0,
+                    remaining != null ? remaining : hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events);
         }
     }
 }

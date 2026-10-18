@@ -33,12 +33,15 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.domain.Issue;
+import tracker.domain.IssueKind;
 import tracker.domain.LeaveType;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
+import tracker.domain.Worklog;
 import tracker.domain.WorkingHours;
 import tracker.domain.WorkStructure;
 
@@ -74,7 +77,7 @@ class ServiceWritesTest {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
         List<String> keys = anken.createFunction("PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
@@ -100,7 +103,7 @@ class ServiceWritesTest {
         assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
                 "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
         List<String> keys = anken.createFunction("PAY-1100", d, null);
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", "PAY-1102"); // the demo's own functions no longer match the rule
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", "PAY-1102", null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
@@ -112,7 +115,30 @@ class ServiceWritesTest {
         jiraSettings.saveStructure(new WorkStructure(List.of("Coding", "Prepare"),
                 List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
         AnkenService.AnkenCard card = anken.overview().stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
-        assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Function Unit Test");
+        assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
+    }
+
+    static Issue task(String key, String summary) {
+        return new Issue(key, "CRM", "CRM-400", "CRM-400", IssueKind.PARENT, summary, "", Status.WIP, "an", null, null, 0, 0,
+                "2026-09-01", "In Progress", null, null, null, List.of(), List.of());
+    }
+
+    static Issue sub(String key, String parent, Status status, double logged, double remaining) {
+        return new Issue(key, "CRM", "CRM-400", parent, IssueKind.SUBTASK, key, "", status, "an", "2026-10-01", "2026-10-09", 8,
+                remaining, "2026-09-01", "", null, null, null, List.of(new Worklog("2026-10-01", "an", logged)), List.of());
+    }
+
+    @Test
+    void overviewPhasesFollowTaskTitleGroups(@Autowired IssueRepository issues) {
+        List.of(task("CRM-901", "[Hub][LocalTask] ITA Prepare"), task("CRM-902", "[Hub[LocalTask] ITA Execute"),
+                task("CRM-903", "[Hub][LocalTask] WorkRequest"), sub("CRM-911", "CRM-901", Status.CLOSED, 3, 0),
+                sub("CRM-912", "CRM-902", Status.WIP, 1, 4)).forEach(issues::save);
+        List<AnkenService.AnkenCard> cards = anken.overview().stream().filter(c -> c.key().equals("CRM-400")).toList();
+        var phases = cards.get(0).phases();
+        assertThat(phases).extracting(p -> p.name()).containsExactly("Implement_Coding", "ITA", "Other");
+        assertThat(List.of(phases.get(1).pct(), phases.get(1).closed(), phases.get(1).total())).containsExactly(50, 1, 2);
+        assertThat(List.of(phases.get(1).start(), phases.get(1).end())).containsExactly("2026-10-01", "2026-10-09");
+        assertThat(List.of(phases.get(2).pct(), phases.get(2).total())).containsExactly(0, 0);
     }
 
     /** Without a JiraWriter (the Jira profile in phase 1) nothing is written to Jira. */

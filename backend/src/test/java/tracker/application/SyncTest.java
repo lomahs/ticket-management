@@ -229,6 +229,20 @@ class SyncTest {
     }
 
     @Test
+    void remainingEstimateIsReadInHours() {
+        run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN,
+                Map.of("timeoriginalestimate", 36000, "timeestimate", 7200), List.of(), List.of()))), true);
+        assertThat(issues().get("PAY-1201").remainingH()).isEqualTo(2.0);
+    }
+
+    @Test
+    void missingRemainingFallsBackToOriginalEstimate() {
+        run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN,
+                Map.of("timeoriginalestimate", 36000), List.of(), List.of()))), true);
+        assertThat(issues().get("PAY-1201").remainingH()).isEqualTo(10.0);
+    }
+
+    @Test
     void ruleWithoutFunctionIdentitySyncsWithoutFunctions() {
         configure("[{prefix}] {step}");
         SyncResult r = run(new StubReader(List.of(FUT_TASK, snap("PAY-1202", "[FUTTC] Create", "PAY-1111"))), true);

@@ -5,7 +5,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +35,7 @@ import tracker.domain.Naming;
 import tracker.domain.Numbers;
 import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.Overview;
+import tracker.domain.PhaseGroups;
 import tracker.domain.Scheduling;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
@@ -66,7 +66,18 @@ public class AnkenService {
     public record AttentionView(String kind, int count, List<TaskCard> items) {
     }
 
-    public record AnkenDetail(AnkenCard card, List<AttentionView> attention) {
+    /**
+     * A Task of the epic with the progress of its sub-tasks, listed under its phase group.
+     *
+     * @param name the summary without its leading "[...]" groups
+     * @param pct  spent / (spent + remaining) over the Task's sub-tasks, like {@link PhaseRollup#pct()}
+     */
+    public record PhaseTask(String key, String summary, String name, String phase, String status, int pct, int closed, int total,
+                            @Nullable String start, @Nullable String end) {
+    }
+
+    /** @param tasks the epic's Tasks, by planned start then key */
+    public record AnkenDetail(AnkenCard card, List<AttentionView> attention, List<PhaseTask> tasks) {
     }
 
     private static List<Issue> epicSubtasks(TrackerContext ctx, String epic) {
@@ -77,22 +88,23 @@ public class AnkenService {
         return ctx.anken(key).orElseThrow(() -> new NotFound("Anken " + key + " is not tracked", "epic"));
     }
 
+    /** Task key → phase group of the epic's Tasks. */
+    private static Map<String, String> groupOfTask(TrackerContext ctx, String epic) {
+        return PhaseGroups.of(ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList(), ctx.settings.structure);
+    }
+
     private static AnkenCard card(TrackerContext ctx, String key) {
         Anken a = anken(ctx, key);
         List<Issue> subs = epicSubtasks(ctx, key);
-        List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(key)).toList();
+        Map<String, String> groups = groupOfTask(ctx, key);
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
-        Map<String, String> phaseOfParent = new HashMap<>();
-        parents.forEach(p -> phaseOfParent.put(p.key(), p.phase()));
+        groups.values().forEach(g -> byPhase.computeIfAbsent(g, x -> new ArrayList<>()));
         for (Issue i : subs) {
-            String phase = phaseOfParent.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), i.phase());
-            byPhase.computeIfAbsent(phase, x -> new ArrayList<>()).add(i);
+            String g = groups.get(i.parentKey() == null ? "" : i.parentKey());
+            byPhase.computeIfAbsent(g != null ? g : PhaseGroups.OTHER, x -> new ArrayList<>()).add(i);
         }
-        Set<String> names = new LinkedHashSet<>();
-        parents.forEach(p -> names.add(p.phase()));
-        names.addAll(byPhase.keySet());
-        List<PhaseRollup> phases = ctx.settings.structure.orderedPhases(names).stream()
-                .map(n -> Overview.phaseRollup(n, byPhase.getOrDefault(n, List.of()))).toList();
+        List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structure.phases()).stream()
+                .map(n -> Overview.phaseRollup(n, byPhase.get(n))).toList();
         List<Issue> late = subs.stream().filter(i -> ctx.flags.get(i.key()).late()).toList();
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(key)).toList();
         Set<String> lateKeys = new HashSet<>(late.stream().map(Issue::key).toList());
@@ -134,7 +146,17 @@ public class AnkenService {
                 .map(g -> new AttentionView(g.kind(), g.issues().size(),
                         g.issues().subList(0, Math.min(6, g.issues().size())).stream().map(ctx::card).toList()))
                 .toList();
-        return new AnkenDetail(card(ctx, epic), attention);
+        return new AnkenDetail(card(ctx, epic), attention, phaseTasks(ctx, epic, subs));
+    }
+
+    private static List<PhaseTask> phaseTasks(TrackerContext ctx, String epic, List<Issue> subs) {
+        Map<String, String> groups = groupOfTask(ctx, epic);
+        return ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).map(t -> {
+            PhaseRollup r = Overview.phaseRollup(t.key(), subs.stream().filter(i -> t.key().equals(i.parentKey())).toList());
+            return new PhaseTask(t.key(), t.summary(), PhaseGroups.taskName(t.summary()), groups.get(t.key()), t.status().value(), r.pct(), r.closed(), r.total(),
+                    r.start(), r.end());
+        }).sorted(Comparator.comparing((PhaseTask t) -> t.start() == null ? "9999" : t.start()).thenComparing(PhaseTask::key))
+                .toList();
     }
 
     // --- matrix -----------------------------------------------------------------------------------------------------
@@ -215,15 +237,26 @@ public class AnkenService {
         }).toList();
     }
 
-    /** @param task the Task to show; null shows the first Task that has functions */
-    public MatrixView matrix(String epic, @Nullable String task) {
+    /**
+     * @param task  the Task to show; null shows the first Task that has functions
+     * @param phase only the Tasks of this phase group; null for all Tasks
+     */
+    public MatrixView matrix(String epic, @Nullable String task, @Nullable String phase) {
         TrackerContext ctx = context.load();
         require(ctx, epic);
         List<ParentOption> parents = parentOptions(ctx, epic);
-        if (task != null && parents.stream().noneMatch(p -> p.key().equals(task))) {
-            throw new NotFound(task + " is not a Task of " + epic, "task");
+        if (phase != null) {
+            Map<String, String> groups = groupOfTask(ctx, epic);
+            parents = parents.stream().filter(p -> phase.equals(groups.get(p.key()))).toList();
+            if (parents.isEmpty()) {
+                throw new NotFound(phase + " is not a phase of " + epic, "phase");
+            }
         }
-        String shown = task != null ? task : parents.stream().filter(p -> p.functions() > 0).map(ParentOption::key).findFirst().orElse(null);
+        if (task != null && parents.stream().noneMatch(p -> p.key().equals(task))) {
+            throw new NotFound(task + " is not a Task of " + epic + (phase != null ? " in " + phase : ""), "task");
+        }
+        String shown = task != null ? task : parents.stream().filter(p -> p.functions() > 0).map(ParentOption::key).findFirst()
+                .orElse(phase != null ? parents.get(0).key() : null);
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(shown)).toList();
         Set<String> late = new HashSet<>();
         ctx.flags.forEach((k, f) -> {
@@ -247,8 +280,9 @@ public class AnkenService {
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
-        String phase = parents.stream().filter(p -> p.key().equals(shown)).map(ParentOption::phase).findFirst().orElse("");
-        return new MatrixView(epic, anken(ctx, epic).title(), phase, stats, rows, parents, nextFunctionId(fns), shown);
+        String shownPhase = phase != null ? phase
+                : parents.stream().filter(p -> p.key().equals(shown)).map(ParentOption::phase).findFirst().orElse("");
+        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), shown);
     }
 
     // --- new function -------------------------------------------------------------------------------------------------

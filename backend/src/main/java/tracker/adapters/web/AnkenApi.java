@@ -75,10 +75,14 @@ public class AnkenApi {
         return anken.detail(epic);
     }
 
-    /** @param task the Task (parent ticket) whose functions are shown; by default the first Task that has functions */
+    /**
+     * @param task  the Task (parent ticket) whose functions are shown; by default the first Task that has functions
+     * @param phase only the Tasks of this phase group
+     */
     @GetMapping("/{epic}/matrix")
-    public MatrixView matrix(@PathVariable("epic") String epic, @RequestParam(required = false) @Nullable String task) {
-        return anken.matrix(epic, task);
+    public MatrixView matrix(@PathVariable("epic") String epic, @RequestParam(required = false) @Nullable String task,
+                             @RequestParam(required = false) @Nullable String phase) {
+        return anken.matrix(epic, task, phase);
     }
 
     private static FunctionDraft draft(FunctionDraftIn in) {

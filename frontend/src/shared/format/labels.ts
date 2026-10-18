@@ -24,7 +24,6 @@ export const stepColor = (k?: string | null) => STEPS.find((s) => s.k === k)?.co
 
 export const ROLE_LABEL: Record<string, string> = { BA: 'BA', BAL: 'BA Leader', JM: 'Japan Member · client' };
 
-export const PHASE_SHORT: Record<string, string> = { Prepare: 'Prepare', Implement_Coding: 'Implement', 'Function Unit Test': 'UT' };
 
 export const LEAVE: Record<LeaveTypeKey | 'holiday', { label: string; ab: string; c: string; full?: boolean; half?: boolean; tent?: boolean }> = {
   full: { label: 'All day', ab: '1', c: 'oklch(0.6 0.13 250)', full: true },

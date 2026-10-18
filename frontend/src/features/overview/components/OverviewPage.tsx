@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import { Icon, type IconName } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
-import { PHASE_SHORT, statusOf } from '../../../shared/format/labels';
+import { statusOf } from '../../../shared/format/labels';
 import { taskShort } from '../../../shared/format/task';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ankenDetailQuery, overviewQuery } from '../api';
 
-const PHASE_W: Record<string, number> = { Prepare: 0.15, Implement_Coding: 0.6, 'Function Unit Test': 0.25 };
 const ATTN: Record<string, { label: string; icon: IconName; meta: (c: Schemas['TaskCard']) => string }> = {
   overdue: { label: 'Overdue', icon: 'alarm-clock', meta: (c) => `late ${c.late_days}d` },
   stuck_resolved: { label: 'Stuck in Resolved', icon: 'pause-circle', meta: (c) => `${c.held_days} days` },
@@ -62,13 +62,10 @@ function AnkenCardView({ a, on }: { a: Schemas['AnkenCard']; on: boolean }) {
       <div>
         <div style={{ display: 'flex', gap: 3, height: 8 }}>
           {a.phases.map((p) => (
-            <div key={p.name} title={`${p.name} ${p.pct}%`} style={{ flex: PHASE_W[p.name] ?? 0.2, borderRadius: 99, background: 'var(--surface-tint)', overflow: 'hidden' }}>
+            <div key={p.name} title={`${p.name} ${p.pct}%`} style={{ flex: 1, borderRadius: 99, background: 'var(--surface-tint)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: p.pct + '%', background: 'var(--surface-accent)' }} />
             </div>
           ))}
-        </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-          {a.phases.map((p) => <span key={p.name} style={{ whiteSpace: 'nowrap' }}>{PHASE_SHORT[p.name] ?? p.name} <b className="heading">{p.pct}%</b></span>)}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px', fontSize: 12 }}>
@@ -105,6 +102,73 @@ function AnkenCardView({ a, on }: { a: Schemas['AnkenCard']; on: boolean }) {
   );
 }
 
+const PHASE_GRID = 'minmax(120px,260px) minmax(80px,1fr) 52px 150px 110px 136px 28px';
+const muted = { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } as const;
+const span = (start: string | null, end: string | null) => (start ? `${dm(start)} → ${dm(end)}` : '–');
+
+/** A phase's progress; the chevron lists the Tasks of the phase below it. */
+function PhaseRow({ epic, p, tasks }: { epic: string; p: Schemas['PhaseRollup']; tasks: Schemas['PhaseTask'][] }) {
+  const [open, setOpen] = useState(false);
+  const toggle = () => setOpen((o) => !o);
+  return (
+    <div style={{ borderRadius: 12, background: 'var(--surface-hover)' }}>
+      <div onClick={toggle} style={{ display: 'grid', gridTemplateColumns: PHASE_GRID, alignItems: 'center', gap: 14, padding: '8px 10px 8px 14px', cursor: 'pointer' }}>
+        <span className="title ellipsis">{p.name}</span>
+        <div style={{ height: 6, borderRadius: 6, background: 'var(--border-subtle)' }}>
+          <div style={{ height: 6, borderRadius: 6, width: p.pct + '%', background: 'var(--surface-accent)' }} />
+        </div>
+        <span style={{ font: '700 16px/1 var(--font-display)', color: 'var(--text-heading)', textAlign: 'right' }}>{p.pct}%</span>
+        <span style={muted}>{p.closed}/{p.total} sub-tasks done</span>
+        <span style={muted}>{span(p.start, p.end)}</span>
+        {tasks.length ? (
+          <Link to="/anken/$epic/matrix" params={{ epic }} search={{ phase: p.name }} onClick={(e) => e.stopPropagation()} className="hv-bg"
+            aria-label={`View ${p.name} as matrix`} style={{
+              display: 'inline-flex', alignItems: 'center', justifySelf: 'end', gap: 6, height: 28, padding: '0 12px', borderRadius: 999,
+              border: '1px solid var(--border-subtle)', background: 'var(--surface-card)', color: 'var(--text-heading)',
+              font: 'var(--fw-semibold) 12px/1 var(--font-text)', textDecoration: 'none', whiteSpace: 'nowrap',
+            }}><Icon name="grid-3x3" size={13} />View as Matrix</Link>
+        ) : <span />}
+        <button type="button" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} tasks of ${p.name}`} className="hv-bg"
+          onClick={(e) => { e.stopPropagation(); toggle(); }} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, padding: 0, borderRadius: 999,
+            border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
+          }}><Icon name={open ? 'chevron-down' : 'chevron-right'} size={16} /></button>
+      </div>
+      {open && (
+        <ul aria-label={`Tasks of ${p.name}`} style={{ listStyle: 'none', margin: 0, padding: '0 6px 6px' }}>
+          {!tasks.length && <li style={{ ...muted, padding: '6px 8px' }}>No Tasks in this phase.</li>}
+          {tasks.map((t) => {
+            const st = statusOf(t.status);
+            return (
+              <li key={t.key}>
+                <Link to="/anken/$epic/matrix" params={{ epic }} search={{ phase: p.name, task: t.key }} className="hv-bd" title={t.summary} style={{
+                  display: 'grid', gridTemplateColumns: PHASE_GRID, alignItems: 'center', gap: 14, padding: '7px 4px 7px 8px', marginTop: 4,
+                  borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)', textDecoration: 'none', color: 'inherit',
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                    <span style={{ font: '600 11px/1 var(--font-mono)', color: 'var(--text-link)', flex: 'none' }}>{t.key}</span>
+                    <span className="ellipsis heading" style={{ minWidth: 0 }}>{t.name || t.summary}</span>
+                  </span>
+                  <div style={{ height: 4, borderRadius: 4, background: 'var(--border-subtle)' }}>
+                    <div style={{ height: 4, borderRadius: 4, width: t.pct + '%', background: 'var(--surface-accent)' }} />
+                  </div>
+                  <span style={{ fontWeight: 600, color: 'var(--text-heading)', textAlign: 'right' }}>{t.pct}%</span>
+                  <span style={muted}>{t.closed}/{t.total} sub-tasks done</span>
+                  <span style={muted}>{span(t.start, t.end)}</span>
+                  <span style={{ ...muted, display: 'inline-flex', alignItems: 'center', gap: 6, justifySelf: 'end' }}>
+                    <span className="dot" style={{ width: 7, height: 7, background: `var(--st-${st.v})` }} />{st.label}
+                  </span>
+                  <span />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Detail({ epic }: { epic: string }) {
   const q = useQuery(ankenDetailQuery(epic));
   const members = useMemberMap();
@@ -112,7 +176,6 @@ function Detail({ epic }: { epic: string }) {
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
   const a = q.data.card;
-  const cur = a.phases.findIndex((p) => p.pct < 100);
   return (
     <section className="card" aria-label={`${a.key} details`} style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -127,26 +190,9 @@ function Detail({ epic }: { epic: string }) {
           }}>Open Function Matrix <Icon name="arrow-right" size={14} /></Link>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 6, flexWrap: 'wrap' }}>
-        {a.phases.map((p, i) => (
-          <div key={p.name} style={{ flex: '1 1 200px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <div style={{ flex: 1, padding: '12px 14px', borderRadius: 14, minWidth: 0, background: i === cur ? 'var(--surface-tint)' : 'var(--surface-hover)' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span className="title">{p.name}</span>
-                <span className="spacer" />
-                <span style={{ font: '700 22px/1 var(--font-display)', color: 'var(--text-heading)' }}>{p.pct}%</span>
-              </div>
-              <div style={{ height: 5, borderRadius: 6, background: 'var(--border-subtle)', margin: '10px 0 8px' }}>
-                <div style={{ height: 5, borderRadius: 6, width: p.pct + '%', background: 'var(--surface-accent)' }} />
-              </div>
-              <div style={{ display: 'flex', fontSize: 11, color: 'var(--text-muted)' }}>
-                <span style={{ flex: 1 }}>{p.start ? `${dm(p.start)} – ${dm(p.end)}` : '–'}</span><span>{p.closed}/{p.total} sub-task closed</span>
-              </div>
-            </div>
-            {i < a.phases.length - 1 && <span style={{ color: 'var(--text-muted)', display: 'flex' }}><Icon name="chevron-right" size={16} /></span>}
-          </div>
-        ))}
-      </div>
+      <nav aria-label="Phases" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {a.phases.map((p) => <PhaseRow key={p.name} epic={a.key} p={p} tasks={q.data.tasks.filter((t) => t.phase === p.name)} />)}
+      </nav>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <Icon name="triangle-alert" size={16} />

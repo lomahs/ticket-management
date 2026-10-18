@@ -12,16 +12,30 @@ public final class Overview {
     private Overview() {
     }
 
-    public record PhaseRollup(String name, int pct, int closed, int total, @Nullable String start, @Nullable String end) {
+    /** @param pct time spent over time spent plus remaining, like Jira's progress bar */
+    public record PhaseRollup(String name, int pct, int closed, int total, @Nullable String start, @Nullable String end,
+                              double spentH, double remainingH) {
     }
 
-    public static PhaseRollup phaseRollup(String name, List<Issue> issues) {
-        String start = issues.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
-        String end = issues.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
-        int pct = issues.isEmpty() ? 0
-                : (int) Math.round(issues.stream().mapToDouble(i -> Flags.PROGRESS_WEIGHT.get(i.status())).sum() / issues.size() * 100);
-        int closed = (int) issues.stream().filter(i -> i.status() == Status.CLOSED).count();
-        return new PhaseRollup(name, pct, closed, issues.size(), start, end);
+    /** Progress of a phase from its sub-tasks' effort: spent / (spent + remaining). */
+    public static PhaseRollup phaseRollup(String name, List<Issue> subtasks) {
+        String start = subtasks.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
+        String end = subtasks.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
+        double spent = Numbers.round(subtasks.stream().mapToDouble(Issue::loggedH).sum(), 2);
+        double remaining = Numbers.round(subtasks.stream().mapToDouble(Issue::remainingH).sum(), 2);
+        int pct = spent + remaining > 0 ? (int) Math.round(spent / (spent + remaining) * 100) : 0;
+        int closed = (int) subtasks.stream().filter(i -> i.status() == Status.CLOSED).count();
+        return new PhaseRollup(name, pct, closed, subtasks.size(), start, end, spent, remaining);
+    }
+
+    public enum Schedule { UNKNOWN, NOT_STARTED, EARLY, ON_TRACK, LATE, DONE }
+
+    /**
+     * Early / on track / late of a phase from its sub-tasks (planned dates, estimate, remaining, logged hours, status).
+     * Placeholder: the rule is not decided yet, so it always answers {@link Schedule#UNKNOWN}.
+     */
+    public static Schedule scheduleState(List<Issue> subtasks, String today) {
+        return Schedule.UNKNOWN;
     }
 
     /** The remaining schedule slips by the worst current delay, counted in Mon–Fri days. */

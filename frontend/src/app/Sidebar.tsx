@@ -1,5 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useState } from 'react';
+import { SyncButton } from '../features/sync';
 import { useMemberMap, useMeta } from '../shared/api/queries';
 import { Icon, IconButton, type IconName } from '../shared/ds';
 import { ROLE_LABEL } from '../shared/format/labels';
@@ -26,7 +27,7 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
   const connection = !meta ? ' ' : meta.mode === 'demo' ? `Demo data · ${meta.projects.join(', ')}`
     : meta.projects.length ? `Connected to Jira · ${meta.projects.join(', ')}` : 'Jira not set up yet';
   return (
-    <aside style={{
+    <aside aria-label="Sidebar" style={{
       width: open ? 216 : 60, flex: 'none', transition: 'width var(--duration-fast) var(--easing-standard)', overflow: 'hidden',
       display: 'flex', flexDirection: 'column', background: 'var(--side-bg)', borderRight: '1px solid var(--border-subtle)',
     }}>
@@ -54,6 +55,9 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
           );
         })}
       </nav>
+      <div style={{ padding: '8px 10px', borderTop: '1px solid var(--border-subtle)' }}>
+        <SyncButton compact={!open} />
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 10, padding: '12px 14px', borderTop: '1px solid var(--border-subtle)' }}>
         <Avatar a={av(meM, me)} size={28} />
         {open && (

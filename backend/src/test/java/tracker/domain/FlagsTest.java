@@ -62,7 +62,7 @@ class FlagsTest {
 
     static Issue withParent(Issue i, String parent) {
         return new Issue(i.key(), i.project(), i.epicKey(), parent, i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
-                i.plannedStart(), i.plannedEnd(), i.estimateH(), i.created(), i.jiraStatus(), i.functionId(), i.functionName(),
+                i.plannedStart(), i.plannedEnd(), i.estimateH(), i.remainingH(), i.created(), i.jiraStatus(), i.functionId(), i.functionName(),
                 i.step(), i.worklogs(), i.events());
     }
 

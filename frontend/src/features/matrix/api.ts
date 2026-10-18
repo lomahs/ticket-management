@@ -2,10 +2,15 @@ import { keepPreviousData, useMutation, useQueryClient } from '@tanstack/react-q
 import { http, unwrap } from '../../shared/api/client';
 import type { Schemas } from '../../shared/api/types';
 
-/** @param task the Task whose functions are shown; by default the first Task that has functions */
-export const matrixQuery = (epic: string, task?: string) => ({
-  queryKey: ['matrix', epic, task ?? null] as const,
-  queryFn: () => unwrap(http.GET('/api/v1/anken/{epic}/matrix', { params: { path: { epic }, query: task ? { task } : {} } })),
+/**
+ * @param task  the Task whose functions are shown; by default the first Task that has functions
+ * @param phase only the Tasks of this phase group
+ */
+export const matrixQuery = (epic: string, task?: string, phase?: string) => ({
+  queryKey: ['matrix', epic, task ?? null, phase ?? null] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/anken/{epic}/matrix', {
+    params: { path: { epic }, query: { ...(task ? { task } : {}), ...(phase ? { phase } : {}) } },
+  })),
 });
 
 export const functionPreviewQuery = (epic: string, draft: Schemas['FunctionDraftIn'], enabled: boolean) => ({
