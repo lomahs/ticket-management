@@ -737,6 +737,15 @@ export interface components {
             chips: string[];
             text: string;
         };
+        AppField: {
+            expects: string;
+            field_id: string;
+            key: string;
+            label: string;
+            mappable: boolean;
+            types: string[];
+            used_for: string;
+        };
         AttentionView: {
             /** Format: int32 */
             count: number;
@@ -871,6 +880,7 @@ export interface components {
             effort?: string | null;
             planned_end?: string | null;
             planned_start?: string | null;
+            remaining?: string | null;
             sample: string;
         };
         FieldMappingCheck: {
@@ -882,12 +892,11 @@ export interface components {
             effort?: string | null;
             planned_end?: string | null;
             planned_start?: string | null;
+            remaining?: string | null;
         };
         FieldMappingView: {
             catalog: components["schemas"]["JiraField"][];
-            effort: string;
-            planned_end: string;
-            planned_start: string;
+            fields: components["schemas"]["AppField"][];
         };
         FunctionCreateIn: {
             ba: string;

@@ -10,7 +10,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import tracker.adapters.jira.JiraCloudReader;
 import tracker.adapters.jira.JiraConfig;
-import tracker.application.SyncService;
 import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.SecretBox;
 import tracker.application.ports.SettingsRepository;
@@ -38,7 +37,7 @@ public class JiraSiteConfig {
         return new JiraCloudReader(() -> {
             TrackerSettings s = settings.load();
             TrackerSettings.FieldMapping fm = s.fieldMapping;
-            List<String> fields = Stream.of(fm.plannedStart, fm.plannedEnd, fm.effort, SyncService.REMAINING_FIELD).filter(Text::hasText).distinct().toList();
+            List<String> fields = Stream.of(fm.plannedStart, fm.plannedEnd, fm.effort, fm.remaining).filter(Text::hasText).distinct().toList();
             String token = Text.hasText(s.jira.tokenEncrypted) ? secrets.decrypt(s.jira.tokenEncrypted) : "";
             return new JiraConfig(s.jira.url, s.jira.email, token, fields);
         });

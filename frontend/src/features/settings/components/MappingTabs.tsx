@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, Select, TextField } from '../../../shared/ds';
+import { Button, Select, TextField, type Option } from '../../../shared/ds';
 import { f1 } from '../../../shared/format/dates';
 import { STATUS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -10,7 +10,6 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { fieldMappingQuery, statusMappingQuery, useCheckFieldMapping, useSaveFieldMapping, useSaveStatusMapping } from '../api';
 import { Busy, ErrText, Section } from './common';
 
-const TARGETS = [['planned_start', 'Planned Start', 'Date'], ['planned_end', 'Planned End', 'Date'], ['effort', 'Planned Effort', 'Hours']] as const;
 const RESULT: Record<string, [string, string]> = {
   not_mapped: ['Not mapped', 'var(--hl-red-fg)'], not_found: ['Field not found in Jira', 'var(--hl-red-fg)'],
   type_mismatch: ['Type mismatch', 'var(--hl-red-fg)'],
@@ -23,37 +22,77 @@ export function FieldMappingTab() {
   return <FieldMappingForm v={q.data} />;
 }
 
+type Target = 'planned_start' | 'planned_end' | 'effort' | 'remaining';
+
+/** The Jira fields of the site for one tracker field: those of the expected type first, then every other field. */
+function fieldOptions(f: Schemas['AppField'], catalog: Schemas['JiraField'][]): Option[] {
+  const fits = (j: Schemas['JiraField']) => !f.types.length || f.types.includes(j.type);
+  const opts: Option[] = [{ value: '', label: '— Not mapped —' }];
+  if (f.field_id && !catalog.some((j) => j.id === f.field_id)) opts.push({ value: f.field_id, label: `${f.field_id} (not found in Jira)` });
+  catalog.filter(fits).forEach((j) => opts.push({ value: j.id, label: `${j.name} · ${j.id}`, group: `${f.expects} fields` }));
+  catalog.filter((j) => !fits(j)).forEach((j) => opts.push({ value: j.id, label: `${j.name} · ${j.id} · ${j.type || 'no type'}`, group: 'Other fields' }));
+  return opts;
+}
+
 function FieldMappingForm({ v }: { v: Schemas['FieldMappingView'] }) {
   const toast = useToast();
   const save = useSaveFieldMapping();
   const check = useCheckFieldMapping();
-  const [map, setMap] = useState({ planned_start: v.planned_start, planned_end: v.planned_end, effort: v.effort });
+  const mappable = v.fields.filter((f) => f.mappable);
+  const fixed = v.fields.filter((f) => !f.mappable);
+  const [map, setMap] = useState(() => Object.fromEntries(mappable.map((f) => [f.key, f.field_id])) as Record<Target, string>);
   const [sample, setSample] = useState('');
   const results = Object.fromEntries((check.data?.results ?? []).map((r) => [r.target, r]));
   const runCheck = () => check.mutate({ sample, ...map });
-  const GRID = '160px 80px minmax(220px,1.4fr) minmax(160px,1fr)';
+  const names = Object.fromEntries(v.catalog.map((j) => [j.id, j.name]));
+  const GRID = 'minmax(200px,1.2fr) 80px minmax(240px,1.4fr) minmax(150px,1fr)';
+  const row = { display: 'grid', gridTemplateColumns: GRID, gap: 12, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid var(--border-subtle)', minWidth: 700 } as const;
+  const group = (text: string) => (
+    <div style={{ padding: '6px 14px', borderTop: '1px solid var(--border-subtle)', background: 'var(--surface-hover)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', minWidth: 700 }}>{text}</div>
+  );
+  const name = (f: Schemas['AppField']) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <b className="heading">{f.label}</b>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f.used_for}</span>
+    </div>
+  );
   return (
-    <Section title="Field mapping" sub="One mapping for the whole Jira site. Enter the field ID as shown in Jira, e.g. customfield_10020. Saving re-reads every tracked issue.">
-      <datalist id="jira-fields">{v.catalog.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.type || 'any'}</option>)}</datalist>
+    <Section title="Field mapping" sub="Every Jira field the tracker reads to manage and display work. Pick the Jira field for the ones you map; the others are Jira system fields. One mapping for the whole Jira site. Saving re-reads every tracked issue.">
+      {!v.catalog.length && <ErrText>Could not read the field list from Jira. Check Settings → Jira, or enter field IDs by hand.</ErrText>}
       <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 12, overflowX: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 12, padding: '8px 14px', background: 'var(--surface-hover)', borderRadius: '12px 12px 0 0', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', minWidth: 640 }}>
-          <span>Tracker field</span><span>Expects</span><span>Jira field ID</span><span>Value on sample ticket</span>
+        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 12, padding: '8px 14px', background: 'var(--surface-hover)', borderRadius: '12px 12px 0 0', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', minWidth: 700 }}>
+          <span>Tracker field</span><span>Expects</span><span>Jira field</span><span>Value on sample ticket</span>
         </div>
-        {TARGETS.map(([k, label, expects]) => {
+        {group('Mapped by you')}
+        {mappable.map((f) => {
+          const k = f.key as Target;
           const r = results[k];
           const [text, fg] = !r ? ['', 'var(--text-muted)'] : r.status === 'ok'
-            ? ['✓ ' + (r.value == null ? '(empty)' : k === 'effort' ? f1(Number(r.value)) + 'h' : String(r.value)), 'var(--text-heading)']
+            ? ['✓ ' + (r.value == null ? '(empty)' : f.expects === 'Hours' ? f1(Number(r.value)) + 'h' : String(r.value)), 'var(--text-heading)']
             : RESULT[r.status] ?? [r.status, 'var(--hl-red-fg)'];
+          const set = (val: string) => { setMap((m) => ({ ...m, [k]: val })); check.reset(); };
           return (
-            <div key={k} style={{ display: 'grid', gridTemplateColumns: GRID, gap: 12, alignItems: 'center', padding: '8px 14px', borderTop: '1px solid var(--border-subtle)', minWidth: 640 }}>
-              <b className="heading">{label}</b>
-              <span className="eyebrow">{expects}</span>
-              <TextField mono list="jira-fields" aria-label={`${label} field ID`} placeholder={k === 'effort' ? 'e.g. timeoriginalestimate' : 'e.g. customfield_10020'}
-                value={map[k]} onChange={(val) => { setMap((m) => ({ ...m, [k]: val })); check.reset(); }} />
+            <div key={k} style={row}>
+              {name(f)}
+              <span className="eyebrow">{f.expects}</span>
+              {v.catalog.length
+                ? <Select aria-label={`${f.label} Jira field`} options={fieldOptions({ ...f, field_id: map[k] }, v.catalog)} value={map[k]} onChange={set} />
+                : <TextField mono aria-label={`${f.label} Jira field`} placeholder="e.g. customfield_10020" value={map[k]} onChange={set} />}
               <span style={{ fontSize: 12, fontWeight: 600, color: fg }}>{text}</span>
             </div>
           );
         })}
+        {group('Jira system fields · always read')}
+        {fixed.map((f) => (
+          <div key={f.key} style={row}>
+            {name(f)}
+            <span className="eyebrow">{f.expects}</span>
+            <span style={{ fontSize: 12 }}>
+              {names[f.field_id] ?? f.label} <span style={{ font: '11px var(--font-mono)', color: 'var(--text-muted)' }}>· {f.field_id}</span>
+            </span>
+            <span />
+          </div>
+        ))}
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
         <TextField label="Sample ticket" value={sample} placeholder="e.g. PAY-1203" onChange={(s) => { setSample(s); check.reset(); }} style={{ width: 200 }}

@@ -1585,6 +1585,36 @@
         },
         "required" : [ "chips", "text" ]
       },
+      "AppField" : {
+        "type" : "object",
+        "properties" : {
+          "expects" : {
+            "type" : "string"
+          },
+          "field_id" : {
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "mappable" : {
+            "type" : "boolean"
+          },
+          "types" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "used_for" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "expects", "field_id", "key", "label", "mappable", "types", "used_for" ]
+      },
       "AttentionView" : {
         "type" : "object",
         "properties" : {
@@ -1993,6 +2023,9 @@
           "planned_start" : {
             "type" : [ "string", "null" ]
           },
+          "remaining" : {
+            "type" : [ "string", "null" ]
+          },
           "sample" : {
             "type" : "string"
           }
@@ -2028,6 +2061,9 @@
           },
           "planned_start" : {
             "type" : [ "string", "null" ]
+          },
+          "remaining" : {
+            "type" : [ "string", "null" ]
           }
         }
       },
@@ -2040,17 +2076,14 @@
               "$ref" : "#/components/schemas/JiraField"
             }
           },
-          "effort" : {
-            "type" : "string"
-          },
-          "planned_end" : {
-            "type" : "string"
-          },
-          "planned_start" : {
-            "type" : "string"
+          "fields" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppField"
+            }
           }
         },
-        "required" : [ "catalog", "effort", "planned_end", "planned_start" ]
+        "required" : [ "catalog", "fields" ]
       },
       "FunctionCreateIn" : {
         "type" : "object",

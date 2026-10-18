@@ -165,20 +165,50 @@ public class JiraSettingsService {
 
     // --- field mapping ----------------------------------------------------------------------------------------------
 
-    /** What each mapped field must hold: planned dates are dates, effort a number. */
-    static final Map<String, List<String>> TARGET_TYPES = Map.of(
-            "planned_start", List.of("date", "datetime"),
-            "planned_end", List.of("date", "datetime"),
-            "effort", List.of("number"));
-    private static final List<String> TARGETS = List.of("planned_start", "planned_end", "effort");
+    /**
+     * A Jira field the tracker reads. The mappable ones are picked by the admin; the others are Jira system fields the
+     * tracker always reads by their fixed id.
+     *
+     * @param types   Jira schema types the field must have; empty when any will do
+     * @param fieldId the mapped Jira field id ("" for none) or the fixed one
+     */
+    public record AppField(String key, String label, String usedFor, String expects, List<String> types, String fieldId,
+                           boolean mappable) {
+    }
 
-    public record FieldMappingView(String plannedStart, String plannedEnd, String effort, List<JiraField> catalog) {
+    private record Target(String key, String label, String usedFor, String expects, List<String> types) {
+    }
+
+    private static final List<String> DATE = List.of("date", "datetime");
+    private static final List<String> NUMBER = List.of("number");
+    /** The mappable fields, in the order they are listed. */
+    private static final List<Target> TARGETS = List.of(
+            new Target("planned_start", "Planned Start", "Planning, late flags and the matrix dates of sub-tasks", "Date", DATE),
+            new Target("planned_end", "Planned End", "Due dates, late and soon flags, forecasts", "Date", DATE),
+            new Target("effort", "Planned effort", "Estimate of a sub-task: effort, capacity and over-estimate flags", "Hours", NUMBER),
+            new Target("remaining", "Remaining estimate", "Phase progress: logged / (logged + remaining)", "Hours", NUMBER));
+    /** Jira system fields the tracker reads by their fixed id. */
+    private static final List<AppField> FIXED = List.of(
+            new AppField("summary", "Summary", "Phase, function and step of a sub-task, by the naming rule", "Text", List.of(), "summary", false),
+            new AppField("status", "Status", "NYS / WIP / Resolved / Closed through the status mapping", "Status", List.of(), "status", false),
+            new AppField("assignee", "Assignee", "Who handles the sub-task: My Work, workload, team members", "User", List.of(), "assignee", false),
+            new AppField("parent", "Parent", "Epic → Task → Sub-task structure and phase groups", "Issue", List.of(), "parent", false),
+            new AppField("worklog", "Work log", "Logged hours: actual effort, progress and timesheets; actual dates when the history has none", "Work log", List.of(), "worklog", false),
+            new AppField("changelog", "History", "Actual start (moved to In Progress) and end (moved to Resolved), review rounds, days held in a status", "Changelog", List.of(), "changelog", false),
+            new AppField("duedate", "Due date (epic)", "Plan date of an anken", "Date", List.of(), "duedate", false),
+            new AppField("issuetype", "Issue type (epic)", "Checks that a tracked key is an Epic", "Issue type", List.of(), "issuetype", false),
+            new AppField("project", "Project", "Project of an anken", "Project", List.of(), "project", false),
+            new AppField("created", "Created", "Ticket creation date", "Date", List.of(), "created", false),
+            new AppField("updated", "Updated", "Incremental sync: what changed since the last run", "Date", List.of(), "updated", false));
+
+    /** @param fields every Jira field the tracker reads, the mappable ones first */
+    public record FieldMappingView(List<AppField> fields, List<JiraField> catalog) {
     }
 
     /**
-     * @param target planned_start | planned_end | effort
+     * @param target planned_start | planned_end | effort | remaining
      * @param status ok | not_mapped | not_found | type_mismatch
-     * @param value  the date for dates, hours for effort
+     * @param value  the date for dates, hours for effort and remaining
      */
     public record FieldCheck(String target, String fieldId, String status, @Nullable Object value) {
     }
@@ -186,9 +216,11 @@ public class JiraSettingsService {
     public record FieldMappingCheck(String key, String summary, List<FieldCheck> results) {
     }
 
+    /** Every field of the Jira site, by name. */
     private List<JiraField> catalog() {
         try {
-            return reader.listFields();
+            return reader.listFields().stream()
+                    .sorted(Comparator.comparing((JiraField f) -> f.name().toLowerCase(Locale.ROOT)).thenComparing(JiraField::id)).toList();
         } catch (JiraError e) {
             return List.of();
         }
@@ -196,13 +228,16 @@ public class JiraSettingsService {
 
     public FieldMappingView fieldMapping() {
         TrackerSettings.FieldMapping fm = settings.load().fieldMapping;
-        return new FieldMappingView(fm.plannedStart, fm.plannedEnd, fm.effort, catalog());
+        List<AppField> fields = new ArrayList<>(TARGETS.stream()
+                .map(t -> new AppField(t.key(), t.label(), t.usedFor(), t.expects(), t.types(), fm.get(t.key()), true)).toList());
+        fields.addAll(FIXED);
+        return new FieldMappingView(fields, catalog());
     }
 
     /** @param mapping target → Jira field id ("" for none) */
     public FieldMappingView saveFieldMapping(Map<String, String> mapping) {
         settings.update(s -> mapping.forEach((target, fieldId) -> {
-            if (TARGETS.contains(target)) {
+            if (TARGETS.stream().anyMatch(t -> t.key().equals(target))) {
                 s.fieldMapping.set(target, fieldId.strip());
             }
         }));
@@ -219,19 +254,20 @@ public class JiraSettingsService {
         Map<String, String> types = new LinkedHashMap<>();
         catalog().forEach(f -> types.put(f.id(), f.type()));
         List<FieldCheck> out = new ArrayList<>();
-        for (String target : TARGETS) {
+        for (Target t : TARGETS) {
+            String target = t.key();
             String fid = mapping.getOrDefault(target, fm.get(target)).strip();
             if (fid.isEmpty()) {
                 out.add(new FieldCheck(target, fid, "not_mapped", null));
             } else if (!types.containsKey(fid)) {
                 out.add(new FieldCheck(target, fid, "not_found", null));
-            } else if (!TARGET_TYPES.get(target).contains(types.get(fid))) {
+            } else if (!t.types().contains(types.get(fid))) {
                 out.add(new FieldCheck(target, fid, "type_mismatch", null));
             } else {
                 // the sample was read with the saved fields; read it again when the field asked for is not among them
                 IssueSnapshot fresh = snap.fields().containsKey(fid) ? snap : reader.findIssue(key).orElse(snap);
                 Object raw = fresh.fields().get(fid);
-                Object value = target.equals("effort") ? JiraValues.hours(raw, fid) : JiraValues.date(raw);
+                Object value = NUMBER.equals(t.types()) ? JiraValues.hours(raw, fid) : JiraValues.date(raw);
                 out.add(new FieldCheck(target, fid, "ok", value));
             }
         }

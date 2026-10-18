@@ -348,9 +348,13 @@ class ServiceReadsTest {
     @Test
     void fieldMappingCheck() {
         JiraSettingsService.FieldMappingView v = jiraSettings.fieldMapping();
-        assertThat(v.plannedStart()).isEqualTo("customfield_10020");
-        assertThat(v.effort()).isEqualTo("timeoriginalestimate");
-        assertThat(v.catalog()).isNotEmpty();
+        assertThat(v.fields()).filteredOn(JiraSettingsService.AppField::mappable)
+                .extracting(f -> f.key() + "=" + f.fieldId())
+                .containsExactly("planned_start=customfield_10020", "planned_end=customfield_10016", "effort=timeoriginalestimate",
+                        "remaining=timeestimate");
+        assertThat(v.fields()).filteredOn(f -> !f.mappable()).extracting(JiraSettingsService.AppField::fieldId)
+                .contains("summary", "status", "assignee", "parent", "worklog");
+        assertThat(v.catalog()).extracting(JiraField::name).isSortedAccordingTo(String.CASE_INSENSITIVE_ORDER);
         Map<String, JiraSettingsService.FieldCheck> r = new HashMap<>();
         jiraSettings.checkFieldMapping("PAY-1203", Map.of("planned_start", "customfield_10020", "planned_end", "summary", "effort", ""))
                 .results().forEach(x -> r.put(x.target(), x));
@@ -358,6 +362,7 @@ class ServiceReadsTest {
         assertThat(r.get("planned_start").value()).isEqualTo("2026-09-17");
         assertThat(r.get("planned_end").status()).isEqualTo("type_mismatch");
         assertThat(r.get("effort").status()).isEqualTo("not_mapped");
+        assertThat(r.get("remaining").status()).isEqualTo("ok");
         assertThatThrownBy(() -> jiraSettings.checkFieldMapping("PAY-9", Map.of())).isInstanceOf(NotFound.class);
     }
 

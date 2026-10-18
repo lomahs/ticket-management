@@ -135,6 +135,42 @@ describe('screens render API data at their URLs', () => {
     await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks }));
   });
 
+  it('maps tracker fields to Jira fields picked from the site\'s field list', async () => {
+    const f = (key: string, label: string, expects: string, types: string[], field_id: string, mappable = true) =>
+      ({ key, label, used_for: `${label} use`, expects, types, field_id, mappable });
+    const view = {
+      fields: [
+        f('planned_start', 'Planned Start', 'Date', ['date', 'datetime'], 'customfield_10020'),
+        f('planned_end', 'Planned End', 'Date', ['date', 'datetime'], 'customfield_10016'),
+        f('effort', 'Planned effort', 'Hours', ['number'], 'timeoriginalestimate'),
+        f('remaining', 'Remaining estimate', 'Hours', ['number'], 'timeestimate'),
+        f('summary', 'Summary', 'Text', [], 'summary', false),
+      ],
+      catalog: [
+        { id: 'customfield_10015', name: 'Start date', type: 'date' }, { id: 'customfield_10016', name: 'Planned End', type: 'date' },
+        { id: 'customfield_10020', name: 'Planned Start', type: 'date' }, { id: 'summary', name: 'Summary', type: 'string' },
+        { id: 'timeestimate', name: 'Remaining Estimate', type: 'number' }, { id: 'timeoriginalestimate', name: 'Original estimate', type: 'number' },
+      ],
+    };
+    let saved: unknown;
+    server.use(
+      http.get('*/api/v1/settings/field-mapping', () => HttpResponse.json(view)),
+      http.put('*/api/v1/settings/field-mapping', async ({ request }) => { saved = await request.json(); return HttpResponse.json(view); }),
+    );
+    renderApp('/settings/field-mapping');
+    const start = await screen.findByLabelText('Planned Start Jira field') as HTMLSelectElement;
+    expect(start.value).toBe('customfield_10020');
+    const groups = [...start.querySelectorAll('optgroup')].map((g) => [g.label, g.querySelectorAll('option').length]);
+    expect(groups).toEqual([['Date fields', 3], ['Other fields', 3]]);
+    expect(screen.getByText('Jira system fields · always read')).toBeTruthy();
+    expect(screen.queryByLabelText('Summary Jira field')).toBeNull();
+    fireEvent.change(start, { target: { value: 'customfield_10015' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved).toEqual({
+      planned_start: 'customfield_10015', planned_end: 'customfield_10016', effort: 'timeoriginalestimate', remaining: 'timeestimate',
+    }));
+  });
+
   it('runs an incremental Jira sync from the sidebar', async () => {
     let body: unknown;
     server.use(http.post('*/api/v1/sync', async ({ request }) => { body = await request.json(); return HttpResponse.json(fixtures.meta.sync); }));

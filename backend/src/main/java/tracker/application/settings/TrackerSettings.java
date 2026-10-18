@@ -50,13 +50,15 @@ public class TrackerSettings {
         public String plannedStart = "customfield_10020";
         public String plannedEnd = "customfield_10016";
         public String effort = "timeoriginalestimate";
+        public String remaining = "timeestimate";
 
-        /** The mapped field id of a target (planned_start | planned_end | effort). */
+        /** The mapped field id of a target (planned_start | planned_end | effort | remaining). */
         public String get(String target) {
             return switch (target) {
                 case "planned_start" -> plannedStart;
                 case "planned_end" -> plannedEnd;
                 case "effort" -> effort;
+                case "remaining" -> remaining;
                 default -> throw new IllegalArgumentException(target);
             };
         }
@@ -66,6 +68,7 @@ public class TrackerSettings {
                 case "planned_start" -> plannedStart = fieldId;
                 case "planned_end" -> plannedEnd = fieldId;
                 case "effort" -> effort = fieldId;
+                case "remaining" -> remaining = fieldId;
                 default -> throw new IllegalArgumentException(target);
             }
         }

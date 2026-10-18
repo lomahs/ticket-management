@@ -102,12 +102,13 @@ public class SettingsApi {
     // --- field mapping ----------------------------------------------------------------------------------------------
 
     /** Jira field ids ("customfield_10015"); empty for none. */
-    public record FieldMappingIn(@Nullable String plannedStart, @Nullable String plannedEnd, @Nullable String effort) {
+    public record FieldMappingIn(@Nullable String plannedStart, @Nullable String plannedEnd, @Nullable String effort,
+                                 @Nullable String remaining) {
     }
 
     /** Reads a sample issue with the given field ids (null: the saved ones). */
     public record FieldCheckIn(@NotNull String sample, @Nullable String plannedStart, @Nullable String plannedEnd,
-                               @Nullable String effort) {
+                               @Nullable String effort, @Nullable String remaining) {
     }
 
     @GetMapping("/settings/field-mapping")
@@ -121,6 +122,7 @@ public class SettingsApi {
         mapping.put("planned_start", body.plannedStart() == null ? "" : body.plannedStart());
         mapping.put("planned_end", body.plannedEnd() == null ? "" : body.plannedEnd());
         mapping.put("effort", body.effort() == null ? "" : body.effort());
+        mapping.put("remaining", body.remaining() == null ? "" : body.remaining());
         return jiraSettings.saveFieldMapping(mapping);
     }
 
@@ -135,6 +137,9 @@ public class SettingsApi {
         }
         if (body.effort() != null) {
             mapping.put("effort", body.effort());
+        }
+        if (body.remaining() != null) {
+            mapping.put("remaining", body.remaining());
         }
         return jiraSettings.checkFieldMapping(body.sample(), mapping);
     }

@@ -36,7 +36,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
     public static final List<JiraField> FIELD_CATALOG = List.of(
             new JiraField("customfield_10015", "Start date", "date"), new JiraField("customfield_10016", "Planned End", "date"),
             new JiraField("customfield_10020", "Planned Start", "date"), new JiraField("duedate", "Due date", "date"),
-            new JiraField("timeoriginalestimate", "Original estimate", "number"),
+            new JiraField("timeoriginalestimate", "Original estimate", "number"), new JiraField("timeestimate", "Remaining Estimate", "number"),
             new JiraField("customfield_10040", "Effort (h)", "number"), new JiraField("summary", "Summary", "string"));
 
     private static Map<String, UserSnapshot> users() {
