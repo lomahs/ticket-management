@@ -7,7 +7,7 @@ Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning
 ```
 backend/   Java 25 · Spring Boot 3 · JdbcClient/SQLite · Flyway · layered (domain → application → adapters → config)
 frontend/  React · Vite · TypeScript · TanStack Router/Query · feature-sliced, typed client generated from OpenAPI
-scripts/   setup.sh · demo.sh · dev.sh · check.sh
+scripts/   setup.sh · demo.sh · dev.sh · check.sh (and a .ps1 of each for Windows)
 ```
 
 ## Quick start
@@ -21,6 +21,14 @@ scripts/check.sh         # every automated check; add --e2e for the Playwright s
 
 `scripts/setup.sh` (run by the others) checks for a JDK 25 and installs `frontend/node_modules`; Maven comes with the
 backend's wrapper (`backend/mvnw`). The original mock-data build is tagged: `git checkout ui-mock-v0 && scripts/demo.sh`.
+
+On Windows, run the PowerShell version of each script (same options, PowerShell style):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo.ps1            # -Port 8100 for another port
+powershell -ExecutionPolicy Bypass -File scripts\dev.ps1             # or: scripts\dev.ps1 jira
+powershell -ExecutionPolicy Bypass -File scripts\check.ps1           # -E2E for the Playwright suite
+```
 
 ## Modes
 
