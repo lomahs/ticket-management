@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { fixtures, renderApp, server } from './renderApp';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => { cleanup(); server.resetHandlers(); });
+afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); });
 afterAll(() => server.close());
 
 describe('screens render API data at their URLs', () => {
@@ -20,7 +20,7 @@ describe('screens render API data at their URLs', () => {
   it('applies matrix filters from the URL', async () => {
     renderApp('/anken/PAY-1100/matrix?members=binh');
     expect(await screen.findByText('Domestic card payment')).toBeTruthy();
-    expect(screen.getByText('3/12 function')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Status summary' })).getByText('3/12 function')).toBeTruthy();
     expect(screen.queryByText('Payment method selection')).toBeNull();
   });
 
@@ -49,19 +49,19 @@ describe('screens render API data at their URLs', () => {
     expect(router.state.location.search).toMatchObject({ phase: 'ITA' });
   });
 
-  it('keeps the Task picker when the shown Task has no functions', async () => {
+  it('points to Setting phase when the shown Tasks have no functions', async () => {
     const parents = [
-      { key: 'PAY-1101', summary: 'Prepare', phase: 'Prepare', prefix: 'Prepare', workflow: true, functions: 0 },
-      { key: 'PAY-1102', summary: 'Implement', phase: 'Implement', prefix: 'Implement', workflow: true, functions: 12 },
+      { key: 'PAY-1101', summary: '[Pay] Prepare', name: 'Prepare', phase: 'Prepare', group: 'Prepare', prefix: 'Prepare', workflow: true, functions: 0 },
+      { key: 'PAY-1102', summary: '[Pay] Implement', name: 'Implement', phase: 'Implement', group: 'Implement', prefix: 'Implement', workflow: true, functions: 12 },
     ];
-    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json({ ...fixtures.matrix, functions: [], parents, task_key: 'PAY-1101' })));
-    renderApp('/anken/PAY-1100/matrix?task=PAY-1101');
-    expect(await screen.findByText('This Task has no functions yet. Pick another Task above.')).toBeTruthy();
-    expect(screen.getByText(/Implement · 12 functions/)).toBeTruthy();
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json({ ...fixtures.matrix, functions: [], parents, task_keys: ['PAY-1101'] })));
+    renderApp('/anken/PAY-1100/matrix?tasks=PAY-1101');
+    expect(await screen.findByText(/The shown sub-phases have no functions yet/)).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: /Setting phase/ })[0].getAttribute('href')).toBe('/anken/PAY-1100/matrix/phases');
   });
 
   it('opens the first anken\'s matrix from the sidebar even when no anken has functions yet', async () => {
-    const empty = { ...fixtures.matrix, functions: [], parents: [], task_key: null };
+    const empty = { ...fixtures.matrix, functions: [], parents: [], task_keys: [] };
     server.use(
       http.get('*/api/v1/anken', () => HttpResponse.json(fixtures.anken.map((a) => ({ ...a, has_functions: false })))),
       http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json(empty)),
@@ -75,7 +75,7 @@ describe('screens render API data at their URLs', () => {
     const { router } = renderApp('/anken/PAY-1100/matrix');
     fireEvent.change(await screen.findByLabelText('Search functions'), { target: { value: 'refund' } });
     await waitFor(() => expect(router.state.location.search).toMatchObject({ q: 'refund' }));
-    expect(screen.getByText('1/12 function')).toBeTruthy();
+    expect(screen.getAllByText(/^1\/12 function/).length).toBeGreaterThan(0);
   });
 
   it('opens the ticket panel from ?ticket= and disables Jira edits without a writer', async () => {
@@ -85,6 +85,8 @@ describe('screens render API data at their URLs', () => {
     await within(panel).findByText(/Domestic card payment – Fix comment BAL/);
     await waitFor(() => expect((within(panel).getByLabelText('Status') as HTMLSelectElement).disabled).toBe(true));
     expect(within(panel).getByText(/Updating Jira arrives in phase 2/)).toBeTruthy();
+    expect(within(panel).getByRole('link', { name: /Domestic card payment – Fix comment BAL/ }).getAttribute('href'))
+      .toBe('https://acme-pay.atlassian.net/browse/PAY-1213');
   });
 
   it('opens the ticket panel over the matrix when a cell is clicked', async () => {
@@ -95,13 +97,85 @@ describe('screens render API data at their URLs', () => {
     expect(router.state.location.search).toMatchObject({ members: 'binh', ticket: 'PAY-1213' });
   });
 
-  it('switches the matrix to another Task through the URL', async () => {
-    const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
-    const select = await screen.findByLabelText('Task');
-    expect((select as HTMLSelectElement).value).toBe('PAY-1102');
-    fireEvent.change(select, { target: { value: 'PAY-1101' } });
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ task: 'PAY-1101' }));
-    expect(router.state.location.search).not.toHaveProperty('members'); // filters belong to the Task that was shown
+  it('shows one matrix per phase and a section per Task', async () => {
+    const task = (key: string, name: string, group: string, functions: number) =>
+      ({ key, summary: `[Pay][LocalTask] ${name}`, name, phase: group, group, prefix: group, workflow: true, functions });
+    const parents = [task('PAY-1301', 'ITA Prepare', 'ITA', 1), task('PAY-1302', 'ITA Execute', 'ITA', 1), task('PAY-1303', 'UAT Execute', 'UAT', 1)];
+    const [f1, f2, f3] = fixtures.matrix.functions;
+    const rows = [{ ...f1, task_key: 'PAY-1301' }, { ...f2, task_key: 'PAY-1302' }, { ...f3, task_key: 'PAY-1303' }];
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', ({ request }) => {
+      const keys = new URL(request.url).searchParams.getAll('tasks');
+      const shown = keys.length ? keys : ['PAY-1301', 'PAY-1302'];
+      return HttpResponse.json({ ...fixtures.matrix, parents, task_keys: shown, functions: rows.filter((r) => shown.includes(r.task_key)) });
+    }));
+    renderApp('/anken/PAY-1100/matrix');
+    const ita = await screen.findByRole('region', { name: 'ITA matrix' });
+    expect(within(ita).getAllByRole('rowgroup').map((g) => g.getAttribute('aria-label'))).toEqual(['ITA Prepare', 'ITA Execute']);
+    expect(screen.queryByRole('region', { name: 'UAT matrix' })).toBeNull();
+    cleanup();
+    renderApp('/anken/PAY-1100/matrix?tasks=PAY-1301,PAY-1302,PAY-1303');
+    expect(await screen.findByRole('region', { name: 'UAT matrix' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'ITA matrix' })).toBeTruthy();
+    expect(screen.getByText(/from the link/)).toBeTruthy();
+  });
+
+  it('reorders phases and sub-phases by drag and drop and keeps the layout in this browser', async () => {
+    const task = (key: string, name: string, group: string) =>
+      ({ key, summary: `[Pay][LocalTask] ${name}`, name, phase: group, group, prefix: group, workflow: true, functions: 1 });
+    const parents = [task('PAY-1301', 'ITA Prepare', 'ITA'), task('PAY-1302', 'ITA Execute', 'ITA'), task('PAY-1303', 'UAT Execute', 'UAT')];
+    const asked: string[][] = [];
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', ({ request }) => {
+      const shown = new URL(request.url).searchParams.getAll('shown');
+      asked.push(shown);
+      return HttpResponse.json({ ...fixtures.matrix, parents, task_keys: shown.length ? shown : ['PAY-1301', 'PAY-1302'], functions: [] });
+    }));
+    renderApp('/anken/PAY-1100/matrix/phases');
+    const uat = await screen.findByRole('group', { name: 'UAT' });
+    const ita = screen.getByRole('group', { name: 'ITA' });
+    const dt = { setData: () => {}, effectAllowed: '' };
+    fireEvent.dragStart(uat, { dataTransfer: dt });
+    fireEvent.dragOver(ita, { dataTransfer: dt });
+    fireEvent.drop(ita, { dataTransfer: dt });
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['UAT', 'ITA']);
+    const execute = screen.getByRole('button', { name: /^ITA Execute/ });
+    fireEvent.dragStart(execute, { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole('button', { name: /^UAT Execute/ }), { dataTransfer: dt }); // another phase: refused
+    expect(screen.getAllByRole('button', { name: /Execute|Prepare/ }).map((b) => b.textContent)).toEqual(['UAT Execute1', 'ITA Prepare1', 'ITA Execute1']);
+    fireEvent.dragOver(screen.getByRole('button', { name: /^ITA Prepare/ }), { dataTransfer: dt });
+    fireEvent.drop(screen.getByRole('button', { name: /^ITA Prepare/ }), { dataTransfer: dt });
+    expect(screen.getAllByRole('button', { name: /Execute|Prepare/ }).map((b) => b.textContent)).toEqual(['UAT Execute1', 'ITA Execute1', 'ITA Prepare1']);
+    fireEvent.click(screen.getByRole('button', { name: /^UAT Execute/ })); // show it
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const layout = { phases: ['UAT', 'ITA'], tasks: ['PAY-1303', 'PAY-1302', 'PAY-1301'], shown: ['PAY-1303', 'PAY-1302', 'PAY-1301'] };
+    expect(JSON.parse(localStorage.getItem('tt.matrixLayout.PAY-1100') ?? 'null')).toEqual(layout);
+    cleanup();
+    renderApp('/anken/PAY-1100/matrix');
+    await waitFor(() => expect(asked.at(-1)).toEqual(layout.shown)); // the Matrix asks for this browser's Tasks
+    expect(await screen.findByText(/Showing/)).toBeTruthy();
+    expect(screen.getByText('UAT, ITA')).toBeTruthy(); // in this browser's phase order
+  });
+
+  it('draws the effort burndown and writes the phase and member filters to the URL', async () => {
+    const day = (date: string, plan: number, act: number | null) => ({ date, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
+    let seen: URLSearchParams | undefined;
+    server.use(http.get('*/api/v1/effort/burndown', ({ request }) => {
+      seen = new URL(request.url).searchParams;
+      return HttpResponse.json({
+        epic_key: 'PAY-1100', title: 'Payment flow revision', phases: ['Prepare', 'Implement_Coding'], phase: seen.get('phase'),
+        members: ['binh'], member: seen.get('member'), subtasks: 3, today: '2026-10-07',
+        burndown: { estimate_h: 12, start: '2026-10-06', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
+          days: [day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
+      });
+    }));
+    const { router } = renderApp('/effort/burndown');
+    expect(await screen.findByText('Behind plan')).toBeTruthy();
+    expect(screen.getByText('+2h')).toBeTruthy();
+    expect(screen.getByRole('img', { name: /4h planned and 6h actually remaining of 12h/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Implement_Coding' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'binh' } });
+    await waitFor(() => expect(seen?.get('member')).toBe('binh'));
+    expect(seen?.get('phase')).toBe('Implement_Coding');
   });
 
   it('shows API errors instead of a blank screen', async () => {
@@ -179,6 +253,39 @@ describe('screens render API data at their URLs', () => {
     fireEvent.click(within(sidebar).getByRole('button', { name: 'Sync Jira' }));
     await waitFor(() => expect(body).toEqual({ full: false }));
     expect(await screen.findByText('Synced with Jira')).toBeTruthy();
+  });
+
+  it('shows function names on Planning blocks and opens a function with today\'s tickets highlighted', async () => {
+    const cells = fixtures.matrix.functions[2].cells.filter((c) => c !== null).map((c) => (c.key === 'PAY-1213' ? { ...c, planned_end: '2026-10-08' } : c));
+    const dates = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'];
+    const lane = (member: string, keys: string[]) => ({
+      member_id: member, days: dates.map((date) => ({ date, kind: null, label: null, tentative: false })),
+      items: cells.filter((c) => keys.includes(c.key)).map((card) => ({ card, color_step: card.step })),
+    });
+    server.use(
+      http.get('*/api/v1/planning', () => HttpResponse.json({
+        start: '2026-10-05', end: '2026-10-11', projects: ['PAY'], capacity: [],
+        days: dates.map((date) => ({ date, is_today: date === '2026-10-07', extra_note: null })),
+        rows: [lane('binh', ['PAY-1213']), lane('tanaka', ['PAY-1214'])],
+      })),
+      http.get('*/api/v1/anken/PAY-1100/functions/F03', () => HttpResponse.json({
+        epic_key: 'PAY-1100', function_id: 'F03', name: 'Domestic card payment', tickets: cells.map((card) => ({ phase: 'Implement_Coding', card })),
+      })),
+    );
+    const { router } = renderApp('/planning?start=2026-10-05&weeks=1');
+    const block = await screen.findByRole('button', { name: 'PAY-1213 F03 Domestic card payment' });
+    expect(block.textContent).toBe('Domestic card payment');
+    fireEvent.click(block);
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ fn: 'PAY-1100:F03' }));
+    const panel = await screen.findByRole('complementary', { name: 'Function F03' });
+    const list = await within(panel).findByRole('list', { name: 'Tickets by step' });
+    expect(within(list).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'PAY-1211 Create', 'PAY-1212 BAL Review', 'PAY-1213 Fix comment BAL · to do today', 'PAY-1214 JM Review', 'PAY-1215 Fix comment JM',
+    ]);
+    expect(within(panel).getByText('1 to do today')).toBeTruthy();
+    fireEvent.click(within(list).getByRole('button', { name: 'PAY-1213 Fix comment BAL · to do today' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ ticket: 'PAY-1213' }));
+    expect(router.state.location.search).not.toHaveProperty('fn');
   });
 
   it('falls back to the Jira tab for an unknown settings tab', async () => {

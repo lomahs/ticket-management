@@ -4,7 +4,7 @@ import { useState, type MouseEvent } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import type { TaskCard, Tone } from '../../../shared/api/types';
-import { Button, Icon, IconButton, Select, TextField } from '../../../shared/ds';
+import { Button, Icon, IconButton, TextField } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { STEPS, TONE, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
@@ -14,6 +14,7 @@ import { matrixQuery } from '../api';
 import {
   anyFilter, applyFilter, fromSearch, matchesText, pendingAtStep, stepRange, summaryCounts, toSearch, type MatrixFilter,
 } from '../model/filters';
+import { applyLayout, useMatrixLayout, type MatrixLayout } from '../model/layout';
 import { MatrixHeader } from './MatrixHeader';
 
 const route = getRouteApi('/anken/$epic/matrix');
@@ -26,27 +27,29 @@ const SCOLS: { k: string; kind: 'status' | 'prog'; label: string; dot: string; c
   { k: 'late', kind: 'prog', label: 'Late', dot: 'var(--tn-delay)', col: '6', count: 'late' },
 ];
 
+const splitTasks = (s?: string) => (s ? s.split(',').filter(Boolean) : undefined);
+
 export function MatrixPage() {
   const { epic } = route.useParams();
-  const { task, phase } = route.useSearch();
-  const q = useQuery(matrixQuery(epic, task, phase));
+  const { tasks, phase } = route.useSearch();
+  const [layout] = useMatrixLayout(epic);
+  const q = useQuery(matrixQuery(epic, splitTasks(tasks), phase, layout?.shown));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
       <MatrixHeader epic={epic} title={q.data?.title} phase={q.data?.phase} tab="matrix" />
-      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <Matrix m={q.data} />}
+      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <Matrix m={q.data} layout={layout} />}
     </div>
   );
 }
 
-function Matrix({ m }: { m: Schemas['MatrixView'] }) {
+function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout | null }) {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const members = useMemberMap();
   const f = fromSearch(search);
   const setF = (patch: Partial<MatrixFilter>) => navigate({
-    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, task: (p as { task?: string }).task, phase: (p as { phase?: string }).phase, ...toSearch({ ...f, ...patch }) }), replace: true,
+    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, tasks: (p as { tasks?: string }).tasks, phase: (p as { phase?: string }).phase, ...toSearch({ ...f, ...patch }) }), replace: true,
   });
-  const setTask = (task: string) => navigate({ search: (p) => ({ ticket: (p as { ticket?: string }).ticket, phase: (p as { phase?: string }).phase, task }) });
   const [sumOpen, setSumOpen] = useState(true);
   const [rangeOpen, setRangeOpen] = useState<{ i: number; top: number; left: number } | null>(null);
 
@@ -64,7 +67,6 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
     { label: 'Over estimate', value: s.over_subtasks, sub: 'sub-task' },
     { label: 'Effort', value: hrs(s.logged_h), sub: `/ ${hrs(s.estimate_h)} estimate` },
   ];
-  const pending = pendingAtStep(rows);
   const openRange = (i: number, e: MouseEvent<HTMLButtonElement>) => {
     const b = e.currentTarget.getBoundingClientRect();
     setRangeOpen((cur) => (cur?.i === i ? null : { i, top: b.bottom + 6, left: Math.max(8, Math.min(b.left, innerWidth - 370)) }));
@@ -76,10 +78,17 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
     setF({ ranges });
   };
 
-  // The picker stays when the shown Task has no functions, so another Task can still be chosen.
-  const picker = m.parents.length > 1 && (
-    <Select label="Task" style={{ maxWidth: 480 }} value={m.task_key ?? ''} onChange={setTask}
-      options={m.parents.map((p) => ({ value: p.key, label: `${p.summary} · ${p.functions} function${p.functions === 1 ? '' : 's'}` }))} />
+  // One matrix per phase, in this browser's order; the Tasks (sub-phases) of a phase share its header.
+  const shown = applyLayout(m.parents, layout).filter((p) => m.task_keys.includes(p.key));
+  const phases = [...new Set(shown.map((t) => t.group))];
+  const fromLink = !!(search.tasks || search.phase);
+  const picker = m.parents.length > 0 && (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-muted)' }}>
+      <Icon name="list-todo" size={14} />
+      <span>Showing <b className="heading">{phases.join(', ') || '–'}</b> · {shown.length} of {m.parents.length} sub-phases{fromLink ? ' (from the link)' : ''}</span>
+      {fromLink && <Link to="/anken/$epic/matrix" params={{ epic: m.epic_key }}>Show the saved layout</Link>}
+      <Link to="/anken/$epic/matrix/phases" params={{ epic: m.epic_key }}>Change in Setting phase</Link>
+    </div>
   );
 
   if (!m.functions.length) {
@@ -88,7 +97,7 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
         {picker}
         <div className="card" style={{ padding: 24, color: 'var(--text-muted)' }}>
           {m.parents.some((p) => p.functions > 0)
-            ? 'This Task has no functions yet. Pick another Task above.'
+            ? <>The shown sub-phases have no functions yet. Choose others in <Link to="/anken/$epic/matrix/phases" params={{ epic: m.epic_key }}>Setting phase</Link>.</>
             : <>No sub-tasks in this anken follow the naming rule yet. Check <Link to="/settings/$tab" params={{ tab: 'name-rules' }}>Settings → Name rules</Link>.</>}
         </div>
       </div>
@@ -194,62 +203,14 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><OverBadge />Over estimate</span>
       </div>
 
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-hover)' }}>
-          <div style={{ padding: '8px 12px 8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontWeight: 600, color: 'var(--text-heading)' }}>Function</span>
-            <TextField size="sm" iconBefore="search" placeholder="Search functions…" value={f.q} onChange={(v) => setF({ q: v })} aria-label="Search functions" />
-          </div>
-          {STEPS.map((st, i) => {
-            const rg = f.ranges[i];
-            const hasR = !!(rg && (rg.from || rg.to));
-            const span = stepRange(rows, i);
-            const sd = f.sort?.i === i ? f.sort.dir : 0;
-            return (
-              <div key={st.k} style={{ position: 'relative', padding: '8px 12px', borderLeft: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <button onClick={() => setF({ sort: sd === 0 ? { i, dir: 1 } : sd === 1 ? { i, dir: -1 } : null })} title="Sort by Planned Start" style={{
-                  display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', height: 19, padding: 0, border: 0, background: 'transparent',
-                  color: 'var(--text-heading)', font: '600 13px/19px var(--font-text)', cursor: 'pointer', whiteSpace: 'nowrap',
-                }}>
-                  {st.label}
-                  <span style={{ display: 'flex', color: sd ? 'var(--text-heading)' : 'var(--text-muted)' }}>
-                    <Icon name={sd === 1 ? 'arrow-up' : sd === -1 ? 'arrow-down' : 'arrow-up-down'} size={13} />
-                  </span>
-                </button>
-                <button className="hv-bd" onClick={(e) => openRange(i, e)} title="Filter by Planned Start – End range" style={{
-                  display: 'flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', borderRadius: 999,
-                  border: `1px solid ${hasR ? 'var(--border-focus)' : 'var(--border-strong)'}`, background: hasR ? 'var(--surface-tint)' : 'var(--surface-card)',
-                  color: 'var(--text-heading)', font: '500 11px/1 var(--font-mono)', cursor: 'pointer', whiteSpace: 'nowrap',
-                }}>
-                  <Icon name="calendar" size={12} />
-                  <span style={{ flex: 1, textAlign: 'left' }}>
-                    {hasR ? `${rg.from ? dm(rg.from) : '…'} – ${rg.to ? dm(rg.to) : '…'}` : span ? `${dm(span[0])} – ${dm(span[1])}` : '–'}
-                  </span>
-                  <Icon name="chevron-down" size={12} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {rows.map((r) => <FnRow key={r.id} r={r} />)}
-
-        <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, background: 'var(--surface-hover)' }}>
-          <div style={{ padding: '10px 14px' }}>
-            <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>Pending at step</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Functions whose current step is this column</div>
-          </div>
-          {pending.map((p, i) => (
-            <div key={i} style={{ margin: '4px 3px', padding: '8px 10px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 4, background: p.bottleneck ? 'var(--surface-tint)' : 'transparent' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ font: '700 20px/1.1 var(--font-display)', color: 'var(--text-heading)' }}>{p.count}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.late ? `${p.late} late` : 'function'}</span>
-              </div>
-              {p.bottleneck && <span style={{ alignSelf: 'flex-start', font: '600 10px/16px var(--font-text)', padding: '0 6px', borderRadius: 6, background: 'var(--surface-inverse)', color: 'var(--text-inverse)' }}>Bottleneck</span>}
-            </div>
-          ))}
-        </div>
-      </div>
+      {phases.map((g) => {
+        const tasks = shown.filter((t) => t.group === g);
+        const keys = new Set(tasks.map((t) => t.key));
+        return (
+          <PhaseMatrix key={g} phase={g} tasks={tasks} rows={rows.filter((r) => keys.has(r.task_key))}
+            all={m.functions.filter((r) => keys.has(r.task_key))} f={f} setF={setF} openRange={openRange} />
+        );
+      })}
       {!rows.length && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No functions match the filters.</div>}
 
       {rangeOpen && (
@@ -275,10 +236,114 @@ function Matrix({ m }: { m: Schemas['MatrixView'] }) {
   );
 }
 
+/** The matrix of one phase: one header, then a section per Task (sub-phase), then the pending counts of the phase. */
+function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
+  phase: string; tasks: Schemas['ParentOption'][]; rows: Schemas['FunctionRow'][]; all: Schemas['FunctionRow'][];
+  f: MatrixFilter; setF: (patch: Partial<MatrixFilter>) => void; openRange: (i: number, e: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const pending = pendingAtStep(rows);
+  return (
+    <section className="card" aria-label={`${phase} matrix`} style={{ overflowX: 'auto' }}>
+      <div style={{ minWidth: 1010, display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+        <span className="title">{phase}</span>
+        <span className="eyebrow">{rows.length}/{all.length} function · {tasks.length} sub-phase{tasks.length === 1 ? '' : 's'}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-hover)' }}>
+        <div style={{ padding: '8px 12px 8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-heading)' }}>Function</span>
+          <TextField size="sm" iconBefore="search" placeholder="Search functions…" value={f.q} onChange={(v) => setF({ q: v })} aria-label="Search functions" />
+        </div>
+        {STEPS.map((st, i) => {
+          const rg = f.ranges[i];
+          const hasR = !!(rg && (rg.from || rg.to));
+          const span = stepRange(rows, i);
+          const sd = f.sort?.i === i ? f.sort.dir : 0;
+          return (
+            <div key={st.k} style={{ position: 'relative', padding: '8px 12px', borderLeft: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button onClick={() => setF({ sort: sd === 0 ? { i, dir: 1 } : sd === 1 ? { i, dir: -1 } : null })} title="Sort by Planned Start" style={{
+                display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', height: 19, padding: 0, border: 0, background: 'transparent',
+                color: 'var(--text-heading)', font: '600 13px/19px var(--font-text)', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>
+                {st.label}
+                <span style={{ display: 'flex', color: sd ? 'var(--text-heading)' : 'var(--text-muted)' }}>
+                  <Icon name={sd === 1 ? 'arrow-up' : sd === -1 ? 'arrow-down' : 'arrow-up-down'} size={13} />
+                </span>
+              </button>
+              <button className="hv-bd" onClick={(e) => openRange(i, e)} title="Filter by Planned Start – End range" style={{
+                display: 'flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', borderRadius: 999,
+                border: `1px solid ${hasR ? 'var(--border-focus)' : 'var(--border-strong)'}`, background: hasR ? 'var(--surface-tint)' : 'var(--surface-card)',
+                color: 'var(--text-heading)', font: '500 11px/1 var(--font-mono)', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>
+                <Icon name="calendar" size={12} />
+                <span style={{ flex: 1, textAlign: 'left' }}>
+                  {hasR ? `${rg.from ? dm(rg.from) : '…'} – ${rg.to ? dm(rg.to) : '…'}` : span ? `${dm(span[0])} – ${dm(span[1])}` : '–'}
+                </span>
+                <Icon name="chevron-down" size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {tasks.map((t) => {
+        const own = rows.filter((r) => r.task_key === t.key);
+        const total = all.filter((r) => r.task_key === t.key).length;
+        return (
+          <div key={t.key} role="rowgroup" aria-label={t.name || t.summary}>
+            <div title={t.summary} style={{ minWidth: 1010, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderBottom: '1px solid var(--border-subtle)', background: 'color-mix(in oklch, var(--surface-tint) 55%, var(--surface-card))' }}>
+              <Icon name="list-todo" size={14} />
+              <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{t.name || t.summary}</span>
+              <span className="key">{t.key}</span>
+              <span className="eyebrow">{own.length}/{total} function</span>
+            </div>
+            {own.map((r) => <FnRow key={r.task_key + '/' + r.id} r={r} />)}
+            {!own.length && (
+              <div style={{ minWidth: 1010, padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+                {total ? 'No functions match the filters.' : 'No functions under this Task yet.'}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, background: 'var(--surface-hover)' }}>
+        <div style={{ padding: '10px 14px' }}>
+          <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>Pending at step</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Functions whose current step is this column</div>
+        </div>
+        {pending.map((p, i) => (
+          <div key={i} style={{ margin: '4px 3px', padding: '8px 10px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 4, background: p.bottleneck ? 'var(--surface-tint)' : 'transparent' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{ font: '700 20px/1.1 var(--font-display)', color: 'var(--text-heading)' }}>{p.count}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.late ? `${p.late} late` : 'function'}</span>
+            </div>
+            {p.bottleneck && <span style={{ alignSelf: 'flex-start', font: '600 10px/16px var(--font-text)', padding: '0 6px', borderRadius: 6, background: 'var(--surface-inverse)', color: 'var(--text-inverse)' }}>Bottleneck</span>}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ToneSwatch({ tone, label }: { tone: string; label: string }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ width: 14, height: 14, borderRadius: 5, background: `var(--tn-${tone}-bg)`, border: `1px solid var(--tn-${tone})` }} />{label}
+      <span style={{ width: 14, height: 14, borderRadius: 5, ...toneFill(tone) }} />{label}
+    </span>
+  );
+}
+
+/** NYS reads as not started: no fill, a dashed outline. Every other tone is a filled box with a solid outline. */
+function toneFill(tone: string) {
+  return tone === 'nys'
+    ? { background: 'transparent', border: '1px dashed var(--tn-nys)' }
+    : { background: `var(--tn-${tone}-bg)`, border: `1px solid var(--tn-${tone})` };
+}
+
+function ClosedBadge() {
+  return (
+    <span title="Closed" style={{ display: 'inline-flex', width: 14, height: 14, borderRadius: '50%', alignItems: 'center', justifyContent: 'center', background: 'var(--tn-clo)', color: 'var(--tn-clo-bg)', flex: 'none' }}>
+      <Icon name="check" size={10} />
     </span>
   );
 }
@@ -304,9 +369,9 @@ function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, minWidth: 0 }}>
         <span className="ellipsis" style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{r.name}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-          <Avatar a={ba} size={18} fs={10} /><span className="heading">{ba.name}</span>
+          <span title={`BA · ${ba.name}`} style={{ display: 'contents' }}><Avatar a={ba} size={18} fs={10} /><span className="heading">{ba.name}</span></span>
           <span style={{ width: 1, height: 12, background: 'var(--border-subtle)', margin: '0 2px' }} />
-          <Avatar a={bal} size={18} fs={10} /><span className="heading">{bal.name}</span>
+          <span title={`BAL · ${bal.name}`} style={{ display: 'contents' }}><Avatar a={bal} size={18} fs={10} /><span className="heading">{bal.name}</span></span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 20, padding: '0 8px', borderRadius: 999, background: `var(--tn-${ft}-bg)`, font: '600 11px/1 var(--font-text)', color: 'var(--text-heading)', whiteSpace: 'nowrap' }}>
@@ -335,11 +400,11 @@ function Cell({ c }: { c: TaskCard }) {
   const tone = c.tone as Tone;
   return (
     <button className="hv-dim" onClick={() => open(c.key)} aria-label={`${c.key} ${statusOf(c.status).label}`} style={{
-      position: 'relative', display: 'flex', flexDirection: 'column', gap: 5, padding: '8px 10px', minHeight: 68, margin: 3, border: 0, borderRadius: 10,
-      background: `var(--tn-${tone}-bg)`, boxShadow: active ? 'inset 0 0 0 2px var(--border-focus)' : 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+      position: 'relative', display: 'flex', flexDirection: 'column', gap: 5, padding: '8px 10px', minHeight: 68, margin: 3, boxSizing: 'border-box', borderRadius: 10,
+      ...(tone === 'nys' ? toneFill(tone) : { border: 0, background: `var(--tn-${tone}-bg)` }), boxShadow: active ? 'inset 0 0 0 2px var(--border-focus)' : 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Dot c={`var(--tn-${tone})`} />
+        {c.status === 'C' ? <ClosedBadge /> : <Dot c={`var(--tn-${tone})`} />}
         <span title={statusOf(c.status).label + (c.status === 'W' ? ' · ' + TONE[tone] : '') + (c.late ? ` · late ${c.late_days} days` : '')}
           style={{ font: '600 12px/1 var(--font-mono)', color: 'var(--text-heading)' }}>{c.key}</span>
         <span className="spacer" />

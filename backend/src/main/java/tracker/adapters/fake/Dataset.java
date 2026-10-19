@@ -434,10 +434,12 @@ public final class Dataset {
                 String worker = step.review() ? who : f.ba();
                 int rounds = fixed != null ? fixed.r() : (step.fix() && !st.equals("N") ? 1 : 0);
                 int held = fixed != null ? fixed.d() : 0;
-                out.add(new FakeIssue(
+                FakeIssue issue = new FakeIssue(
                         fixed != null ? fixed.key() : keys.next(), summary(phase, f.fid(), f.name(), step.label()), parent, st, who,
                         ps, pe, est, Dates.addDays(start, -3), splitLogs(worker, logged, pe, STEP_NOTES.get(kind)),
-                        handoverEvents(st, who, f.ba(), kind.equals("fixj") ? jm : reviewer, step.fix(), rounds, held, ps)));
+                        handoverEvents(st, who, f.ba(), kind.equals("fixj") ? jm : reviewer, step.fix(), rounds, held, ps));
+                issue.reporter = reviewer; // the BAL files the function's sub-tasks
+                out.add(issue);
             }
             day = Dates.addDays(day, idx % 2 != 0 ? 3 : 4);
         }

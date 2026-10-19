@@ -10,14 +10,22 @@ import java.util.Map;
  * @param created        YYYY-MM-DD
  * @param updated        ISO datetime
  * @param fields         raw values of mapped fields (JSON values: String, Number, Boolean, Map, List or null), by Jira field id
+ * @param reporter       the current reporter
  */
 public record IssueSnapshot(String key, String project, String summary, String statusName, String statusCategory,
                             UserSnapshot assignee, String parentKey, String created, String updated,
-                            Map<String, Object> fields, List<WorklogSnapshot> worklogs, List<ChangeSnapshot> changes) {
+                            Map<String, Object> fields, List<WorklogSnapshot> worklogs, List<ChangeSnapshot> changes,
+                            UserSnapshot reporter) {
 
     public IssueSnapshot {
         fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
         worklogs = List.copyOf(worklogs);
         changes = List.copyOf(changes);
+    }
+
+    public IssueSnapshot(String key, String project, String summary, String statusName, String statusCategory, UserSnapshot assignee,
+                         String parentKey, String created, String updated, Map<String, Object> fields, List<WorklogSnapshot> worklogs,
+                         List<ChangeSnapshot> changes) {
+        this(key, project, summary, statusName, statusCategory, assignee, parentKey, created, updated, fields, worklogs, changes, null);
     }
 }

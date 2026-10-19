@@ -52,6 +52,30 @@ class FlagsTest {
     }
 
     @Test
+    void baIsTheCreateStepsLatestAssigneeWithTheBaRoleAndBalItsFirstReporter() {
+        Set<String> bas = Set.of("an", "chi");
+        // an → minh (lent to the BAL) → chi (handed over to another BA) → minh (lent again)
+        Issue create = issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("minh").reporter("minh")
+                .events(assigned("2026-10-02", "an", "minh"), assigned("2026-10-05", "minh", "chi"), assigned("2026-10-06", "chi", "minh"))
+                .build();
+        Issue review = issue().key("A2").fid("F1").step(StepKind.BAL_REVIEW).assignee("an").build();
+        Function fn = Flags.buildFunctions(List.of(create, review)).get(0);
+        assertThat(fn.baId(bas)).isEqualTo("chi");
+        assertThat(fn.baId(Set.of())).isEqualTo("an"); // nobody has the BA role: the first assignee
+        assertThat(fn.balId()).isEqualTo("minh");
+        assertThat(fn.ownerId()).isEqualTo("minh"); // the worker rules keep the current assignee
+
+        Issue unassignedAtFirst = issue().key("B1").fid("F2").step(StepKind.CREATE).assignee("minh")
+                .events(assigned("2026-10-02", null, "an"), assigned("2026-10-03", "an", "minh")).build();
+        Function noReporter = Flags.buildFunctions(List.of(unassignedAtFirst,
+                issue().key("B2").fid("F2").step(StepKind.BAL_REVIEW).assignee("an").build())).get(0);
+        assertThat(noReporter.baId(bas)).isEqualTo("an");
+        assertThat(noReporter.balId()).isEqualTo("an"); // no reporter: the BAL Review assignee
+        assertThat(Flags.buildFunctions(List.of(issue().key("C1").fid("F3").step(StepKind.CREATE).assignee("dung").build())).get(0)
+                .baId(bas)).isEqualTo("dung"); // never reassigned, not a BA: still the assignee
+    }
+
+    @Test
     void sameFunctionUnderTwoTasksIsTwoFunctions() {
         List<Issue> issues = new ArrayList<>();
         five("Login", "CNNNN").forEach(i -> issues.add(withParent(i, "PAY-10")));

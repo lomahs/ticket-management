@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/anken/{epic}/functions/{function_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["function"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/anken/{epic}/matrix": {
         parameters: {
             query?: never;
@@ -108,6 +124,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/effort/burndown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["burndown"];
         put?: never;
         post?: never;
         delete?: never;
@@ -760,6 +792,40 @@ export interface components {
             remaining_h: number;
             start: string | null;
         };
+        BurndownChart: {
+            /** Format: double */
+            actual_remaining_h: number;
+            days: components["schemas"]["BurndownDay"][];
+            end: string | null;
+            /** Format: double */
+            estimate_h: number;
+            /** Format: double */
+            plan_remaining_h: number;
+            start: string | null;
+        };
+        BurndownDay: {
+            /** Format: double */
+            actual_remaining_h: number | null;
+            date: string;
+            /** Format: double */
+            logged_h: number;
+            /** Format: double */
+            plan_remaining_h: number;
+            /** Format: double */
+            planned_h: number;
+        };
+        BurndownView: {
+            burndown: components["schemas"]["BurndownChart"];
+            epic_key: string | null;
+            member: string | null;
+            members: string[];
+            phase: string | null;
+            phases: string[];
+            /** Format: int32 */
+            subtasks: number;
+            title: string;
+            today: string;
+        };
         CalendarCell: {
             date: string;
             kind: string | null;
@@ -942,6 +1008,17 @@ export interface components {
             progress: string;
             reviewer_id: string | null;
             state: string;
+            task_key: string;
+        };
+        FunctionTicket: {
+            card: components["schemas"]["TaskCard"];
+            phase: string;
+        };
+        FunctionTickets: {
+            epic_key: string;
+            function_id: string;
+            name: string;
+            tickets: components["schemas"]["FunctionTicket"][];
         };
         Handover: {
             date: string;
@@ -1065,7 +1142,7 @@ export interface components {
             parents: components["schemas"]["ParentOption"][];
             phase: string;
             stats: components["schemas"]["MatrixStats"];
-            task_key: string | null;
+            task_keys: string[];
             title: string;
         };
         Member: {
@@ -1162,7 +1239,9 @@ export interface components {
         ParentOption: {
             /** Format: int32 */
             functions: number;
+            group: string;
             key: string;
+            name: string;
             phase: string;
             prefix: string;
             summary: string;
@@ -1362,6 +1441,7 @@ export interface components {
         TicketDetail: {
             card: components["schemas"]["TaskCard"];
             history: components["schemas"]["Handover"][];
+            jira_url: string | null;
             owner_id: string | null;
             warnings: components["schemas"]["TicketWarning"][];
             worklogs: components["schemas"]["Worklog"][];
@@ -1539,11 +1619,35 @@ export interface operations {
             };
         };
     };
+    function: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+                function_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunctionTickets"];
+                };
+            };
+        };
+    };
     matrix: {
         parameters: {
             query?: {
-                task?: string;
+                tasks?: string[];
                 phase?: string;
+                shown?: string[];
             };
             header?: never;
             path: {
@@ -1604,6 +1708,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EffortAnalysis"];
+                };
+            };
+        };
+    };
+    burndown: {
+        parameters: {
+            query?: {
+                anken?: string;
+                phase?: string;
+                member?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BurndownView"];
                 };
             };
         };

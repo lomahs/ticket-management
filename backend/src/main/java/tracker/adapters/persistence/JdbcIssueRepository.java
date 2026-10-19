@@ -29,7 +29,7 @@ class JdbcIssueRepository implements IssueRepository {
     private record IssueRow(String key, String project, String epicKey, String parentKey, String kind, String summary,
                             String phase, String status, String jiraStatus, String assigneeId, String plannedStart,
                             String plannedEnd, double estimateH, double remainingH, String created, String functionId, String functionName,
-                            String step) {
+                            String step, String reporterId) {
     }
 
     private record WorklogRow(String issueKey, String date, String memberId, double hours, String note) {
@@ -69,7 +69,7 @@ class JdbcIssueRepository implements IssueRepository {
                 r.key(), r.project(), r.epicKey(), r.parentKey(), IssueKind.of(r.kind()), r.summary(), r.phase(),
                 Status.of(r.status()), r.assigneeId(), r.plannedStart(), r.plannedEnd(), r.estimateH(), r.remainingH(), r.created(),
                 r.jiraStatus(), r.functionId(), r.functionName(), r.step() != null ? StepKind.of(r.step()) : null,
-                logs.getOrDefault(r.key(), List.of()), events.getOrDefault(r.key(), List.of()))).toList();
+                logs.getOrDefault(r.key(), List.of()), events.getOrDefault(r.key(), List.of()), r.reporterId())).toList();
     }
 
     @Override
@@ -96,23 +96,23 @@ class JdbcIssueRepository implements IssueRepository {
     public void save(Issue i) {
         jdbc.sql("""
                 INSERT INTO issues ("key", project, epic_key, parent_key, kind, summary, phase, status, jira_status, assignee_id,
-                                    planned_start, planned_end, estimate_h, remaining_h, created, function_id, function_name, step)
+                                    planned_start, planned_end, estimate_h, remaining_h, created, function_id, function_name, step, reporter_id)
                 VALUES (:key, :project, :epicKey, :parentKey, :kind, :summary, :phase, :status, :jiraStatus, :assigneeId,
-                        :plannedStart, :plannedEnd, :estimateH, :remainingH, :created, :functionId, :functionName, :step)
+                        :plannedStart, :plannedEnd, :estimateH, :remainingH, :created, :functionId, :functionName, :step, :reporterId)
                 ON CONFLICT ("key") DO UPDATE SET project = excluded.project, epic_key = excluded.epic_key,
                     parent_key = excluded.parent_key, kind = excluded.kind, summary = excluded.summary, phase = excluded.phase,
                     status = excluded.status, jira_status = excluded.jira_status, assignee_id = excluded.assignee_id,
                     planned_start = excluded.planned_start, planned_end = excluded.planned_end, estimate_h = excluded.estimate_h,
                     remaining_h = excluded.remaining_h,
                     created = excluded.created, function_id = excluded.function_id, function_name = excluded.function_name,
-                    step = excluded.step
+                    step = excluded.step, reporter_id = excluded.reporter_id
                 """)
                 .param("key", i.key()).param("project", i.project()).param("epicKey", i.epicKey()).param("parentKey", i.parentKey())
                 .param("kind", i.kind().value()).param("summary", i.summary()).param("phase", i.phase())
                 .param("status", i.status().value()).param("jiraStatus", i.jiraStatus()).param("assigneeId", i.assigneeId())
                 .param("plannedStart", i.plannedStart()).param("plannedEnd", i.plannedEnd()).param("estimateH", i.estimateH()).param("remainingH", i.remainingH())
                 .param("created", i.created()).param("functionId", i.functionId()).param("functionName", i.functionName())
-                .param("step", i.step() != null ? i.step().value() : null)
+                .param("step", i.step() != null ? i.step().value() : null).param("reporterId", i.reporterId())
                 .update();
         jdbc.sql("DELETE FROM worklogs WHERE issue_key = :key").param("key", i.key()).update();
         jdbc.sql("DELETE FROM issue_events WHERE issue_key = :key").param("key", i.key()).update();

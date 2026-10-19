@@ -7,7 +7,7 @@ const cell = (ps: string, pe: string, late = false) => ({ planned_start: ps, pla
 const row = (id: string, o: Partial<Row> = {}): Row => ({
   id, name: `Fn ${id}`, owner_id: 'an', reviewer_id: 'minh', current: 1, state: 'ontime', progress: 'ontime', group: 'W', pct: 40,
   cells: [cell('2026-10-01', '2026-10-02'), cell('2026-10-05', '2026-10-05'), cell('2026-10-06', '2026-10-06'), null, null],
-  logged_h: 1, estimate_h: 2, ...o,
+  logged_h: 1, estimate_h: 2, task_key: 'PAY-1102', ...o,
 });
 const ROWS = [
   row('F01'), row('F02', { owner_id: 'binh', group: 'N', progress: 'late', current: 0, cells: [cell('2026-09-01', '2026-09-02', true), null, null, null, null] }),

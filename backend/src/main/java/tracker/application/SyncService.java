@@ -297,6 +297,9 @@ public class SyncService {
                     events.add(new IssueEvent(c.at(), EventField.STATUS, statusValue(c.fromValue()), statusValue(c.toValue())));
                 }
             }
+            // the first reporter: the one before the first reporter change, else the current one
+            String reporterId = snap.changes().stream().filter(c -> c.field().equals("reporter")).findFirst()
+                    .map(c -> c.fromUser() != null ? member(c.fromUser()) : member(c.toUser())).orElseGet(() -> member(snap.reporter()));
             TrackerSettings.FieldMapping fm = s.fieldMapping;
             Double hours = JiraValues.hours(snap.fields().get(fm.effort), fm.effort);
             Double remaining = JiraValues.hours(snap.fields().get(fm.remaining), fm.remaining);
@@ -308,7 +311,7 @@ public class SyncService {
                     status(s, snap.statusName(), snap.statusCategory()), assigneeId,
                     JiraValues.date(snap.fields().get(fm.plannedStart)), JiraValues.date(snap.fields().get(fm.plannedEnd)),
                     hours != null ? hours : 0,
-                    remaining != null ? remaining : hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events);
+                    remaining != null ? remaining : hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events, reporterId);
         }
     }
 }

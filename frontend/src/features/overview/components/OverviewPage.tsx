@@ -141,7 +141,7 @@ function PhaseRow({ epic, p, tasks }: { epic: string; p: Schemas['PhaseRollup'];
             const st = statusOf(t.status);
             return (
               <li key={t.key}>
-                <Link to="/anken/$epic/matrix" params={{ epic }} search={{ phase: p.name, task: t.key }} className="hv-bd" title={t.summary} style={{
+                <Link to="/anken/$epic/matrix" params={{ epic }} search={{ tasks: t.key }} className="hv-bd" title={t.summary} style={{
                   display: 'grid', gridTemplateColumns: PHASE_GRID, alignItems: 'center', gap: 14, padding: '7px 4px 7px 8px', marginTop: 4,
                   borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)', textDecoration: 'none', color: 'inherit',
                 }}>

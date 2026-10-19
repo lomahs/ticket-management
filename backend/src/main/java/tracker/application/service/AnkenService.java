@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Naming;
 import tracker.domain.Numbers;
+import tracker.domain.Role;
 import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.Overview;
 import tracker.domain.PhaseGroups;
@@ -162,12 +164,16 @@ public class AnkenService {
     // --- matrix -----------------------------------------------------------------------------------------------------
 
     /**
-     * @param state    done | nys | delay | ontime
-     * @param progress early | ontime | late
-     * @param group    N | W | D
+     * @param state      done | nys | delay | ontime
+     * @param progress   early | ontime | late
+     * @param group      N | W | D
+     * @param ownerId    the BA: latest assignee of the Create sub-task with the BA role, else its first assignee
+     * @param reviewerId the BAL: first reporter of the Create sub-task
+     * @param taskKey    the Task (sub-phase) the function belongs to
      */
     public record FunctionRow(String id, String name, @Nullable String ownerId, @Nullable String reviewerId, int current, String state,
-                              String progress, String group, int pct, List<@Nullable TaskCard> cells, double loggedH, double estimateH) {
+                              String progress, String group, int pct, List<@Nullable TaskCard> cells, double loggedH, double estimateH,
+                              String taskKey) {
     }
 
     public record MatrixStats(int progressPct, int functionsDone, int functionsTotal, int lateFunctions, int lateSubtasks,
@@ -175,16 +181,26 @@ public class AnkenService {
     }
 
     /**
+     * A Task of the epic: one sub-phase of a phase group.
+     *
+     * @param name      the Task title without its leading brackets, e.g. "ITA Prepare"
+     * @param group     the phase group the Task belongs to
      * @param prefix    the value of {prefix} for this Task's sub-tasks
      * @param workflow  whether functions can be added under this Task
      * @param functions how many functions the Task has
      */
-    public record ParentOption(String key, String summary, String phase, String prefix, boolean workflow, int functions) {
+    public record ParentOption(String key, String summary, String name, String phase, String group, String prefix, boolean workflow,
+                               int functions) {
     }
 
-    /** @param taskKey the Task whose functions are shown; null when the epic has no Task with functions */
+    /**
+     * @param phase     the phase groups of the shown Tasks, joined
+     * @param functions the functions of the shown Tasks, Task by Task
+     * @param parents   every Task of the epic, by phase group, then planned start
+     * @param taskKeys  the shown Tasks, in the order of {@code parents}; empty when the epic has no Tasks
+     */
     public record MatrixView(String epicKey, String title, String phase, MatrixStats stats, List<FunctionRow> functions,
-                             List<ParentOption> parents, String nextFunctionId, @Nullable String taskKey) {
+                             List<ParentOption> parents, String nextFunctionId, List<String> taskKeys) {
     }
 
     private static final Pattern FUNCTION_ID = Pattern.compile("([A-Za-z]+)(\\d+)");
@@ -222,55 +238,89 @@ public class AnkenService {
         return prefix + String.format("%0" + width + "d", next);
     }
 
-    /** The epic's Tasks in phase order, each with its template's prefix and workflow. */
+    /** The epic's Tasks by phase group, then the earliest planned start of their sub-tasks, each with its template's prefix and workflow. */
     private static List<ParentOption> parentOptions(TrackerContext ctx, String epic) {
         WorkStructure st = ctx.settings.structure;
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
-        List<String> order = st.orderedPhases(parents.stream().map(Issue::phase).toList());
+        Map<String, String> groups = groupOfTask(ctx, epic);
+        List<Issue> subs = epicSubtasks(ctx, epic);
+        Map<String, List<Issue>> byGroup = new LinkedHashMap<>();
+        groups.values().forEach(g -> byGroup.computeIfAbsent(g, x -> new ArrayList<>()));
+        subs.forEach(i -> {
+            String g = groups.get(Text.orElse(i.parentKey(), ""));
+            if (g != null) {
+                byGroup.get(g).add(i);
+            }
+        });
+        List<String> order = PhaseGroups.ordered(byGroup, st.phases());
+        Map<String, String> start = new HashMap<>();
+        subs.forEach(i -> {
+            if (i.parentKey() != null && Text.hasText(i.plannedStart())) {
+                start.merge(i.parentKey(), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
+            }
+        });
         List<Issue> sorted = new ArrayList<>(parents);
-        sorted.sort(Comparator.comparingInt((Issue p) -> order.indexOf(p.phase())).thenComparing(Issue::key));
+        sorted.sort(Comparator.comparingInt((Issue p) -> order.indexOf(groups.get(p.key())))
+                .thenComparing(p -> start.getOrDefault(p.key(), "9999")).thenComparing(Issue::key));
         return sorted.stream().map(p -> {
             TaskTemplate t = st.taskTemplate(p.summary());
             int functions = (int) ctx.functions.stream().filter(f -> f.parentKey().equals(p.key())).count();
-            return new ParentOption(p.key(), p.summary(), p.phase(), t != null ? t.prefix() : p.phase(), t == null || t.workflow(),
-                    functions);
+            return new ParentOption(p.key(), p.summary(), PhaseGroups.taskName(p.summary()), p.phase(), groups.get(p.key()),
+                    t != null ? t.prefix() : p.phase(), t == null || t.workflow(), functions);
         }).toList();
     }
 
     /**
-     * @param task  the Task to show; null shows the first Task that has functions
-     * @param phase only the Tasks of this phase group; null for all Tasks
+     * @param tasks the Tasks to show; when empty, every Task of {@code phase}, else the {@code shown} ones, else every Task of the
+     *              first phase group that has functions
+     * @param phase used when no Tasks are given
+     * @param shown the Tasks the viewer's own layout shows; keys that are no longer Tasks of the epic are skipped
      */
-    public MatrixView matrix(String epic, @Nullable String task, @Nullable String phase) {
+    public MatrixView matrix(String epic, @Nullable List<String> tasks, @Nullable String phase, @Nullable List<String> shown) {
         TrackerContext ctx = context.load();
         require(ctx, epic);
         List<ParentOption> parents = parentOptions(ctx, epic);
-        Map<String, String> groups = groupOfTask(ctx, epic);
-        if (phase != null) {
-            parents = parents.stream().filter(p -> phase.equals(groups.get(p.key()))).toList();
-            if (parents.isEmpty()) {
+        List<ParentOption> picked;
+        List<ParentOption> saved = shown == null ? List.of() : parents.stream().filter(p -> shown.contains(p.key())).toList();
+        if (tasks != null && !tasks.isEmpty()) {
+            for (String t : tasks) {
+                if (parents.stream().noneMatch(p -> p.key().equals(t))) {
+                    throw new NotFound(t + " is not a Task of " + epic, "tasks");
+                }
+            }
+            picked = parents.stream().filter(p -> tasks.contains(p.key())).toList();
+        } else if (Text.hasText(phase)) {
+            picked = parents.stream().filter(p -> p.group().equals(phase)).toList();
+            if (picked.isEmpty()) {
                 throw new NotFound(phase + " is not a phase of " + epic, "phase");
             }
+        } else if (!saved.isEmpty()) {
+            picked = saved;
+        } else {
+            String first = parents.stream().filter(p -> p.functions() > 0).map(ParentOption::group).findFirst()
+                    .orElse(parents.isEmpty() ? null : parents.get(0).group());
+            picked = parents.stream().filter(p -> p.group().equals(first)).toList();
         }
-        if (task != null && parents.stream().noneMatch(p -> p.key().equals(task))) {
-            throw new NotFound(task + " is not a Task of " + epic + (phase != null ? " in " + phase : ""), "task");
+        List<String> taskKeys = picked.stream().map(ParentOption::key).toList();
+        List<Function> fns = new ArrayList<>();
+        for (String t : taskKeys) {
+            ctx.functions.stream().filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(t)).forEach(fns::add);
         }
-        String shown = task != null ? task : parents.stream().filter(p -> p.functions() > 0).map(ParentOption::key).findFirst()
-                .orElse(phase != null ? parents.get(0).key() : null);
-        List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(shown)).toList();
         Set<String> late = new HashSet<>();
         ctx.flags.forEach((k, f) -> {
             if (f.late()) {
                 late.add(k);
             }
         });
+        Set<String> bas = ctx.members.entrySet().stream().filter(e -> e.getValue().role() == Role.BA).map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         List<FunctionRow> rows = fns.stream().map(f -> new FunctionRow(
-                f.id(), f.name(), f.ownerId(), f.reviewerId(), f.current(),
+                f.id(), f.name(), f.baId(bas), f.balId(), f.current(),
                 Flags.functionState(f, late), Flags.functionProgress(f, ctx.today, late), Flags.groupStatus(f),
                 Flags.progressPct(f),
                 f.cells().stream().map(c -> c != null ? ctx.card(c) : null).toList(),
                 Numbers.round(f.issues().stream().mapToDouble(Issue::loggedH).sum(), 2),
-                Numbers.round(f.issues().stream().mapToDouble(Issue::estimateH).sum(), 2))).toList();
+                Numbers.round(f.issues().stream().mapToDouble(Issue::estimateH).sum(), 2), f.parentKey())).toList();
         List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
         MatrixStats stats = new MatrixStats(
                 rows.isEmpty() ? 0 : (int) Math.round(rows.stream().mapToInt(FunctionRow::pct).sum() / (double) rows.size()),
@@ -280,8 +330,42 @@ public class AnkenService {
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
-        String shownPhase = phase != null ? phase : shown != null ? groups.getOrDefault(shown, "") : "";
-        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), shown);
+        String shownPhase = String.join(", ", picked.stream().map(ParentOption::group).distinct().toList());
+        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), taskKeys);
+    }
+
+    // --- one function -------------------------------------------------------------------------------------------------
+
+    /** @param phase the phase group of the sub-task's parent Task */
+    public record FunctionTicket(String phase, TaskCard card) {
+    }
+
+    /** @param tickets every sub-task of the function, in phase order, then step order */
+    public record FunctionTickets(String epicKey, String functionId, String name, List<FunctionTicket> tickets) {
+    }
+
+    /** The sub-tasks with this function id under any Task of the epic. */
+    public FunctionTickets function(String epic, String functionId) {
+        TrackerContext ctx = context.load();
+        require(ctx, epic);
+        List<Issue> subs = epicSubtasks(ctx, epic).stream().filter(i -> functionId.equals(i.functionId())).toList();
+        if (subs.isEmpty()) {
+            throw new NotFound("Function " + functionId + " has no sub-tasks in " + epic, "function_id");
+        }
+        Map<String, String> groups = groupOfTask(ctx, epic);
+        Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
+        for (Issue i : subs) {
+            byPhase.computeIfAbsent(groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER), x -> new ArrayList<>()).add(i);
+        }
+        List<FunctionTicket> tickets = new ArrayList<>();
+        for (String phase : PhaseGroups.ordered(byPhase, ctx.settings.structure.phases())) {
+            byPhase.get(phase).stream()
+                    .sorted(Comparator.comparingInt((Issue i) -> i.step() != null ? Steps.index(i.step()) : Steps.COUNT)
+                            .thenComparing(i -> Text.orElse(i.plannedStart(), "9999")).thenComparing(Issue::key))
+                    .forEach(i -> tickets.add(new FunctionTicket(phase, ctx.card(i))));
+        }
+        String name = subs.stream().map(Issue::functionName).filter(Text::hasText).findFirst().orElse(functionId);
+        return new FunctionTickets(epic, functionId, name, tickets);
     }
 
     // --- new function -------------------------------------------------------------------------------------------------

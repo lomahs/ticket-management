@@ -192,6 +192,7 @@ public class JiraSettingsService {
             new AppField("summary", "Summary", "Phase, function and step of a sub-task, by the naming rule", "Text", List.of(), "summary", false),
             new AppField("status", "Status", "NYS / WIP / Resolved / Closed through the status mapping", "Status", List.of(), "status", false),
             new AppField("assignee", "Assignee", "Who handles the sub-task: My Work, workload, team members", "User", List.of(), "assignee", false),
+            new AppField("reporter", "Reporter", "BAL of a function: the first reporter of its Create sub-task", "User", List.of(), "reporter", false),
             new AppField("parent", "Parent", "Epic → Task → Sub-task structure and phase groups", "Issue", List.of(), "parent", false),
             new AppField("worklog", "Work log", "Logged hours: actual effort, progress and timesheets; actual dates when the history has none", "Work log", List.of(), "worklog", false),
             new AppField("changelog", "History", "Actual start (moved to In Progress) and end (moved to Resolved), review rounds, days held in a status", "Changelog", List.of(), "changelog", false),

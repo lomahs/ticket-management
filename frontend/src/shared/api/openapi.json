@@ -124,6 +124,39 @@
         "tags" : [ "anken-api" ]
       }
     },
+    "/api/v1/anken/{epic}/functions/{function_id}" : {
+      "get" : {
+        "operationId" : "function",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "function_id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FunctionTickets"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-api" ]
+      }
+    },
     "/api/v1/anken/{epic}/matrix" : {
       "get" : {
         "operationId" : "matrix",
@@ -136,10 +169,13 @@
           }
         }, {
           "in" : "query",
-          "name" : "task",
+          "name" : "tasks",
           "required" : false,
           "schema" : {
-            "type" : "string"
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         }, {
           "in" : "query",
@@ -147,6 +183,16 @@
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "shown",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         } ],
         "responses" : {
@@ -208,6 +254,46 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/EffortAnalysis"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "effort-api" ]
+      }
+    },
+    "/api/v1/effort/burndown" : {
+      "get" : {
+        "operationId" : "burndown",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "phase",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "member",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BurndownView"
                 }
               }
             },
@@ -1659,6 +1745,101 @@
         },
         "required" : [ "current", "items", "kind", "remaining_h", "start" ]
       },
+      "BurndownChart" : {
+        "type" : "object",
+        "properties" : {
+          "actual_remaining_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "days" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BurndownDay"
+            }
+          },
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
+          "estimate_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "plan_remaining_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "start" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "actual_remaining_h", "days", "end", "estimate_h", "plan_remaining_h", "start" ]
+      },
+      "BurndownDay" : {
+        "type" : "object",
+        "properties" : {
+          "actual_remaining_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "logged_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "plan_remaining_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "actual_remaining_h", "date", "logged_h", "plan_remaining_h", "planned_h" ]
+      },
+      "BurndownView" : {
+        "type" : "object",
+        "properties" : {
+          "burndown" : {
+            "$ref" : "#/components/schemas/BurndownChart"
+          },
+          "epic_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "member" : {
+            "type" : [ "string", "null" ]
+          },
+          "members" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "phase" : {
+            "type" : [ "string", "null" ]
+          },
+          "phases" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "subtasks" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "today" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "burndown", "epic_key", "member", "members", "phase", "phases", "subtasks", "title", "today" ]
+      },
       "CalendarCell" : {
         "type" : "object",
         "properties" : {
@@ -2238,9 +2419,45 @@
           },
           "state" : {
             "type" : "string"
+          },
+          "task_key" : {
+            "type" : "string"
           }
         },
-        "required" : [ "cells", "current", "estimate_h", "group", "id", "logged_h", "name", "owner_id", "pct", "progress", "reviewer_id", "state" ]
+        "required" : [ "cells", "current", "estimate_h", "group", "id", "logged_h", "name", "owner_id", "pct", "progress", "reviewer_id", "state", "task_key" ]
+      },
+      "FunctionTicket" : {
+        "type" : "object",
+        "properties" : {
+          "card" : {
+            "$ref" : "#/components/schemas/TaskCard"
+          },
+          "phase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "card", "phase" ]
+      },
+      "FunctionTickets" : {
+        "type" : "object",
+        "properties" : {
+          "epic_key" : {
+            "type" : "string"
+          },
+          "function_id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "tickets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FunctionTicket"
+            }
+          }
+        },
+        "required" : [ "epic_key", "function_id", "name", "tickets" ]
       },
       "Handover" : {
         "type" : "object",
@@ -2606,14 +2823,17 @@
           "stats" : {
             "$ref" : "#/components/schemas/MatrixStats"
           },
-          "task_key" : {
-            "type" : [ "string", "null" ]
+          "task_keys" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           },
           "title" : {
             "type" : "string"
           }
         },
-        "required" : [ "epic_key", "functions", "next_function_id", "parents", "phase", "stats", "task_key", "title" ]
+        "required" : [ "epic_key", "functions", "next_function_id", "parents", "phase", "stats", "task_keys", "title" ]
       },
       "Member" : {
         "type" : "object",
@@ -2890,7 +3110,13 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "group" : {
+            "type" : "string"
+          },
           "key" : {
+            "type" : "string"
+          },
+          "name" : {
             "type" : "string"
           },
           "phase" : {
@@ -2906,7 +3132,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "functions", "key", "phase", "prefix", "summary", "workflow" ]
+        "required" : [ "functions", "group", "key", "name", "phase", "prefix", "summary", "workflow" ]
       },
       "PhaseRollup" : {
         "type" : "object",
@@ -3477,6 +3703,9 @@
               "$ref" : "#/components/schemas/Handover"
             }
           },
+          "jira_url" : {
+            "type" : [ "string", "null" ]
+          },
           "owner_id" : {
             "type" : [ "string", "null" ]
           },
@@ -3493,7 +3722,7 @@
             }
           }
         },
-        "required" : [ "card", "history", "owner_id", "warnings", "worklogs" ]
+        "required" : [ "card", "history", "jira_url", "owner_id", "warnings", "worklogs" ]
       },
       "TicketPatchIn" : {
         "type" : "object",

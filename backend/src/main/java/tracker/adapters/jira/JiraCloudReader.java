@@ -45,7 +45,7 @@ import tracker.application.ports.JiraReader;
  * truncated; those are completed from the per-issue endpoints.
  */
 public final class JiraCloudReader implements JiraReader {
-    static final List<String> BASE_FIELDS = List.of("summary", "status", "assignee", "parent", "project", "created", "updated", "worklog");
+    static final List<String> BASE_FIELDS = List.of("summary", "status", "assignee", "reporter", "parent", "project", "created", "updated", "worklog");
     static final int MAX_ATTEMPTS = 5;
     static final int PARENT_CHUNK = 50;
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -381,12 +381,12 @@ public final class JiraCloudReader implements JiraReader {
             String at = prefix(h.path("created").asText(), 10);
             for (JsonNode it : h.path("items")) {
                 String field = textOrNull(it, "field");
-                if ("assignee".equals(field)) {
+                if ("assignee".equals(field) || "reporter".equals(field)) {
                     String from = textOrNull(it, "from");
                     String to = textOrNull(it, "to");
                     UserSnapshot fromUser = from != null && !from.isEmpty() ? new UserSnapshot(from, text(it, "fromString", "")) : null;
                     UserSnapshot toUser = to != null && !to.isEmpty() ? new UserSnapshot(to, text(it, "toString", "")) : null;
-                    changes.add(new ChangeSnapshot(at, "assignee", from, to, fromUser, toUser));
+                    changes.add(new ChangeSnapshot(at, field, from, to, fromUser, toUser));
                 } else if ("status".equals(field)) {
                     changes.add(new ChangeSnapshot(at, "status", textOrNull(it, "fromString"), textOrNull(it, "toString")));
                 }
@@ -403,6 +403,6 @@ public final class JiraCloudReader implements JiraReader {
                 key, text(obj(f.get("project")), "key", key.split("-", -1)[0]), text(f, "summary", ""),
                 text(status, "name", ""), text(obj(status.get("statusCategory")), "key", "indeterminate"),
                 user(f.get("assignee")), textOrNull(obj(f.get("parent")), "key"),
-                prefix(text(f, "created", ""), 10), updated, fields, logs, changes);
+                prefix(text(f, "created", ""), 10), updated, fields, logs, changes, user(f.get("reporter")));
     }
 }

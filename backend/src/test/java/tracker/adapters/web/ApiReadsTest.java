@@ -60,6 +60,9 @@ class ApiReadsTest extends ApiTestSupport {
         assertThat(m.get("functions")).hasSize(12);
         assertThat(m.get("functions").get(0).get("cells").get(0).get("tone").asText()).isEqualTo("clo");
         assertThat(m.get("functions").get(0).get("cells").get(0).has("is_current")).isTrue();
+        assertThat(call(get("/api/v1/anken/PAY-1100/matrix?tasks=PAY-1101&tasks=PAY-1103")).json().get("task_keys").toString())
+                .isEqualTo("[\"PAY-1101\",\"PAY-1103\"]");
+        assertThat(call(get("/api/v1/anken/PAY-1100/matrix?tasks=PAY-1101,PAY-1102")).json().get("task_keys")).hasSize(2);
         problem(call(get("/api/v1/anken/NOPE-1/matrix")), 404, "not_found");
     }
 
@@ -131,6 +134,7 @@ class ApiReadsTest extends ApiTestSupport {
         JsonNode t = call(get("/api/v1/tickets/PAY-1213")).json();
         assertThat(t.get("card").get("rounds").asInt()).isEqualTo(3);
         assertThat(t.get("warnings").get(0).get("kind").asText()).isEqualTo("late");
+        assertThat(t.get("jira_url").asText()).isEqualTo("https://acme-pay.atlassian.net/browse/PAY-1213");
         JsonNode a = call(json(post("/api/v1/qa"), Map.of("q", "Which tickets ping-pong for many rounds?"))).json();
         assertThat(a.get("text").asText()).contains("rounds");
     }

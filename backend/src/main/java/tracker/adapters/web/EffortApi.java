@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.application.service.EffortService.BurndownView;
 import tracker.application.service.EffortService.DayDetailView;
 import tracker.application.service.EffortService.EffortAnalysis;
 import tracker.application.service.EffortService.TimesheetView;
@@ -38,5 +39,11 @@ public class EffortApi {
     @GetMapping("/analysis")
     public EffortAnalysis analysis(@RequestParam(required = false) @Nullable String anken) {
         return effort.analysis(anken);
+    }
+
+    @GetMapping("/burndown")
+    public BurndownView burndown(@RequestParam(required = false) @Nullable String anken, @RequestParam(required = false) @Nullable String phase,
+                                 @RequestParam(required = false) @Nullable String member) {
+        return effort.burndown(anken, phase, member);
     }
 }

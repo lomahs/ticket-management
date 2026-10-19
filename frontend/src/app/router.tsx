@@ -3,7 +3,7 @@ import { createRootRouteWithContext, createRoute, createRouter, lazyRouteCompone
 import { z } from 'zod';
 // Search schemas, the overview query and the tab list are imported directly so each screen's code can load lazily.
 import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
-import { analysisSearch, timesheetSearch } from '../features/effort/search';
+import { analysisSearch, burndownSearch, timesheetSearch } from '../features/effort/search';
 import { matrixSearch } from '../features/matrix/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { overviewQuery } from '../features/overview/api';
@@ -40,12 +40,14 @@ const overview = createRoute({ getParentRoute: () => root, path: 'anken', compon
 const ankenDetail = createRoute({ getParentRoute: () => root, path: 'anken/$epic', component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const matrix = createRoute({ getParentRoute: () => root, path: 'anken/$epic/matrix', validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
 const addFunction = createRoute({ getParentRoute: () => root, path: 'anken/$epic/matrix/new', component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
+const phaseSettings = createRoute({ getParentRoute: () => root, path: 'anken/$epic/matrix/phases', component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
 
 const planning = createRoute({ getParentRoute: () => root, path: 'planning', validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 
 const effort = createRoute({ getParentRoute: () => root, path: 'effort', beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
 const timesheet = createRoute({ getParentRoute: () => root, path: 'effort/timesheet', validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
 const analysis = createRoute({ getParentRoute: () => root, path: 'effort/analysis', validateSearch: analysisSearch, component: lazyRouteComponent(effortPages, 'AnalysisPage') });
+const burndown = createRoute({ getParentRoute: () => root, path: 'effort/burndown', validateSearch: burndownSearch, component: lazyRouteComponent(effortPages, 'BurndownPage') });
 
 const calendar = createRoute({ getParentRoute: () => root, path: 'calendar', validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
 const newLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/new', validateSearch: newLeaveSearch, component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });
@@ -61,7 +63,7 @@ const settingsTab = createRoute({
 });
 
 const routeTree = root.addChildren([
-  index, myWork, matrixEntry, overview, ankenDetail, matrix, addFunction, planning, effort, timesheet, analysis,
+  index, myWork, matrixEntry, overview, ankenDetail, matrix, addFunction, phaseSettings, planning, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab,
 ]);
 

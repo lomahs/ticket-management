@@ -243,6 +243,20 @@ class SyncTest {
     }
 
     @Test
+    void reporterIsTheFirstOneNotTheCurrentOne() {
+        IssueSnapshot changed = new IssueSnapshot("PAY-1201", "PAY", "x", "In Progress", "indeterminate", AN, "PAY-1102", "2026-09-01",
+                "2026-10-06T10:00:00+00:00", Map.of(), List.of(), List.of(new ChangeSnapshot("2026-09-20", "reporter", "acc-minh", "acc-an", MINH, AN),
+                        new ChangeSnapshot("2026-09-25", "reporter", "acc-an", "acc-new", AN, NEW)), NEW);
+        IssueSnapshot kept = new IssueSnapshot("PAY-1202", "PAY", "y", "In Progress", "indeterminate", AN, "PAY-1102", "2026-09-01",
+                "2026-10-06T10:00:00+00:00", Map.of(), List.of(), List.of(), MINH);
+        run(new StubReader(List.of(PARENT, changed, kept)), true);
+        String minh = members.findByJiraAccountId("acc-minh").orElseThrow().id();
+        assertThat(issues().get("PAY-1201").reporterId()).isEqualTo(minh);
+        assertThat(issues().get("PAY-1202").reporterId()).isEqualTo(minh);
+        assertThat(issues().get("PAY-1102").reporterId()).isNull();
+    }
+
+    @Test
     void ruleWithoutFunctionIdentitySyncsWithoutFunctions() {
         configure("[{prefix}] {step}");
         SyncResult r = run(new StubReader(List.of(FUT_TASK, snap("PAY-1202", "[FUTTC] Create", "PAY-1111"))), true);

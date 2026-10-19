@@ -7,3 +7,9 @@ export const timesheetSearch = z.object({
 });
 
 export const analysisSearch = z.object({ anken: z.string().optional().catch(undefined) });
+
+export const burndownSearch = z.object({
+  anken: z.string().optional().catch(undefined),
+  phase: z.string().optional().catch(undefined),
+  member: z.string().optional().catch(undefined),
+});

@@ -46,7 +46,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
   const byRole = (r: string) => Object.values(members).filter((x) => x.role === r).map((x) => ({ value: x.id, label: x.name }));
   const baOpts = byRole('BA'), balOpts = byRole('BAL'), jmOpts = byRole('JM');
   const workflowParents = m.parents.filter((p) => p.workflow);
-  const defaultParent = workflowParents.find((p) => p.key === m.task_key) ?? workflowParents[0];
+  const defaultParent = workflowParents.find((p) => p.key === m.task_keys[0]) ?? workflowParents[0];
   const [form, setForm] = useState({ parent: defaultParent?.key ?? '', name: '', ba: '', bal: '', jm: '', hours: '8' });
   const [overrides, setOverrides] = useState<({ start?: string; end?: string } | null)[]>([null, null, null, null, null]);
   const [nameErr, setNameErr] = useState<string>();
@@ -66,7 +66,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     create.mutate({ ...draft, name: form.name.trim(), overrides }, {
       onSuccess: (r) => {
         toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${preview.data?.function_id || form.name.trim()}`);
-        navigate({ to: '/anken/$epic/matrix', params: { epic }, search: { task: form.parent } });
+        navigate({ to: '/anken/$epic/matrix', params: { epic }, search: { tasks: form.parent } });
       },
       onError: (e) => (e instanceof ApiError && e.field('name') ? setNameErr(e.field('name')) : toast(errorMessage(e), true)),
     });

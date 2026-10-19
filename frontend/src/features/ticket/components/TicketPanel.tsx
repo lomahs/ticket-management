@@ -71,7 +71,14 @@ function TicketBody({ ticketKey, close }: { ticketKey: string; close: () => void
       {header(c.phase)}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <h2 style={{ margin: 0, font: '700 16px/1.35 var(--font-display)', color: 'var(--text-heading)' }}>{c.summary}</h2>
+          <h2 style={{ margin: 0, font: '700 16px/1.35 var(--font-display)', color: 'var(--text-heading)' }}>
+            {t.jira_url ? (
+              <a href={t.jira_url} target="_blank" rel="noopener noreferrer" title="Open in Jira" className="hv-underline" style={{ color: 'inherit', textDecoration: 'none' }}>
+                {c.summary}
+                <Icon name="external-link" size={13} style={{ marginLeft: 6, verticalAlign: '-1px', color: 'var(--text-link)' }} />
+              </a>
+            ) : c.summary}
+          </h2>
           {t.warnings.length > 0 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {t.warnings.map((w) => {

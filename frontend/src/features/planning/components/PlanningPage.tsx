@@ -173,7 +173,7 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
                     aria-label={`${m.name} plan`}
                     onDragOver={(e) => { e.preventDefault(); if (dropRow !== r.member_id) setDropRow(r.member_id); }}
                     onDrop={(e) => onDrop(e, r.member_id)}
-                    style={{ position: 'relative', flex: 1, minWidth: 0, height: lanes * LANE_H + 10, boxShadow: dropRow === r.member_id ? 'inset 0 0 0 2px var(--border-focus)' : 'none' }}
+                    style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: lanes * LANE_H + 10, boxShadow: dropRow === r.member_id ? 'inset 0 0 0 2px var(--border-focus)' : 'none' }}
                   >
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', pointerEvents: 'none' }}>
                       {r.days.map((c) => {

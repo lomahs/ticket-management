@@ -51,6 +51,7 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .hv-dim:hover { filter: brightness(0.97); }
 .hv-dim2:hover { filter: brightness(0.95); }
 .hv-bright:hover { filter: brightness(1.12); }
+.hv-underline:hover { text-decoration: underline !important; }
 
 /* Segmented control (1 week / 2 weeks, By week / By month …) */
 .seg { display: flex; padding: 3px; border-radius: 99px; background: var(--surface-hover); }

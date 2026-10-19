@@ -3,14 +3,17 @@ import { http, unwrap } from '../../shared/api/client';
 import type { Schemas } from '../../shared/api/types';
 
 /**
- * @param task  the Task whose functions are shown; by default the first Task that has functions
- * @param phase only the Tasks of this phase group
+ * @param tasks the Tasks whose functions are shown; by default every Task of the phase, else the shown ones, else of the first
+ *              phase with functions
+ * @param phase used when no Tasks are given
+ * @param shown the Tasks this browser's layout shows (Setting phase); ones no longer in the anken are skipped
  */
-export const matrixQuery = (epic: string, task?: string, phase?: string) => ({
-  queryKey: ['matrix', epic, task ?? null, phase ?? null] as const,
+export const matrixQuery = (epic: string, tasks?: string[], phase?: string, shown?: string[]) => ({
+  queryKey: ['matrix', epic, tasks ?? null, phase ?? null, shown ?? null] as const,
   queryFn: () => unwrap(http.GET('/api/v1/anken/{epic}/matrix', {
-    params: { path: { epic }, query: { ...(task ? { task } : {}), ...(phase ? { phase } : {}) } },
+    params: { path: { epic }, query: { ...(tasks?.length ? { tasks } : {}), ...(phase ? { phase } : {}), ...(shown?.length ? { shown } : {}) } },
   })),
+  placeholderData: keepPreviousData,
 });
 
 export const functionPreviewQuery = (epic: string, draft: Schemas['FunctionDraftIn'], enabled: boolean) => ({

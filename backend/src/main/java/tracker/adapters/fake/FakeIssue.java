@@ -18,6 +18,7 @@ public final class FakeIssue {
     final String parent;
     String status;
     String assignee;
+    String reporter;
     String ps;
     String pe;
     final double estH;

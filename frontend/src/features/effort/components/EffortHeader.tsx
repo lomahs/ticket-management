@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
-export function EffortHeader({ tab }: { tab: 'timesheet' | 'analysis' }) {
-  const link = (to: '/effort/timesheet' | '/effort/analysis', label: string, on: boolean) => (
+export function EffortHeader({ tab }: { tab: 'timesheet' | 'analysis' | 'burndown' }) {
+  const link = (to: '/effort/timesheet' | '/effort/analysis' | '/effort/burndown', label: string, on: boolean) => (
     <Link to={to} role="tab" aria-selected={on} style={{
       padding: '10px 0', marginBottom: -1, textDecoration: 'none', font: 'var(--fw-semibold) var(--fs-small)/1.2 var(--font-text)',
       color: on ? 'var(--text-heading)' : 'var(--text-muted)', borderBottom: `2px solid ${on ? 'var(--color-accent)' : 'transparent'}`,
@@ -16,6 +16,7 @@ export function EffortHeader({ tab }: { tab: 'timesheet' | 'analysis' }) {
       <div role="tablist" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)' }}>
         {link('/effort/timesheet', 'Timesheet', tab === 'timesheet')}
         {link('/effort/analysis', 'Analysis', tab === 'analysis')}
+        {link('/effort/burndown', 'Burndown', tab === 'burndown')}
       </div>
     </>
   );

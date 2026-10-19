@@ -40,6 +40,7 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.domain.Burndown;
 import tracker.domain.DateReason;
 import tracker.domain.LeaveType;
 import tracker.domain.Numbers;
@@ -90,25 +91,41 @@ class ServiceReadsTest {
     }
 
     @Test
-    void matrixPhaseLimitsTaskPicker() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Implement_Coding");
-        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1102");
-        assertThat(List.of(m.taskKey(), m.phase())).containsExactly("PAY-1102", "Implement_Coding");
-        assertThat(m.functions()).isNotEmpty();
+    void matrixPhaseShowsEveryTaskOfThePhaseAndKeepsAllTasksAsOptions() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Implement_Coding", null);
+        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1102", "PAY-1103");
+        assertThat(m.taskKeys()).containsExactly("PAY-1102");
+        assertThat(m.phase()).isEqualTo("Implement_Coding");
+        assertThat(m.functions()).isNotEmpty().allMatch(r -> r.taskKey().equals("PAY-1102"));
     }
 
     @Test
     void matrixPhaseWithoutFunctionsIsEmptyNotMissing() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Prepare");
-        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101");
-        assertThat(List.of(m.taskKey(), m.phase())).containsExactly("PAY-1101", "Prepare");
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Prepare", null);
+        assertThat(List.of(m.taskKeys(), m.phase())).containsExactly(List.of("PAY-1101"), "Prepare");
         assertThat(m.functions()).isEmpty();
     }
 
     @Test
-    void matrixPhaseMustExistAndHoldTheTask() {
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", null, "Nope")).isInstanceOf(NotFound.class);
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1101", "Implement_Coding")).isInstanceOf(NotFound.class);
+    void matrixShowsTheChosenTasksOfSeveralPhases() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", List.of("PAY-1103", "PAY-1102"), "Prepare", null);
+        assertThat(m.taskKeys()).containsExactly("PAY-1102", "PAY-1103"); // in Task order; the phase is ignored
+        assertThat(m.phase()).isEqualTo("Implement_Coding, Function Unit Test");
+        assertThat(m.stats().functionsTotal()).isEqualTo(m.functions().size());
+    }
+
+    @Test
+    void matrixShowsTheViewersOwnTasksSkippingOnesThatAreGone() {
+        assertThat(anken.matrix("PAY-1100", null, null, List.of("PAY-1103", "PAY-1101", "PAY-9999")).taskKeys())
+                .containsExactly("PAY-1101", "PAY-1103");
+        assertThat(anken.matrix("PAY-1100", null, null, List.of("PAY-9999")).taskKeys()).containsExactly("PAY-1102"); // none left: the default
+        assertThat(anken.matrix("PAY-1100", null, "Prepare", List.of("PAY-1103")).taskKeys()).containsExactly("PAY-1101"); // a link wins
+    }
+
+    @Test
+    void matrixPhaseAndTasksMustExist() {
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", null, "Nope", null)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", List.of("PAY-1102", "PAY-1301"), null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test
@@ -136,7 +153,7 @@ class ServiceReadsTest {
 
     @Test
     void matrixRowsStatsAndParents() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
         assertThat(m.functions()).extracting(AnkenService.FunctionRow::id)
                 .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
         AnkenService.MatrixStats s = m.stats();
@@ -156,13 +173,26 @@ class ServiceReadsTest {
     }
 
     @Test
-    void matrixShowsOneTaskAtATime() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
-        assertThat(m.taskKey()).isEqualTo("PAY-1102");
-        assertThat(m.parents()).extracting(p -> p.key() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
-                .containsExactly("PAY-1101/0/Prepare/true", "PAY-1102/12/Implement_Coding/true", "PAY-1103/0/Function Unit Test/true");
-        assertThat(anken.matrix("PAY-1100", "PAY-1101", null).functions()).isEmpty();
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", "PAY-1301", null)).isInstanceOf(NotFound.class); // a Task of another epic
+    void functionListsItsSubtasksByPhaseThenStep() {
+        AnkenService.FunctionRow row = anken.matrix("PAY-1100", null, null, null).functions().get(2);
+        AnkenService.FunctionTickets f = anken.function("PAY-1100", "F03");
+        assertThat(f.name()).isEqualTo(row.name());
+        assertThat(f.tickets()).extracting(t -> t.card().key())
+                .containsExactlyElementsOf(row.cells().stream().filter(java.util.Objects::nonNull).map(TaskCard::key).toList());
+        assertThat(f.tickets()).extracting(AnkenService.FunctionTicket::phase).containsOnly("Implement_Coding");
+        assertThatThrownBy(() -> anken.function("PAY-1100", "F99")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.function("PAY-9999", "F03")).isInstanceOf(NotFound.class);
+    }
+
+    @Test
+    void matrixDefaultsToTheFirstPhaseWithFunctions() {
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
+        assertThat(m.taskKeys()).containsExactly("PAY-1102");
+        assertThat(m.parents()).extracting(p -> p.key() + "/" + p.group() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
+                .containsExactly("PAY-1101/Prepare/0/Prepare/true", "PAY-1102/Implement_Coding/12/Implement_Coding/true",
+                        "PAY-1103/Function Unit Test/0/Function Unit Test/true");
+        assertThat(anken.matrix("PAY-1100", List.of("PAY-1101"), null, null).functions()).isEmpty();
+        assertThatThrownBy(() -> anken.matrix("PAY-1100", List.of("PAY-1301"), null, null)).isInstanceOf(NotFound.class); // a Task of another epic
     }
 
     @Test
@@ -209,6 +239,23 @@ class ServiceReadsTest {
         assertThat(a.rework()).extracting(r -> r.memberId()).containsExactly("an", "binh", "chi", "dung");
         assertThat(a.kpis().overSubtasks()).isEqualTo(6);
         assertThat(a.kpis().fixTickets()).isEqualTo(10);
+    }
+
+    @Test
+    void burndownForTheMatrixAnkenFiltersByPhaseAndMember() {
+        EffortService.BurndownView all = effort.burndown(null, null, null);
+        assertThat(all.epicKey()).isEqualTo("PAY-1100");
+        assertThat(all.phases()).isNotEmpty();
+        assertThat(all.subtasks()).isPositive();
+        Burndown.BurndownChart b = all.burndown();
+        assertThat(b.days().get(b.days().size() - 1).planRemainingH()).isZero();
+        assertThat(b.days()).allMatch(d -> d.date().compareTo(all.today()) <= 0 == (d.actualRemainingH() != null));
+        String phase = all.phases().get(0);
+        EffortService.BurndownView one = effort.burndown("PAY-1100", phase, all.members().get(0));
+        assertThat(one.phase()).isEqualTo(phase);
+        assertThat(one.subtasks()).isLessThan(all.subtasks());
+        assertThat(one.burndown().estimateH()).isLessThan(b.estimateH());
+        assertThatThrownBy(() -> effort.burndown("NOPE-1", null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test

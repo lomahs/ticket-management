@@ -2,10 +2,13 @@ package tracker.application.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ import tracker.application.service.PlanningService.DayHead;
 import tracker.domain.Analysis.EffortBar;
 import tracker.domain.Analysis.Rework;
 import tracker.domain.Analysis;
+import tracker.domain.Burndown;
 import tracker.domain.Capacity.PlanItem;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
@@ -34,7 +38,7 @@ import tracker.domain.Timesheet;
 import tracker.domain.WorkingHours;
 import tracker.domain.Worklog;
 
-/** Effort: timesheet (logged vs planned vs expected), one member-day in detail, and estimate/rework analysis. */
+/** Effort: timesheet (logged vs planned vs expected), one member-day in detail, estimate/rework analysis and the burndown. */
 @Service
 public class EffortService {
     private final TrackerContextLoader context;
@@ -127,26 +131,43 @@ public class EffortService {
                                  List<Rework> rework) {
     }
 
-    /** @param requested the anken to analyse; null: the first tracked one with functions */
-    public EffortAnalysis analysis(@Nullable String requested) {
-        TrackerContext ctx = context.load();
+    /** @param requested the anken asked for; null: the first tracked one with functions */
+    private static @Nullable String epicOf(TrackerContext ctx, @Nullable String requested) {
         List<String> withFns = ctx.settings.jira.epics.stream()
                 .filter(k -> ctx.functions.stream().anyMatch(f -> f.epicKey().equals(k))).toList();
         String epic = Text.hasText(requested) ? requested : (withFns.isEmpty() ? null : withFns.get(0));
         if (Text.hasText(epic) && ctx.anken.stream().noneMatch(a -> a.key().equals(epic))) {
             throw new NotFound("Anken " + epic + " is not tracked", "anken");
         }
-        String title = ctx.anken.stream().filter(a -> a.key().equals(epic)).map(tracker.domain.Anken::title).findFirst().orElse("");
-        List<Issue> subs = ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic)).toList();
-        List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList();
-        List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
+        return epic;
+    }
+
+    private static String titleOf(TrackerContext ctx, @Nullable String epic) {
+        return ctx.anken.stream().filter(a -> a.key().equals(epic)).map(tracker.domain.Anken::title).findFirst().orElse("");
+    }
+
+    /** The epic's sub-tasks by phase (their parent Task's stored phase, else their own), in sync order. */
+    private static Map<String, List<Issue>> subtasksByPhase(TrackerContext ctx, @Nullable String epic) {
         Map<String, String> phaseOfParent = new HashMap<>();
         ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).forEach(p -> phaseOfParent.put(p.key(), p.phase()));
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
-        for (Issue i : subs) {
-            byPhase.computeIfAbsent(phaseOfParent.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), i.phase()),
-                    k -> new ArrayList<>()).add(i);
+        for (Issue i : ctx.subtasks()) {
+            if (i.epicKey().equals(epic)) {
+                byPhase.computeIfAbsent(phaseOfParent.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), i.phase()),
+                        k -> new ArrayList<>()).add(i);
+            }
         }
+        return byPhase;
+    }
+
+    /** @param requested the anken to analyse; null: the first tracked one with functions */
+    public EffortAnalysis analysis(@Nullable String requested) {
+        TrackerContext ctx = context.load();
+        String epic = epicOf(ctx, requested);
+        String title = titleOf(ctx, epic);
+        List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList();
+        List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
+        Map<String, List<Issue>> byPhase = subtasksByPhase(ctx, epic);
         Map<String, Integer> rounds = new HashMap<>();
         ctx.flags.forEach((k, f) -> rounds.put(k, f.rounds()));
         List<String> bas = ctx.members.entrySet().stream()
@@ -171,5 +192,47 @@ public class EffortService {
         }
         return new EffortAnalysis(epic, title, kpis, Analysis.estimateVsLogged(phaseGroups), Analysis.estimateVsLogged(stepGroups),
                 rework);
+    }
+
+    /**
+     * @param phases     phases of the anken's planned sub-tasks, in Settings → Structure order
+     * @param members    workers of the anken's planned sub-tasks
+     * @param subtasks   sub-tasks in the chart: Planned Start, Planned End and an estimate, after the phase and member filters
+     */
+    public record BurndownView(@Nullable String epicKey, String title, List<String> phases, @Nullable String phase, List<String> members,
+                               @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown) {
+    }
+
+    /**
+     * @param requested the anken; null: the first tracked one with functions
+     * @param phase     null: every phase
+     * @param member    the worker; null: everyone
+     */
+    public BurndownView burndown(@Nullable String requested, @Nullable String phase, @Nullable String member) {
+        TrackerContext ctx = context.load();
+        String epic = epicOf(ctx, requested);
+        Map<String, String> phaseOf = new HashMap<>();
+        List<Issue> planned = new ArrayList<>();
+        subtasksByPhase(ctx, epic).forEach((p, issues) -> issues.forEach(i -> {
+            if (Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0) {
+                phaseOf.put(i.key(), p);
+                planned.add(i);
+            }
+        }));
+        List<String> phases = ctx.settings.structure.orderedPhases(new LinkedHashSet<>(phaseOf.values()));
+        Set<String> workers = new HashSet<>();
+        planned.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
+        List<String> members = ctx.members.keySet().stream().filter(workers::contains).toList();
+        String ph = Text.hasText(phase) ? phase : null;
+        String who = Text.hasText(member) ? member : null;
+        List<Burndown.Item> items = new ArrayList<>();
+        for (Issue i : planned) {
+            String w = Objects.requireNonNullElse(ctx.worker(i), "");
+            if ((ph == null || ph.equals(phaseOf.get(i.key()))) && (who == null || who.equals(w))) {
+                items.add(new Burndown.Item(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH(), i.worklogs()));
+            }
+        }
+        return new BurndownView(epic, titleOf(ctx, epic), phases, ph, members, who, items.size(), ctx.today,
+                Burndown.compute(items, ctx.cal, ctx.today));
     }
 }

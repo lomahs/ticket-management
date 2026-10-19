@@ -55,8 +55,9 @@ public class TicketService {
     public record Handover(String date, @Nullable String fromId, @Nullable String toId) {
     }
 
+    /** @param jiraUrl the ticket in Jira; null when no Jira site is set */
     public record TicketDetail(TaskCard card, @Nullable String ownerId, List<TicketWarning> warnings, List<Handover> history,
-                               List<Worklog> worklogs) {
+                               List<Worklog> worklogs, @Nullable String jiraUrl) {
     }
 
     public TicketDetail detail(String key) {
@@ -77,7 +78,8 @@ public class TicketService {
                 .filter(e -> e.field() == EventField.ASSIGNEE)
                 .map(e -> new Handover(e.at(), e.fromValue(), e.toValue())).toList();
         List<Worklog> logs = i.worklogs().stream().sorted(Comparator.comparing(Worklog::date).reversed()).toList();
-        return new TicketDetail(c, ctx.owner.get(key), warns, history, logs);
+        String site = ctx.settings.jira.url.strip().replaceAll("/+$", "");
+        return new TicketDetail(c, ctx.owner.get(key), warns, history, logs, Text.hasText(site) ? site + "/browse/" + key : null);
     }
 
     /** Fields that are null are not changed. */

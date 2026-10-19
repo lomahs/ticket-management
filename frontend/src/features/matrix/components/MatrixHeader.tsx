@@ -2,13 +2,15 @@ import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { SyncPill } from '../../sync';
 
-/** Title row and the Matrix / Add function tabs (each tab is its own URL). */
-export function MatrixHeader({ epic, title, phase, tab }: { epic: string; title?: string; phase?: string; tab: 'matrix' | 'new' }) {
-  const tabLink = (to: 'matrix' | 'new', label: ReactNode) => {
+const TAB_PATH = { matrix: '/anken/$epic/matrix', new: '/anken/$epic/matrix/new', phases: '/anken/$epic/matrix/phases' } as const;
+
+/** Title row and the Matrix / Add function / Setting phase tabs (each tab is its own URL). */
+export function MatrixHeader({ epic, title, phase, tab }: { epic: string; title?: string; phase?: string; tab: keyof typeof TAB_PATH }) {
+  const tabLink = (to: keyof typeof TAB_PATH, label: ReactNode) => {
     const on = tab === to;
     return (
       <Link
-        to={to === 'matrix' ? '/anken/$epic/matrix' : '/anken/$epic/matrix/new'}
+        to={TAB_PATH[to]}
         params={{ epic }}
         role="tab"
         aria-selected={on}
@@ -33,6 +35,7 @@ export function MatrixHeader({ epic, title, phase, tab }: { epic: string; title?
       <div role="tablist" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)' }}>
         {tabLink('matrix', 'Matrix')}
         {tabLink('new', 'Add function')}
+        {tabLink('phases', 'Setting phase')}
       </div>
     </>
   );

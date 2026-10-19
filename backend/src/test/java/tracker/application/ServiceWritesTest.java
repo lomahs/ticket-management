@@ -77,7 +77,7 @@ class ServiceWritesTest {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
         List<String> keys = anken.createFunction("PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null);
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
@@ -103,7 +103,7 @@ class ServiceWritesTest {
         assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
                 "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
         List<String> keys = anken.createFunction("PAY-1100", d, null);
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", "PAY-1102", null); // the demo's own functions no longer match the rule
+        AnkenService.MatrixView m = anken.matrix("PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
