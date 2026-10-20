@@ -39,6 +39,7 @@ import tracker.domain.EventField;
 import tracker.domain.Issue;
 import tracker.domain.IssueKind;
 import tracker.domain.Member;
+import tracker.domain.MemberIds;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
@@ -183,6 +184,27 @@ class SyncTest {
         assertThat(o.functionId()).isNull();
         assertThat(o.status()).isEqualTo(Status.NYS);
         assertThat(o.phase()).isEqualTo("Implement_Coding");
+    }
+
+    @Test
+    void jiraUserIsLinkedToTheMemberWithTheSameEmail() {
+        members.save(new Member("lan", "Lan", "Vo Lan", Role.BA, "VN", "#222", "Lan.Vo@acme.vn", tracker.domain.Permission.USER, false, null));
+        UserSnapshot lan = new UserSnapshot("acc-lan", "Lan Vo", "lan.vo@acme.vn");
+        run(new StubReader(List.of(snap("PAY-1102", "[Implement_Coding] Payment flow revision", "PAY-1100"),
+                snap("PAY-1301", "Something", "PAY-1102", "To Do", "new", lan, Map.of(), List.of(), List.of()))), true);
+        assertThat(members.findAll().stream().filter(m -> m.name().startsWith("Lan"))).hasSize(1);
+        assertThat(members.findByEmail("lan.vo@acme.vn").orElseThrow().jiraAccountId()).isEqualTo("acc-lan");
+        assertThat(issues().get("PAY-1301").assigneeId()).isEqualTo("lan");
+    }
+
+    @Test
+    void memberWithAnotherJiraAccountIsNotRelinked() {
+        members.save(new Member("lan", "Lan", "Vo Lan", Role.BA, "VN", "#222", "lan.vo@acme.vn", tracker.domain.Permission.USER, false, "acc-other"));
+        UserSnapshot lan = new UserSnapshot("acc-lan", "Lan Vo", "lan.vo@acme.vn");
+        run(new StubReader(List.of(snap("PAY-1102", "[Implement_Coding] Payment flow revision", "PAY-1100"),
+                snap("PAY-1301", "Something", "PAY-1102", "To Do", "new", lan, Map.of(), List.of(), List.of()))), true);
+        assertThat(members.findByEmail("lan.vo@acme.vn").orElseThrow().jiraAccountId()).isEqualTo("acc-other");
+        assertThat(issues().get("PAY-1301").assigneeId()).isEqualTo("lan-vo");
     }
 
     static final IssueSnapshot UC_TASK = snap("PAY-1110", "Unit Code implement", "PAY-1100");
@@ -364,13 +386,13 @@ class SyncTest {
 
     @Test
     void slugsAndColours() {
-        assertThat(SyncService.slugify("Lê Văn Mới")).isEqualTo("le-van-moi");
-        assertThat(SyncService.slugify("Đặng Đức")).isEqualTo("dang-duc");
-        assertThat(SyncService.slugify("!!!")).isEqualTo("member");
+        assertThat(MemberIds.slugify("Lê Văn Mới")).isEqualTo("le-van-moi");
+        assertThat(MemberIds.slugify("Đặng Đức")).isEqualTo("dang-duc");
+        assertThat(MemberIds.slugify("!!!")).isEqualTo("member");
         // colours come from a CRC32 of the member id, so a member keeps its colour across syncs
-        assertThat(SyncService.memberColor("le-van-moi")).isEqualTo("oklch(0.56 0.14 35)");
-        assertThat(SyncService.memberColor("an")).isEqualTo("oklch(0.55 0.15 0)");
-        assertThat(SyncService.memberColor("tanaka")).isEqualTo("oklch(0.5 0.1 210)");
-        assertThat(SyncService.memberColor("x-2")).isEqualTo("oklch(0.48 0.04 260)");
+        assertThat(MemberIds.color("le-van-moi")).isEqualTo("oklch(0.56 0.14 35)");
+        assertThat(MemberIds.color("an")).isEqualTo("oklch(0.55 0.15 0)");
+        assertThat(MemberIds.color("tanaka")).isEqualTo("oklch(0.5 0.1 210)");
+        assertThat(MemberIds.color("x-2")).isEqualTo("oklch(0.48 0.04 260)");
     }
 }

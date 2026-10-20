@@ -1,7 +1,5 @@
 package tracker.application;
 
-import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -11,12 +9,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.zip.CRC32;
 
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -44,6 +40,7 @@ import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
 import tracker.domain.IssueKind;
 import tracker.domain.Member;
+import tracker.domain.MemberIds;
 import tracker.domain.Naming;
 import tracker.domain.Permission;
 import tracker.domain.Status;
@@ -62,9 +59,6 @@ public class SyncService {
     static final Duration INCREMENTAL_MARGIN = Duration.ofMinutes(5);
     public static final Map<String, Status> CATEGORY_STATUS = Map.of(
             "new", Status.NYS, "indeterminate", Status.WIP, "done", Status.CLOSED);
-    private static final List<String> MEMBER_COLORS = List.of(
-            "oklch(0.55 0.13 255)", "oklch(0.52 0.13 305)", "oklch(0.56 0.14 35)", "oklch(0.52 0.11 150)",
-            "oklch(0.5 0.1 210)", "oklch(0.48 0.04 260)", "oklch(0.55 0.15 0)", "oklch(0.5 0.12 100)");
 
     /** Jira returned nothing for epics that already have issues here: kept the data rather than wiping it. */
     public static class EmptySyncException extends RuntimeException {
@@ -196,21 +190,6 @@ public class SyncService {
         return snaps.size();
     }
 
-    static String slugify(String name) {
-        String nfd = Normalizer.normalize(name, Normalizer.Form.NFD);
-        StringBuilder folded = new StringBuilder();
-        nfd.codePoints().filter(c -> Character.getType(c) != Character.NON_SPACING_MARK).forEach(folded::appendCodePoint);
-        String s = folded.toString().replace("đ", "d").replace("Đ", "D").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
-        s = s.replaceAll("^-+|-+$", "");
-        return s.isEmpty() ? "member" : s;
-    }
-
-    static String memberColor(String memberId) {
-        CRC32 crc = new CRC32();
-        crc.update(memberId.getBytes(StandardCharsets.UTF_8));
-        return MEMBER_COLORS.get((int) (crc.getValue() % MEMBER_COLORS.size()));
-    }
-
     /** Effective status of a Jira status: the admin's mapping, else its category. */
     public static Status status(TrackerSettings s, @Nullable String name, @Nullable String category) {
         String key = name == null ? "" : name;
@@ -253,16 +232,18 @@ public class SyncService {
         String memberOf(UserSnapshot user) {
             Member m = byAccount.get(user.accountId());
             if (m == null) {
-                String base = slugify(user.displayName());
-                String id = base;
-                for (int n = 2; ids.contains(id); n++) {
-                    id = base + "-" + n;
+                Member linked = Text.hasText(user.email()) ? members.findByEmail(user.email()).orElse(null) : null;
+                if (linked != null && linked.jiraAccountId() == null) {
+                    m = new Member(linked.id(), linked.name(), linked.fullName(), linked.role(), linked.country(), linked.color(),
+                            linked.email(), linked.permission(), linked.external(), user.accountId());
+                } else {
+                    String id = MemberIds.newId(MemberIds.slugify(user.displayName()), ids);
+                    m = new Member(id, user.displayName(), user.displayName(), null, s.defaultCountry, MemberIds.color(id), user.email(),
+                            Permission.USER, false, user.accountId());
                 }
-                m = new Member(id, user.displayName(), user.displayName(), null, s.defaultCountry, memberColor(id), user.email(),
-                        Permission.USER, false, user.accountId());
                 members.save(m);
                 byAccount.put(user.accountId(), m);
-                ids.add(id);
+                ids.add(m.id());
             }
             return m.id();
         }
