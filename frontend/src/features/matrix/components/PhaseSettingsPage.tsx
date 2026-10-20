@@ -108,39 +108,41 @@ function PhaseSettings({ m, saved, custom, setLayout }: {
           return (
             <div key={g} role="group" aria-label={g} draggable onDragStart={(e) => start(e, { kind: 'phase', g })} onDragEnd={end} {...phaseTarget(g)}
               style={{
-                display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, padding: '6px 8px', borderRadius: 12, background: 'var(--surface-card)',
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 12, background: 'var(--surface-card)',
                 border: `1px ${over === 'phase:' + g ? 'dashed var(--border-focus)' : 'solid var(--border-subtle)'}`,
                 opacity: drag?.kind === 'phase' && drag.g === g ? 0.5 : 1,
               }}>
               <button aria-label={`Move ${g}`} title="Drag, or Alt + ↑ / ↓, to move the phase"
                 onKeyDown={(e: KeyboardEvent) => { if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); movePhase(g, step(d.phases, g, e.key === 'ArrowUp' ? -1 : 1)); } }}
-                style={{ display: 'flex', height: 28, padding: '0 2px', border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'grab' }}>
+                style={{ display: 'flex', alignItems: 'center', alignSelf: 'stretch', flexShrink: 0, padding: '0 2px', border: 0, background: 'transparent', color: 'var(--text-muted)', cursor: 'grab' }}>
                 <Icon name="grip-vertical" size={16} />
               </button>
-              <button className="hv-bg" aria-pressed={all} title={all ? `Hide every sub-phase of ${g}` : `Show every sub-phase of ${g}`}
-                onClick={() => setShown(all ? d.shown.filter((k) => !keys.includes(k)) : [...d.shown, ...keys])}
-                style={{ height: 28, padding: '0 8px', border: 0, borderRadius: 8, background: 'transparent', cursor: 'pointer', font: '700 12px/1 var(--font-text)', color: some ? 'var(--text-heading)' : 'var(--text-muted)' }}>
-                {g}
-              </button>
-              {keys.map((k) => {
-                const t = byKey[k];
-                const on = d.shown.includes(k);
-                return (
-                  <button key={k} className="hv-bd" draggable aria-pressed={on} title={`${t.key} · ${t.summary}\nDrag, or Alt + ← / →, to move it within ${g}`}
-                    onClick={() => setShown(on ? d.shown.filter((x) => x !== k) : [...d.shown, k])}
-                    onKeyDown={(e: KeyboardEvent) => { if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); moveTask(g, k, step(keys, k, e.key === 'ArrowLeft' ? -1 : 1)); } }}
-                    onDragStart={(e) => start(e, { kind: 'task', g, key: k })} onDragEnd={end} {...taskTarget(g, k)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 8, cursor: 'grab', whiteSpace: 'nowrap',
-                      border: `1px ${over === 'task:' + k ? 'dashed' : 'solid'} ${on || over === 'task:' + k ? 'var(--border-focus)' : 'var(--border-subtle)'}`,
-                      background: on ? 'var(--surface-tint)' : 'var(--surface-card)', color: 'var(--text-heading)', font: `${on ? 600 : 500} 12px/1 var(--font-text)`,
-                      opacity: drag?.kind === 'task' && drag.key === k ? 0.5 : 1,
-                    }}>
-                    {t.name || t.summary}
-                    <span style={{ font: '600 10px/16px var(--font-mono)', padding: '0 5px', borderRadius: 999, background: 'var(--surface-hover)', color: t.functions ? 'var(--text-heading)' : 'var(--text-disabled)' }}>{t.functions}</span>
-                  </button>
-                );
-              })}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
+                <button className="hv-bg" aria-pressed={all} title={all ? `Hide every sub-phase of ${g}` : `Show every sub-phase of ${g}`}
+                  onClick={() => setShown(all ? d.shown.filter((k) => !keys.includes(k)) : [...d.shown, ...keys])}
+                  style={{ height: 28, padding: '0 8px', border: 0, borderRadius: 8, background: 'transparent', cursor: 'pointer', font: '700 12px/1 var(--font-text)', color: some ? 'var(--text-heading)' : 'var(--text-muted)' }}>
+                  {g}
+                </button>
+                {keys.map((k) => {
+                  const t = byKey[k];
+                  const on = d.shown.includes(k);
+                  return (
+                    <button key={k} className="hv-bd" draggable aria-pressed={on} title={`${t.key} · ${t.summary}\nDrag, or Alt + ← / →, to move it within ${g}`}
+                      onClick={() => setShown(on ? d.shown.filter((x) => x !== k) : [...d.shown, k])}
+                      onKeyDown={(e: KeyboardEvent) => { if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); moveTask(g, k, step(keys, k, e.key === 'ArrowLeft' ? -1 : 1)); } }}
+                      onDragStart={(e) => start(e, { kind: 'task', g, key: k })} onDragEnd={end} {...taskTarget(g, k)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 8, cursor: 'grab', whiteSpace: 'nowrap',
+                        border: `1px ${over === 'task:' + k ? 'dashed' : 'solid'} ${on || over === 'task:' + k ? 'var(--border-focus)' : 'var(--border-subtle)'}`,
+                        background: on ? 'var(--surface-tint)' : 'var(--surface-card)', color: 'var(--text-heading)', font: `${on ? 600 : 500} 12px/1 var(--font-text)`,
+                        opacity: drag?.kind === 'task' && drag.key === k ? 0.5 : 1,
+                      }}>
+                      {t.name || t.summary}
+                      <span style={{ font: '600 10px/16px var(--font-mono)', padding: '0 5px', borderRadius: 999, background: 'var(--surface-hover)', color: t.functions ? 'var(--text-heading)' : 'var(--text-disabled)' }}>{t.functions}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })}

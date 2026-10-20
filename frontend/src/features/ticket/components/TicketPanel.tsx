@@ -6,7 +6,7 @@ import { Icon, IconButton, Select, TextField, type IconName } from '../../../sha
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { STATUS, statusOf } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
-import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
+import { useOpenTicket, useTicketBack, useTicketKey, type TicketBack } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ticketQuery, usePatchTicket } from '../api';
@@ -20,18 +20,19 @@ const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (v: 
 export function TicketPanel() {
   const key = useTicketKey();
   const open = useOpenTicket();
+  const back = useTicketBack();
   if (!key) return null;
   return (
     <aside aria-label={`Ticket ${key}`} style={{
       position: 'fixed', top: 8, bottom: 8, right: 8, width: 440, maxWidth: 'calc(100vw - 16px)', zIndex: 30, borderRadius: 16, overflow: 'hidden',
       background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-overlay)', display: 'flex', flexDirection: 'column',
     }}>
-      <TicketBody ticketKey={key} close={() => open(null)} />
+      <TicketBody ticketKey={key} back={back} close={back ? back.close : () => open(null)} />
     </aside>
   );
 }
 
-function TicketBody({ ticketKey, close }: { ticketKey: string; close: () => void }) {
+function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: TicketBack | null; close: () => void }) {
   const q = useQuery(ticketQuery(ticketKey));
   const members = useMemberMap();
   const canWrite = useCapability('jiraWrite');
@@ -39,7 +40,8 @@ function TicketBody({ ticketKey, close }: { ticketKey: string; close: () => void
   const toast = useToast();
 
   const header = (phase: string) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px 10px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: back ? '10px 12px 10px 10px' : '10px 12px 10px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+      {back && <IconButton icon="arrow-left" label={back.label} size="sm" onClick={back.back} />}
       <span className="key">{ticketKey}</span>
       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{phase}</span>
       <span className="spacer" />

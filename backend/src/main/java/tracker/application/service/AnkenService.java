@@ -188,9 +188,11 @@ public class AnkenService {
      * @param prefix    the value of {prefix} for this Task's sub-tasks
      * @param workflow  whether functions can be added under this Task
      * @param functions how many functions the Task has
+     * @param start     the earliest Planned Start of the Task's sub-tasks
+     * @param end       the latest Planned End of the Task's sub-tasks
      */
     public record ParentOption(String key, String summary, String name, String phase, String group, String prefix, boolean workflow,
-                               int functions) {
+                               int functions, @Nullable String start, @Nullable String end) {
     }
 
     /**
@@ -254,9 +256,13 @@ public class AnkenService {
         });
         List<String> order = PhaseGroups.ordered(byGroup, st.phases());
         Map<String, String> start = new HashMap<>();
+        Map<String, String> end = new HashMap<>();
         subs.forEach(i -> {
             if (i.parentKey() != null && Text.hasText(i.plannedStart())) {
                 start.merge(i.parentKey(), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
+            }
+            if (i.parentKey() != null && Text.hasText(i.plannedEnd())) {
+                end.merge(i.parentKey(), i.plannedEnd(), (a, b) -> a.compareTo(b) >= 0 ? a : b);
             }
         });
         List<Issue> sorted = new ArrayList<>(parents);
@@ -266,7 +272,7 @@ public class AnkenService {
             TaskTemplate t = st.taskTemplate(p.summary());
             int functions = (int) ctx.functions.stream().filter(f -> f.parentKey().equals(p.key())).count();
             return new ParentOption(p.key(), p.summary(), PhaseGroups.taskName(p.summary()), p.phase(), groups.get(p.key()),
-                    t != null ? t.prefix() : p.phase(), t == null || t.workflow(), functions);
+                    t != null ? t.prefix() : p.phase(), t == null || t.workflow(), functions, start.get(p.key()), end.get(p.key()));
         }).toList();
     }
 
@@ -336,36 +342,23 @@ public class AnkenService {
 
     // --- one function -------------------------------------------------------------------------------------------------
 
-    /** @param phase the phase group of the sub-task's parent Task */
-    public record FunctionTicket(String phase, TaskCard card) {
+    /**
+     * @param taskKey the Task the function belongs to
+     * @param phase   the phase group of that Task
+     * @param steps   one slot per step, in step order; null when that sub-task is not in Jira
+     */
+    public record FunctionSteps(String epicKey, String taskKey, String phase, String functionId, String name,
+                                List<@Nullable TaskCard> steps) {
     }
 
-    /** @param tickets every sub-task of the function, in phase order, then step order */
-    public record FunctionTickets(String epicKey, String functionId, String name, List<FunctionTicket> tickets) {
-    }
-
-    /** The sub-tasks with this function id under any Task of the epic. */
-    public FunctionTickets function(String epic, String functionId) {
+    /** The function (epic, Task, function id) that the sub-task {@code key} is a step of. */
+    public FunctionSteps functionOf(String key) {
         TrackerContext ctx = context.load();
-        require(ctx, epic);
-        List<Issue> subs = epicSubtasks(ctx, epic).stream().filter(i -> functionId.equals(i.functionId())).toList();
-        if (subs.isEmpty()) {
-            throw new NotFound("Function " + functionId + " has no sub-tasks in " + epic, "function_id");
-        }
-        Map<String, String> groups = groupOfTask(ctx, epic);
-        Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
-        for (Issue i : subs) {
-            byPhase.computeIfAbsent(groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER), x -> new ArrayList<>()).add(i);
-        }
-        List<FunctionTicket> tickets = new ArrayList<>();
-        for (String phase : PhaseGroups.ordered(byPhase, ctx.settings.structure.phases())) {
-            byPhase.get(phase).stream()
-                    .sorted(Comparator.comparingInt((Issue i) -> i.step() != null ? Steps.index(i.step()) : Steps.COUNT)
-                            .thenComparing(i -> Text.orElse(i.plannedStart(), "9999")).thenComparing(Issue::key))
-                    .forEach(i -> tickets.add(new FunctionTicket(phase, ctx.card(i))));
-        }
-        String name = subs.stream().map(Issue::functionName).filter(Text::hasText).findFirst().orElse(functionId);
-        return new FunctionTickets(epic, functionId, name, tickets);
+        Function f = ctx.functions.stream().filter(fn -> fn.issues().stream().anyMatch(i -> i.key().equals(key))).findFirst()
+                .orElseThrow(() -> new NotFound(key + " is not a step of a function", "key"));
+        String phase = groupOfTask(ctx, f.epicKey()).getOrDefault(f.parentKey(), PhaseGroups.OTHER);
+        return new FunctionSteps(f.epicKey(), f.parentKey(), phase, f.id(), f.name(),
+                f.cells().stream().map(c -> c != null ? ctx.card(c) : null).toList());
     }
 
     // --- new function -------------------------------------------------------------------------------------------------

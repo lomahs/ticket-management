@@ -68,22 +68,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/anken/{epic}/functions/{function_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["function"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/anken/{epic}/matrix": {
         parameters: {
             query?: never;
@@ -724,6 +708,22 @@ export interface paths {
         patch: operations["patch"];
         trace?: never;
     };
+    "/api/v1/tickets/{key}/function": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["function"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1010,15 +1010,13 @@ export interface components {
             state: string;
             task_key: string;
         };
-        FunctionTicket: {
-            card: components["schemas"]["TaskCard"];
-            phase: string;
-        };
-        FunctionTickets: {
+        FunctionSteps: {
             epic_key: string;
             function_id: string;
             name: string;
-            tickets: components["schemas"]["FunctionTicket"][];
+            phase: string;
+            steps: (components["schemas"]["TaskCard"] | null)[];
+            task_key: string;
         };
         Handover: {
             date: string;
@@ -1237,6 +1235,7 @@ export interface components {
             total: number;
         };
         ParentOption: {
+            end: string | null;
             /** Format: int32 */
             functions: number;
             group: string;
@@ -1244,6 +1243,7 @@ export interface components {
             name: string;
             phase: string;
             prefix: string;
+            start: string | null;
             summary: string;
             workflow: boolean;
         };
@@ -1615,29 +1615,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FunctionPreview"];
-                };
-            };
-        };
-    };
-    function: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                epic: string;
-                function_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FunctionTickets"];
                 };
             };
         };
@@ -2804,6 +2781,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+        };
+    };
+    function: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FunctionSteps"];
                 };
             };
         };

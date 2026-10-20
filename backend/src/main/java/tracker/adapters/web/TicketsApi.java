@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.application.service.AnkenService.FunctionSteps;
+import tracker.application.service.AnkenService;
 import tracker.application.service.TicketService.TicketDetail;
 import tracker.application.service.TicketService.TicketPatch;
 import tracker.application.service.TicketService;
@@ -24,9 +26,11 @@ import tracker.domain.Status;
 @RequestMapping("/api/v1")
 public class TicketsApi {
     private final TicketService tickets;
+    private final AnkenService anken;
 
-    public TicketsApi(TicketService tickets) {
+    public TicketsApi(TicketService tickets, AnkenService anken) {
         this.tickets = tickets;
+        this.anken = anken;
     }
 
     /** Fields left out (or null) are not changed. */
@@ -41,6 +45,12 @@ public class TicketsApi {
     @GetMapping("/tickets/{key}")
     public TicketDetail detail(@PathVariable("key") String key) {
         return tickets.detail(key);
+    }
+
+    /** The five steps of the function the sub-task belongs to; Planning shows them when a block is clicked. */
+    @GetMapping("/tickets/{key}/function")
+    public FunctionSteps function(@PathVariable("key") String key) {
+        return anken.functionOf(key);
     }
 
     @PatchMapping("/tickets/{key}")

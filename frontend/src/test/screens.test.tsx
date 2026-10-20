@@ -97,9 +97,9 @@ describe('screens render API data at their URLs', () => {
     expect(router.state.location.search).toMatchObject({ members: 'binh', ticket: 'PAY-1213' });
   });
 
-  it('shows one matrix per phase and a section per Task', async () => {
+  it('shows one matrix per phase and a section per Task, with the dates of each Task', async () => {
     const task = (key: string, name: string, group: string, functions: number) =>
-      ({ key, summary: `[Pay][LocalTask] ${name}`, name, phase: group, group, prefix: group, workflow: true, functions });
+      ({ key, summary: `[Pay][LocalTask] ${name}`, name, phase: group, group, prefix: group, workflow: true, functions, start: '2026-10-05', end: '2026-10-16' });
     const parents = [task('PAY-1301', 'ITA Prepare', 'ITA', 1), task('PAY-1302', 'ITA Execute', 'ITA', 1), task('PAY-1303', 'UAT Execute', 'UAT', 1)];
     const [f1, f2, f3] = fixtures.matrix.functions;
     const rows = [{ ...f1, task_key: 'PAY-1301' }, { ...f2, task_key: 'PAY-1302' }, { ...f3, task_key: 'PAY-1303' }];
@@ -111,6 +111,7 @@ describe('screens render API data at their URLs', () => {
     renderApp('/anken/PAY-1100/matrix');
     const ita = await screen.findByRole('region', { name: 'ITA matrix' });
     expect(within(ita).getAllByRole('rowgroup').map((g) => g.getAttribute('aria-label'))).toEqual(['ITA Prepare', 'ITA Execute']);
+    expect(within(within(ita).getAllByRole('rowgroup')[0]).getByText('05/10 – 16/10')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'UAT matrix' })).toBeNull();
     cleanup();
     renderApp('/anken/PAY-1100/matrix?tasks=PAY-1301,PAY-1302,PAY-1303');
@@ -255,37 +256,53 @@ describe('screens render API data at their URLs', () => {
     expect(await screen.findByText('Synced with Jira')).toBeTruthy();
   });
 
-  it('shows function names on Planning blocks and opens a function with today\'s tickets highlighted', async () => {
-    const cells = fixtures.matrix.functions[2].cells.filter((c) => c !== null).map((c) => (c.key === 'PAY-1213' ? { ...c, planned_end: '2026-10-08' } : c));
+  it('merges blocks of one function on Planning, lists its five steps and goes back from a step\'s ticket', async () => {
+    const moved: Record<string, object> = { 'PAY-1211': { status: 'W', planned_start: '2026-10-06', planned_end: '2026-10-07' }, 'PAY-1213': { planned_end: '2026-10-08' } };
+    const cells = fixtures.matrix.functions[2].cells.map((c) => (c && moved[c.key] ? { ...c, ...moved[c.key] } : c));
+    const card = (key: string) => cells.find((c) => c?.key === key)!;
     const dates = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'];
     const lane = (member: string, keys: string[]) => ({
       member_id: member, days: dates.map((date) => ({ date, kind: null, label: null, tentative: false })),
-      items: cells.filter((c) => keys.includes(c.key)).map((card) => ({ card, color_step: card.step })),
+      items: keys.map((k) => ({ card: card(k), color_step: card(k).step })),
     });
+    const fn = { epic_key: 'PAY-1100', task_key: 'PAY-1102', phase: 'Implement_Coding', function_id: 'F03', name: 'Domestic card payment',
+      steps: [...cells.slice(0, 4), null] };
     server.use(
       http.get('*/api/v1/planning', () => HttpResponse.json({
         start: '2026-10-05', end: '2026-10-11', projects: ['PAY'], capacity: [],
         days: dates.map((date) => ({ date, is_today: date === '2026-10-07', extra_note: null })),
-        rows: [lane('binh', ['PAY-1213']), lane('tanaka', ['PAY-1214'])],
+        rows: [lane('binh', ['PAY-1213', 'PAY-1211']), lane('tanaka', ['PAY-1214'])],
       })),
-      http.get('*/api/v1/anken/PAY-1100/functions/F03', () => HttpResponse.json({
-        epic_key: 'PAY-1100', function_id: 'F03', name: 'Domestic card payment', tickets: cells.map((card) => ({ phase: 'Implement_Coding', card })),
-      })),
+      http.get('*/api/v1/tickets/PAY-1211/function', () => HttpResponse.json(fn)),
     );
     const { router } = renderApp('/planning?start=2026-10-05&weeks=1');
-    const block = await screen.findByRole('button', { name: 'PAY-1213 F03 Domestic card payment' });
+    // Create (06–07/10) and Fix comment BAL (07–08/10) share a day: one block, the name once
+    const block = await screen.findByRole('button', { name: 'PAY-1211, PAY-1213 F03 Domestic card payment' });
     expect(block.textContent).toBe('Domestic card payment');
+    expect(screen.queryByRole('button', { name: 'PAY-1213 F03 Domestic card payment' })).toBeNull();
+
     fireEvent.click(block);
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ fn: 'PAY-1100:F03' }));
-    const panel = await screen.findByRole('complementary', { name: 'Function F03' });
-    const list = await within(panel).findByRole('list', { name: 'Tickets by step' });
-    expect(within(list).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
-      'PAY-1211 Create', 'PAY-1212 BAL Review', 'PAY-1213 Fix comment BAL · to do today', 'PAY-1214 JM Review', 'PAY-1215 Fix comment JM',
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ fn: 'PAY-1211' }));
+    const panel = await screen.findByRole('complementary', { name: 'Function detail' });
+    const steps = await within(panel).findByRole('list', { name: 'Steps' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(steps).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'PAY-1211 Create · to do today', 'PAY-1212 BAL Review', 'PAY-1213 Fix comment BAL · to do today', 'PAY-1214 JM Review',
     ]);
-    expect(within(panel).getByText('1 to do today')).toBeTruthy();
-    fireEvent.click(within(list).getByRole('button', { name: 'PAY-1213 Fix comment BAL · to do today' }));
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ ticket: 'PAY-1213' }));
-    expect(router.state.location.search).not.toHaveProperty('fn');
+    expect(within(steps).getByText('Not in Jira')).toBeTruthy();
+
+    fireEvent.click(within(steps).getByRole('button', { name: 'PAY-1213 Fix comment BAL · to do today' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ ticket: 'PAY-1213', fn: 'PAY-1211' }));
+    const ticket = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
+    expect(screen.queryByRole('complementary', { name: 'Function detail' })).toBeNull();
+    fireEvent.click(within(ticket).getByRole('button', { name: 'Back to function' }));
+    expect(await screen.findByRole('complementary', { name: 'Function detail' })).toBeTruthy();
+    expect(router.state.location.search).not.toHaveProperty('ticket');
+
+    fireEvent.click(within(await screen.findByRole('list', { name: 'Steps' })).getByRole('button', { name: 'PAY-1213 Fix comment BAL · to do today' }));
+    fireEvent.click(within(await screen.findByRole('complementary', { name: 'Ticket PAY-1213' })).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('fn'));
+    expect(router.state.location.search).not.toHaveProperty('ticket');
   });
 
   it('falls back to the Jira tab for an unknown settings tab', async () => {

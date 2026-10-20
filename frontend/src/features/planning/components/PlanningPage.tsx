@@ -5,16 +5,18 @@ import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { JIRA_WRITE_OFF, useCapability, useMemberMap, useMeta } from '../../../shared/api/queries';
 import { Button, Icon, IconButton } from '../../../shared/ds';
-import { add, dm, dow, f1, hrs, mondayOf, WDN } from '../../../shared/format/dates';
+import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, OTHER_STEP, STEPS, dayHeadStyle, hatch, mix, statusOf, stepColor } from '../../../shared/format/labels';
 import { taskTitle } from '../../../shared/format/task';
 import { useToast } from '../../../shared/state/toast';
-import { useOpenTicket } from '../../../shared/state/ticket';
+import { useOpenTicket, useProvideTicketBack, useTicketKey } from '../../../shared/state/ticket';
 import { Avatar, av, PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { planningPreviewQuery, planningQuery, usePushPlan } from '../api';
+import { functionOfQuery, planningPreviewQuery, planningQuery, usePushPlan } from '../api';
+import { clusterByFunction, stripes } from '../model/clusters';
 import { layoutLanes, startForDrop } from '../model/lanes';
 import { usePendingMoves } from '../model/pending';
+import { FunctionPanel, type PlanOf } from './FunctionPanel';
 
 const route = getRouteApi('/planning');
 const LANE_H = 32;
@@ -54,13 +56,28 @@ export function PlanningPage() {
         </div>
       </PageHead>
       {view.isPending ? <Loading /> : view.isError ? <QueryError error={view.error} /> : (
-        <Planning v={view.data} hidden={hidden} setHidden={(h) => setSearch({ hide: h.join(',') })} />
+        <Planning v={view.data} hidden={hidden} setHidden={(h) => setSearch({ hide: h.join(',') })}
+          fn={search.fn} setFn={(fn) => navigate({ search: (prev) => ({ ...prev, fn: fn ?? undefined }) })}
+          closeAll={() => navigate({ search: (prev) => ({ ...prev, fn: undefined, ticket: undefined }) })} />
       )}
     </div>
   );
 }
 
-function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden: string[]; setHidden: (h: string[]) => void }) {
+/** Blocks of one function that share a day are merged; tickets without a function stay apart. */
+const fnGroup = (c: Schemas['TaskCard']) => (c.function_id ? `${c.epic_key}|${c.phase}|${c.function_id}` : null);
+const stepOrder = (k?: string | null) => { const i = STEPS.findIndex((s) => s.k === k); return i < 0 ? STEPS.length : i; };
+
+type DragItem = { key: string; start: string; from: { start: string; member_id: string | null } };
+
+/**
+ * @param fn       a sub-task key: its function is open in the side panel
+ * @param closeAll closes the ticket panel and the function panel together
+ */
+function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
+  v: Schemas['PlanningView']; hidden: string[]; setHidden: (h: string[]) => void;
+  fn?: string; setFn: (fn: string | null) => void; closeAll: () => void;
+}) {
   const members = useMemberMap();
   const open = useOpenTicket();
   const toast = useToast();
@@ -69,7 +86,12 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
   const preview = useQuery(planningPreviewQuery(v.start, moves));
   const push = usePushPlan();
   const [dropRow, setDropRow] = useState<string | null>(null);
-  const drag = useRef<{ key: string; grab: number; start: string; from: { start: string; member_id: string | null } } | null>(null);
+  const drag = useRef<{ items: DragItem[]; grab: number; start: string } | null>(null);
+  const ticketKey = useTicketKey();
+  const fnQ = useQuery(functionOfQuery(fn ?? ''));
+  const fnKeys = new Set((fnQ.data?.steps ?? []).flatMap((c) => (c ? [c.key] : [])));
+  // A ticket opened from the function panel can go back to it: the panel stays in the URL behind the ticket.
+  useProvideTicketBack(fn && ticketKey ? { label: 'Back to function', back: () => open(null), close: closeAll } : null);
 
   const days = v.days.map((d) => d.date);
   const C = Math.max(1, days.length);
@@ -95,7 +117,9 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
     if (!d) return;
     const r = e.currentTarget.getBoundingClientRect();
     const col = Math.floor(((e.clientX - r.left) / r.width) * C);
-    set({ key: d.key, start: startForDrop(days, col, d.start, d.grab), member_id: memberId }, d.from);
+    // a merged block moves all its tickets by the same number of days
+    const shift = dayDiff(d.start, startForDrop(days, col, d.start, d.grab));
+    d.items.forEach((it) => set({ key: it.key, start: add(it.start, shift), member_id: memberId }, it.from));
   };
   const pushAll = () => push.mutate(moves, {
     onSuccess: () => { toast(`Written to Jira · ${moves.length} plan change${moves.length > 1 ? 's' : ''} from Planning`); clear(); },
@@ -105,6 +129,10 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
   const today = useMeta().data?.today;
   const weekGroups = [...new Set(days.map((d) => mondayOf(d)))].map((ws) => ({ ws, n: days.filter((d) => mondayOf(d) === ws).length }));
   const name = (id?: string | null) => (id ? members[id]?.name ?? id : '–');
+  const planOf: PlanOf = (c) => {
+    const m = moved[c.key];
+    return m ? { start: m.to_start, end: m.to_end, pend: true } : { start: c.planned_start, end: c.planned_end, pend: false };
+  };
 
   return (
     <>
@@ -158,8 +186,9 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
             {v.rows.map((r) => {
               const m = av(members[r.member_id], r.member_id);
               const items = placed(r.member_id);
-              const { blocks, lanes } = layoutLanes(items.map((x) => ({ key: x.b.card.key, start: x.start, end: x.end })), days);
-              const byKey = Object.fromEntries(items.map((x) => [x.b.card.key, x]));
+              const clusters = clusterByFunction(items.map((x) => ({ ...x, key: x.b.card.key, group: fnGroup(x.b.card), order: stepOrder(x.b.card.step) })));
+              const { blocks, lanes } = layoutLanes(clusters, days);
+              const byKey = Object.fromEntries(clusters.map((cl) => [cl.key, cl]));
               return (
                 <div key={r.member_id} style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
                   <div style={{ width: 120, flex: 'none', boxSizing: 'border-box', borderRight: '1px solid var(--border-subtle)', padding: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -186,17 +215,24 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
                     </div>
                     {ti >= 0 && <div style={{ position: 'absolute', top: 0, bottom: 0, left: `calc(${pc(ti + 0.5)} - 1px)`, width: 2, background: 'var(--hl-red-fg)', opacity: 0.5, pointerEvents: 'none' }} />}
                     {blocks.map((bl) => {
-                      const x = byKey[bl.key];
-                      const c = x.b.card;
+                      const cl = byKey[bl.key];
+                      const c = cl.items[0].b.card;
                       const top = 6 + bl.lane * LANE_H;
                       // a ticket not done yet has no actual end: its bar runs up to today
-                      const actEnd = c.actual_end ?? (c.actual_start && today ? (today > c.actual_start ? today : c.actual_start) : null);
-                      const act = c.actual_start && actEnd && actEnd >= v.start && c.actual_start <= v.end
-                        ? layoutLanes([{ key: 'a', start: c.actual_start, end: actEnd }], days).blocks[0] : undefined;
-                      const actLate = !!(actEnd && c.planned_end && actEnd > c.planned_end);
-                      const tip = `${c.key} · ${c.summary}\n${STEPS.find((s) => s.k === x.b.color_step)?.label ?? OTHER_STEP.label} · ${c.project}\n`
-                        + `Plan ${dm(x.start)} – ${dm(x.end)}\n${c.actual_start ? `Actual ${dm(c.actual_start)} – ${c.actual_end ? dm(c.actual_end) : 'in progress'}` : 'Actual: not started'}\n`
-                        + `${f1(c.logged_h)} / ${hrs(c.estimate_h)} · ${statusOf(c.status).label}${x.pend ? '\nPending push to Jira' : ''}${canWrite ? '\nDrag to change dates or assignee' : ''}`;
+                      const acts = cl.items.flatMap(({ b: { card: k } }) => {
+                        const end = k.actual_end ?? (k.actual_start && today ? (today > k.actual_start ? today : k.actual_start) : null);
+                        return k.actual_start && end ? [{ start: k.actual_start, end, late: !!(k.planned_end && end > k.planned_end) }] : [];
+                      });
+                      const actStart = acts.map((a) => a.start).sort()[0];
+                      const actEnd = acts.map((a) => a.end).sort().at(-1);
+                      const act = actStart && actEnd && actEnd >= v.start && actStart <= v.end
+                        ? layoutLanes([{ key: 'a', start: actStart, end: actEnd }], days).blocks[0] : undefined;
+                      const actLate = acts.some((a) => a.late);
+                      const pend = cl.items.some((x) => x.pend);
+                      const tip = cl.items.map(({ b: { card: k, color_step }, start, end, pend: p }) => `${k.key} · ${k.summary}\n${STEPS.find((s) => s.k === color_step)?.label ?? OTHER_STEP.label} · ${k.project}\n`
+                        + `Plan ${dm(start)} – ${dm(end)}\n${k.actual_start ? `Actual ${dm(k.actual_start)} – ${k.actual_end ? dm(k.actual_end) : 'in progress'}` : 'Actual: not started'}\n`
+                        + `${f1(k.logged_h)} / ${hrs(k.estimate_h)} · ${statusOf(k.status).label}${p ? '\nPending push to Jira' : ''}`).join('\n\n')
+                        + (canWrite ? '\nDrag to change dates or assignee' : '');
                       return (
                         <Fragment key={bl.key}>
                           <div
@@ -204,23 +240,24 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
                             className="hv-bright"
                             title={tip}
                             role="button"
-                            aria-label={`${c.key} ${taskTitle(c)}`}
-                            onClick={() => open(c.key)}
+                            aria-label={`${cl.items.map((x) => x.b.card.key).join(', ')} ${taskTitle(c)}`}
+                            onClick={() => (c.function_id ? setFn(c.key) : open(c.key))}
                             onDragStart={(ev) => {
                               const g = ev.currentTarget.parentElement!.getBoundingClientRect();
-                              drag.current = { key: c.key, grab: Math.floor(((ev.clientX - g.left) / g.width) * C) - bl.col, start: x.start,
-                                from: { start: c.planned_start!, member_id: c.worker_id } }; // where Jira has it
+                              drag.current = { grab: Math.floor(((ev.clientX - g.left) / g.width) * C) - bl.col, start: cl.start,
+                                items: cl.items.map((x) => ({ key: x.b.card.key, start: x.start, from: { start: x.b.card.planned_start!, member_id: x.b.card.worker_id } })) }; // from: where Jira has it
                               ev.dataTransfer.setData('text/plain', c.key);
                               ev.dataTransfer.effectAllowed = 'move';
                             }}
                             onDragEnd={() => { drag.current = null; setDropRow(null); }}
                             style={{
                               position: 'absolute', zIndex: 1, boxShadow: '0 0 0 1px var(--surface-card)', left: `calc(${pc(bl.col)} + 2px)`, top, width: `calc(${pc(bl.span)} - 4px)`,
-                              height: 20, boxSizing: 'border-box', padding: '0 6px', borderRadius: 6, background: stepColor(x.b.color_step),
-                              outline: x.pend ? '2px dashed var(--text-heading)' : 'none', outlineOffset: 1, color: '#fff', font: '600 11px/20px var(--font-mono)',
+                              height: 20, boxSizing: 'border-box', padding: '0 6px', borderRadius: 6, background: stripes(cl.items.map((x) => stepColor(x.b.color_step))),
+                              opacity: fnQ.data && !cl.items.some((x) => fnKeys.has(x.b.card.key)) ? 0.3 : 1,
+                              outline: pend ? '2px dashed var(--text-heading)' : 'none', outlineOffset: 1, color: '#fff', font: '600 11px/20px var(--font-mono)',
                               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: canWrite ? 'grab' : 'pointer',
                             }}
-                          >{(c.status === 'C' ? '✓ ' : '') + c.key}</div>
+                          >{(cl.items.every((x) => x.b.card.status === 'C') ? '✓ ' : '') + (c.function_id ? c.function_name || c.function_id : c.summary)}</div>
                           {act && (
                             <div style={{ position: 'absolute', left: `calc(${pc(act.col)} + 2px)`, top: top + 23, width: `calc(${pc(act.span)} - 4px)`, height: 3, borderRadius: 2,
                               background: actLate ? 'var(--hl-red-fg)' : 'var(--text-heading)', pointerEvents: 'none' }} />
@@ -235,6 +272,8 @@ function Planning({ v, hidden, setHidden }: { v: Schemas['PlanningView']; hidden
           </div>
         </div>
       </section>
+
+      {fn && !ticketKey && <FunctionPanel q={fnQ} subtask={fn} today={today} planOf={planOf} close={() => setFn(null)} openTicket={open} />}
 
       <section className="card card-clip" aria-label="Changes pending push to Jira">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px' }}>

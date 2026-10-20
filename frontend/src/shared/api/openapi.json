@@ -124,39 +124,6 @@
         "tags" : [ "anken-api" ]
       }
     },
-    "/api/v1/anken/{epic}/functions/{function_id}" : {
-      "get" : {
-        "operationId" : "function",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "epic",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "in" : "path",
-          "name" : "function_id",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/FunctionTickets"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "anken-api" ]
-      }
-    },
     "/api/v1/anken/{epic}/matrix" : {
       "get" : {
         "operationId" : "matrix",
@@ -1544,6 +1511,32 @@
         },
         "tags" : [ "tickets-api" ]
       }
+    },
+    "/api/v1/tickets/{key}/function" : {
+      "get" : {
+        "operationId" : "function",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FunctionSteps"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tickets-api" ]
+      }
     }
   },
   "components" : {
@@ -2426,19 +2419,7 @@
         },
         "required" : [ "cells", "current", "estimate_h", "group", "id", "logged_h", "name", "owner_id", "pct", "progress", "reviewer_id", "state", "task_key" ]
       },
-      "FunctionTicket" : {
-        "type" : "object",
-        "properties" : {
-          "card" : {
-            "$ref" : "#/components/schemas/TaskCard"
-          },
-          "phase" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "card", "phase" ]
-      },
-      "FunctionTickets" : {
+      "FunctionSteps" : {
         "type" : "object",
         "properties" : {
           "epic_key" : {
@@ -2450,14 +2431,24 @@
           "name" : {
             "type" : "string"
           },
-          "tickets" : {
+          "phase" : {
+            "type" : "string"
+          },
+          "steps" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/FunctionTicket"
+              "anyOf" : [ {
+                "$ref" : "#/components/schemas/TaskCard"
+              }, {
+                "type" : "null"
+              } ]
             }
+          },
+          "task_key" : {
+            "type" : "string"
           }
         },
-        "required" : [ "epic_key", "function_id", "name", "tickets" ]
+        "required" : [ "epic_key", "function_id", "name", "phase", "steps", "task_key" ]
       },
       "Handover" : {
         "type" : "object",
@@ -3106,6 +3097,9 @@
       "ParentOption" : {
         "type" : "object",
         "properties" : {
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
           "functions" : {
             "type" : "integer",
             "format" : "int32"
@@ -3125,6 +3119,9 @@
           "prefix" : {
             "type" : "string"
           },
+          "start" : {
+            "type" : [ "string", "null" ]
+          },
           "summary" : {
             "type" : "string"
           },
@@ -3132,7 +3129,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "functions", "group", "key", "name", "phase", "prefix", "summary", "workflow" ]
+        "required" : [ "end", "functions", "group", "key", "name", "phase", "prefix", "start", "summary", "workflow" ]
       },
       "PhaseRollup" : {
         "type" : "object",

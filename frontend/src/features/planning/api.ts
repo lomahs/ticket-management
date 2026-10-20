@@ -16,6 +16,13 @@ export const planningPreviewQuery = (start: string, changes: Schemas['PlanChange
   retry: false,
 });
 
+/** The five steps of the function that sub-task `key` belongs to. */
+export const functionOfQuery = (key: string) => ({
+  queryKey: ['function-of', key] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/tickets/{key}/function', { params: { path: { key } } })),
+  enabled: !!key,
+});
+
 export function usePushPlan() {
   const qc = useQueryClient();
   return useMutation({

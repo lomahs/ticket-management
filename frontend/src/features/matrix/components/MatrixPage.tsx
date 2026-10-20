@@ -294,6 +294,9 @@ function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
               <Icon name="list-todo" size={14} />
               <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{t.name || t.summary}</span>
               <span className="key">{t.key}</span>
+              <span title="Earliest Planned Start – latest Planned End of the sub-phase's sub-tasks" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, font: '500 11px/1 var(--font-mono)', color: 'var(--text-heading)' }}>
+                <Icon name="calendar" size={12} />{t.start || t.end ? `${t.start ? dm(t.start) : '…'} – ${t.end ? dm(t.end) : '…'}` : 'No dates'}
+              </span>
               <span className="eyebrow">{own.length}/{total} function</span>
             </div>
             {own.map((r) => <FnRow key={r.task_key + '/' + r.id} r={r} />)}

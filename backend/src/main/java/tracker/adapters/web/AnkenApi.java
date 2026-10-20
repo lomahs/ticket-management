@@ -29,7 +29,6 @@ import tracker.application.service.AnkenService.AnkenCard;
 import tracker.application.service.AnkenService.AnkenDetail;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService.FunctionPreview;
-import tracker.application.service.AnkenService.FunctionTickets;
 import tracker.application.service.AnkenService.MatrixView;
 import tracker.application.service.AnkenService;
 
@@ -110,12 +109,6 @@ public class AnkenApi {
         }
         return new FunctionDraft(in.parentKey(), in.name() == null ? "" : in.name(), in.ba(), in.bal(), in.jm(), in.createHours(),
                 overrides);
-    }
-
-    /** Every sub-task of one function, across the epic's Tasks; Planning shows it when a block is clicked. */
-    @GetMapping("/{epic}/functions/{function_id}")
-    public FunctionTickets function(@PathVariable("epic") String epic, @PathVariable("function_id") String functionId) {
-        return anken.function(epic, functionId);
     }
 
     @PostMapping("/{epic}/functions/preview")

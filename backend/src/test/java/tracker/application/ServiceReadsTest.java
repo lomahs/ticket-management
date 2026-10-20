@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -42,6 +43,7 @@ import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.Burndown;
 import tracker.domain.DateReason;
+import tracker.domain.Issue;
 import tracker.domain.LeaveType;
 import tracker.domain.Numbers;
 import tracker.domain.StepKind;
@@ -173,24 +175,27 @@ class ServiceReadsTest {
     }
 
     @Test
-    void functionListsItsSubtasksByPhaseThenStep() {
+    void functionOfASubtaskHasItsFiveSteps() {
         AnkenService.FunctionRow row = anken.matrix("PAY-1100", null, null, null).functions().get(2);
-        AnkenService.FunctionTickets f = anken.function("PAY-1100", "F03");
-        assertThat(f.name()).isEqualTo(row.name());
-        assertThat(f.tickets()).extracting(t -> t.card().key())
-                .containsExactlyElementsOf(row.cells().stream().filter(java.util.Objects::nonNull).map(TaskCard::key).toList());
-        assertThat(f.tickets()).extracting(AnkenService.FunctionTicket::phase).containsOnly("Implement_Coding");
-        assertThatThrownBy(() -> anken.function("PAY-1100", "F99")).isInstanceOf(NotFound.class);
-        assertThatThrownBy(() -> anken.function("PAY-9999", "F03")).isInstanceOf(NotFound.class);
+        AnkenService.FunctionSteps f = anken.functionOf(row.cells().get(2).key());
+        assertThat(List.of(f.epicKey(), f.taskKey(), f.phase(), f.functionId(), f.name()))
+                .containsExactly("PAY-1100", row.taskKey(), "Implement_Coding", "F03", row.name());
+        assertThat(f.steps()).extracting(c -> c == null ? null : c.key())
+                .containsExactlyElementsOf(row.cells().stream().map(c -> c == null ? null : c.key()).toList());
+        assertThatThrownBy(() -> anken.functionOf("PAY-1101")).isInstanceOf(NotFound.class); // a Task, not a step
     }
 
     @Test
-    void matrixDefaultsToTheFirstPhaseWithFunctions() {
+    void matrixDefaultsToTheFirstPhaseWithFunctions(@Autowired IssueRepository issues) {
         AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
         assertThat(m.taskKeys()).containsExactly("PAY-1102");
         assertThat(m.parents()).extracting(p -> p.key() + "/" + p.group() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
                 .containsExactly("PAY-1101/Prepare/0/Prepare/true", "PAY-1102/Implement_Coding/12/Implement_Coding/true",
                         "PAY-1103/Function Unit Test/0/Function Unit Test/true");
+        AnkenService.ParentOption coding = m.parents().get(1);
+        List<Issue> subs = issues.findAll().stream().filter(i -> "PAY-1102".equals(i.parentKey())).toList();
+        assertThat(coding.start()).isEqualTo(subs.stream().map(Issue::plannedStart).filter(Objects::nonNull).min(String::compareTo).orElseThrow());
+        assertThat(coding.end()).isEqualTo(subs.stream().map(Issue::plannedEnd).filter(Objects::nonNull).max(String::compareTo).orElseThrow());
         assertThat(anken.matrix("PAY-1100", List.of("PAY-1101"), null, null).functions()).isEmpty();
         assertThatThrownBy(() -> anken.matrix("PAY-1100", List.of("PAY-1301"), null, null)).isInstanceOf(NotFound.class); // a Task of another epic
     }
