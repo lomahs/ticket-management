@@ -13,10 +13,12 @@ export interface SelectProps {
   disabled?: boolean;
   id?: string;
   'aria-label'?: string;
+  /** a tooltip, e.g. why the select is disabled */
+  title?: string;
   style?: CSSProperties;
 }
 
-export function Select({ label, options, value, onChange, disabled = false, id, style, 'aria-label': ariaLabel }: SelectProps) {
+export function Select({ label, options, value, onChange, disabled = false, id, style, title, 'aria-label': ariaLabel }: SelectProps) {
   const [f, setF] = useState(false);
   const autoId = useId();
   const fid = id ?? autoId;
@@ -27,6 +29,7 @@ export function Select({ label, options, value, onChange, disabled = false, id, 
         <select
           id={fid}
           aria-label={ariaLabel}
+          title={title}
           value={value}
           onChange={(e) => onChange(e.target.value, e)}
           disabled={disabled}

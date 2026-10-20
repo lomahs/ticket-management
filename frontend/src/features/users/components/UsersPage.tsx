@@ -67,7 +67,8 @@ function UserLine({ u, update }: { u: Schemas['UserRow']; update: (id: string, b
       <Select aria-label={`${m.name} role`} value={m.role ?? ''} options={ROLES} onChange={(v) => update(id, v ? { role: v as 'BA' } : { clear_role: true })} />
       <input type="checkbox" aria-label={`${m.name} admin`} checked={isAdmin} disabled={u.bootstrap_admin}
         title={u.bootstrap_admin ? 'Set in TRACKER_ADMINS' : undefined} onChange={(e) => update(id, { admin: e.target.checked })} />
-      <Select aria-label={`${m.name} access`} value={u.access} options={access} onChange={(v) => update(id, { access: v as 'active' })} />
+      <Select aria-label={`${m.name} access`} value={u.access} options={access} disabled={u.bootstrap_admin}
+        title={u.bootstrap_admin ? 'Set in TRACKER_ADMINS' : undefined} onChange={(v) => update(id, { access: v as 'active' })} />
       <Select aria-label={`${m.name} country`} value={m.country} options={COUNTRIES} onChange={(v) => update(id, { country: v as 'VN' })} />
       {FEATURES.map(([f, label]) => {
         const aria = `${m.name} ${label}`;

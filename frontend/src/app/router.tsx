@@ -12,7 +12,9 @@ import { overviewQuery } from '../features/overview/api';
 import { planningSearch } from '../features/planning/search';
 import { isSettingsTab } from '../features/settings/search';
 import { ApiError } from '../shared/api/errors';
-import { meQuery } from '../shared/api/queries';
+import { can, meQuery } from '../shared/api/queries';
+import type { Feature } from '../shared/api/types';
+import { homeOf } from '../shared/nav';
 import { AppShell, NotFound } from './AppShell';
 
 const calendarPages = () => import('../features/calendar');
@@ -62,52 +64,75 @@ const noAccess = createRoute({
   component: NoAccessPage,
 });
 
-const index = createRoute({ getParentRoute: () => app, path: '/', beforeLoad: () => { throw redirect({ to: '/my-work' }); } });
-const myWork = createRoute({ getParentRoute: () => app, path: 'my-work', validateSearch: myWorkSearch, component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage') });
+/** The first screen the user may read, in sidebar order; /no-access when there is none. */
+async function home(queryClient: QueryClient) {
+  return homeOf(await queryClient.ensureQueryData(meQuery)) ?? '/no-access';
+}
+
+/** `staticData.feature` of a screen: without read on it the shell shows "no access" instead of the screen (AppShell). */
+const needs = (feature: Feature) => ({ staticData: { feature } });
+
+const index = createRoute({ getParentRoute: () => app, path: '/', beforeLoad: async ({ context }) => { throw redirect({ to: await home(context.queryClient) }); } });
+const myWork = createRoute({ getParentRoute: () => app, path: 'my-work', ...needs('my_work'), validateSearch: myWorkSearch, component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage') });
 
 /** "Function Matrix" in the sidebar: the first tracked anken that has functions, else the first one (its matrix explains why it is empty). */
 const matrixEntry = createRoute({
   getParentRoute: () => app,
   path: 'matrix',
+  ...needs('matrix'),
   beforeLoad: async ({ context }) => {
+    if (!can(await context.queryClient.ensureQueryData(meQuery), 'matrix')) return;
     const anken = await context.queryClient.ensureQueryData(overviewQuery);
     const first = anken.find((a) => a.has_functions) ?? anken[0];
     throw first ? redirect({ to: '/anken/$epic/matrix', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });
-const overview = createRoute({ getParentRoute: () => app, path: 'anken', component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
-const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
-const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix', validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
-const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
-const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
+const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
+const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
+const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix', ...needs('matrix'), validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
+const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
+const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
 
-const planning = createRoute({ getParentRoute: () => app, path: 'planning', validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
+const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 
-const effort = createRoute({ getParentRoute: () => app, path: 'effort', beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
-const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
-const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', validateSearch: analysisSearch, component: lazyRouteComponent(effortPages, 'AnalysisPage') });
-const burndown = createRoute({ getParentRoute: () => app, path: 'effort/burndown', validateSearch: burndownSearch, component: lazyRouteComponent(effortPages, 'BurndownPage') });
+const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
+const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needs('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
+const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', ...needs('effort'), validateSearch: analysisSearch, component: lazyRouteComponent(effortPages, 'AnalysisPage') });
+const burndown = createRoute({ getParentRoute: () => app, path: 'effort/burndown', ...needs('effort'), validateSearch: burndownSearch, component: lazyRouteComponent(effortPages, 'BurndownPage') });
 
-const calendar = createRoute({ getParentRoute: () => app, path: 'calendar', validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
+const calendar = createRoute({ getParentRoute: () => app, path: 'calendar', ...needs('calendar'), validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
 const newLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/new', validateSearch: newLeaveSearch, component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });
 const editLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/$id', component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });
 const importLeave = createRoute({ getParentRoute: () => calendar, path: 'import/$step', component: lazyRouteComponent(calendarPages, 'ImportWizardRoute') });
 
-const settings = createRoute({ getParentRoute: () => app, path: 'settings', beforeLoad: () => { throw redirect({ to: '/settings/$tab', params: { tab: 'jira' } }); } });
+/** Users and Settings are for admins; anyone else goes to their first screen. */
+async function adminOnly(queryClient: QueryClient) {
+  const me = await queryClient.ensureQueryData(meQuery);
+  if (!me.admin) throw redirect({ to: homeOf(me) ?? '/no-access' });
+}
+
+const settings = createRoute({
+  getParentRoute: () => app,
+  path: 'settings',
+  beforeLoad: async ({ context }) => {
+    await adminOnly(context.queryClient);
+    throw redirect({ to: '/settings/$tab', params: { tab: 'jira' } });
+  },
+});
 const settingsTab = createRoute({
   getParentRoute: () => app,
   path: 'settings/$tab',
-  beforeLoad: ({ params }) => { if (!isSettingsTab(params.tab)) throw redirect({ to: '/settings/$tab', params: { tab: 'jira' } }); },
+  beforeLoad: async ({ context, params }) => {
+    await adminOnly(context.queryClient);
+    if (!isSettingsTab(params.tab)) throw redirect({ to: '/settings/$tab', params: { tab: 'jira' } });
+  },
   component: lazyRouteComponent(() => import('../features/settings'), 'SettingsPage'),
 });
 
 const adminUsers = createRoute({
   getParentRoute: () => app,
   path: 'admin/users',
-  beforeLoad: async ({ context }) => {
-    const me = await context.queryClient.ensureQueryData(meQuery);
-    if (!me.admin) throw redirect({ to: '/my-work' });
-  },
+  beforeLoad: ({ context }) => adminOnly(context.queryClient),
   component: UsersPage,
 });
 
@@ -125,4 +150,5 @@ export function makeRouter(queryClient: QueryClient, history?: RouterHistory) {
 
 declare module '@tanstack/react-router' {
   interface Register { router: ReturnType<typeof makeRouter> }
+  interface StaticDataRouteOption { feature?: Feature }
 }

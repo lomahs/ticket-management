@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { meQuery } from '../../../shared/api/queries';
 import { Button, TextField } from '../../../shared/ds';
+import { homeOf } from '../../../shared/nav';
 import { useLogout, useRequestAccess } from '../api';
 
 const TEXT = {
@@ -11,7 +12,7 @@ const TEXT = {
   requested: 'Your request was sent. The admin will review it.',
   rejected: 'Your request was declined.',
   disabled: 'Your access is disabled. Ask the admin.',
-  active: 'You have access.',
+  active: "You have access, but to none of the screens. Ask the admin.",
 } as const;
 
 export function NoAccessPage() {
@@ -20,7 +21,9 @@ export function NoAccessPage() {
   const request = useRequestAccess();
   const logout = useLogout();
   const [note, setNote] = useState('');
-  useEffect(() => { if (me?.access === 'active') void navigate({ to: '/my-work' }); }, [me, navigate]);
+  const home = me?.access === 'active' ? homeOf(me) : null;
+  // An active user goes to their first screen; one who may read none stays here with the message.
+  useEffect(() => { if (home) void navigate({ to: home }); }, [home, navigate]);
   if (!me) return null;
   const canRequest = me.access === 'none' || me.access === 'rejected';
   return (

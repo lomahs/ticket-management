@@ -41,7 +41,8 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
   });
   const [err, setErr] = useState<ApiError | null>(null);
   // Without calendar write a member can only book their own leave; another member's leave is shown read-only.
-  const member = existing ? existing.member_id : canAll ? f.member || firstMember : myId;
+  // With calendar write the member can be changed, also on an existing leave (f.member starts at its member).
+  const member = existing && !canAll ? existing.member_id : canAll ? f.member || firstMember : myId;
   const readOnly = !!existing && !canAll && existing.member_id !== myId;
   const close = () => navigate({ to: '/calendar', search: (p) => ({ month: (p as { month?: string }).month }) });
   const rangeBad = !!(f.from && f.to && f.to < f.from);

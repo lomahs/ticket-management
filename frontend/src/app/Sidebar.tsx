@@ -5,20 +5,10 @@ import { useLogout } from '../features/auth';
 import { SyncButton } from '../features/sync';
 import { pendingRequestsQuery } from '../features/users';
 import { useMe, useMemberMap, useMeta } from '../shared/api/queries';
-import { Icon, IconButton, type IconName } from '../shared/ds';
+import { Icon, IconButton } from '../shared/ds';
 import { ROLE_LABEL } from '../shared/format/labels';
+import { visibleNav } from '../shared/nav';
 import { Avatar, av } from '../shared/ui/bits';
-
-const NAV: { to: string; label: string; icon: IconName; admin?: boolean; active: (p: string) => boolean }[] = [
-  { to: '/my-work', label: 'My Work', icon: 'list-todo', active: (p) => p.startsWith('/my-work') },
-  { to: '/matrix', label: 'Function Matrix', icon: 'grid-3x3', active: (p) => /^\/anken\/[^/]+\/matrix/.test(p) },
-  { to: '/anken', label: 'Anken Overview', icon: 'layout-dashboard', active: (p) => p.startsWith('/anken') && !/\/matrix/.test(p) },
-  { to: '/planning', label: 'Planning', icon: 'chart-gantt', active: (p) => p.startsWith('/planning') },
-  { to: '/effort/timesheet', label: 'Effort', icon: 'timer', active: (p) => p.startsWith('/effort') },
-  { to: '/calendar', label: 'Team Calendar', icon: 'calendar-days', active: (p) => p.startsWith('/calendar') },
-  { to: '/admin/users', label: 'Users', icon: 'users', admin: true, active: (p) => p.startsWith('/admin/users') },
-  { to: '/settings/jira', label: 'Settings', icon: 'settings', admin: true, active: (p) => p.startsWith('/settings') },
-];
 
 export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
   const [open, setOpen] = useState(true);
@@ -46,7 +36,7 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
         <IconButton icon={open ? 'panel-left-close' : 'panel-left-open'} label={open ? 'Hide sidebar' : 'Show sidebar'} size="sm" onClick={() => setOpen(!open)} />
       </div>
       <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 1 }}>
-        {NAV.filter((n) => !n.admin || me?.admin).map((n) => {
+        {visibleNav(me).map((n) => {
           const on = n.active(path);
           return (
             <Link key={n.to} to={n.to} title={n.label} className="hv-bg" aria-current={on ? 'page' : undefined} style={{

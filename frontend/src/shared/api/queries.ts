@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { http, unwrap } from './client';
 import { ApiError } from './errors';
-import type { Feature, Member } from './types';
+import type { Feature, Me, Member } from './types';
 
 export const metaQuery = {
   queryKey: ['meta'] as const,
@@ -27,13 +27,17 @@ export function useMe() {
   return useQuery(meQuery);
 }
 
-/** Whether the signed-in user may use `feature` at `level` (an admin may do everything). */
-export function useCan(feature: Feature, level: 'read' | 'write' = 'read'): boolean {
-  const me = useMe().data;
+/** Whether `me` may use `feature` at `level` (an admin may do everything). */
+export function can(me: Me | undefined, feature: Feature, level: 'read' | 'write' = 'read'): boolean {
   if (!me) return false;
   if (me.admin) return true;
   const have = me.permissions[feature];
   return level === 'read' ? have === 'read' || have === 'write' : have === 'write';
+}
+
+/** Whether the signed-in user may use `feature` at `level` (an admin may do everything). */
+export function useCan(feature: Feature, level: 'read' | 'write' = 'read'): boolean {
+  return can(useMe().data, feature, level);
 }
 
 export function useMeta() {

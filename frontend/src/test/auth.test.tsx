@@ -98,6 +98,29 @@ describe('sign-in and the route gate', () => {
     expect(sent).toEqual({ note: null });
   });
 
+  it('sends a screen query that answers no_access to /no-access with a fresh /me', async () => {
+    let meCalls = 0;
+    server.use(
+      // the admin disables this user while they are on a screen
+      http.get('*/api/v1/me', () => { meCalls++; return HttpResponse.json(meCalls === 1 ? meBa : { ...meBa, access: 'disabled' }); }),
+      http.get('*/api/v1/anken', () => HttpResponse.json({ status: 403, code: 'no_access', detail: 'No access' }, { status: 403 })),
+    );
+    const { router } = renderApp('/anken');
+    expect(await screen.findByText('Your access is disabled. Ask the admin.')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/no-access');
+    await new Promise((r) => setTimeout(r, 100));
+    expect(router.state.location.pathname).toBe('/no-access');
+    expect(meCalls).toBeLessThanOrEqual(3);
+  });
+
+  it('keeps an active user who may read no screen on /no-access', async () => {
+    const none = Object.fromEntries(Object.keys(meBa.permissions).map((k) => [k, 'none']));
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json({ ...meBa, permissions: none })));
+    const { router } = renderApp('/');
+    expect(await screen.findByText(/You have access, but to none of the screens/)).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/no-access');
+  });
+
   it('sidebar shows the signed-in user and signs out', async () => {
     let out = false;
     let xsrf: string | null = null;

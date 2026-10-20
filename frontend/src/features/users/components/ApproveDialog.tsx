@@ -18,6 +18,8 @@ export function ApproveDialog({ request, users, close }: { request: Schemas['Acc
     { value: NEW, label: 'New member' },
     ...users.filter((u) => u.member.id === request.member_id || u.access !== 'active').map((u) => ({ value: u.member.id, label: `${u.member.name} · ${u.member.email || u.member.id}` })),
   ];
+  const linked = users.find((u) => u.member.id === member);
+  const linkedAdmin = !!linked && (linked.member.permission === 'admin' || linked.bootstrap_admin);
   const submit = () => approve.mutate({ id: request.id, body: { role, member_id: member || null } }, {
     onSuccess: close,
     onError: (e) => toast(errorMessage(e), true),
@@ -32,6 +34,7 @@ export function ApproveDialog({ request, users, close }: { request: Schemas['Acc
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{request.email}</div>
         <Select label="Role" value={role} options={ROLES.map((r) => ({ value: r, label: r }))} onChange={(v) => setRole(v as typeof role)} />
         <Select label="Member" value={member} options={options} onChange={setMember} />
+        {linkedAdmin && <div className="eyebrow">Admin: this member has the Admin flag and becomes an admin when approved.</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Cancel</Button>

@@ -331,6 +331,32 @@ describe('screens render API data at their URLs', () => {
     expect(within(panel).queryByText(/Updating Jira arrives in phase 2/)).toBeNull();
   });
 
+  describe('a feature set to none', () => {
+    const noMyWork = { ...meBa, permissions: { ...meBa.permissions, my_work: 'none' } };
+
+    it('is left out of the nav, and / lands on the first readable screen', async () => {
+      server.use(http.get('*/api/v1/me', () => HttpResponse.json(noMyWork)));
+      const { router } = renderApp('/');
+      await waitFor(() => expect(router.state.location.pathname).toBe(`/anken/${fixtures.anken[0].key}/matrix`));
+      const nav = await screen.findByRole('navigation', { name: 'Main' });
+      await within(nav).findByRole('link', { name: 'Function Matrix' });
+      expect(within(nav).queryByRole('link', { name: 'My Work' })).toBeNull();
+    });
+
+    it('shows a no-access state on its screen without loading it', async () => {
+      let loaded = false;
+      server.use(
+        http.get('*/api/v1/me', () => HttpResponse.json(noMyWork)),
+        http.get('*/api/v1/my-work', () => { loaded = true; return HttpResponse.json(fixtures.myWork); }),
+      );
+      renderApp('/my-work');
+      expect(await screen.findByText("You don't have access to this screen")).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: 'My Work' })).toBeNull();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(loaded).toBe(false);
+    });
+  });
+
   it('BA has no Settings or Users link', async () => {
     server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
     renderApp('/my-work');
@@ -351,6 +377,27 @@ describe('screens render API data at their URLs', () => {
     const select = within(dialog).getByLabelText('Member') as HTMLSelectElement;
     await waitFor(() => expect(select.value).toBe('an'));
     expect(select.disabled).toBe(true);
+  });
+
+  it('admin reassigns an existing leave to another member', async () => {
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/calendar', () => HttpResponse.json({
+        month: '2026-10',
+        days: [{ date: '2026-10-07', extra_note: null, is_today: true }],
+        rows: [{ member_id: 'binh', days_off: 1, cells: [{ date: '2026-10-07', kind: 'leave', label: null, tentative: false, leave: { id: 5, member_id: 'binh', date: '2026-10-07', type: 'full', note: '' } }] }],
+      })),
+      http.put('*/api/v1/leaves/5', async ({ request }) => { body = await request.json(); return HttpResponse.json({ id: 5, member_id: 'an', date: '2026-10-07', type: 'full', note: '' }); }),
+    );
+    renderApp('/calendar/leave/5?month=2026-10');
+    const dialog = await screen.findByRole('dialog', { name: 'Edit leave' });
+    const select = within(dialog).getByLabelText('Member') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe('binh'));
+    expect(select.disabled).toBe(false);
+    fireEvent.change(select, { target: { value: 'an' } });
+    expect(select.value).toBe('an');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(body).toMatchObject({ member_id: 'an', date_from: '2026-10-07', date_to: '2026-10-07' }));
   });
 
   describe('calendar without calendar write', () => {

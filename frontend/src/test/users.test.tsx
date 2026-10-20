@@ -56,6 +56,18 @@ describe('User management', () => {
     expect(admin.checked).toBe(true);
     expect(admin.disabled).toBe(true);
     expect(admin.title).toBe('Set in TRACKER_ADMINS');
+    const access = screen.getByLabelText('An access') as HTMLSelectElement;
+    expect(access.value).toBe('active');
+    expect(access.disabled).toBe(true);
+    expect(access.title).toBe('Set in TRACKER_ADMINS');
+  });
+
+  it('keeps the access of other users editable', async () => {
+    server.use(http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an')])));
+    renderApp('/admin/users');
+    const access = (await screen.findByLabelText('An access')) as HTMLSelectElement;
+    expect(access.disabled).toBe(false);
+    expect(access.title).toBe('');
   });
 
   it('shows the problem detail when a change is rejected', async () => {
@@ -99,6 +111,22 @@ describe('User management', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Approve access' })).toBeNull());
   });
 
+  it('notes when the matched member is an admin', async () => {
+    const an = members.find((m) => m.id === 'an')!;
+    server.use(
+      http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an', {}, { member: { ...an, permission: 'admin' }, access: 'none' }), row('binh', {}, { access: 'none' })])),
+      http.get('*/api/v1/admin/access-requests', () => HttpResponse.json([request({ member_id: 'an' })])),
+    );
+    renderApp('/admin/users');
+    const section = await screen.findByRole('region', { name: 'Access requests' });
+    await screen.findByLabelText('An Planning');
+    fireEvent.click(within(section).getByRole('button', { name: 'Approve…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Approve access' });
+    expect(within(dialog).getByText(/^Admin:/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText('Member'), { target: { value: 'binh' } });
+    expect(within(dialog).queryByText(/^Admin:/)).toBeNull();
+  });
+
   it('rejects a request', async () => {
     let called = false;
     server.use(
@@ -114,6 +142,13 @@ describe('User management', () => {
   it('sends a non-admin away', async () => {
     server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
     const { router } = renderApp('/admin/users');
+    expect(await screen.findByRole('heading', { name: 'My Work' })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/my-work');
+  });
+
+  it('sends a non-admin away from Settings', async () => {
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
+    const { router } = renderApp('/settings/structure');
     expect(await screen.findByRole('heading', { name: 'My Work' })).toBeTruthy();
     expect(router.state.location.pathname).toBe('/my-work');
   });
