@@ -5,6 +5,156 @@
     "version" : "1"
   },
   "paths" : {
+    "/api/v1/admin/access-requests" : {
+      "get" : {
+        "operationId" : "requests",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AccessRequest"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
+    "/api/v1/admin/access-requests/{id}/approve" : {
+      "post" : {
+        "operationId" : "approve",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApproveIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
+    "/api/v1/admin/access-requests/{id}/reject" : {
+      "post" : {
+        "operationId" : "reject",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccessRequest"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
+    "/api/v1/admin/users" : {
+      "get" : {
+        "operationId" : "users",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/UserRow"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
+    "/api/v1/admin/users/{memberId}" : {
+      "patch" : {
+        "operationId" : "patchUser",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "memberId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UserPatchIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
     "/api/v1/anken" : {
       "get" : {
         "operationId" : "overview",
@@ -1615,6 +1765,41 @@
   },
   "components" : {
     "schemas" : {
+      "AccessRequest" : {
+        "type" : "object",
+        "properties" : {
+          "decided_at" : {
+            "type" : [ "string", "null" ]
+          },
+          "decided_by" : {
+            "type" : [ "string", "null" ]
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "member_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "requested_at" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "pending", "approved", "rejected" ]
+          }
+        },
+        "required" : [ "decided_at", "decided_by", "email", "id", "member_id", "name", "note", "requested_at", "status" ]
+      },
       "AccessRequestIn" : {
         "type" : "object",
         "properties" : {
@@ -1777,6 +1962,22 @@
           }
         },
         "required" : [ "expects", "field_id", "key", "label", "mappable", "types", "used_for" ]
+      },
+      "ApproveIn" : {
+        "type" : "object",
+        "properties" : {
+          "member_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "name" : {
+            "type" : [ "string", "null" ]
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        },
+        "required" : [ "role" ]
       },
       "AttentionView" : {
         "type" : "object",
@@ -3986,6 +4187,73 @@
           }
         },
         "required" : [ "days", "end", "rows", "start" ]
+      },
+      "UserPatchIn" : {
+        "type" : "object",
+        "properties" : {
+          "access" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "none", "requested", "active", "rejected", "disabled" ]
+          },
+          "admin" : {
+            "type" : [ "boolean", "null" ]
+          },
+          "clear_role" : {
+            "type" : [ "boolean", "null" ]
+          },
+          "country" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "VN", "JP" ]
+          },
+          "email" : {
+            "type" : [ "string", "null" ],
+            "format" : "email"
+          },
+          "name" : {
+            "type" : [ "string", "null" ]
+          },
+          "overrides" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : {
+              "type" : [ "string", "null" ],
+              "enum" : [ "none", "read", "write" ]
+            }
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        }
+      },
+      "UserRow" : {
+        "type" : "object",
+        "properties" : {
+          "access" : {
+            "type" : "string",
+            "enum" : [ "none", "requested", "active", "rejected", "disabled" ]
+          },
+          "bootstrap_admin" : {
+            "type" : "boolean"
+          },
+          "effective" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "enum" : [ "none", "read", "write" ]
+            }
+          },
+          "member" : {
+            "$ref" : "#/components/schemas/Member"
+          },
+          "overrides" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "enum" : [ "none", "read", "write" ]
+            }
+          }
+        },
+        "required" : [ "access", "bootstrap_admin", "effective", "member", "overrides" ]
       },
       "WeekLoad" : {
         "type" : "object",

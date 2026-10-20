@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/api/v1/admin/access-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/access-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/access-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["patchUser"];
+        trace?: never;
+    };
     "/api/v1/anken": {
         parameters: {
             query?: never;
@@ -792,6 +872,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccessRequest: {
+            decided_at: string | null;
+            decided_by: string | null;
+            email: string;
+            /** Format: int32 */
+            id: number;
+            member_id: string | null;
+            name: string;
+            note: string;
+            requested_at: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected";
+        };
         AccessRequestIn: {
             note?: string | null;
         };
@@ -844,6 +937,12 @@ export interface components {
             mappable: boolean;
             types: string[];
             used_for: string;
+        };
+        ApproveIn: {
+            member_id?: string | null;
+            name?: string | null;
+            /** @enum {string} */
+            role: "BA" | "PM" | "PIM" | "BAL" | "JM";
         };
         AttentionView: {
             /** Format: int32 */
@@ -1571,6 +1670,34 @@ export interface components {
             rows: components["schemas"]["TimesheetRow"][];
             start: string;
         };
+        UserPatchIn: {
+            /** @enum {string|null} */
+            access?: "none" | "requested" | "active" | "rejected" | "disabled" | null;
+            admin?: boolean | null;
+            clear_role?: boolean | null;
+            /** @enum {string|null} */
+            country?: "VN" | "JP" | null;
+            /** Format: email */
+            email?: string | null;
+            name?: string | null;
+            overrides?: {
+                [key: string]: "none" | "read" | "write" | null;
+            } | null;
+            /** @enum {string|null} */
+            role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
+        UserRow: {
+            /** @enum {string} */
+            access: "none" | "requested" | "active" | "rejected" | "disabled";
+            bootstrap_admin: boolean;
+            effective: {
+                [key: string]: "none" | "read" | "write";
+            };
+            member: components["schemas"]["Member"];
+            overrides: {
+                [key: string]: "none" | "read" | "write";
+            };
+        };
         WeekLoad: {
             /** Format: double */
             available_h: number;
@@ -1611,6 +1738,122 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    requests: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessRequest"][];
+                };
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRow"];
+                };
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessRequest"];
+                };
+            };
+        };
+    };
+    users: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRow"][];
+                };
+            };
+        };
+    };
+    patchUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPatchIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRow"];
+                };
+            };
+        };
+    };
     overview: {
         parameters: {
             query?: never;
