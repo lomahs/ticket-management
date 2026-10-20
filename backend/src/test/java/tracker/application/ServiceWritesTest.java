@@ -219,14 +219,6 @@ class ServiceWritesTest {
     }
 
     @Test
-    void memberUpdate() {
-        tracker.domain.Member m = teamSettings.updateMember("an", new TeamSettingsService.MemberPatch("Ann", Role.BAL, null, "JP", false));
-        assertThat(List.of(m.role(), m.country(), m.name())).containsExactly(Role.BAL, "JP", "Ann");
-        assertThatThrownBy(() -> teamSettings.updateMember("zz", new TeamSettingsService.MemberPatch(null, null, null, null, false)))
-                .isInstanceOf(NotFound.class);
-    }
-
-    @Test
     void holidaysExtraDaysHoursAlerts() {
         teamSettings.addHoliday("2026-04-30", "Reunification Day", List.of("VN"));
         assertThat(teamSettings.holidays()).anyMatch(h -> h.date().equals("2026-04-30"));

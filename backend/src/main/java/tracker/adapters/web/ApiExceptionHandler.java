@@ -76,6 +76,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         Kind kind = switch (e) {
             case AppError.NotFound n -> new Kind(HttpStatus.NOT_FOUND, "not_found");
             case AppError.Conflict c -> new Kind(HttpStatus.CONFLICT, "conflict");
+            case AppError.Unauthenticated u -> new Kind(HttpStatus.UNAUTHORIZED, "unauthenticated");
+            case AppError.NoAccess n -> new Kind(HttpStatus.FORBIDDEN, "no_access");
+            case AppError.Forbidden f -> new Kind(HttpStatus.FORBIDDEN, "forbidden");
             case AppError.CapabilityDisabled c -> new Kind(HttpStatus.FORBIDDEN, "capability_disabled");
             default -> new Kind(HttpStatus.UNPROCESSABLE_ENTITY, "invalid");
         };

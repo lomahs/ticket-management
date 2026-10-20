@@ -82,7 +82,6 @@ class ApiWritesTest extends ApiTestSupport {
         JsonNode epics = call(json(post("/api/v1/settings/epics"), Map.of("key", "PAY-1500"))).json().get("epics");
         assertThat(epics.findValuesAsText("key")).contains("PAY-1500");
         problem(call(json(post("/api/v1/extra-days"), Map.of("date", "2026-10-07", "note", ""))), 422, "invalid");
-        assertThat(call(json(patch("/api/v1/members/an"), Map.of("role", "BAL"))).json().get("role").asText()).isEqualTo("BAL");
         assertThat(call(json(put("/api/v1/settings/alerts"), Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3,
                 "review_rounds", 3, "capacity_pct", 100))).json().get("soon_days").asDouble()).isEqualTo(3);
         JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function_name}] {step}", "sample", "[X] Create"))).json();

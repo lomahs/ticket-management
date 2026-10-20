@@ -722,42 +722,6 @@
         "tags" : [ "system-api" ]
       }
     },
-    "/api/v1/members/{member_id}" : {
-      "patch" : {
-        "operationId" : "updateMember",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "member_id",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/MemberPatchIn"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/Member"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "settings-api" ]
-      }
-    },
     "/api/v1/meta" : {
       "get" : {
         "operationId" : "meta",
@@ -2933,29 +2897,6 @@
           }
         },
         "required" : [ "days", "items", "member_id" ]
-      },
-      "MemberPatchIn" : {
-        "type" : "object",
-        "properties" : {
-          "clear_role" : {
-            "type" : [ "boolean", "null" ]
-          },
-          "country" : {
-            "type" : [ "string", "null" ],
-            "enum" : [ "VN", "JP" ]
-          },
-          "name" : {
-            "type" : [ "string", "null" ]
-          },
-          "permission" : {
-            "type" : [ "string", "null" ],
-            "enum" : [ "admin", "user" ]
-          },
-          "role" : {
-            "type" : [ "string", "null" ],
-            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
-          }
-        }
       },
       "Meta" : {
         "type" : "object",

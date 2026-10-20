@@ -39,8 +39,6 @@ export const useCheckFieldMapping = () => useMutation({ mutationFn: (b: Schemas[
 export const useSaveStatusMapping = () => useSettingsWrite((mapping: Schemas['StatusMappingIn']['mapping']) => unwrap(http.PUT('/api/v1/settings/status-mapping', { body: { mapping } })));
 export const useSaveStructure = () => useSettingsWrite((b: Schemas['StructureIn']) => unwrap(http.PUT('/api/v1/settings/structure', { body: b })));
 export const useSaveNameRules = () => useSettingsWrite((b: Schemas['NameRulesIn']) => unwrap(http.PUT('/api/v1/settings/name-rules', { body: b })));
-export const usePatchMember = () => useSettingsWrite((v: { id: string; body: Schemas['MemberPatchIn'] }) =>
-  unwrap(http.PATCH('/api/v1/members/{member_id}', { params: { path: { member_id: v.id } }, body: v.body })));
 export const useAddHoliday = () => useSettingsWrite((b: Schemas['HolidayIn']) => unwrap(http.POST('/api/v1/holidays', { body: b })));
 export const useDeleteHoliday = () => useSettingsWrite((date: string) => unwrap(http.DELETE('/api/v1/holidays/{date}', { params: { path: { date } } })));
 export const useAddExtraDay = () => useSettingsWrite((b: Schemas['ExtraDayIn']) => unwrap(http.POST('/api/v1/extra-days', { body: b })));

@@ -49,4 +49,25 @@ public abstract class AppError extends RuntimeException {
             super(detail, null);
         }
     }
+
+    /** Nobody is signed in. */
+    public static class Unauthenticated extends AppError {
+        public Unauthenticated(String detail) {
+            super(detail, null);
+        }
+    }
+
+    /** Signed in, but without access to the app. */
+    public static class NoAccess extends AppError {
+        public NoAccess(String detail) {
+            super(detail, null);
+        }
+    }
+
+    /** Signed in with access, but not allowed to do this. */
+    public static class Forbidden extends AppError {
+        public Forbidden(String detail) {
+            super(detail, null);
+        }
+    }
 }

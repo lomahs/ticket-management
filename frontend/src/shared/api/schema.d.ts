@@ -340,22 +340,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/members/{member_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["updateMember"];
-        trace?: never;
-    };
     "/api/v1/meta": {
         parameters: {
             query?: never;
@@ -1172,16 +1156,6 @@ export interface components {
             days: components["schemas"]["DayCell"][];
             items: components["schemas"]["PlanBlock"][];
             member_id: string;
-        };
-        MemberPatchIn: {
-            clear_role?: boolean | null;
-            /** @enum {string|null} */
-            country?: "VN" | "JP" | null;
-            name?: string | null;
-            /** @enum {string|null} */
-            permission?: "admin" | "user" | null;
-            /** @enum {string|null} */
-            role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
         Meta: {
             capabilities: components["schemas"]["Capabilities"];
@@ -2083,32 +2057,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Member"][];
-                };
-            };
-        };
-    };
-    updateMember: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                member_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MemberPatchIn"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Member"];
                 };
             };
         };

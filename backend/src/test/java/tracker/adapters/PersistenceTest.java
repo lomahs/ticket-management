@@ -94,6 +94,9 @@ class PersistenceTest {
         members.save(new Member("x", "X", "X", null, "JP", "#222"));
         assertThat(members.findByEmail("an.nguyen@ACME.VN")).map(Member::id).contains("an");
         assertThat(members.findByEmail("")).isEmpty();
+        members.save(new Member("a2", "A2", "A2", null, "JP", "#333", "AN.nguyen@acme.vn", Permission.USER, false, null));
+        assertThat(members.findAllByEmail("AN.NGUYEN@acme.vn")).extracting(Member::id).containsExactly("a2", "an");
+        assertThat(members.findAllByEmail("")).isEmpty();
     }
 
     @Test

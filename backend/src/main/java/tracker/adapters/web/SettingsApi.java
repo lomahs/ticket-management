@@ -15,7 +15,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,12 +33,8 @@ import tracker.application.service.JiraSettingsService.NameRulesView;
 import tracker.application.service.JiraSettingsService.StatusRow;
 import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.JiraSettingsService;
-import tracker.application.service.TeamSettingsService.MemberPatch;
 import tracker.application.service.TeamSettingsService;
 import tracker.domain.Holiday;
-import tracker.domain.Member;
-import tracker.domain.Permission;
-import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
@@ -218,19 +213,6 @@ public class SettingsApi {
     @PostMapping("/settings/name-rules/preview")
     public NameRulePreview previewNameRule(@RequestBody @Valid NameRulePreviewIn body) {
         return jiraSettings.previewNameRule(body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
-    }
-
-    // --- members ----------------------------------------------------------------------------------------------------
-
-    /** Fields left out (or null) are not changed; {@code clear_role} removes the role. */
-    public record MemberPatchIn(@Nullable String name, @Nullable Role role, @Nullable Boolean clearRole,
-                                @Nullable Permission permission, @Nullable Country country) {
-    }
-
-    @PatchMapping("/members/{member_id}")
-    public Member updateMember(@PathVariable("member_id") String memberId, @RequestBody @Valid MemberPatchIn body) {
-        return teamSettings.updateMember(memberId, new MemberPatch(body.name(), body.role(), body.permission(),
-                body.country() != null ? body.country().name() : null, Boolean.TRUE.equals(body.clearRole())));
     }
 
     // --- calendar settings ------------------------------------------------------------------------------------------
