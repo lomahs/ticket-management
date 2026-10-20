@@ -95,6 +95,7 @@ public class AccessService {
         Member member = resolve(id.email()).orElse(null);
         String memberId = member != null ? member.id() : null;
         Role role = member != null ? member.role() : null;
+        // Bootstrap admins stay active admins whatever their role, including JM.
         if (id.email().equals(BREAKGLASS_EMAIL) || bootstrap(id.email())) {
             Map<Feature, Level> levels = Permissions.effective(role, memberId != null ? access.findOverrides(memberId) : Map.of());
             return new Viewer(id.email(), id.name(), memberId, role, true, AccessStatus.ACTIVE, levels);
@@ -174,6 +175,9 @@ public class AccessService {
         Member m;
         if (link != null) {
             Member found = members.findById(link).orElseThrow(() -> new NotFound("Member " + link + " was not found", "member_id"));
+            if (!found.email().isBlank() && !found.email().equalsIgnoreCase(req.email())) {
+                throw new Conflict("That member signs in as " + found.email() + "; change its e-mail first", "member_id");
+            }
             m = new Member(found.id(), found.name(), found.fullName(), a.role(), found.country(), found.color(),
                     found.email().isBlank() ? req.email() : found.email(), found.permission(), found.external(),
                     found.jiraAccountId());
@@ -260,6 +264,12 @@ public class AccessService {
         boolean self = memberId.equals(actor.memberId());
         if (self && (Boolean.FALSE.equals(p.admin()) || p.access() == AccessStatus.DISABLED)) {
             throw new Invalid("You cannot remove your own admin access", p.access() == AccessStatus.DISABLED ? "access" : "admin");
+        }
+        if (self && p.email() != null && !email.isBlank() && !email.equals(actor.email())) {
+            throw new Invalid("You cannot change your own e-mail", "email");
+        }
+        if (!self && p.access() == AccessStatus.ACTIVE && !email.isBlank() && email.equals(actor.email())) {
+            throw new Invalid("This member shares your e-mail; merge members first", "access");
         }
         if (Boolean.FALSE.equals(p.admin()) && bootstrap(m.email())) {
             throw new Invalid("Set in TRACKER_ADMINS", "admin");

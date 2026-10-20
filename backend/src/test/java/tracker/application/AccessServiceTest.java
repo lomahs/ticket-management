@@ -168,6 +168,64 @@ class AccessServiceTest {
         assertThat(service.users()).extracting(u -> u.member().name()).isSorted();
     }
 
+    private static void field(Throwable e, String field) {
+        assertThat(((tracker.application.AppError) e).field()).isEqualTo(field);
+    }
+
+    @Test
+    void approveLinkedToAMemberWithAnotherEmailConflicts() {
+        members.save(new Member("other", "Other", "Other", null, "VN", "#777", "other@acme.vn", Permission.USER, false, null));
+        service.requestAccess(STRANGER, "");
+        int id = service.requests(RequestStatus.PENDING).get(0).id();
+        assertThatThrownBy(() -> service.approve(admin, id, new Approval("other", Role.BA, null))).isInstanceOf(Conflict.class)
+                .hasMessage("That member signs in as other@acme.vn; change its e-mail first");
+        assertThat(members.findById("other").orElseThrow().email()).isEqualTo("other@acme.vn");
+    }
+
+    @Test
+    void adminCannotChangeOwnEmailOrActivateAMemberSharingIt() {
+        assertThatThrownBy(() -> service.patchUser(admin, "minh", new UserPatch(null, "x@acme.vn", null, false, null, null, null, Map.of())))
+                .isInstanceOf(Invalid.class).hasMessage("You cannot change your own e-mail");
+        members.save(new Member("minh2", "Minh 2", "Minh 2", Role.BA, "VN", "#888", "minh@acme.vn", Permission.USER, false, null));
+        assertThatThrownBy(() -> service.patchUser(admin, "minh2", patch(null, AccessStatus.ACTIVE))).isInstanceOf(Invalid.class)
+                .hasMessage("This member shares your e-mail; merge members first");
+    }
+
+    @Test
+    void patchRulesAreEnforced() {
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(null, null, null, false, "XX", null, null, Map.of())))
+                .isInstanceOf(Invalid.class).satisfies(e -> field(e, "country"));
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(" ", null, null, false, null, null, null, Map.of())))
+                .isInstanceOf(Invalid.class).satisfies(e -> field(e, "name"));
+        assertThatThrownBy(() -> service.patchUser(admin, "zz", patch(null, null))).isInstanceOf(tracker.application.AppError.NotFound.class);
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(null, "MINH@acme.vn", null, false, null, null, null, Map.of())))
+                .isInstanceOf(Conflict.class).satisfies(e -> field(e, "email"));
+        members.save(new Member("noemail", "No Email", "No Email", Role.BA, "VN", "#999", "", Permission.USER, false, null));
+        assertThatThrownBy(() -> service.patchUser(admin, "noemail", patch(null, AccessStatus.ACTIVE))).isInstanceOf(Invalid.class)
+                .hasMessage("Needs an e-mail to sign in");
+        assertThatThrownBy(() -> service.patchUser(admin, "an", patch(null, AccessStatus.REQUESTED))).isInstanceOf(Invalid.class)
+                .satisfies(e -> field(e, "access"));
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(null, null, Role.JM, false, null, null, null, Map.of())))
+                .isInstanceOf(Invalid.class).hasMessage("A JM cannot sign in");
+    }
+
+    @Test
+    void approveNeedsAPendingRequest() {
+        service.requestAccess(STRANGER, "");
+        int id = service.requests(RequestStatus.PENDING).get(0).id();
+        service.approve(admin, id, new Approval(null, Role.BA, null));
+        assertThatThrownBy(() -> service.approve(admin, id, new Approval(null, Role.BA, null))).isInstanceOf(Conflict.class);
+    }
+
+    @Test
+    void patchUpdatesNameRoleAndCountry() {
+        AccessService.UserRow r = service.patchUser(admin, "an", new UserPatch("Ann", null, Role.BAL, false, "JP", null, null, Map.of()));
+        assertThat(r.member().name()).isEqualTo("Ann");
+        assertThat(r.member().role()).isEqualTo(Role.BAL);
+        assertThat(r.member().country()).isEqualTo("JP");
+        assertThat(service.patchUser(admin, "an", new UserPatch(null, null, null, true, null, null, null, Map.of())).member().role()).isNull();
+    }
+
     private static UserPatch patch(Boolean admin, AccessStatus status) {
         return new UserPatch(null, null, null, false, null, admin, status, Map.of());
     }
