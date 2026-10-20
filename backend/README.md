@@ -66,12 +66,21 @@ Needs a JDK 25 (`java -version`). Maven comes with the wrapper (`./mvnw`). From 
 | `TRACKER_DATA_DIR` | database and key file directory | `data` |
 | `TRACKER_STATIC_DIR` | built frontend to serve | `../frontend/dist` when it exists |
 | `PORT` | HTTP port | `8000` |
+| `SPRING_LDAP_URLS` | LDAP server URL(s), e.g. `ldaps://ad.company.local:636` (demo: the embedded server) | none |
+| `SPRING_LDAP_BASE` | LDAP search base | none |
+| `SPRING_LDAP_USERNAME` / `SPRING_LDAP_PASSWORD` | bind account used to search for the user | none |
+| `TRACKER_LDAP_USER_FILTER` | filter for the typed username (`{0}`) | `(\|(uid={0})(sAMAccountName={0})(mail={0}))` |
+| `TRACKER_LDAP_MAIL_ATTRIBUTE` / `TRACKER_LDAP_NAME_ATTRIBUTE` | attributes with the identity e-mail and the display name | `mail` / `displayName` |
+| `TRACKER_ADMINS` | comma-separated e-mails of the bootstrap admins (always admin and active) | none |
+| `TRACKER_BREAKGLASS_PASSWORD_HASH` | bcrypt hash for the user `breakglass`; off when unset. `htpasswd -bnBC 12 "" 'pw' \| tr -d ':\n'` | none |
 
 Paths are relative to `backend/` (the working directory of the scripts). Without the demo profile a sync runs when
 the interval set in Settings → Jira has passed since the last one (checked every minute).
 
-> **No login in phase 1.** Anyone who can reach the server can read the data and change settings, so run it only inside
-> the team's network. The Jira token is stored encrypted and never returned by the API.
+Sign-in is LDAP with server-side sessions in memory (a restart signs everyone out). Behind HTTPS or a reverse proxy set
+`server.servlet.session.cookie.secure=true` and `server.forward-headers-strategy=native` (or `framework`): the login
+throttle counts per username and client address, and without forwarded headers every client shares the proxy's address.
+See "Sign-in and access" in the top-level README. The Jira token is stored encrypted and never returned by the API.
 
 ## Tests
 
@@ -86,6 +95,8 @@ the interval set in Settings → Jira has passed since the last one (checked eve
 - `ApiReadsTest` / `ApiWritesTest` / `ApiJiraModeTest`: the HTTP API through MockMvc, validation and problem details;
 - `BootTest`: the application on a random port: SPA serving, upload limits, and the OpenAPI contract
   (`-Dopenapi.write=true` rewrites it);
+- `AuthApiTest` (login, logout, throttle, CSRF, access request), `AccessGateTest` (every `/api` handler declares its access),
+  `ApiAdminTest` (users and access requests), `AccessServiceTest` (roles, overrides, admins);
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:

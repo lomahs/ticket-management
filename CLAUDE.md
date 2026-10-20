@@ -48,6 +48,7 @@ cd frontend && npm run gen:api         # after any API change; a backend test fa
 
 - Backend layers: `domain/` (pure rules, unit tests with `Fixtures`), then `application/` (ports, `SyncService`,
   one service per screen), then `adapters/` (web, JDBC + Flyway, Jira), then `config/`.
+- Every `/api` handler declares `@Open(...)` or `@Requires(feature, level)`; `AccessGateTest` fails otherwise.
 - Schema changes go in a new `backend/src/main/resources/db/migration/V<n>__*.sql`. Never edit an applied migration.
   Data that a new column needs from Jira shows up only after a **full sync**.
 - The API returns raw values (ISO dates, hours, enums), and the frontend formats them. Frontend code is

@@ -18,6 +18,11 @@ export default defineConfig({
   workers: 1,
   timeout: 30_000,
   use: { baseURL: `http://localhost:${PORT}`, channel: process.env.PW_CHANNEL, trace: 'retain-on-failure' },
+  projects: [
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    // The specs run signed in as the demo admin (minh); auth.spec.ts signs in as others without this state.
+    { name: 'app', testIgnore: /auth\.setup\.ts/, dependencies: ['setup'], use: { storageState: '../.tmp/e2e/admin.json' } },
+  ],
   webServer: {
     command: SERVER,
     url: `http://localhost:${PORT}/api/v1/meta`,

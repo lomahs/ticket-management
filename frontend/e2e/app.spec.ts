@@ -15,9 +15,9 @@ test('matrix summary filter lives in the URL and survives a reload', async ({ pa
   await page.goto('/anken/PAY-1100/matrix');
   await page.getByRole('button', { name: 'Late', exact: true }).click();
   await expect(page).toHaveURL(/prog=late/);
-  await expect(page.getByText('6/12 function')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Status summary' }).getByText('6/12 function')).toBeVisible();
   await page.reload();
-  await expect(page.getByText('6/12 function')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Status summary' }).getByText('6/12 function')).toBeVisible();
 });
 
 test('a matrix cell opens the ticket panel and a status change is written to Jira', async ({ page }) => {
@@ -54,10 +54,10 @@ test('the import wizard walks its steps by URL', async ({ page }) => {
   await page.goto('/calendar/import/2');
   await page.getByRole('button', { name: 'Use a sample file' }).click();
   await expect(page.getByText('10 rows read')).toBeVisible();
-  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page).toHaveURL(/\/calendar\/import\/3/);
-  await expect(page.getByText(/with errors/)).toBeVisible();
-  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByText(/^\d+ with errors$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('button', { name: /^Import \d+ rows$/ }).click();
   await expect(page).toHaveURL(/\/calendar\?month=2026-11/);
 });

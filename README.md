@@ -64,8 +64,55 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
 
 The API syncs on the chosen interval and from the Sync button; screens read only the local database.
 
-> **No login in phase 1.** Anyone who can reach the server can read the data and change settings, so run it only
-> inside the team's network. The Jira token is stored encrypted and never returned by the API.
+The Jira token is stored encrypted and never returned by the API.
+
+## Sign-in and access
+
+Everyone signs in with their company (LDAP / Active Directory) account. The identity is the account's `mail`
+attribute, lowercased, matched to the member's e-mail. Passwords are never stored or logged. A person with no access
+yet lands on a page where they can send an access request; an admin approves it (and picks a role) or rejects it in
+**Users**. Sessions live in the server's memory (HttpOnly cookie, idle timeout 8 hours), so **a restart signs everyone out**.
+
+| Variable | Meaning |
+|---|---|
+| `SPRING_LDAP_URLS` | directory URL, e.g. `ldaps://ad.company.local:636` |
+| `SPRING_LDAP_BASE` | search base, e.g. `dc=company,dc=local` |
+| `SPRING_LDAP_USERNAME` / `SPRING_LDAP_PASSWORD` | bind account that searches for the user |
+| `TRACKER_LDAP_USER_FILTER` | filter for the typed username, `{0}` is the username (default `(\|(uid={0})(sAMAccountName={0})(mail={0}))`) |
+| `TRACKER_LDAP_MAIL_ATTRIBUTE` / `TRACKER_LDAP_NAME_ATTRIBUTE` | attributes with the e-mail and the display name (default `mail`, `displayName`) |
+| `TRACKER_ADMINS` | comma-separated e-mails of the bootstrap admins: always admin and active |
+| `TRACKER_BREAKGLASS_PASSWORD_HASH` | bcrypt hash of an emergency password for the user `breakglass`; **off unless set** |
+
+Active Directory example:
+
+```bash
+SPRING_LDAP_URLS=ldaps://ad.company.local:636
+SPRING_LDAP_BASE=dc=company,dc=local
+SPRING_LDAP_USERNAME='cn=svc-tracker,ou=service,dc=company,dc=local'
+SPRING_LDAP_PASSWORD=...
+TRACKER_LDAP_USER_FILTER='(sAMAccountName={0})'
+TRACKER_ADMINS=lead@company.com
+```
+
+Make the break-glass hash with `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n'` and pass the output as
+`TRACKER_BREAKGLASS_PASSWORD_HASH` (quote it: it contains `$`).
+
+**HTTPS or a reverse proxy:** set `server.servlet.session.cookie.secure=true` (`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`)
+and `server.forward-headers-strategy=native` (or `framework`; `SERVER_FORWARD_HEADERS_STRATEGY`). The login throttle (5
+failures for one username within 15 minutes lock it for 15 minutes) counts per username and client address; behind a
+proxy without forwarded headers every client shares the proxy's address.
+
+**Demo profile:** an embedded LDAP server with `minh` (admin), `an`, `binh`, `chi`, `dung` (active), `lan` (no access
+yet: use her to try the request flow) and `khach`. The password is `demo` for all of them.
+
+**Who sees and changes what** (the role defaults; an admin can override each feature per person, and admins can do everything):
+
+| Role | Every feature except Members | Members |
+|---|---|---|
+| PM, PIM | read and write | read and write |
+| BAL, BA, or no role | read only | none |
+
+In this phase every active user sees every anken.
 
 ## Architecture
 
