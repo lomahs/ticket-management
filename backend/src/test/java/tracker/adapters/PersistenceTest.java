@@ -18,6 +18,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tracker.TrackerTest;
 import tracker.adapters.crypto.CryptoSecretBox;
+import tracker.application.ports.AccessRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.IssueRepository;
@@ -27,16 +28,21 @@ import tracker.application.ports.SyncRunRepository.SyncRun;
 import tracker.application.ports.SyncRunRepository;
 import tracker.application.settings.SettingsStore;
 import tracker.application.settings.TrackerSettings;
+import tracker.domain.AccessRequest;
+import tracker.domain.AccessStatus;
 import tracker.domain.Anken;
 import tracker.domain.EventField;
+import tracker.domain.Feature;
 import tracker.domain.Holiday;
 import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
 import tracker.domain.IssueKind;
 import tracker.domain.Leave;
+import tracker.domain.Level;
 import tracker.domain.LeaveType;
 import tracker.domain.Member;
 import tracker.domain.Permission;
+import tracker.domain.RequestStatus;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
@@ -52,6 +58,8 @@ class PersistenceTest {
 
     @Autowired
     MemberRepository members;
+    @Autowired
+    AccessRepository access;
     @Autowired
     IssueRepository issues;
     @Autowired
@@ -77,7 +85,44 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4");
+    }
+
+    @Test
+    void memberByEmailIgnoresCase() {
+        members.save(new Member("an", "An", "Nguyễn Thị An", Role.BA, "VN", "#111", "An.Nguyen@acme.vn", Permission.USER, false, "acc-an"));
+        members.save(new Member("x", "X", "X", null, "JP", "#222"));
+        assertThat(members.findByEmail("an.nguyen@ACME.VN")).map(Member::id).contains("an");
+        assertThat(members.findByEmail("")).isEmpty();
+    }
+
+    @Test
+    void accessStatusAndOverridesRoundTrip() {
+        members.save(new Member("an", "An", "An", Role.BA, "VN", "#111"));
+        access.saveStatus("an", AccessStatus.ACTIVE);
+        assertThat(access.findStatus("an")).contains(AccessStatus.ACTIVE);
+        assertThat(access.findStatuses()).isEqualTo(Map.of("an", AccessStatus.ACTIVE));
+        access.saveOverride("an", Feature.PLANNING, Level.WRITE);
+        assertThat(access.findOverrides("an")).isEqualTo(Map.of(Feature.PLANNING, Level.WRITE));
+        assertThat(access.findOverrides()).isEqualTo(Map.of("an", Map.of(Feature.PLANNING, Level.WRITE)));
+        access.saveOverride("an", Feature.PLANNING, null);
+        assertThat(access.findOverrides("an")).isEmpty();
+    }
+
+    @Test
+    void accessRequestsLifecycle() {
+        AccessRequest r = access.addRequest("new@acme.vn", "New", "please", "2026-10-07T09:00:00Z", null);
+        assertThat(r.id()).isPositive();
+        assertThat(r.status()).isEqualTo(RequestStatus.PENDING);
+        assertThat(access.findRequests(RequestStatus.PENDING)).extracting(AccessRequest::id).containsExactly(r.id());
+        access.decide(r.id(), RequestStatus.APPROVED, "minh", "2026-10-08T09:00:00Z", "an");
+        AccessRequest d = access.findRequest(r.id()).orElseThrow();
+        assertThat(d.status()).isEqualTo(RequestStatus.APPROVED);
+        assertThat(d.decidedBy()).isEqualTo("minh");
+        assertThat(d.memberId()).isEqualTo("an");
+        assertThat(access.findRequests(RequestStatus.PENDING)).isEmpty();
+        assertThat(access.findRequests(null)).extracting(AccessRequest::id).containsExactly(r.id());
+        assertThat(access.findLatestRequest("new@acme.vn")).contains(d);
     }
 
     @Test

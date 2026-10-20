@@ -12,5 +12,8 @@ public interface MemberRepository {
 
     Optional<Member> findByJiraAccountId(String accountId);
 
+    /** Case-insensitive; a blank e-mail never matches. */
+    Optional<Member> findByEmail(String email);
+
     void save(Member member);
 }

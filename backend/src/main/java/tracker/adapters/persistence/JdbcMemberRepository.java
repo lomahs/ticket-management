@@ -45,6 +45,12 @@ class JdbcMemberRepository implements MemberRepository {
     }
 
     @Override
+    public Optional<Member> findByEmail(String email) {
+        return jdbc.sql("SELECT * FROM members WHERE email <> '' AND lower(email) = lower(:email) LIMIT 1").param("email", email)
+                .query(JdbcMemberRepository::member).optional();
+    }
+
+    @Override
     public void save(Member m) {
         jdbc.sql("""
                 INSERT INTO members (id, jira_account_id, name, full_name, email, role, country, color, permission, external)
