@@ -249,6 +249,13 @@
           }
         }, {
           "in" : "query",
+          "name" : "task",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
           "name" : "member",
           "required" : false,
           "schema" : {
@@ -1793,9 +1800,27 @@
         },
         "required" : [ "actual_remaining_h", "date", "logged_h", "plan_remaining_h", "planned_h" ]
       },
+      "BurndownOption" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "key", "label" ]
+      },
       "BurndownView" : {
         "type" : "object",
         "properties" : {
+          "ankens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BurndownOption"
+            }
+          },
           "burndown" : {
             "$ref" : "#/components/schemas/BurndownChart"
           },
@@ -1824,6 +1849,15 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "task" : {
+            "type" : [ "string", "null" ]
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BurndownOption"
+            }
+          },
           "title" : {
             "type" : "string"
           },
@@ -1831,7 +1865,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "burndown", "epic_key", "member", "members", "phase", "phases", "subtasks", "title", "today" ]
+        "required" : [ "ankens", "burndown", "epic_key", "member", "members", "phase", "phases", "subtasks", "task", "tasks", "title", "today" ]
       },
       "CalendarCell" : {
         "type" : "object",

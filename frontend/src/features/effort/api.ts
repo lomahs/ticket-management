@@ -17,8 +17,8 @@ export const analysisQuery = (anken?: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/effort/analysis', { params: { query: anken ? { anken } : {} } })),
 });
 
-export const burndownQuery = (q: { anken?: string; phase?: string; member?: string }) => ({
-  queryKey: ['effort-burndown', q.anken ?? null, q.phase ?? null, q.member ?? null] as const,
+export const burndownQuery = (q: { anken?: string; phase?: string; task?: string; member?: string }) => ({
+  queryKey: ['effort-burndown', q.anken ?? null, q.phase ?? null, q.task ?? null, q.member ?? null] as const,
   queryFn: () => unwrap(http.GET('/api/v1/effort/burndown', { params: { query: q } })),
   placeholderData: keepPreviousData,
 });

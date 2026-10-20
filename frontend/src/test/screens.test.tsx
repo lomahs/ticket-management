@@ -156,27 +156,37 @@ describe('screens render API data at their URLs', () => {
     expect(screen.getByText('UAT, ITA')).toBeTruthy(); // in this browser's phase order
   });
 
-  it('draws the effort burndown and writes the phase and member filters to the URL', async () => {
+  it('draws the effort burndown and writes the anken, phase, sub-phase and member filters to the URL', async () => {
     const day = (date: string, plan: number, act: number | null) => ({ date, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
     let seen: URLSearchParams | undefined;
     server.use(http.get('*/api/v1/effort/burndown', ({ request }) => {
       seen = new URL(request.url).searchParams;
       return HttpResponse.json({
-        epic_key: 'PAY-1100', title: 'Payment flow revision', phases: ['Prepare', 'Implement_Coding'], phase: seen.get('phase'),
+        epic_key: seen.get('anken') ?? 'PAY-1100', title: 'Payment flow revision',
+        ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }, { key: 'PAY-1200', label: 'Booking UI' }],
+        phases: ['Prepare', 'Implement_Coding'], phase: seen.get('phase'),
+        tasks: seen.get('phase') ? [{ key: 'PAY-1301', label: 'Implement_Coding Screen' }] : [], task: seen.get('task'),
         members: ['binh'], member: seen.get('member'), subtasks: 3, today: '2026-10-07',
-        burndown: { estimate_h: 12, start: '2026-10-06', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
-          days: [day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
+        burndown: { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
+          days: [day('2026-10-05', 12, 12), day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
       });
     }));
     const { router } = renderApp('/effort/burndown');
     expect(await screen.findByText('Behind plan')).toBeTruthy();
     expect(screen.getByText('+2h')).toBeTruthy();
     expect(screen.getByRole('img', { name: /4h planned and 6h actually remaining of 12h/ })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Sub-phase' })).toBeNull(); // only once a phase is picked
     fireEvent.click(screen.getByRole('button', { name: 'Implement_Coding' }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Sub-phase' }), { target: { value: 'PAY-1301' } });
+    await waitFor(() => expect(seen?.get('task')).toBe('PAY-1301'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'binh' } });
     await waitFor(() => expect(seen?.get('member')).toBe('binh'));
     expect(seen?.get('phase')).toBe('Implement_Coding');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Anken' }), { target: { value: 'PAY-1200' } });
+    await waitFor(() => expect(seen?.get('anken')).toBe('PAY-1200'));
+    expect(seen?.get('phase')).toBeNull(); // another anken has its own phases
+    expect(seen?.get('task')).toBeNull();
   });
 
   it('shows API errors instead of a blank screen', async () => {

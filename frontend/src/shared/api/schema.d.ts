@@ -814,7 +814,12 @@ export interface components {
             /** Format: double */
             planned_h: number;
         };
+        BurndownOption: {
+            key: string;
+            label: string;
+        };
         BurndownView: {
+            ankens: components["schemas"]["BurndownOption"][];
             burndown: components["schemas"]["BurndownChart"];
             epic_key: string | null;
             member: string | null;
@@ -823,6 +828,8 @@ export interface components {
             phases: string[];
             /** Format: int32 */
             subtasks: number;
+            task: string | null;
+            tasks: components["schemas"]["BurndownOption"][];
             title: string;
             today: string;
         };
@@ -1694,6 +1701,7 @@ export interface operations {
             query?: {
                 anken?: string;
                 phase?: string;
+                task?: string;
                 member?: string;
             };
             header?: never;

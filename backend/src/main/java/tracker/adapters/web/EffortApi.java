@@ -43,7 +43,7 @@ public class EffortApi {
 
     @GetMapping("/burndown")
     public BurndownView burndown(@RequestParam(required = false) @Nullable String anken, @RequestParam(required = false) @Nullable String phase,
-                                 @RequestParam(required = false) @Nullable String member) {
-        return effort.burndown(anken, phase, member);
+                                 @RequestParam(required = false) @Nullable String task, @RequestParam(required = false) @Nullable String member) {
+        return effort.burndown(anken, phase, task, member);
     }
 }

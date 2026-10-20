@@ -247,20 +247,29 @@ class ServiceReadsTest {
     }
 
     @Test
-    void burndownForTheMatrixAnkenFiltersByPhaseAndMember() {
-        EffortService.BurndownView all = effort.burndown(null, null, null);
+    void burndownForTheMatrixAnkenFiltersByAnkenPhaseSubPhaseAndMember() {
+        EffortService.BurndownView all = effort.burndown(null, null, null, null);
         assertThat(all.epicKey()).isEqualTo("PAY-1100");
+        assertThat(all.ankens()).extracting(EffortService.BurndownOption::key).contains("PAY-1100");
         assertThat(all.phases()).isNotEmpty();
+        assertThat(all.tasks()).isEmpty();
         assertThat(all.subtasks()).isPositive();
         Burndown.BurndownChart b = all.burndown();
+        assertThat(b.days().get(0).planRemainingH()).isEqualTo(b.estimateH()); // the baseline, the day before the anken starts
         assertThat(b.days().get(b.days().size() - 1).planRemainingH()).isZero();
         assertThat(b.days()).allMatch(d -> d.date().compareTo(all.today()) <= 0 == (d.actualRemainingH() != null));
         String phase = all.phases().get(0);
-        EffortService.BurndownView one = effort.burndown("PAY-1100", phase, all.members().get(0));
+        EffortService.BurndownView inPhase = effort.burndown("PAY-1100", phase, null, null);
+        assertThat(inPhase.tasks()).isNotEmpty();
+        EffortService.BurndownView sub = effort.burndown("PAY-1100", phase, inPhase.tasks().get(0).key(), null);
+        assertThat(sub.task()).isEqualTo(inPhase.tasks().get(0).key());
+        assertThat(sub.subtasks()).isPositive().isLessThanOrEqualTo(inPhase.subtasks());
+        EffortService.BurndownView one = effort.burndown("PAY-1100", phase, null, inPhase.members().get(0));
         assertThat(one.phase()).isEqualTo(phase);
         assertThat(one.subtasks()).isLessThan(all.subtasks());
         assertThat(one.burndown().estimateH()).isLessThan(b.estimateH());
-        assertThatThrownBy(() -> effort.burndown("NOPE-1", null, null)).isInstanceOf(NotFound.class);
+        assertThat(one.burndown().start()).isEqualTo(inPhase.burndown().start()); // the phase's start, whoever is picked
+        assertThatThrownBy(() -> effort.burndown("NOPE-1", null, null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test

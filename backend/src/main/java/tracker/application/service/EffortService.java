@@ -1,10 +1,10 @@
 package tracker.application.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +28,7 @@ import tracker.domain.Dates;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Numbers;
+import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepDef;
@@ -194,45 +195,78 @@ public class EffortService {
                 rework);
     }
 
+    /** A choice in a burndown filter: an anken, or a Task (sub-phase) by its name without the leading brackets. */
+    public record BurndownOption(String key, String label) {
+    }
+
     /**
-     * @param phases     phases of the anken's planned sub-tasks, in Settings → Structure order
-     * @param members    workers of the anken's planned sub-tasks
-     * @param subtasks   sub-tasks in the chart: Planned Start, Planned End and an estimate, after the phase and member filters
+     * @param ankens     every tracked anken, in Settings order
+     * @param phases     phase groups of the anken's planned sub-tasks, in Settings → Structure order
+     * @param tasks      Tasks (sub-phases) of {@code phase} with planned sub-tasks, by planned start; empty without a phase
+     * @param members    workers of the planned sub-tasks of the picked anken, phase and sub-phase
+     * @param subtasks   sub-tasks in the chart: Planned Start, Planned End and an estimate, after every filter
      */
-    public record BurndownView(@Nullable String epicKey, String title, List<String> phases, @Nullable String phase, List<String> members,
+    public record BurndownView(@Nullable String epicKey, String title, List<BurndownOption> ankens, List<String> phases,
+                               @Nullable String phase, List<BurndownOption> tasks, @Nullable String task, List<String> members,
                                @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown) {
     }
 
     /**
+     * The chart opens on the day before the start of the scope (anken, phase or sub-phase): the earliest Planned Start of its
+     * sub-tasks, whoever works on them.
+     *
      * @param requested the anken; null: the first tracked one with functions
-     * @param phase     null: every phase
+     * @param phase     a phase group; null: every phase
+     * @param task      a Task (sub-phase) of the epic; null: every Task
      * @param member    the worker; null: everyone
      */
-    public BurndownView burndown(@Nullable String requested, @Nullable String phase, @Nullable String member) {
+    public BurndownView burndown(@Nullable String requested, @Nullable String phase, @Nullable String task, @Nullable String member) {
         TrackerContext ctx = context.load();
         String epic = epicOf(ctx, requested);
-        Map<String, String> phaseOf = new HashMap<>();
-        List<Issue> planned = new ArrayList<>();
-        subtasksByPhase(ctx, epic).forEach((p, issues) -> issues.forEach(i -> {
-            if (Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0) {
-                phaseOf.put(i.key(), p);
-                planned.add(i);
+        Map<String, Integer> order = new HashMap<>();
+        for (int n = 0; n < ctx.settings.jira.epics.size(); n++) {
+            order.put(ctx.settings.jira.epics.get(n), n);
+        }
+        List<BurndownOption> ankens = ctx.anken.stream().sorted(Comparator.comparingInt(a -> order.getOrDefault(a.key(), 99)))
+                .map(a -> new BurndownOption(a.key(), a.title())).toList();
+        List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
+        Map<String, String> groups = PhaseGroups.of(parents, ctx.settings.structure);
+        Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
+        Map<String, String> start = new HashMap<>();
+        for (Issue i : ctx.subtasks()) {
+            if (i.epicKey().equals(epic) && Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0) {
+                byPhase.computeIfAbsent(groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER), k -> new ArrayList<>()).add(i);
+                if (i.parentKey() != null) {
+                    start.merge(i.parentKey(), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
+                }
+            }
+        }
+        List<String> phases = PhaseGroups.ordered(byPhase, ctx.settings.structure.phases());
+        String ph = Text.hasText(phase) ? phase : null;
+        String tk = Text.hasText(task) ? task : null;
+        List<BurndownOption> tasks = ph == null ? List.of() : parents.stream()
+                .filter(p -> ph.equals(groups.get(p.key())) && start.containsKey(p.key()))
+                .sorted(Comparator.comparing((Issue p) -> start.get(p.key())).thenComparing(Issue::key))
+                .map(p -> new BurndownOption(p.key(), PhaseGroups.taskName(p.summary()))).toList();
+        List<Issue> scope = new ArrayList<>();
+        byPhase.forEach((p, issues) -> issues.forEach(i -> {
+            if ((ph == null || ph.equals(p)) && (tk == null || tk.equals(i.parentKey()))) {
+                scope.add(i);
             }
         }));
-        List<String> phases = ctx.settings.structure.orderedPhases(new LinkedHashSet<>(phaseOf.values()));
         Set<String> workers = new HashSet<>();
-        planned.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
+        scope.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
         List<String> members = ctx.members.keySet().stream().filter(workers::contains).toList();
-        String ph = Text.hasText(phase) ? phase : null;
         String who = Text.hasText(member) ? member : null;
         List<Burndown.Item> items = new ArrayList<>();
-        for (Issue i : planned) {
+        for (Issue i : scope) {
             String w = Objects.requireNonNullElse(ctx.worker(i), "");
-            if ((ph == null || ph.equals(phaseOf.get(i.key()))) && (who == null || who.equals(w))) {
+            if (who == null || who.equals(w)) {
                 items.add(new Burndown.Item(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH(), i.worklogs()));
             }
         }
-        return new BurndownView(epic, titleOf(ctx, epic), phases, ph, members, who, items.size(), ctx.today,
-                Burndown.compute(items, ctx.cal, ctx.today));
+        String from = scope.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
+        return new BurndownView(epic, titleOf(ctx, epic), ankens, phases, ph, tasks, tk, members, who, items.size(), ctx.today,
+                Burndown.compute(items, ctx.cal, ctx.today, from));
     }
 }

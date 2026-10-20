@@ -13,7 +13,8 @@ import tracker.domain.Capacity.DayPlan;
 import tracker.domain.Capacity.PlanItem;
 
 /**
- * Effort burndown over the shown working days from the earliest Planned Start to the latest Planned End.
+ * Effort burndown over the shown working days from the day before the scope's start to the latest Planned End.
+ * The first day is the baseline: nothing is planned on it, so the plan still has the whole estimate left.
  * Plan: each estimate spread evenly over its worker's working days ({@link Capacity#dailyPlan}). Actual: estimate − logged hours.
  */
 public final class Burndown {
@@ -49,17 +50,28 @@ public final class Burndown {
         return days.get(days.size() - 1);
     }
 
-    public static BurndownChart compute(List<Item> items, WorkCalendar cal, String today) {
+    /** The shown day before {@code start}: the working day before it, else the day before it. */
+    static String dayBefore(String start, WorkCalendar cal) {
+        String d = Dates.addDays(start, -1);
+        for (int n = 0; n < 14 && !cal.visible(d); n++) {
+            d = Dates.addDays(d, -1);
+        }
+        return cal.visible(d) ? d : Dates.addDays(start, -1);
+    }
+
+    /**
+     * @param from the start of the scope (anken, phase or sub-phase), which can be before the items' own starts when they are
+     *             filtered by member; null: the earliest Planned Start of the items
+     */
+    public static BurndownChart compute(List<Item> items, WorkCalendar cal, String today, @Nullable String from) {
         double est = items.stream().mapToDouble(Item::estimateH).sum();
         if (items.isEmpty()) {
             return new BurndownChart(0, null, null, 0, 0, List.of());
         }
-        String lo = items.stream().map(Item::start).min(String::compareTo).orElseThrow();
+        String first = items.stream().map(Item::start).min(String::compareTo).orElseThrow();
+        String lo = dayBefore(from != null && from.compareTo(first) < 0 ? from : first, cal);
         String hi = items.stream().map(Item::end).max(String::compareTo).orElseThrow();
-        List<String> days = Dates.daysBetween(lo, Dates.max(lo, hi)).stream().filter(cal::visible).toList();
-        if (days.isEmpty()) {
-            days = List.of(lo);
-        }
+        List<String> days = Dates.daysBetween(lo, Dates.max(lo, hi)).stream().filter(d -> d.equals(lo) || cal.visible(d)).toList();
         Map<String, Double> burn = new LinkedHashMap<>();
         Map<String, Double> logged = new LinkedHashMap<>();
         days.forEach(d -> {
