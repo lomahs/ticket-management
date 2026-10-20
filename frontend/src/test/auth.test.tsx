@@ -40,6 +40,37 @@ describe('sign-in and the route gate', () => {
     expect(router.state.location.pathname).toBe('/anken');
   });
 
+  it('restores the query of a deep link after sign-in', async () => {
+    let signedIn = false;
+    server.use(
+      http.get('*/api/v1/me', () => (signedIn ? HttpResponse.json(meAdmin) : unauthenticated())),
+      info,
+      http.post('*/api/v1/auth/login', () => { signedIn = true; return HttpResponse.json(meAdmin); }),
+    );
+    const { router } = renderApp('/login?next=%2Fplanning%3Fstart%3D2026-10-05%26weeks%3D2');
+    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'an' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'demo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/planning'));
+    expect((router.state.location.search as { start?: string }).start).toBe('2026-10-05');
+  });
+
+  it('sends a screen query that loses its session to login, without re-requesting /me in a loop', async () => {
+    let meCalls = 0;
+    server.use(
+      // the session is gone for good: /me answers admin once (the gate), then 401 like the real backend
+      http.get('*/api/v1/me', () => { meCalls++; return meCalls === 1 ? HttpResponse.json(meAdmin) : unauthenticated(); }),
+      info,
+      http.get('*/api/v1/anken', unauthenticated),
+    );
+    const { router } = renderApp('/anken');
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/login');
+    expect((router.state.location.search as { next?: string }).next).toBe('/anken');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(meCalls).toBeLessThanOrEqual(2);
+  });
+
   it('shows the error of a bad password', async () => {
     server.use(
       http.get('*/api/v1/me', unauthenticated), info,
@@ -64,7 +95,7 @@ describe('sign-in and the route gate', () => {
     expect(router.state.location.pathname).toBe('/no-access');
     fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
     expect(await screen.findByText(/Your request was sent/)).toBeTruthy();
-    expect(sent).toBeDefined();
+    expect(sent).toEqual({ note: null });
   });
 
   it('sidebar shows the signed-in user and signs out', async () => {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRouteApi, useNavigate } from '@tanstack/react-router';
+import { getRouteApi, useRouter } from '@tanstack/react-router';
 import { useEffect, useState, type FormEvent } from 'react';
 import { meQuery } from '../../../shared/api/queries';
 import { Button, TextField } from '../../../shared/ds';
@@ -13,14 +13,15 @@ const safeNext = (next: string | undefined) => (next && next.startsWith('/') && 
 
 export function LoginPage() {
   const { next } = route.useSearch();
-  const navigate = useNavigate();
+  const router = useRouter();
   const me = useQuery(meQuery).data;
   const info = useQuery(authInfoQuery).data;
   const login = useLogin();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const go = () => navigate({ to: safeNext(next) });
-  useEffect(() => { if (me?.access === 'active') void navigate({ to: safeNext(next) }); }, [me, next, navigate]);
+  // `next` is a full path with query and hash, so it goes through history, not a typed route target.
+  const go = () => router.history.push(safeNext(next));
+  useEffect(() => { if (me?.access === 'active') router.history.push(safeNext(next)); }, [me, next, router]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

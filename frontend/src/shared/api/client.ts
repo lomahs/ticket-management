@@ -13,10 +13,14 @@ http.use({
   onRequest({ request }) {
     if (request.method === 'GET' || request.method === 'HEAD') return undefined;
     const token = typeof document !== 'undefined' ? /(?:^|;\s*)XSRF-TOKEN=([^;]*)/.exec(document.cookie)?.[1] : undefined;
-    if (token) request.headers.set('X-XSRF-TOKEN', decodeURIComponent(token));
+    if (token) request.headers.set('X-XSRF-TOKEN', safeDecode(token));
     return request;
   },
 });
+
+function safeDecode(v: string) {
+  try { return decodeURIComponent(v); } catch { return v; }
+}
 
 interface Result<T> { data?: T; error?: unknown; response: Response }
 
