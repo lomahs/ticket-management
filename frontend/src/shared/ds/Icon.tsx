@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, CircleCheck, CirclePause, CloudUpload, Download,
   ExternalLink, Eye, EyeOff, FileCheck, FileDown, FileSpreadsheet, FileUp, Grid3x3, GripVertical, Hourglass, LayoutDashboard, Link, ListTodo, LogOut,
   MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Plug, Plus, RefreshCw, Scale, ScanSearch, Search, Send,
-  Settings, Sun, Sunrise, Timer, Trash, TrendingUp, TriangleAlert, Undo2, Upload, X, type LucideIcon,
+  Settings, Sun, Sunrise, Timer, Trash, TrendingUp, Users, TriangleAlert, Undo2, Upload, X, type LucideIcon,
 } from 'lucide-react';
 
 /** Lucide icons used by the app, keyed by their lucide-static names (as in the design). */
@@ -19,7 +19,7 @@ const ICONS = {
   'message-square': MessageSquare, moon: Moon, 'panel-left-close': PanelLeftClose, 'panel-left-open': PanelLeftOpen,
   plug: Plug, plus: Plus, 'refresh-cw': RefreshCw, scale: Scale, 'scan-search': ScanSearch, search: Search, send: Send,
   settings: Settings, sun: Sun, sunrise: Sunrise, timer: Timer, 'trash-2': Trash, 'trending-up': TrendingUp,
-  'triangle-alert': TriangleAlert, 'undo-2': Undo2, upload: Upload, x: X,
+  'triangle-alert': TriangleAlert, 'undo-2': Undo2, upload: Upload, users: Users, x: X,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

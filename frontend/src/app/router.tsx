@@ -7,6 +7,7 @@ import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
 import { analysisSearch, burndownSearch, timesheetSearch } from '../features/effort/search';
 import { matrixSearch } from '../features/matrix/search';
 import { myWorkSearch } from '../features/my-work/search';
+import { UsersPage } from '../features/users';
 import { overviewQuery } from '../features/overview/api';
 import { planningSearch } from '../features/planning/search';
 import { isSettingsTab } from '../features/settings/search';
@@ -100,11 +101,21 @@ const settingsTab = createRoute({
   component: lazyRouteComponent(() => import('../features/settings'), 'SettingsPage'),
 });
 
+const adminUsers = createRoute({
+  getParentRoute: () => app,
+  path: 'admin/users',
+  beforeLoad: async ({ context }) => {
+    const me = await context.queryClient.ensureQueryData(meQuery);
+    if (!me.admin) throw redirect({ to: '/my-work' });
+  },
+  component: UsersPage,
+});
+
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
   index, myWork, matrixEntry, overview, ankenDetail, matrix, addFunction, phaseSettings, planning, effort, timesheet, analysis, burndown,
-  calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab,
+  calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);
 

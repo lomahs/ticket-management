@@ -57,3 +57,11 @@ export function useCapability(name: 'jiraWrite'): boolean {
 }
 
 export const JIRA_WRITE_OFF = 'Updating Jira arrives in phase 2';
+export const VIEW_ONLY = 'You have view-only access';
+
+/** A control that writes to Jira is on only when Jira can be written AND the user has write on `feature`; `off` says why it is not (permission first). */
+export function useJiraWrite(feature: Feature): { ok: boolean; off: string | undefined } {
+  const jira = useCapability('jiraWrite');
+  const perm = useCan(feature, 'write');
+  return { ok: jira && perm, off: !perm ? VIEW_ONLY : !jira ? JIRA_WRITE_OFF : undefined };
+}

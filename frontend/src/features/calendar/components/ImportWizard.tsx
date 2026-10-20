@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
-import type { ChangeEvent } from 'react';
+import { useEffect, type ChangeEvent } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
-import { useMembers } from '../../../shared/api/queries';
+import { useCan, useMembers } from '../../../shared/api/queries';
 import { Button, Icon, IconButton } from '../../../shared/ds';
 import { LEAVE, LEAVE_KEYS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -16,6 +16,7 @@ export function ImportWizardRoute() {
   const { step: raw } = useParams({ strict: false }) as { step: string };
   const navigate = useNavigate();
   const toast = useToast();
+  const canImport = useCan('calendar', 'write');
   const [state, setState] = useImportState();
   const preview = useImportPreview();
   const confirm = useImportConfirm();
@@ -24,6 +25,7 @@ export function ImportWizardRoute() {
   const step = requested > 2 && !state ? 2 : requested; // preview/confirm need a file
   const go = (n: number) => navigate({ to: '/calendar/import/$step', params: { step: String(n) }, search: (p) => p });
   const close = () => { setState(null); navigate({ to: '/calendar', search: (p) => ({ month: (p as { month?: string }).month }) }); };
+  useEffect(() => { if (!canImport) void navigate({ to: '/calendar', search: (p) => ({ month: (p as { month?: string }).month }) }); }, [canImport, navigate]);
   const ok = state?.rows.filter((r) => !r.error) ?? [];
   const bad = state?.rows.filter((r) => r.error) ?? [];
   const load = (file: File | 'sample') => preview.mutate(file, {
@@ -44,6 +46,7 @@ export function ImportWizardRoute() {
     onError: (e) => toast(errorMessage(e), true),
   });
 
+  if (!canImport) return null; // Import needs calendar write
   return (
     <div className="scrim" onClick={close}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label="Import leave from Excel" onClick={(e) => e.stopPropagation()}

@@ -1,11 +1,13 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { useCan } from '../../../shared/api/queries';
 import { SyncPill } from '../../sync';
 
 const TAB_PATH = { matrix: '/anken/$epic/matrix', new: '/anken/$epic/matrix/new', phases: '/anken/$epic/matrix/phases' } as const;
 
 /** Title row and the Matrix / Add function / Setting phase tabs (each tab is its own URL). */
 export function MatrixHeader({ epic, title, phase, tab }: { epic: string; title?: string; phase?: string; tab: keyof typeof TAB_PATH }) {
+  const canAdd = useCan('matrix', 'write');
   const tabLink = (to: keyof typeof TAB_PATH, label: ReactNode) => {
     const on = tab === to;
     return (
@@ -34,7 +36,7 @@ export function MatrixHeader({ epic, title, phase, tab }: { epic: string; title?
       </div>
       <div role="tablist" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)' }}>
         {tabLink('matrix', 'Matrix')}
-        {tabLink('new', 'Add function')}
+        {canAdd && tabLink('new', 'Add function')}
         {tabLink('phases', 'Setting phase')}
       </div>
     </>

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../../../shared/api/errors';
-import { JIRA_WRITE_OFF, useCapability, useMemberMap } from '../../../shared/api/queries';
+import { useJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import type { Status } from '../../../shared/api/types';
 import { Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
@@ -35,7 +35,7 @@ export function TicketPanel() {
 function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: TicketBack | null; close: () => void }) {
   const q = useQuery(ticketQuery(ticketKey));
   const members = useMemberMap();
-  const canWrite = useCapability('jiraWrite');
+  const { ok: canWrite, off } = useJiraWrite('ticket');
   const patch = usePatchTicket(ticketKey);
   const toast = useToast();
 
@@ -65,7 +65,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const tot = Math.max(c.estimate_h, c.logged_h) || 1;
   const inn = Math.min(c.logged_h, c.estimate_h);
   const ov = Math.max(0, c.logged_h - c.estimate_h);
-  const offTitle = canWrite ? undefined : JIRA_WRITE_OFF;
+  const offTitle = off;
   const disabled = !canWrite || patch.isPending;
 
   return (
@@ -103,7 +103,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           <TextField label="Planned Start" type="date" disabled={disabled} value={c.planned_start ?? ''} onChange={(v) => write('planned_start', 'Planned Start', v, dm)} />
           <TextField label="Planned End" type="date" disabled={disabled} value={c.planned_end ?? ''} onChange={(v) => write('planned_end', 'Planned End', v, dm)} />
         </div>
-        {!canWrite && <div className="eyebrow">{JIRA_WRITE_OFF}. Edit this ticket in Jira; it syncs back here.</div>}
+        {!canWrite && <div className="eyebrow">{off}. Edit this ticket in Jira; it syncs back here.</div>}
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span className="title">Effort</span>

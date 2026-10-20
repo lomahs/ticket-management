@@ -1,20 +1,23 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useLogout } from '../features/auth';
 import { SyncButton } from '../features/sync';
+import { pendingRequestsQuery } from '../features/users';
 import { useMe, useMemberMap, useMeta } from '../shared/api/queries';
 import { Icon, IconButton, type IconName } from '../shared/ds';
 import { ROLE_LABEL } from '../shared/format/labels';
 import { Avatar, av } from '../shared/ui/bits';
 
-const NAV: { to: string; label: string; icon: IconName; active: (p: string) => boolean }[] = [
+const NAV: { to: string; label: string; icon: IconName; admin?: boolean; active: (p: string) => boolean }[] = [
   { to: '/my-work', label: 'My Work', icon: 'list-todo', active: (p) => p.startsWith('/my-work') },
   { to: '/matrix', label: 'Function Matrix', icon: 'grid-3x3', active: (p) => /^\/anken\/[^/]+\/matrix/.test(p) },
   { to: '/anken', label: 'Anken Overview', icon: 'layout-dashboard', active: (p) => p.startsWith('/anken') && !/\/matrix/.test(p) },
   { to: '/planning', label: 'Planning', icon: 'chart-gantt', active: (p) => p.startsWith('/planning') },
   { to: '/effort/timesheet', label: 'Effort', icon: 'timer', active: (p) => p.startsWith('/effort') },
   { to: '/calendar', label: 'Team Calendar', icon: 'calendar-days', active: (p) => p.startsWith('/calendar') },
-  { to: '/settings/jira', label: 'Settings', icon: 'settings', active: (p) => p.startsWith('/settings') },
+  { to: '/admin/users', label: 'Users', icon: 'users', admin: true, active: (p) => p.startsWith('/admin/users') },
+  { to: '/settings/jira', label: 'Settings', icon: 'settings', admin: true, active: (p) => p.startsWith('/settings') },
 ];
 
 export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
@@ -24,6 +27,7 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
   const members = useMemberMap();
   const me = useMe().data;
   const logout = useLogout();
+  const pending = useQuery({ ...pendingRequestsQuery, enabled: !!me?.admin, refetchInterval: 60_000 }).data?.length ?? 0;
   const meM = me?.member_id ? members[me.member_id] : undefined;
   const connection = !meta ? ' ' : meta.mode === 'demo' ? `Demo data · ${meta.projects.join(', ')}`
     : meta.projects.length ? `Connected to Jira · ${meta.projects.join(', ')}` : 'Jira not set up yet';
@@ -42,7 +46,7 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
         <IconButton icon={open ? 'panel-left-close' : 'panel-left-open'} label={open ? 'Hide sidebar' : 'Show sidebar'} size="sm" onClick={() => setOpen(!open)} />
       </div>
       <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 1 }}>
-        {NAV.map((n) => {
+        {NAV.filter((n) => !n.admin || me?.admin).map((n) => {
           const on = n.active(path);
           return (
             <Link key={n.to} to={n.to} title={n.label} className="hv-bg" aria-current={on ? 'page' : undefined} style={{
@@ -52,6 +56,7 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
             }}>
               <Icon name={n.icon} size={16} />
               {open && <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{n.label}</span>}
+              {n.to === '/admin/users' && pending > 0 && <span className="count" style={{ background: 'var(--surface-tint)', color: 'var(--text-heading)' }}>{pending}</span>}
             </Link>
           );
         })}

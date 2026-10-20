@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Outlet, useNavigate } from '@tanstack/react-router';
 import { createContext, useContext, useState } from 'react';
 import type { Schemas } from '../../../shared/api/types';
-import { useMemberMap, useMeta } from '../../../shared/api/queries';
+import { useCan, useMe, useMemberMap, useMeta } from '../../../shared/api/queries';
 import type { LeaveTypeKey } from '../../../shared/api/types';
 import { Button, IconButton } from '../../../shared/ds';
 import { dm, dow, monLabel, shiftMon, WDN } from '../../../shared/format/dates';
@@ -29,6 +29,7 @@ export function CalendarPage() {
   const navigate = useNavigate();
   const q = useQuery(calendarQuery(month));
   const toast = useToast();
+  const canImport = useCan('calendar', 'write');
   const importState = useState<ImportState | null>(null);
   const setMonth = (m: string) => navigate({ to: '/calendar', search: (p) => ({ ...p, month: m }) });
   const exportXls = () => {
@@ -46,7 +47,7 @@ export function CalendarPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
         <PageHead eyebrow="Leave, WFH and holidays · feeds Planning, capacity and date suggestions" title="Team Calendar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Button appearance="secondary" size="sm" iconBefore="file-up" onClick={() => navigate({ to: '/calendar/import/$step', params: { step: '1' }, search: (p) => p })}>Import Excel</Button>
+            {canImport && <Button appearance="secondary" size="sm" iconBefore="file-up" onClick={() => navigate({ to: '/calendar/import/$step', params: { step: '1' }, search: (p) => p })}>Import Excel</Button>}
             <Button appearance="secondary" size="sm" iconBefore="file-down" onClick={exportXls}>Export Excel</Button>
             <Button size="sm" iconBefore="plus" onClick={() => navigate({ to: '/calendar/leave/new', search: (p) => p })}>Add leave</Button>
           </div>
@@ -77,6 +78,8 @@ export function CalendarPage() {
 function Grid({ v }: { v: Schemas['CalendarView'] }) {
   const members = useMemberMap();
   const navigate = useNavigate();
+  const canEditAll = useCan('calendar', 'write');
+  const myId = useMe().data?.member_id;
   const ti = v.days.findIndex((d) => d.is_today);
   const n = v.days.length;
   return (
@@ -109,15 +112,16 @@ function Grid({ v }: { v: Schemas['CalendarView'] }) {
               {r.cells.map((c) => {
                 const lv = c.leave;
                 const tip = `${WDN[dow(c.date)]} ${dm(c.date)}${c.label ? ' · ' + c.label : ''}${lv?.note ? ' · ' + lv.note : ''}`;
-                const click = () => (lv
+                const locked = !canEditAll && r.member_id !== myId;
+                const click = () => locked ? undefined : (lv
                   ? navigate({ to: '/calendar/leave/$id', params: { id: String(lv.id) }, search: (p) => p })
                   : navigate({ to: '/calendar/leave/new', search: (p) => ({ ...p, member: r.member_id, date: c.date }) }));
                 return (
-                  <button key={c.date} className="hv-dim2" title={tip} aria-label={`${m?.name ?? r.member_id} ${tip}`} disabled={c.kind === 'holiday'} onClick={click}
+                  <button key={c.date} className="hv-dim2" title={tip} aria-label={`${m?.name ?? r.member_id} ${tip}`} disabled={c.kind === 'holiday'} aria-disabled={locked || undefined} onClick={click}
                     style={{
                       flex: '1 1 0', minWidth: 0, boxSizing: 'border-box', height: 42, padding: 0, border: 0, borderLeft: '1px solid var(--border-subtle)',
                       background: c.kind === 'holiday' ? HOLIDAY_BG : lv ? leaveBg(lv.type as LeaveTypeKey) : 'transparent',
-                      color: 'var(--text-heading)', font: '700 10px/1 var(--font-text)', cursor: c.kind === 'holiday' ? 'default' : 'pointer',
+                      color: 'var(--text-heading)', font: '700 10px/1 var(--font-text)', cursor: c.kind === 'holiday' || locked ? 'default' : 'pointer',
                     }}>{c.kind === 'holiday' ? 'H' : lv ? LEAVE[lv.type as LeaveTypeKey].ab : ''}</button>
                 );
               })}

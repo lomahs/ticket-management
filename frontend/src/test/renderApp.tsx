@@ -27,6 +27,7 @@ export const server = setupServer(
   http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json(matrix)),
   http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json(ticket)),
   http.get('*/api/v1/settings/jira', () => HttpResponse.json(jira)),
+  http.get('*/api/v1/admin/access-requests', () => HttpResponse.json([])),
 );
 
 export function renderApp(url: string) {

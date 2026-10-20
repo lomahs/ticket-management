@@ -3,7 +3,7 @@ import { getRouteApi } from '@tanstack/react-router';
 import { Fragment, useRef, useState, type DragEvent } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { JIRA_WRITE_OFF, useCapability, useMemberMap, useMeta } from '../../../shared/api/queries';
+import { useJiraWrite, useMemberMap, useMeta } from '../../../shared/api/queries';
 import { Button, Icon, IconButton } from '../../../shared/ds';
 import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, OTHER_STEP, STEPS, dayHeadStyle, hatch, mix, statusOf, stepColor } from '../../../shared/format/labels';
@@ -81,7 +81,7 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
   const members = useMemberMap();
   const open = useOpenTicket();
   const toast = useToast();
-  const canWrite = useCapability('jiraWrite');
+  const { ok: canWrite, off } = useJiraWrite('planning');
   const { moves, set, revert, clear } = usePendingMoves();
   const preview = useQuery(planningPreviewQuery(v.start, moves));
   const push = usePushPlan();
@@ -284,14 +284,14 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
           {moves.length > 0 && (
             <>
               <Button appearance="subtle" size="sm" onClick={clear}>Discard all</Button>
-              <Button size="sm" iconBefore="upload" disabled={!canWrite || push.isPending} title={canWrite ? undefined : JIRA_WRITE_OFF} onClick={pushAll}>Push to Jira</Button>
+              <Button size="sm" iconBefore="upload" disabled={!canWrite || push.isPending} title={off} onClick={pushAll}>Push to Jira</Button>
             </>
           )}
         </div>
         {!moves.length && (
           <div style={{ padding: '0 16px 14px', fontSize: 12, color: 'var(--text-muted)' }}>
             {canWrite ? 'Drag a block sideways to change its dates, or onto another member to reassign it. Changes collect here until you push them.'
-              : `${JIRA_WRITE_OFF}. Plan dates are read from Jira.`}
+              : `${off}. Plan dates are read from Jira.`}
           </div>
         )}
         {preview.isError && <div style={{ padding: '0 16px 12px' }}><QueryError error={preview.error} /></div>}

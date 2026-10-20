@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import meBa from './fixtures/me-ba.json';
 import { fixtures, renderApp, server } from './renderApp';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -319,5 +320,36 @@ describe('screens render API data at their URLs', () => {
     const { router } = renderApp('/settings/bogus');
     await screen.findByRole('region', { name: 'Jira Cloud connection' });
     expect(router.state.location.pathname).toBe('/settings/jira');
+  });
+  it('BA sees a view-only ticket panel', async () => {
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
+    renderApp('/my-work?member=binh&ticket=PAY-1213');
+    const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
+    await within(panel).findByText(/Domestic card payment – Fix comment BAL/);
+    await waitFor(() => expect((within(panel).getByLabelText('Status') as HTMLSelectElement).disabled).toBe(true));
+    expect(within(panel).getByText(/You have view-only access/)).toBeTruthy();
+    expect(within(panel).queryByText(/Updating Jira arrives in phase 2/)).toBeNull();
+  });
+
+  it('BA has no Settings or Users link', async () => {
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
+    renderApp('/my-work');
+    await screen.findByRole('heading', { name: 'My Work' });
+    await screen.findByRole('link', { name: 'Planning' });
+    expect(screen.queryByRole('link', { name: /Settings/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Users/ })).toBeNull();
+  });
+
+  it('BA leave dialog is fixed to themselves', async () => {
+    const day = (d: string) => ({ date: d, is_today: false, weekend: false });
+    server.use(
+      http.get('*/api/v1/me', () => HttpResponse.json(meBa)),
+      http.get('*/api/v1/calendar', () => HttpResponse.json({ month: '2026-10', days: [day('2026-10-07')], rows: [] })),
+    );
+    renderApp('/calendar/leave/new?member=binh');
+    const dialog = await screen.findByRole('dialog', { name: 'Add leave' });
+    const select = within(dialog).getByLabelText('Member') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe('an'));
+    expect(select.disabled).toBe(true);
   });
 });
