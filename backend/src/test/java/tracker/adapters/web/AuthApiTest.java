@@ -74,11 +74,26 @@ class AuthApiTest extends ApiTestSupport {
 
     @Test
     void fiveFailuresLockTheUsername() throws Exception {
+        // MockMvc requests come from 127.0.0.1: the lock is per username and client address
         for (int i = 0; i < 5; i++) {
             problem(login(new MockHttpSession(), i % 2 == 0 ? "an" : "An", "wrong"), 401, "bad_credentials");
         }
         problem(login(new MockHttpSession(), "an", "demo"), 429, "too_many_attempts");
         assertThat(login(new MockHttpSession(), "binh", "demo").status()).as("other usernames are not locked").isEqualTo(200);
+    }
+
+    @Test
+    void theLockIsPerClientAddress() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            problem(login(new MockHttpSession(), "an", "wrong"), 401, "bad_credentials");
+        }
+        problem(login(new MockHttpSession(), "an", "demo"), 429, "too_many_attempts");
+        Res other = call(json(post("/api/v1/auth/login"), Map.of("username", "an", "password", "demo")).with(anonymous())
+                .with(r -> {
+                    r.setRemoteAddr("10.0.0.9");
+                    return r;
+                }));
+        assertThat(other.status()).as("the same username from another client is not locked: " + other.text()).isEqualTo(200);
     }
 
     @Test

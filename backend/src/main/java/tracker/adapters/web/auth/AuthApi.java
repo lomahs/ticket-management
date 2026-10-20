@@ -115,28 +115,35 @@ public class AuthApi {
     /**
      * Checks the password (the break-glass account when that is the username and it is configured, else the directory),
      * then starts a new session for the user. Wrong credentials answer 401 {@code bad_credentials}; after 5 failures in 15
-     * minutes the username is locked for 15 minutes (429 {@code too_many_attempts}); a directory that cannot be reached
-     * answers 503 {@code ldap_unavailable}.
+     * minutes for one username and client address that pair is locked for 15 minutes (429 {@code too_many_attempts}),
+     * attempts still running counting toward the limit; a directory that cannot be reached answers 503
+     * {@code ldap_unavailable}.
      */
     @Open(Rule.PUBLIC)
     @PostMapping("/auth/login")
     public Me login(@RequestBody @Valid LoginIn body, HttpServletRequest request, HttpServletResponse response) {
         String username = body.username().strip();
-        if (throttle.locked(username)) {
+        String client = request.getRemoteAddr();
+        // throttled per username and client address; the slot is reserved before the (slow) check, so parallel requests count
+        if (!throttle.tryAcquire(username, client)) {
             throw new ApiProblem(HttpStatus.TOO_MANY_REQUESTS, "too_many_attempts", "Too many failed sign-ins. Try again in 15 minutes.");
         }
         Identity id;
         try {
             id = authenticate(username, body.password(), request);
         } catch (LdapLogin.Rejected e) {
-            throttle.failed(username);
+            throttle.failed(username, client);
             throw new ApiProblem(HttpStatus.UNAUTHORIZED, "bad_credentials", e.getMessage());
         } catch (LdapLogin.Unavailable e) {
+            throttle.released(username, client);
             log.warn("sign-in failed: the directory cannot be reached ({})", e.getCause().toString());
             throw new ApiProblem(HttpStatus.SERVICE_UNAVAILABLE, "ldap_unavailable",
                     "The company directory cannot be reached. Try again later.");
+        } catch (RuntimeException e) {
+            throttle.released(username, client);
+            throw e;
         }
-        throttle.succeeded(username);
+        throttle.succeeded(username, client);
 
         // a new session id at sign-in (no session fixation), and a new CSRF token with it
         request.getSession(true);
