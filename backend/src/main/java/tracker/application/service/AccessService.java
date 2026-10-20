@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,12 +64,30 @@ public class AccessService {
     // --- the viewer -------------------------------------------------------------------------------------------------
 
     /**
-     * The member an e-mail belongs to. Members may share an e-mail: the one with a sign-in status wins, else the lowest id.
+     * The member an e-mail belongs to. Members may share an e-mail: an active one wins, then one with any sign-in status,
+     * else the lowest id.
      */
     private Optional<Member> resolve(String email) {
-        List<Member> all = members.findAllByEmail(email);
-        return all.stream().filter(m -> access.findStatus(m.id()).isPresent()).findFirst()
+        List<Member> all = members.findAllByEmail(email); // ordered by id
+        Map<String, AccessStatus> statuses = new HashMap<>();
+        for (Member m : all) {
+            access.findStatus(m.id()).ifPresent(st -> statuses.put(m.id(), st));
+        }
+        return all.stream().filter(m -> statuses.get(m.id()) == AccessStatus.ACTIVE).findFirst()
+                .or(() -> all.stream().filter(m -> statuses.containsKey(m.id())).findFirst())
                 .or(() -> all.stream().findFirst());
+    }
+
+    /** Whether some member is an active admin (who can approve access requests). */
+    public boolean hasActiveAdmin() {
+        Map<String, AccessStatus> statuses = access.findStatuses();
+        return members.findAll().stream()
+                .anyMatch(m -> m.permission() == Permission.ADMIN && statuses.get(m.id()) == AccessStatus.ACTIVE);
+    }
+
+    /** Whether there are bootstrap admins ({@code tracker.admins}). */
+    public boolean hasBootstrapAdmins() {
+        return !config.adminEmails().isEmpty();
     }
 
     private boolean bootstrap(String email) {
@@ -220,10 +239,12 @@ public class AccessService {
     }
 
     private UserRow row(Member m, Set<String> pendingEmails) {
-        AccessStatus status = access.findStatus(m.id())
+        boolean bootstrap = bootstrap(m.email());
+        // A bootstrap admin is active whatever is stored, like their viewer.
+        AccessStatus status = bootstrap ? AccessStatus.ACTIVE : access.findStatus(m.id())
                 .orElse(pendingEmails.contains(m.email().toLowerCase(Locale.ROOT)) ? AccessStatus.REQUESTED : AccessStatus.NONE);
         Map<Feature, Level> overrides = access.findOverrides(m.id());
-        return new UserRow(m, status, bootstrap(m.email()), overrides, Permissions.effective(m.role(), overrides));
+        return new UserRow(m, status, bootstrap, overrides, Permissions.effective(m.role(), overrides));
     }
 
     public List<UserRow> users() {
@@ -255,6 +276,9 @@ public class AccessService {
         }
         Member m = members.findById(memberId).orElseThrow(() -> new NotFound("Member " + memberId + " was not found"));
         String email = p.email() != null ? p.email().strip().toLowerCase(Locale.ROOT) : m.email();
+        if (p.email() != null && email.equals(BREAKGLASS_EMAIL)) {
+            throw new Invalid("This e-mail belongs to the break-glass login", "email");
+        }
         if (p.email() != null && !email.isEmpty() && members.findAllByEmail(email).stream().anyMatch(o -> !o.id().equals(memberId))) {
             throw new Conflict("Another member already has this e-mail", "email");
         }
@@ -268,11 +292,16 @@ public class AccessService {
         if (self && p.email() != null && !email.isBlank() && !email.equals(actor.email())) {
             throw new Invalid("You cannot change your own e-mail", "email");
         }
-        if (!self && p.access() == AccessStatus.ACTIVE && !email.isBlank() && email.equals(actor.email())) {
+        boolean sharesMyEmail = (!email.isBlank() && email.equals(actor.email()))
+                || (!m.email().isBlank() && m.email().equalsIgnoreCase(actor.email()));
+        if (!self && p.access() != null && sharesMyEmail) {
             throw new Invalid("This member shares your e-mail; merge members first", "access");
         }
         if (Boolean.FALSE.equals(p.admin()) && bootstrap(m.email())) {
             throw new Invalid("Set in TRACKER_ADMINS", "admin");
+        }
+        if (p.access() == AccessStatus.DISABLED && bootstrap(m.email())) {
+            throw new Invalid("Set in TRACKER_ADMINS", "access");
         }
         if (status == AccessStatus.ACTIVE && role == Role.JM) {
             throw new Invalid("A JM cannot sign in", "role");

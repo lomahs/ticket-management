@@ -159,6 +159,68 @@ class AccessServiceTest {
     }
 
     @Test
+    void duplicateEmailPrefersTheActiveMember() {
+        // "a-old" sorts first and has a status (disabled); the active "an" still wins
+        members.save(new Member("a-old", "An old", "An Nguyen", Role.BA, "VN", "#666", "an@acme.vn", Permission.USER, false, null));
+        access.saveStatus("a-old", AccessStatus.DISABLED);
+        assertThat(service.viewer(new Identity("an@acme.vn", "An")).memberId()).isEqualTo("an");
+        // with no active one, a member with a status wins over a lower id without one
+        members.save(new Member("b-1", "B1", "B", Role.BA, "VN", "#666", "b@acme.vn", Permission.USER, false, null));
+        members.save(new Member("b-2", "B2", "B", Role.BA, "VN", "#666", "b@acme.vn", Permission.USER, false, null));
+        access.saveStatus("b-2", AccessStatus.DISABLED);
+        assertThat(service.viewer(new Identity("b@acme.vn", "B")).memberId()).isEqualTo("b-2");
+        members.save(new Member("c-2", "C2", "C", Role.BA, "VN", "#666", "c@acme.vn", Permission.USER, false, null));
+        members.save(new Member("c-1", "C1", "C", Role.BA, "VN", "#666", "c@acme.vn", Permission.USER, false, null));
+        assertThat(service.viewer(new Identity("c@acme.vn", "C")).memberId()).isEqualTo("c-1");
+    }
+
+    @Test
+    void noAccessChangeOnAMemberSharingMyEmail() {
+        members.save(new Member("minh2", "Minh 2", "Minh 2", Role.BA, "VN", "#888", "minh@acme.vn", Permission.USER, false, null));
+        assertThatThrownBy(() -> service.patchUser(admin, "minh2", patch(null, AccessStatus.DISABLED))).isInstanceOf(Invalid.class)
+                .hasMessage("This member shares your e-mail; merge members first").satisfies(e -> field(e, "access"));
+        assertThat(access.findStatus("minh2")).isEmpty();
+    }
+
+    @Test
+    void bootstrapAdminCannotBeDisabledAndIsListedActive() {
+        service.onLogin(LAN);
+        String lanId = members.findByEmail("lan.vo@acme.vn").orElseThrow().id();
+        assertThatThrownBy(() -> service.patchUser(admin, lanId, patch(null, AccessStatus.DISABLED))).isInstanceOf(Invalid.class)
+                .hasMessage("Set in TRACKER_ADMINS").satisfies(e -> field(e, "access"));
+        access.saveStatus(lanId, AccessStatus.DISABLED); // stored by an older version
+        AccessService.UserRow row = service.users().stream().filter(u -> u.member().id().equals(lanId)).findFirst().orElseThrow();
+        assertThat(row.access()).isEqualTo(AccessStatus.ACTIVE);
+        assertThat(row.bootstrapAdmin()).isTrue();
+    }
+
+    @Test
+    void breakGlassEmailIsReserved() {
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(null, "BreakGlass@Local", null, false, null, null, null, Map.of())))
+                .isInstanceOf(Invalid.class).satisfies(e -> field(e, "email"));
+    }
+
+    @Test
+    void hasActiveAdmin() {
+        assertThat(service.hasActiveAdmin()).isTrue();
+        access.saveStatus("minh", AccessStatus.DISABLED);
+        assertThat(service.hasActiveAdmin()).isFalse();
+        assertThat(service.hasBootstrapAdmins()).isTrue();
+        assertThat(new AccessService(access, members, settings, clock, new AccessService.Config(Set.of())).hasBootstrapAdmins()).isFalse();
+    }
+
+    @Test
+    void identityLowercasesWithoutTheLocale() {
+        java.util.Locale before = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"));
+            assertThat(new Identity(" INFO@ACME.VN ", "x").email()).isEqualTo("info@acme.vn");
+        } finally {
+            java.util.Locale.setDefault(before);
+        }
+    }
+
+    @Test
     void rejectAndUsersList() {
         service.requestAccess(STRANGER, "");
         int id = service.requests(null).get(0).id();

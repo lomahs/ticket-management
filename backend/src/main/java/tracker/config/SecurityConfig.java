@@ -9,6 +9,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -39,6 +42,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import tracker.adapters.web.ApiExceptionHandler;
 import tracker.adapters.web.auth.BreakGlass;
 import tracker.adapters.web.auth.LdapLookup;
+import tracker.application.service.AccessService;
 
 /**
  * Spring Security: server-side sessions and CSRF protection for the single-page app. Every request passes the filter
@@ -48,6 +52,7 @@ import tracker.adapters.web.auth.LdapLookup;
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 public class SecurityConfig {
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
     public SecurityContextRepository securityContextRepository() {
@@ -122,9 +127,27 @@ public class SecurityConfig {
 
     // --- sign-in ----------------------------------------------------------------------------------------------------
 
+    /** Start-up fails on a hash that is not bcrypt ({@link BreakGlass#of}). */
     @Bean
     public BreakGlass breakGlass(TrackerProperties properties) {
-        return new BreakGlass(properties.breakglassPasswordHash());
+        BreakGlass breakGlass = BreakGlass.of(properties.breakglassPasswordHash());
+        if (breakGlass.enabled()) {
+            log.info("break-glass login is enabled");
+        }
+        return breakGlass;
+    }
+
+    /**
+     * Warns at start-up when nobody can approve access requests: no bootstrap admins, no break-glass login and no active
+     * admin, e.g. the first deploy on an existing database without {@code TRACKER_ADMINS}.
+     */
+    @Bean
+    public ApplicationRunner approverCheck(AccessService access, BreakGlass breakGlass) {
+        return args -> {
+            if (!access.hasBootstrapAdmins() && !breakGlass.enabled() && !access.hasActiveAdmin()) {
+                log.warn("Nobody can approve access requests: set TRACKER_ADMINS");
+            }
+        };
     }
 
     @Bean

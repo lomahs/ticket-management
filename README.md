@@ -95,15 +95,22 @@ TRACKER_ADMINS=lead@company.com
 ```
 
 Make the break-glass hash with `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n'` and pass the output as
-`TRACKER_BREAKGLASS_PASSWORD_HASH` (quote it: it contains `$`).
+`TRACKER_BREAKGLASS_PASSWORD_HASH` (quote it: it contains `$`). The server does not start when the value is set but is
+not a bcrypt hash.
 
 **HTTPS or a reverse proxy:** set `server.servlet.session.cookie.secure=true` (`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`)
 and `server.forward-headers-strategy=native` (or `framework`; `SERVER_FORWARD_HEADERS_STRATEGY`). The login throttle (5
 failures for one username within 15 minutes lock it for 15 minutes) counts per username and client address; behind a
 proxy without forwarded headers every client shares the proxy's address.
 
-**Demo profile:** an embedded LDAP server with `minh` (admin), `an`, `binh`, `chi`, `dung` (active), `lan` (no access
-yet: use her to try the request flow) and `khach`. The password is `demo` for all of them.
+**Demo profile:** an embedded LDAP server with `minh` (BAL, admin), `an`, `binh`, `chi` and `dung` (BA, active:
+read-only on every feature except Members), `lan` (no access yet: use her to try the request flow) and `khach` (a
+visitor without access). The password is `demo` for all of them.
+
+**Upgrading an existing install:** set `TRACKER_ADMINS` before you deploy this version, so someone can approve the
+others. Everyone else starts without access and must request it (or be activated in **Users** by an admin). Members
+that had the old Admin flag become real admins once they are activated. When nobody can approve requests (no
+`TRACKER_ADMINS`, no break-glass and no active admin), the server logs a warning at start-up.
 
 **Who sees and changes what** (the role defaults; an admin can override each feature per person, and admins can do everything):
 
