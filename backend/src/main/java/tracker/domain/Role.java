@@ -1,7 +1,7 @@
 package tracker.domain;
 
 public enum Role {
-    BA("BA"), BAL("BAL"), JM("JM");
+    BA("BA"), PM("PM"), PIM("PIM"), BAL("BAL"), JM("JM");
 
     private final String value;
 

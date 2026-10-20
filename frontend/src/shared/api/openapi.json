@@ -2893,7 +2893,7 @@
           },
           "role" : {
             "type" : [ "string", "null" ],
-            "enum" : [ "BA", "BAL", "JM" ]
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         },
         "required" : [ "color", "country", "email", "external", "full_name", "id", "jira_account_id", "name", "permission", "role" ]
@@ -2953,7 +2953,7 @@
           },
           "role" : {
             "type" : [ "string", "null" ],
-            "enum" : [ "BA", "BAL", "JM" ]
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         }
       },

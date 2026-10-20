@@ -1162,7 +1162,7 @@ export interface components {
             /** @enum {string} */
             permission: "admin" | "user";
             /** @enum {string|null} */
-            role: "BA" | "BAL" | "JM" | null;
+            role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
         MemberCapacity: {
             member_id: string;
@@ -1181,7 +1181,7 @@ export interface components {
             /** @enum {string|null} */
             permission?: "admin" | "user" | null;
             /** @enum {string|null} */
-            role?: "BA" | "BAL" | "JM" | null;
+            role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
         Meta: {
             capabilities: components["schemas"]["Capabilities"];
