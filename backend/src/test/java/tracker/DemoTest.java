@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest(properties = {
         "tracker.static-dir=target/no-frontend",
+        "tracker.admins=minh.hoang@acme.vn",
         "spring.datasource.url=jdbc:sqlite:target/test-db/${random.uuid}.db?foreign_keys=on&journal_mode=WAL&busy_timeout=5000"
                 + "&transaction_mode=IMMEDIATE"})
 @ActiveProfiles("demo")

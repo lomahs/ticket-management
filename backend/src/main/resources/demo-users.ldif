@@ -1,0 +1,96 @@
+# The demo profile's embedded LDAP server (spring.ldap.embedded.*). Every user's password is "demo".
+# an, binh, chi, dung and minh are the demo members (Dataset.MEMBERS); lan is in the directory but not a member, so she
+# has to request access; khach is a visitor without access.
+dn: dc=acme,dc=vn
+objectClass: top
+objectClass: domain
+dc: acme
+
+dn: ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: organizationalUnit
+ou: people
+
+dn: uid=an,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: an
+cn: Nguyễn Thị An
+sn: Nguyễn
+displayName: Nguyễn Thị An
+mail: an.nguyen@acme.vn
+userPassword: demo
+
+dn: uid=binh,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: binh
+cn: Trần Văn Bình
+sn: Trần
+displayName: Trần Văn Bình
+mail: binh.tran@acme.vn
+userPassword: demo
+
+dn: uid=chi,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: chi
+cn: Lê Minh Chi
+sn: Lê
+displayName: Lê Minh Chi
+mail: chi.le@acme.vn
+userPassword: demo
+
+dn: uid=dung,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: dung
+cn: Phạm Quốc Dũng
+sn: Phạm
+displayName: Phạm Quốc Dũng
+mail: dung.pham@acme.vn
+userPassword: demo
+
+dn: uid=minh,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: minh
+cn: Hoàng Minh
+sn: Hoàng
+displayName: Hoàng Minh
+mail: minh.hoang@acme.vn
+userPassword: demo
+
+dn: uid=lan,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: lan
+cn: Võ Thị Lan
+sn: Võ
+displayName: Võ Thị Lan
+mail: lan.vo@acme.vn
+userPassword: demo
+
+dn: uid=khach,ou=people,dc=acme,dc=vn
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+uid: khach
+cn: Khách
+sn: Khách
+displayName: Khách
+mail: khach@acme.vn
+userPassword: demo

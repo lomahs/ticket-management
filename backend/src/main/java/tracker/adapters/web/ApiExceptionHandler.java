@@ -52,7 +52,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     public record FieldError(@Nullable String field, String message) {
     }
 
-    static ProblemDetail problem(HttpStatusCode status, String code, String detail, List<FieldError> errors) {
+    public static ProblemDetail problem(HttpStatusCode status, String code, String detail, List<FieldError> errors) {
         ProblemDetail p = ProblemDetail.forStatusAndDetail(status, detail);
         p.setProperty("code", code);
         p.setProperty("errors", errors);
@@ -84,6 +84,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         };
         List<FieldError> errors = e.field() != null ? List.of(new FieldError(e.field(), e.getMessage())) : List.of();
         return ResponseEntity.status(kind.status()).body(problem(kind.status(), kind.code(), e.getMessage(), errors));
+    }
+
+    @ExceptionHandler(ApiProblem.class)
+    ResponseEntity<ProblemDetail> apiProblem(ApiProblem e) {
+        return ResponseEntity.status(e.status()).body(problem(e.status(), e.code(), e.getMessage(), List.of()));
     }
 
     @ExceptionHandler(JiraAuthError.class)

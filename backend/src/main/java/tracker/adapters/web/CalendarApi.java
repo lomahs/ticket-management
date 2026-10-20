@@ -32,14 +32,18 @@ import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.AppError.Invalid;
 import tracker.application.service.CalendarService.CalendarView;
 import tracker.application.service.CalendarService.ImportPreview;
 import tracker.application.service.CalendarService.ImportResult;
 import tracker.application.service.CalendarService.LeaveDraft;
 import tracker.application.service.CalendarService;
+import tracker.domain.Feature;
 import tracker.domain.LeaveImport.ImportRow;
 import tracker.domain.LeaveType;
+import tracker.domain.Level;
+import tracker.domain.Viewer;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -70,26 +74,30 @@ public class CalendarApi {
     public record ImportIn(@NotNull @Size(max = 2000) List<@NotNull List<@NotNull String>> rows) {
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @GetMapping("/calendar")
     public CalendarView month(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month) {
         return calendar.month(month);
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @PostMapping("/leaves")
     @ResponseStatus(HttpStatus.CREATED)
-    public DaysOut addLeave(@RequestBody @Valid LeaveIn body) {
-        return new DaysOut(calendar.saveLeave(body.draft(null)));
+    public DaysOut addLeave(@RequestBody @Valid LeaveIn body, Viewer viewer) {
+        return new DaysOut(calendar.saveLeave(body.draft(null), viewer));
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @PutMapping("/leaves/{leave_id}")
-    public DaysOut editLeave(@PathVariable("leave_id") int leaveId, @RequestBody @Valid LeaveIn body) {
-        return new DaysOut(calendar.saveLeave(body.draft(leaveId)));
+    public DaysOut editLeave(@PathVariable("leave_id") int leaveId, @RequestBody @Valid LeaveIn body, Viewer viewer) {
+        return new DaysOut(calendar.saveLeave(body.draft(leaveId), viewer));
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @DeleteMapping("/leaves/{leave_id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteLeave(@PathVariable("leave_id") int leaveId) {
-        calendar.deleteLeave(leaveId);
+    public void deleteLeave(@PathVariable("leave_id") int leaveId, Viewer viewer) {
+        calendar.deleteLeave(leaveId, viewer);
     }
 
     /** The multipart body of an import preview. */
@@ -100,6 +108,7 @@ public class CalendarApi {
      * Reads an uploaded .xlsx/.csv (or, with {@code sample}, a built-in example) and checks every row. Files above
      * {@code spring.servlet.multipart.max-file-size} (5 MB) are refused before this runs.
      */
+    @Requires(feature = Feature.CALENDAR, level = Level.WRITE)
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schema = @Schema(implementation = ImportUpload.class), encoding = @Encoding(name = "file")))
     @PostMapping(value = "/leaves/import/preview", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
@@ -121,11 +130,13 @@ public class CalendarApi {
         return new ImportPreviewOut(name, p.rows(), p.workingDays());
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.WRITE)
     @PostMapping("/leaves/import")
     public ImportResult importConfirm(@RequestBody @Valid ImportIn body) {
         return calendar.importConfirm(body.rows());
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @GetMapping("/leaves/template")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = "text/csv", schema = @Schema(type = "string", format = "binary")))
     public ResponseEntity<byte[]> template() {
@@ -135,6 +146,7 @@ public class CalendarApi {
                 .body(LeaveFiles.TEMPLATE_CSV.getBytes(StandardCharsets.UTF_8));
     }
 
+    @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @GetMapping("/leaves/export")
     @ApiResponse(responseCode = "200",
             content = @Content(mediaType = "application/vnd.ms-excel", schema = @Schema(type = "string", format = "binary")))

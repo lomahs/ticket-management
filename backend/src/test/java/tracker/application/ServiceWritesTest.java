@@ -17,6 +17,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import tracker.DemoTest;
 import tracker.application.AppError.CapabilityDisabled;
 import tracker.application.AppError.Conflict;
+import tracker.application.AppError.Forbidden;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.IssueRepository;
@@ -33,14 +34,17 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.domain.AccessStatus;
 import tracker.domain.Issue;
 import tracker.domain.IssueKind;
 import tracker.domain.LeaveType;
+import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
+import tracker.domain.Viewer;
 import tracker.domain.Worklog;
 import tracker.domain.WorkingHours;
 import tracker.domain.WorkStructure;
@@ -153,18 +157,40 @@ class ServiceWritesTest {
                 .patch("PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, null, null, null))).isInstanceOf(CapabilityDisabled.class);
     }
 
+    static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
+            Permissions.defaults(Role.BAL));
+    static final Viewer BA_AN = new Viewer("an.nguyen@acme.vn", "An", "an", Role.BA, false, AccessStatus.ACTIVE,
+            Permissions.defaults(Role.BA));
+
     @Test
     void leaveSaveEditDelete() {
-        int n = calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-08", "trip"));
+        int n = calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-08", "trip"), ADMIN);
         assertThat(n).isEqualTo(5);
         int id = leaveOn("2026-11-03").id();
-        calendar.saveLeave(new CalendarService.LeaveDraft(id, "an", LeaveType.HALF, "2026-11-03", "2026-11-03", "half"));
+        calendar.saveLeave(new CalendarService.LeaveDraft(id, "an", LeaveType.HALF, "2026-11-03", "2026-11-03", "half"), ADMIN);
         tracker.domain.Leave lv = leaveOn("2026-11-03");
         assertThat(lv.type()).isEqualTo(LeaveType.HALF);
-        calendar.deleteLeave(lv.id());
-        assertThatThrownBy(() -> calendar.deleteLeave(lv.id())).isInstanceOf(NotFound.class);
+        calendar.deleteLeave(lv.id(), ADMIN);
+        assertThatThrownBy(() -> calendar.deleteLeave(lv.id(), ADMIN)).isInstanceOf(NotFound.class);
         assertThatThrownBy(() -> calendar.saveLeave(
-                new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-08", "2026-11-02", ""))).isInstanceOf(Invalid.class);
+                new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-08", "2026-11-02", ""), ADMIN)).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void withoutCalendarWriteOnlyOwnLeaveChanges() {
+        assertThat(calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-02", ""), BA_AN))
+                .isEqualTo(1);
+        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(null, "binh", LeaveType.FULL, "2026-11-02",
+                "2026-11-02", ""), BA_AN)).isInstanceOf(Forbidden.class).hasMessage("You can only change your own leave");
+        int binhs = calendar.month("2026-10").rows().stream().filter(r -> r.memberId().equals("binh"))
+                .flatMap(r -> r.cells().stream()).filter(c -> c.date().equals("2026-10-20")).findFirst().orElseThrow().leave().id();
+        // moving someone else's leave onto yourself is still a change of their leave
+        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(binhs, "an", LeaveType.FULL, "2026-11-04",
+                "2026-11-04", ""), BA_AN)).isInstanceOf(Forbidden.class);
+        assertThatThrownBy(() -> calendar.deleteLeave(binhs, BA_AN)).isInstanceOf(Forbidden.class);
+        Viewer outsider = new Viewer("x@acme.vn", "X", null, null, false, AccessStatus.ACTIVE, Permissions.defaults(null));
+        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02",
+                "2026-11-02", ""), outsider)).isInstanceOf(Forbidden.class);
     }
 
     private tracker.domain.Leave leaveOn(String date) {

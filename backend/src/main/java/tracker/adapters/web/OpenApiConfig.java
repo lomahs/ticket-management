@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -27,6 +28,8 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.JsonSchema;
 import io.swagger.v3.oas.models.media.Schema;
 
+import tracker.domain.Viewer;
+
 /**
  * The OpenAPI document (served at /openapi.json) that the frontend's API types are generated from. Schemas follow the
  * JSON the API writes: snake_case names and enum values (the application's ObjectMapper), {@code @Nullable} components as
@@ -34,6 +37,10 @@ import io.swagger.v3.oas.models.media.Schema;
  */
 @Configuration
 public class OpenApiConfig {
+    static {
+        // the signed-in Viewer is a handler parameter resolved from the session, not part of the request
+        SpringDocUtils.getConfig().addRequestWrapperToIgnore(Viewer.class);
+    }
 
     @Bean
     public OpenAPI trackerOpenApi() {

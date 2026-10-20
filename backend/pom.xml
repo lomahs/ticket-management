@@ -47,8 +47,17 @@
       <artifactId>flyway-core</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.security</groupId>
-      <artifactId>spring-security-crypto</artifactId>
+      <artifactId>spring-security-ldap</artifactId>
+    </dependency>
+    <dependency>
+      <!-- The embedded LDAP server of the demo profile (spring.ldap.embedded.*); compile scope: the packaged jar runs the demo. -->
+      <groupId>com.unboundid</groupId>
+      <artifactId>unboundid-ldapsdk</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springdoc</groupId>
@@ -74,6 +83,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

@@ -9,11 +9,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.service.EffortService.BurndownView;
 import tracker.application.service.EffortService.DayDetailView;
 import tracker.application.service.EffortService.EffortAnalysis;
 import tracker.application.service.EffortService.TimesheetView;
 import tracker.application.service.EffortService;
+import tracker.domain.Feature;
+import tracker.domain.Level;
 
 @RestController
 @RequestMapping("/api/v1/effort")
@@ -24,23 +27,27 @@ public class EffortApi {
         this.effort = effort;
     }
 
+    @Requires(feature = Feature.EFFORT, level = Level.READ)
     @GetMapping("/timesheet")
     public TimesheetView timesheet(@RequestParam("from") @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
                                    @RequestParam("to") @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end) {
         return effort.timesheet(start, end);
     }
 
+    @Requires(feature = Feature.EFFORT, level = Level.READ)
     @GetMapping("/timesheet/{member}/{date}")
     public DayDetailView day(@PathVariable("member") String member,
                              @PathVariable("date") @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String date) {
         return effort.dayDetail(member, date);
     }
 
+    @Requires(feature = Feature.EFFORT, level = Level.READ)
     @GetMapping("/analysis")
     public EffortAnalysis analysis(@RequestParam(required = false) @Nullable String anken) {
         return effort.analysis(anken);
     }
 
+    @Requires(feature = Feature.EFFORT, level = Level.READ)
     @GetMapping("/burndown")
     public BurndownView burndown(@RequestParam(required = false) @Nullable String anken, @RequestParam(required = false) @Nullable String phase,
                                  @RequestParam(required = false) @Nullable String task, @RequestParam(required = false) @Nullable String member) {

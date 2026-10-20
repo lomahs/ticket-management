@@ -10,8 +10,11 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.service.WorkService.MyWork;
 import tracker.application.service.WorkService;
+import tracker.domain.Feature;
+import tracker.domain.Level;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -22,6 +25,7 @@ public class WorkApi {
         this.work = work;
     }
 
+    @Requires(feature = Feature.MY_WORK, level = Level.READ)
     @GetMapping("/my-work")
     public MyWork myWork(@RequestParam String member,
                          @RequestParam(defaultValue = "week") @Pattern(regexp = "^(week|month)$", message = "must be week or month")

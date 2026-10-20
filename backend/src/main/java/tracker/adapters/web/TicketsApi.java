@@ -14,11 +14,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.service.AnkenService.FunctionSteps;
 import tracker.application.service.AnkenService;
 import tracker.application.service.TicketService.TicketDetail;
 import tracker.application.service.TicketService.TicketPatch;
 import tracker.application.service.TicketService;
+import tracker.domain.Feature;
+import tracker.domain.Level;
 import tracker.domain.Qa;
 import tracker.domain.Status;
 
@@ -42,22 +45,26 @@ public class TicketsApi {
     public record QuestionIn(@NotNull @Size(min = 1, max = 500) String q) {
     }
 
+    @Requires(feature = Feature.TICKET, level = Level.READ)
     @GetMapping("/tickets/{key}")
     public TicketDetail detail(@PathVariable("key") String key) {
         return tickets.detail(key);
     }
 
     /** The five steps of the function the sub-task belongs to; Planning shows them when a block is clicked. */
+    @Requires(feature = Feature.TICKET, level = Level.READ)
     @GetMapping("/tickets/{key}/function")
     public FunctionSteps function(@PathVariable("key") String key) {
         return anken.functionOf(key);
     }
 
+    @Requires(feature = Feature.TICKET, level = Level.WRITE)
     @PatchMapping("/tickets/{key}")
     public TicketDetail patch(@PathVariable("key") String key, @RequestBody @Valid TicketPatchIn body) {
         return tickets.patch(key, new TicketPatch(body.status(), body.assigneeId(), body.plannedStart(), body.plannedEnd()));
     }
 
+    @Requires(feature = Feature.QA, level = Level.READ)
     @PostMapping("/qa")
     public Qa.Answer ask(@RequestBody @Valid QuestionIn body) {
         return tickets.ask(body.q());

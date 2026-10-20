@@ -17,10 +17,21 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param staticDir the built frontend to serve, when it exists
  * @param admins    e-mails of the bootstrap admins ({@code TRACKER_ADMINS}, comma-separated): always admin and active
  * @param breakglassPasswordHash bcrypt hash of the break-glass password (user {@code breakglass}); unset: break-glass is off
+ * @param ldap      how a login finds its directory entry ({@code tracker.ldap.*}); the connection is {@code spring.ldap.*}
  */
 @ConfigurationProperties("tracker")
 public record TrackerProperties(@Nullable String today, @DefaultValue("Asia/Ho_Chi_Minh") ZoneId timeZone,
                                 @Nullable String secretKey, @DefaultValue("data") String dataDir,
                                 @DefaultValue("../frontend/dist") String staticDir,
-                                @DefaultValue("") List<String> admins, @Nullable String breakglassPasswordHash) {
+                                @DefaultValue("") List<String> admins, @Nullable String breakglassPasswordHash,
+                                @DefaultValue Ldap ldap) {
+
+    /**
+     * @param userFilter    LDAP search filter for the username typed at login ({@code {0}}), under {@code spring.ldap.base}
+     * @param mailAttribute the attribute with the e-mail: the identity of the user, matched to the member's e-mail
+     * @param nameAttribute the attribute with the display name
+     */
+    public record Ldap(@DefaultValue("(|(uid={0})(sAMAccountName={0})(mail={0}))") String userFilter,
+                       @DefaultValue("mail") String mailAttribute, @DefaultValue("displayName") String nameAttribute) {
+    }
 }

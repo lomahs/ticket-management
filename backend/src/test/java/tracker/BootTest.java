@@ -3,6 +3,8 @@ package tracker;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.net.CookieManager;
+import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -28,7 +30,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @ActiveProfiles("demo")
 class BootTest {
     static final ObjectMapper JSON = new ObjectMapper();
+    /** Without cookies: nobody is signed in. */
     final HttpClient http = HttpClient.newHttpClient();
+    final CookieManager cookies = new CookieManager();
+    /** Keeps the cookies (session, XSRF-TOKEN) like a browser. */
+    final HttpClient browser = HttpClient.newBuilder().cookieHandler(cookies).build();
 
     @LocalServerPort
     int port;
@@ -46,15 +52,47 @@ class BootTest {
         return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    URI uri(String path) {
+        return URI.create("http://localhost:" + port + path);
+    }
+
+    String xsrf() {
+        return cookies.getCookieStore().get(uri("/")).stream().filter(c -> c.getName().equals("XSRF-TOKEN")).map(HttpCookie::getValue)
+                .findFirst().orElseThrow(() -> new AssertionError("no XSRF-TOKEN cookie"));
+    }
+
+    /** Signs in through the API as a browser does: the CSRF cookie first, then the login with its value in the header. */
+    void signIn(String username, String password) throws Exception {
+        assertThat(browser.send(HttpRequest.newBuilder(uri("/api/v1/auth/info")).build(), HttpResponse.BodyHandlers.ofString())
+                .statusCode()).isEqualTo(200);
+        HttpResponse<String> login = browser.send(HttpRequest.newBuilder(uri("/api/v1/auth/login"))
+                .header("Content-Type", "application/json").header("X-XSRF-TOKEN", xsrf())
+                .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(login.statusCode()).as(login.body()).isEqualTo(200);
+        String session = login.headers().allValues("set-cookie").stream().filter(c -> c.startsWith("JSESSIONID=")).findFirst()
+                .orElseThrow();
+        assertThat(session).contains("HttpOnly").contains("SameSite=Lax");
+    }
+
+    HttpResponse<String> browse(String path) throws Exception {
+        return browser.send(HttpRequest.newBuilder(uri(path)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
     @Test
     void servesTheApiInDemoMode() throws Exception {
-        HttpResponse<String> r = get("/api/v1/meta");
+        HttpResponse<String> anonymous = get("/api/v1/meta");
+        assertThat(anonymous.statusCode()).isEqualTo(401);
+        assertThat(anonymous.headers().firstValue("content-type").orElse("")).startsWith("application/problem+json");
+        signIn("minh", "demo");
+        HttpResponse<String> r = browse("/api/v1/meta");
         assertThat(r.statusCode()).isEqualTo(200);
         assertThat(r.headers().firstValue("content-type").orElse("")).startsWith("application/json");
         JsonNode m = JSON.readTree(r.body());
         assertThat(m.get("mode").asText()).isEqualTo("demo");
         assertThat(m.get("sync").get("status").asText()).isEqualTo("ok");
-        assertThat(JSON.readTree(get("/api/v1/anken").body())).hasSize(6);
+        assertThat(JSON.readTree(browse("/api/v1/anken").body())).hasSize(6);
+        assertThat(JSON.readTree(browse("/api/v1/me").body()).get("admin").asBoolean()).isTrue();
     }
 
     @Test
@@ -81,8 +119,9 @@ class BootTest {
         java.util.Arrays.fill(body, (byte) 'x');
         System.arraycopy(head, 0, body, 0, head.length);
         System.arraycopy(tail, 0, body, body.length - tail.length, tail.length);
-        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/leaves/import/preview"))
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+        signIn("minh", "demo");
+        HttpResponse<String> r = browser.send(HttpRequest.newBuilder(uri("/api/v1/leaves/import/preview"))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary).header("X-XSRF-TOKEN", xsrf())
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body)).build(), HttpResponse.BodyHandlers.ofString());
         assertThat(r.statusCode()).isEqualTo(413);
         assertThat(r.body()).contains("The file is larger than 5 MB");

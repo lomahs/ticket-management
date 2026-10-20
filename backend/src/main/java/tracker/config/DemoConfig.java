@@ -11,7 +11,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import tracker.adapters.fake.Dataset;
 import tracker.adapters.fake.FakeJira;
+import tracker.adapters.web.auth.DemoLogins;
 import tracker.application.SyncService;
+import tracker.application.ports.AccessRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.MemberRepository;
@@ -19,12 +21,13 @@ import tracker.application.ports.SecretBox;
 import tracker.application.ports.SettingsRepository;
 import tracker.application.service.SystemService.Mode;
 import tracker.application.settings.TrackerSettings;
+import tracker.domain.AccessStatus;
 import tracker.domain.WorkStructure;
 
 /**
  * The {@code demo} profile: a simulated Jira site (writes enabled) and demo data. Every start begins with a new database
- * ({@code tracker.reset-database}), seeds the team, calendar and settings, and runs a full sync, before the server accepts
- * requests.
+ * ({@code tracker.reset-database}), seeds the team (an, binh, chi, dung and minh can sign in), calendar and settings, and
+ * runs a full sync, before the server accepts requests. Sign-in goes through an embedded LDAP server (demo-users.ldif).
  */
 @Configuration(proxyBeanMethods = false)
 @Profile("demo")
@@ -45,12 +48,22 @@ public class DemoConfig {
         return (url, email, token) -> jira;
     }
 
+    /** The users of the embedded LDAP server (demo-users.ldif) for the login page; all have the password "demo". */
+    @Bean
+    public DemoLogins demoLogins() {
+        return new DemoLogins(List.of("minh (admin)", "an", "binh", "chi", "dung", "lan (no access yet)"), "demo");
+    }
+
+    /** The demo members that can sign in; tanaka (JM) cannot, and lan (in the directory only) has to request access. */
+    static final List<String> ACTIVE_MEMBERS = List.of("an", "binh", "chi", "dung", "minh");
+
     @Bean
     public SmartInitializingSingleton demoData(MemberRepository members, CalendarRepository calendar, SettingsRepository settings,
-                                               SecretBox secrets, SyncService sync, TransactionTemplate tx) {
+                                               AccessRepository access, SecretBox secrets, SyncService sync, TransactionTemplate tx) {
         return () -> {
             tx.executeWithoutResult(status -> {
                 Dataset.demoMembers().forEach(members::save);
+                ACTIVE_MEMBERS.forEach(id -> access.saveStatus(id, AccessStatus.ACTIVE));
                 Dataset.demoHolidays().values().forEach(calendar::saveHoliday);
                 Dataset.demoLeaves().forEach(calendar::saveLeave);
                 Dataset.EXTRA_DAYS.forEach(calendar::saveExtraDay);

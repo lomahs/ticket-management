@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import tracker.adapters.web.auth.Open.Rule;
+import tracker.adapters.web.auth.Open;
 import tracker.application.service.JiraSettingsService.FieldMappingCheck;
 import tracker.application.service.JiraSettingsService.FieldMappingView;
 import tracker.application.service.JiraSettingsService.JiraSettingsView;
@@ -69,26 +71,31 @@ public class SettingsApi {
     public record EpicIn(@NotNull String key) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/jira")
     public JiraSettingsView jira() {
         return jiraSettings.jiraSettings();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/jira")
     public JiraSettingsView saveJira(@RequestBody @Valid JiraIn body) {
         return jiraSettings.saveJira(body.url(), body.email(), body.token(), body.interval());
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/settings/jira/test")
     public JiraTestOut testJira(@RequestBody @Valid JiraTestIn body) {
         return new JiraTestOut(jiraSettings.testJira(body.url(), body.email() == null ? "" : body.email(), body.token()));
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/settings/epics")
     public JiraSettingsView addEpic(@RequestBody @Valid EpicIn body) {
         return jiraSettings.addEpic(body.key());
     }
 
+    @Open(Rule.ADMIN)
     @DeleteMapping("/settings/epics/{key}")
     public JiraSettingsView removeEpic(@PathVariable("key") String key) {
         return jiraSettings.removeEpic(key);
@@ -106,11 +113,13 @@ public class SettingsApi {
                                @Nullable String effort, @Nullable String remaining) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/field-mapping")
     public FieldMappingView fieldMapping() {
         return jiraSettings.fieldMapping();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/field-mapping")
     public FieldMappingView saveFieldMapping(@RequestBody @Valid FieldMappingIn body) {
         Map<String, String> mapping = new LinkedHashMap<>();
@@ -121,6 +130,7 @@ public class SettingsApi {
         return jiraSettings.saveFieldMapping(mapping);
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/settings/field-mapping/check")
     public FieldMappingCheck checkFieldMapping(@RequestBody @Valid FieldCheckIn body) {
         Map<String, String> mapping = new LinkedHashMap<>();
@@ -145,11 +155,13 @@ public class SettingsApi {
     public record StatusMappingIn(@NotNull Map<String, @Nullable Status> mapping) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/status-mapping")
     public List<StatusRow> statusMapping() {
         return jiraSettings.statusMapping();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/status-mapping")
     public List<StatusRow> saveStatusMapping(@RequestBody @Valid StatusMappingIn body) {
         return jiraSettings.saveStatusMapping(body.mapping());
@@ -175,16 +187,19 @@ public class SettingsApi {
         }
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/structure")
     public StructureView structure() {
         return jiraSettings.structure();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/structure")
     public StructureView saveStructure(@RequestBody @Valid StructureIn body) {
         return jiraSettings.saveStructure(body.domain());
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/settings/structure/preview")
     public StructureView previewStructure(@RequestBody @Valid StructureIn body) {
         return jiraSettings.previewStructure(body.domain());
@@ -200,16 +215,19 @@ public class SettingsApi {
     public record NameRulePreviewIn(@NotNull String rule, @Nullable Map<String, @NotNull String> aliases, @Nullable String sample) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/name-rules")
     public NameRulesView nameRules() {
         return jiraSettings.nameRules();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/name-rules")
     public NameRulesView saveNameRules(@RequestBody @Valid NameRulesIn body) {
         return jiraSettings.saveNameRules(body.rule(), body.aliases());
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/settings/name-rules/preview")
     public NameRulePreview previewNameRule(@RequestBody @Valid NameRulePreviewIn body) {
         return jiraSettings.previewNameRule(body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
@@ -225,33 +243,39 @@ public class SettingsApi {
                              @Nullable String note) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/holidays")
     public List<Holiday> holidays() {
         return teamSettings.holidays();
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/holidays")
     @ResponseStatus(HttpStatus.CREATED)
     public List<Holiday> addHoliday(@RequestBody @Valid HolidayIn body) {
         return teamSettings.addHoliday(body.date(), body.name(), body.countries().stream().map(Country::name).toList());
     }
 
+    @Open(Rule.ADMIN)
     @DeleteMapping("/holidays/{date}")
     public List<Holiday> deleteHoliday(@PathVariable("date") String date) {
         return teamSettings.deleteHoliday(date);
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/extra-days")
     public Map<String, String> extraDays() {
         return teamSettings.extraDays();
     }
 
+    @Open(Rule.ADMIN)
     @PostMapping("/extra-days")
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, String> addExtraDay(@RequestBody @Valid ExtraDayIn body) {
         return teamSettings.addExtraDay(body.date(), body.note() == null ? "" : body.note());
     }
 
+    @Open(Rule.ADMIN)
     @DeleteMapping("/extra-days/{date}")
     public Map<String, String> deleteExtraDay(@PathVariable("date") String date) {
         return teamSettings.deleteExtraDay(date);
@@ -268,21 +292,25 @@ public class SettingsApi {
                            @NotNull @DecimalMin("0") Double capacityPct) {
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/working-hours")
     public WorkingHours workingHours() {
         return teamSettings.workingHours();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/working-hours")
     public WorkingHours saveWorkingHours(@RequestBody @Valid WorkingHoursIn body) {
         return teamSettings.saveWorkingHours(new WorkingHours(body.hoursPerDay(), body.days(), body.timesheetToleranceH()));
     }
 
+    @Open(Rule.ADMIN)
     @GetMapping("/settings/alerts")
     public Thresholds alerts() {
         return teamSettings.alerts();
     }
 
+    @Open(Rule.ADMIN)
     @PutMapping("/settings/alerts")
     public Thresholds saveAlerts(@RequestBody @Valid AlertsIn body) {
         return teamSettings.saveAlerts(new Thresholds(body.soonDays(), body.effortWarnPct(), body.heldDays(), body.reviewRounds(),

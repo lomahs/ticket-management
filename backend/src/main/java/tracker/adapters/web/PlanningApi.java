@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.service.PlanningService.PlanChange;
 import tracker.application.service.PlanningService.PlanningPreview;
 import tracker.application.service.PlanningService.PlanningView;
 import tracker.application.service.PlanningService;
+import tracker.domain.Feature;
+import tracker.domain.Level;
 
 @RestController
 @RequestMapping("/api/v1/planning")
@@ -44,17 +47,20 @@ public class PlanningApi {
     public record PlanningPushIn(@NotNull List<@NotNull @Valid PlanChangeIn> changes) {
     }
 
+    @Requires(feature = Feature.PLANNING, level = Level.READ)
     @GetMapping("")
     public PlanningView view(@RequestParam @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
                              @RequestParam(defaultValue = "2") @Min(1) @Max(2) int weeks) {
         return planning.view(start, weeks);
     }
 
+    @Requires(feature = Feature.PLANNING, level = Level.WRITE)
     @PostMapping("/preview")
     public PlanningPreview preview(@RequestBody @Valid PlanningPreviewIn body) {
         return planning.preview(body.start(), body.changes().stream().map(PlanChangeIn::change).toList());
     }
 
+    @Requires(feature = Feature.PLANNING, level = Level.WRITE)
     @PostMapping("/push")
     public KeysOut push(@RequestBody @Valid PlanningPushIn body) {
         return new KeysOut(planning.push(body.changes().stream().map(PlanChangeIn::change).toList()));

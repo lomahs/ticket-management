@@ -177,6 +177,63 @@
         "tags" : [ "anken-api" ]
       }
     },
+    "/api/v1/auth/info" : {
+      "get" : {
+        "operationId" : "info",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthInfo"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-api" ]
+      }
+    },
+    "/api/v1/auth/login" : {
+      "post" : {
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Me"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-api" ]
+      }
+    },
+    "/api/v1/auth/logout" : {
+      "post" : {
+        "operationId" : "logout",
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "auth-api" ]
+      }
+    },
     "/api/v1/calendar" : {
       "get" : {
         "operationId" : "month",
@@ -699,6 +756,52 @@
           }
         },
         "tags" : [ "calendar-api" ]
+      }
+    },
+    "/api/v1/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Me"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-api" ]
+      }
+    },
+    "/api/v1/me/access-request" : {
+      "post" : {
+        "operationId" : "requestAccess",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccessRequestIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Me"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-api" ]
       }
     },
     "/api/v1/members" : {
@@ -1512,6 +1615,16 @@
   },
   "components" : {
     "schemas" : {
+      "AccessRequestIn" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        }
+      },
       "AlertsIn" : {
         "type" : "object",
         "properties" : {
@@ -1683,6 +1796,24 @@
           }
         },
         "required" : [ "count", "items", "kind" ]
+      },
+      "AuthInfo" : {
+        "type" : "object",
+        "properties" : {
+          "demo_password" : {
+            "type" : [ "string", "null" ]
+          },
+          "demo_users" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "mode" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "demo_password", "demo_users", "mode" ]
       },
       "BacklogGroup" : {
         "type" : "object",
@@ -2747,6 +2878,22 @@
         },
         "required" : [ "date_from", "date_to", "member_id", "type" ]
       },
+      "LoginIn" : {
+        "type" : "object",
+        "properties" : {
+          "password" : {
+            "type" : "string",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "username" : {
+            "type" : "string",
+            "maxLength" : 256,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "password", "username" ]
+      },
       "MatrixStats" : {
         "type" : "object",
         "properties" : {
@@ -2823,6 +2970,39 @@
           }
         },
         "required" : [ "epic_key", "functions", "next_function_id", "parents", "phase", "stats", "task_keys", "title" ]
+      },
+      "Me" : {
+        "type" : "object",
+        "properties" : {
+          "access" : {
+            "type" : "string",
+            "enum" : [ "none", "requested", "active", "rejected", "disabled" ]
+          },
+          "admin" : {
+            "type" : "boolean"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "member_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "permissions" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "enum" : [ "none", "read", "write" ]
+            }
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        },
+        "required" : [ "access", "admin", "email", "member_id", "name", "permissions", "role" ]
       },
       "Member" : {
         "type" : "object",

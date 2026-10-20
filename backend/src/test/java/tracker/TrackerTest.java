@@ -18,6 +18,7 @@ import org.springframework.test.annotation.DirtiesContext;
         "tracker.static-dir=target/no-frontend",
         "tracker.data-dir=target/test-data",
         "tracker.secret-key=test-key",
+        "tracker.admins=minh.hoang@acme.vn",
         "tracker.sync.check-every=PT1H",
         "spring.datasource.url=jdbc:sqlite:target/test-db/${random.uuid}.db?foreign_keys=on&journal_mode=WAL&busy_timeout=5000"
                 + "&transaction_mode=IMMEDIATE"})

@@ -25,12 +25,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.adapters.web.auth.Requires;
 import tracker.application.service.AnkenService.AnkenCard;
 import tracker.application.service.AnkenService.AnkenDetail;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService.FunctionPreview;
 import tracker.application.service.AnkenService.MatrixView;
 import tracker.application.service.AnkenService;
+import tracker.domain.Feature;
+import tracker.domain.Level;
 
 @RestController
 @RequestMapping("/api/v1/anken")
@@ -65,11 +68,13 @@ public class AnkenApi {
         }
     }
 
+    @Requires(feature = Feature.OVERVIEW, level = Level.READ)
     @GetMapping("")
     public List<AnkenCard> overview() {
         return anken.overview();
     }
 
+    @Requires(feature = Feature.OVERVIEW, level = Level.READ)
     @GetMapping("/{epic}")
     public AnkenDetail detail(@PathVariable("epic") String epic) {
         return anken.detail(epic);
@@ -82,6 +87,7 @@ public class AnkenApi {
      * @param shown the Tasks the viewer's own layout shows (Setting phase, kept in the browser), used when neither Tasks nor a
      *              phase are given; keys that are no longer Tasks of the epic are skipped
      */
+    @Requires(feature = Feature.MATRIX, level = Level.READ)
     @GetMapping("/{epic}/matrix")
     public MatrixView matrix(@PathVariable("epic") String epic, @RequestParam(required = false) @Nullable List<String> tasks,
                              @RequestParam(required = false) @Nullable String phase,
@@ -111,11 +117,13 @@ public class AnkenApi {
                 overrides);
     }
 
+    @Requires(feature = Feature.MATRIX, level = Level.WRITE)
     @PostMapping("/{epic}/functions/preview")
     public FunctionPreview previewFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionDraftIn body) {
         return anken.previewFunction(epic, draft(body));
     }
 
+    @Requires(feature = Feature.MATRIX, level = Level.WRITE)
     @PostMapping("/{epic}/functions")
     @ResponseStatus(HttpStatus.CREATED)
     public KeysOut createFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionCreateIn body) {

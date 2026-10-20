@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.TestPropertySource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -18,7 +19,18 @@ import tracker.TrackerTest;
 /** Without the demo profile there is no JiraWriter: Jira edits are refused (phase 1). */
 @TrackerTest
 @AutoConfigureMockMvc
+@TestPropertySource(properties = "spring.ldap.urls=ldap://127.0.0.1:1") // a directory that cannot be reached
 class ApiJiraModeTest extends ApiTestSupport {
+
+    @Test
+    void signInWithoutTheDirectoryIs503() throws Exception {
+        assertThat(call(get("/api/v1/auth/info").with(anonymous())).json().toString())
+                .isEqualTo("{\"mode\":\"jira\",\"demo_password\":null,\"demo_users\":[]}");
+        problem(call(json(post("/api/v1/auth/login"), Map.of("username", "an", "password", "secret")).with(anonymous())), 503,
+                "ldap_unavailable");
+        problem(call(json(post("/api/v1/auth/login"), Map.of("username", "breakglass", "password", "x")).with(anonymous())), 503,
+                "ldap_unavailable"); // break-glass is off, so the name goes to the directory like any other
+    }
 
     @Test
     void writesToJiraAreDisabled() throws Exception {

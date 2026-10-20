@@ -10,6 +10,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tracker.application.AppError.Forbidden;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContextLoader;
@@ -18,13 +19,16 @@ import tracker.application.ports.SettingsRepository;
 import tracker.application.service.PlanningService.DayHead;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Dates;
+import tracker.domain.Feature;
 import tracker.domain.Holiday;
 import tracker.domain.Leave;
 import tracker.domain.LeaveImport.ImportRow;
 import tracker.domain.LeaveImport;
 import tracker.domain.LeaveType;
 import tracker.domain.LeaveTypeInfo;
+import tracker.domain.Level;
 import tracker.domain.Member;
+import tracker.domain.Viewer;
 import tracker.domain.WorkCalendar;
 
 /** Team calendar: month view, leave editing, Excel/CSV import and export rows. */
@@ -83,9 +87,25 @@ public class CalendarService {
     public record LeaveDraft(@Nullable Integer editId, String memberId, LeaveType type, String dateFrom, String dateTo, String note) {
     }
 
-    /** Stores leave on each working day of the range (non-working days are skipped). Returns the number of days. */
+    /** Without Calendar write a viewer changes only their own leave: the draft's member and the stored leave's member. */
+    private static void ownLeave(Viewer viewer, String memberId) {
+        if (!viewer.can(Feature.CALENDAR, Level.WRITE) && (viewer.memberId() == null || !viewer.memberId().equals(memberId))) {
+            throw new Forbidden("You can only change your own leave");
+        }
+    }
+
+    private static Leave stored(List<Leave> leaves, int leaveId) {
+        return leaves.stream().filter(lv -> lv.id() == leaveId).findFirst()
+                .orElseThrow(() -> new NotFound("Leave " + leaveId + " was not found"));
+    }
+
+    /**
+     * Stores leave on each working day of the range (non-working days are skipped). Returns the number of days. Without
+     * Calendar write the viewer may only add or edit their own leave.
+     */
     @Transactional
-    public int saveLeave(LeaveDraft draft) {
+    public int saveLeave(LeaveDraft draft, Viewer viewer) {
+        ownLeave(viewer, draft.memberId());
         if (draft.dateTo().compareTo(draft.dateFrom()) < 0) {
             throw new Invalid("To date is before From date", "to");
         }
@@ -97,9 +117,7 @@ public class CalendarService {
         WorkCalendar cal = context.calendar(settings.load(), members, leaves);
         Integer editId = draft.editId();
         if (editId != null) {
-            if (leaves.stream().noneMatch(lv -> lv.id() == editId)) {
-                throw new NotFound("Leave " + editId + " was not found");
-            }
+            ownLeave(viewer, stored(leaves, editId).memberId());
             calendar.deleteLeave(editId);
         }
         Map<String, Leave> existing = new HashMap<>();
@@ -127,11 +145,10 @@ public class CalendarService {
         return n;
     }
 
+    /** Without Calendar write the viewer may only delete their own leave. */
     @Transactional
-    public void deleteLeave(int leaveId) {
-        if (calendar.findLeaves().stream().noneMatch(lv -> lv.id() == leaveId)) {
-            throw new NotFound("Leave " + leaveId + " was not found");
-        }
+    public void deleteLeave(int leaveId, Viewer viewer) {
+        ownLeave(viewer, stored(calendar.findLeaves(), leaveId).memberId());
         calendar.deleteLeave(leaveId);
     }
 
