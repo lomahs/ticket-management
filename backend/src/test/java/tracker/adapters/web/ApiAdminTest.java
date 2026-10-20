@@ -63,6 +63,12 @@ class ApiAdminTest extends ApiTestSupport {
     }
 
     @Test
+    void unknownStatusFilterIs400() throws Exception {
+        problem(call(get("/api/v1/admin/access-requests").param("status", "bogus")), 400, "invalid");
+        problem(call(get("/api/v1/admin/access-requests").param("status", "")), 400, "invalid");
+    }
+
+    @Test
     void rejectOverHttp() throws Exception {
         accessService.requestAccess(new Identity("lan.vo@acme.vn", "Võ Thị Lan"), "");
         int id = call(get("/api/v1/admin/access-requests")).json().get(0).get("id").asInt();

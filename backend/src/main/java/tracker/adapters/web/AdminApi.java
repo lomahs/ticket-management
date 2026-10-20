@@ -6,6 +6,7 @@ import java.util.Map;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,8 +66,8 @@ public class AdminApi {
 
     @Open(Rule.ADMIN)
     @GetMapping("/access-requests")
-    public List<AccessRequest> requests(@RequestParam(required = false) @Nullable String status) {
-        return access.requests(status == null || status.isBlank() ? null : RequestStatus.of(status));
+    public List<AccessRequest> requests(@RequestParam(required = false) @Pattern(regexp = "^(pending|approved|rejected)$", message = "status must be pending, approved or rejected") @Nullable String status) {
+        return access.requests(status == null ? null : RequestStatus.of(status));
     }
 
     @Open(Rule.ADMIN)
