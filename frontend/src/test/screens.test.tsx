@@ -352,4 +352,42 @@ describe('screens render API data at their URLs', () => {
     await waitFor(() => expect(select.value).toBe('an'));
     expect(select.disabled).toBe(true);
   });
+
+  describe('calendar without calendar write', () => {
+    const cal = (leaveMember: string) => ({
+      month: '2026-10',
+      days: [{ date: '2026-10-07', extra_note: null, is_today: true }],
+      rows: [
+        { member_id: leaveMember, days_off: 1, cells: [{ date: '2026-10-07', kind: 'leave', label: null, tentative: false, leave: { id: 5, member_id: leaveMember, date: '2026-10-07', type: 'full', note: '' } }] },
+      ],
+    });
+    const asBa = (rows = cal('binh')) => server.use(
+      http.get('*/api/v1/me', () => HttpResponse.json(meBa)),
+      http.get('*/api/v1/calendar', () => HttpResponse.json(rows)),
+    );
+
+    it('shows another member\'s leave read-only', async () => {
+      asBa();
+      renderApp('/calendar/leave/5?month=2026-10');
+      const dialog = await screen.findByRole('dialog', { name: 'Edit leave' });
+      await waitFor(() => expect((within(dialog).getByLabelText('Member') as HTMLSelectElement).value).toBe('binh'));
+      expect(within(dialog).queryByRole('button', { name: 'Save' })).toBeNull();
+      expect(within(dialog).queryByRole('button', { name: 'Delete' })).toBeNull();
+      expect(within(dialog).getByText('You have view-only access')).toBeTruthy();
+    });
+
+    it('does not open the leave of another member from the grid', async () => {
+      asBa();
+      const { router } = renderApp('/calendar?month=2026-10');
+      fireEvent.click(await screen.findByRole('button', { name: /Bình/ }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(router.state.location.pathname).toBe('/calendar');
+    });
+
+    it('redirects the import wizard away', async () => {
+      asBa();
+      const { router } = renderApp('/calendar/import/1');
+      await waitFor(() => expect(router.state.location.pathname).toBe('/calendar'));
+    });
+  });
 });

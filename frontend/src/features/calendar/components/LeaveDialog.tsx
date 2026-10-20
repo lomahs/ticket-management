@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { useCan, useMe, useMemberMap, useMeta } from '../../../shared/api/queries';
+import { useCan, useMe, useMemberMap, useMeta, VIEW_ONLY } from '../../../shared/api/queries';
 import type { LeaveTypeKey } from '../../../shared/api/types';
 import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { LEAVE, LEAVE_KEYS } from '../../../shared/format/labels';
@@ -40,7 +40,9 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
     from: existing?.date ?? defaults.date, to: existing?.date ?? defaults.date, note: existing?.note ?? '',
   });
   const [err, setErr] = useState<ApiError | null>(null);
-  const member = canAll ? f.member || firstMember : myId; // without calendar write a member can only book their own leave
+  // Without calendar write a member can only book their own leave; another member's leave is shown read-only.
+  const member = existing ? existing.member_id : canAll ? f.member || firstMember : myId;
+  const readOnly = !!existing && !canAll && existing.member_id !== myId;
   const close = () => navigate({ to: '/calendar', search: (p) => ({ month: (p as { month?: string }).month }) });
   const rangeBad = !!(f.from && f.to && f.to < f.from);
   const submit = () => save.mutate({ id: existing?.id, body: { member_id: member, type: f.type, date_from: f.from, date_to: f.to, note: f.note } }, {
@@ -61,25 +63,26 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select label="Member" options={Object.values(members).map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }))} value={member} disabled={!canAll} onChange={set('member')} />
-              <Select label="Type" options={LEAVE_KEYS.map((k) => ({ value: k, label: LEAVE[k].label }))} value={f.type} onChange={set('type')} />
-              <TextField label="From" type="date" value={f.from} onChange={set('from')} />
+              <Select label="Type" disabled={readOnly} options={LEAVE_KEYS.map((k) => ({ value: k, label: LEAVE[k].label }))} value={f.type} onChange={set('type')} />
+              <TextField label="From" type="date" disabled={readOnly} value={f.from} onChange={set('from')} />
               <div>
-                <TextField label="To" type="date" value={f.to} onChange={set('to')} aria-invalid={rangeBad} />
+                <TextField label="To" type="date" disabled={readOnly} value={f.to} onChange={set('to')} aria-invalid={rangeBad} />
                 {(rangeBad || err?.field('date_to') || err?.field('to')) && (
                   <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', marginTop: 4 }}>{err?.field('to') ?? 'To date is before From date'}</div>
                 )}
               </div>
             </div>
-            <TextField label="Note" placeholder="Optional" value={f.note} onChange={set('note')} />
+            <TextField label="Note" placeholder="Optional" disabled={readOnly} value={f.note} onChange={set('note')} />
             {err && !err.field('to') && <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)' }}>{err.message}</div>}
+            {readOnly && <div className="eyebrow">{VIEW_ONLY}</div>}
             <div className="eyebrow">Non-working days inside the range are skipped. All-day leave blocks the day in Planning and half days count as 50% capacity. Tentative leave is shown hatched.</div>
           </>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {existing && <Button appearance="subtle" iconBefore="trash-2" disabled={del.isPending} onClick={remove}>Delete</Button>}
+          {existing && !readOnly && <Button appearance="subtle" iconBefore="trash-2" disabled={del.isPending} onClick={remove}>Delete</Button>}
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Cancel</Button>
-          {!missingId && <Button disabled={!f.from || !f.to || rangeBad || save.isPending} onClick={submit}>Save</Button>}
+          {!missingId && !readOnly && <Button disabled={!f.from || !f.to || rangeBad || save.isPending} onClick={submit}>Save</Button>}
         </div>
       </div>
     </div>
