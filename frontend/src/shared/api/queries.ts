@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { http, unwrap } from './client';
-import type { Member } from './types';
+import { ApiError } from './errors';
+import type { Feature, Member } from './types';
 
 export const metaQuery = {
   queryKey: ['meta'] as const,
@@ -13,6 +14,27 @@ export const membersQuery = {
   queryFn: () => unwrap(http.GET('/api/v1/members')),
   staleTime: 60_000,
 };
+
+/** The signed-in user; a 401 means no session (the route gate sends it to /login). */
+export const meQuery = {
+  queryKey: ['me'] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/me')),
+  staleTime: 60_000,
+  retry: (n: number, e: unknown) => !(e instanceof ApiError && e.status === 401) && n < 1,
+};
+
+export function useMe() {
+  return useQuery(meQuery);
+}
+
+/** Whether the signed-in user may use `feature` at `level` (an admin may do everything). */
+export function useCan(feature: Feature, level: 'read' | 'write' = 'read'): boolean {
+  const me = useMe().data;
+  if (!me) return false;
+  if (me.admin) return true;
+  const have = me.permissions[feature];
+  return level === 'read' ? have === 'read' || have === 'write' : have === 'write';
+}
 
 export function useMeta() {
   return useQuery(metaQuery);

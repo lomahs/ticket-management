@@ -9,3 +9,6 @@ export type Status = 'N' | 'W' | 'R' | 'C';
 export type Tone = 'nys' | 'ontime' | 'early' | 'latestart' | 'delay' | 'res' | 'clo';
 export type StepKind = 'create' | 'balr' | 'fixb' | 'jmr' | 'fixj';
 export type LeaveTypeKey = 'full' | 'half' | 'fullTent' | 'halfTent';
+
+export type Me = Schemas['Me'];
+export type Feature = 'my_work' | 'overview' | 'matrix' | 'ticket' | 'planning' | 'effort' | 'qa' | 'calendar' | 'members';

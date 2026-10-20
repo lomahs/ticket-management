@@ -13,7 +13,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { functionPreviewQuery, matrixQuery, useCreateFunction } from '../api';
 import { MatrixHeader } from './MatrixHeader';
 
-const route = getRouteApi('/anken/$epic/matrix/new');
+const route = getRouteApi('/app/anken/$epic/matrix/new');
 const COLS = 'minmax(220px,1fr) 90px 56px 150px 150px';
 const WEIGHTS = [1, 0.25, 0.3, 0.25, 0.2]; // display only: the server computes the real estimates
 

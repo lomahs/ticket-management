@@ -18,7 +18,7 @@ import { layoutLanes, startForDrop } from '../model/lanes';
 import { usePendingMoves } from '../model/pending';
 import { FunctionPanel, type PlanOf } from './FunctionPanel';
 
-const route = getRouteApi('/planning');
+const route = getRouteApi('/app/planning');
 const LANE_H = 32;
 
 export function PlanningPage() {

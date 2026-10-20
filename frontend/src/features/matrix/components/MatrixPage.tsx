@@ -17,7 +17,7 @@ import {
 import { applyLayout, useMatrixLayout, type MatrixLayout } from '../model/layout';
 import { MatrixHeader } from './MatrixHeader';
 
-const route = getRouteApi('/anken/$epic/matrix');
+const route = getRouteApi('/app/anken/$epic/matrix');
 const SUM_GRID = '150px repeat(3,minmax(0,1fr)) 12px minmax(0,1fr) 80px';
 const MX_GRID = '250px repeat(5,minmax(150px,1fr))';
 const SCOLS: { k: string; kind: 'status' | 'prog'; label: string; dot: string; col: string; count: 'N' | 'W' | 'D' | 'late' }[] = [

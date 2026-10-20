@@ -1,10 +1,10 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useLogout } from '../features/auth';
 import { SyncButton } from '../features/sync';
-import { useMemberMap, useMeta } from '../shared/api/queries';
+import { useMe, useMemberMap, useMeta } from '../shared/api/queries';
 import { Icon, IconButton, type IconName } from '../shared/ds';
 import { ROLE_LABEL } from '../shared/format/labels';
-import { usePref } from '../shared/state/prefs';
 import { Avatar, av } from '../shared/ui/bits';
 
 const NAV: { to: string; label: string; icon: IconName; active: (p: string) => boolean }[] = [
@@ -22,8 +22,9 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
   const path = useRouterState({ select: (s) => s.location.pathname });
   const meta = useMeta().data;
   const members = useMemberMap();
-  const [me] = usePref('me', 'binh');
-  const meM = members[me];
+  const me = useMe().data;
+  const logout = useLogout();
+  const meM = me?.member_id ? members[me.member_id] : undefined;
   const connection = !meta ? ' ' : meta.mode === 'demo' ? `Demo data · ${meta.projects.join(', ')}`
     : meta.projects.length ? `Connected to Jira · ${meta.projects.join(', ')}` : 'Jira not set up yet';
   return (
@@ -59,16 +60,17 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
         <SyncButton compact={!open} />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 10, padding: '12px 14px', borderTop: '1px solid var(--border-subtle)' }}>
-        <Avatar a={av(meM, me)} size={28} />
+        <Avatar a={av(meM, me?.name ?? '')} size={28} />
         {open && (
           <>
             <div style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
-              <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{meM?.name ?? me}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{meM?.role ? ROLE_LABEL[meM.role] : 'No role'}</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{me?.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{me?.role ? ROLE_LABEL[me.role] : 'No role'}</div>
             </div>
             <span className="spacer" />
           </>
         )}
+        <IconButton icon="log-out" label="Sign out" size="sm" onClick={() => logout.mutate()} />
         <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} size="sm" onClick={toggleTheme} />
       </div>
     </aside>

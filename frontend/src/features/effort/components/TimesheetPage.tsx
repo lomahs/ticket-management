@@ -12,7 +12,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { dayDetailQuery, timesheetQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 
-const route = getRouteApi('/effort/timesheet');
+const route = getRouteApi('/app/effort/timesheet');
 const PER_SCREEN = 10;
 interface Pop { member: string; date: string; top: number; left: number; pinned: boolean }
 

@@ -1,30 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
-import { useMemberMap } from '../../../shared/api/queries';
+import { useMe, useMemberMap } from '../../../shared/api/queries';
 import type { TaskCard } from '../../../shared/api/types';
 import { Icon, Select, type IconName } from '../../../shared/ds';
 import { add, dm, hrs, longDate } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 import { dueLabel, taskSub, taskTitle } from '../../../shared/format/task';
-import { usePref } from '../../../shared/state/prefs';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
 import { Avatar, av, EffortTrio, Seg, StatusPill } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { myWorkQuery, type Backlog } from '../api';
 
-const route = getRouteApi('/my-work');
+const route = getRouteApi('/app/my-work');
 
 export function MyWorkPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
-  const [me, setMe] = usePref('me', 'binh');
-  const member = search.member ?? me;
+  const me = useMe().data;
+  const member = search.member ?? me?.member_id ?? '';
   const backlog = search.backlog ?? 'week';
-  const q = useQuery(myWorkQuery(member, backlog));
+  const q = useQuery({ ...myWorkQuery(member, backlog), enabled: !!member });
   const members = useMemberMap();
-  const pick = (id: string) => { setMe(id); navigate({ search: (p) => ({ ...p, member: id }) }); };
+  const pick = (id: string) => { navigate({ search: (p) => ({ ...p, member: id }) }); };
   const opts = Object.values(members).filter((m) => m.role !== 'JM').map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));
+  if (!member) opts.unshift({ value: '', label: 'Select a member' });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
@@ -38,7 +38,7 @@ export function MyWorkPage() {
           <Select aria-label="View as" options={opts} value={member} onChange={pick} style={{ width: 180 }} />
         </div>
       </div>
-      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : (
+      {!member ? <div className="empty-row">Pick a member to view their work.</div> : q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : (
         <MyWorkBody w={q.data} backlog={backlog} setBacklog={(b) => navigate({ search: (p) => ({ ...p, backlog: b }) })} />
       )}
     </div>

@@ -1,0 +1,19 @@
+{
+  "access": "none",
+  "admin": false,
+  "email": "lan.vo@acme.vn",
+  "member_id": null,
+  "name": "Lan Vo",
+  "permissions": {
+    "my_work": "none",
+    "overview": "none",
+    "matrix": "none",
+    "ticket": "none",
+    "planning": "none",
+    "effort": "none",
+    "qa": "none",
+    "calendar": "none",
+    "members": "none"
+  },
+  "role": null
+}

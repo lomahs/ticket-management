@@ -9,7 +9,7 @@ import { matrixQuery } from '../api';
 import { applyLayout, useMatrixLayout, type MatrixLayout } from '../model/layout';
 import { MatrixHeader } from './MatrixHeader';
 
-const route = getRouteApi('/anken/$epic/matrix/phases');
+const route = getRouteApi('/app/anken/$epic/matrix/phases');
 
 /** The order of phases and of the Tasks (sub-phases) in each, and the Tasks shown on the matrix. */
 interface Draft { phases: string[]; tasks: Record<string, string[]>; shown: string[] }

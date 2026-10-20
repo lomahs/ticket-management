@@ -22,7 +22,7 @@ export const OTHER_STEP = { label: 'Other task', color: 'oklch(0.62 0.02 260)' }
 export const stepLabel = (k?: string | null) => STEPS.find((s) => s.k === k)?.label ?? '';
 export const stepColor = (k?: string | null) => STEPS.find((s) => s.k === k)?.color ?? OTHER_STEP.color;
 
-export const ROLE_LABEL: Record<string, string> = { BA: 'BA', BAL: 'BA Leader', JM: 'Japan Member · client' };
+export const ROLE_LABEL: Record<string, string> = { BA: 'BA', BAL: 'BA Leader', PM: 'Project Manager', PIM: 'Project Internal Manager', JM: 'Japan Member · client' };
 
 
 export const LEAVE: Record<LeaveTypeKey | 'holiday', { label: string; ab: string; c: string; full?: boolean; half?: boolean; tent?: boolean }> = {

@@ -12,7 +12,7 @@ import { Avatar, av, PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { calendarQuery, exportUrl } from '../api';
 
-const route = getRouteApi('/calendar');
+const route = getRouteApi('/app/calendar');
 
 /** Import wizard data shared by its step routes (the step itself is in the URL). */
 export interface ImportState { file: string; rows: Schemas['ImportRow'][]; working_days: number }

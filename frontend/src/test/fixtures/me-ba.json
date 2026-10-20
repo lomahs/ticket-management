@@ -1,0 +1,19 @@
+{
+  "access": "active",
+  "admin": false,
+  "email": "an.nguyen@acme.vn",
+  "member_id": "an",
+  "name": "An",
+  "permissions": {
+    "my_work": "read",
+    "overview": "read",
+    "matrix": "read",
+    "ticket": "read",
+    "planning": "read",
+    "effort": "read",
+    "qa": "read",
+    "calendar": "read",
+    "members": "none"
+  },
+  "role": "BA"
+}

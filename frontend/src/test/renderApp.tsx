@@ -9,6 +9,7 @@ import { ToastProvider } from '../shared/state/toast';
 import anken from './fixtures/anken.json';
 import matrix from './fixtures/matrix-PAY-1100.json';
 import members from './fixtures/members.json';
+import meAdmin from './fixtures/me-admin.json';
 import meta from './fixtures/meta.json';
 import myWork from './fixtures/my-work-binh.json';
 import jira from './fixtures/settings-jira.json';
@@ -17,6 +18,7 @@ import ticket from './fixtures/ticket-PAY-1213.json';
 export const fixtures = { anken, matrix, members, meta, myWork, jira, ticket };
 
 export const server = setupServer(
+  http.get('*/api/v1/me', () => HttpResponse.json(meAdmin)),
   http.get('*/api/v1/meta', () => HttpResponse.json(meta)),
   http.get('*/api/v1/members', () => HttpResponse.json(members)),
   http.get('*/api/v1/my-work', () => HttpResponse.json(myWork)),

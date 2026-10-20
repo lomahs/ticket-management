@@ -10,7 +10,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { burndownQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 
-const route = getRouteApi('/effort/burndown');
+const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
 const signed = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + f1(Math.abs(n)) + 'h';
 
