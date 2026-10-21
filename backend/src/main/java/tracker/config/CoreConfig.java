@@ -7,12 +7,14 @@ import java.time.LocalDate;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import tracker.adapters.crypto.CryptoSecretBox;
 import tracker.application.ports.SecretBox;
 import tracker.application.service.AccessService;
+import tracker.application.service.AnkenMemberSeeder;
 
 /** Beans every profile needs: the team's clock and the encryption of the stored Jira token. */
 @Configuration(proxyBeanMethods = false)
@@ -41,5 +43,11 @@ public class CoreConfig {
         return properties.secretKey() != null && !properties.secretKey().isBlank()
                 ? new CryptoSecretBox(properties.secretKey())
                 : CryptoSecretBox.fromKeyFile(Path.of(properties.dataDir(), "secret.key"));
+    }
+
+    /** Fills the anken memberships from Jira activity on the first start (in the demo, after the demo data is synced). */
+    @Bean
+    public ApplicationRunner ankenMemberSeed(AnkenMemberSeeder seeder) {
+        return args -> seeder.seedOnce();
     }
 }
