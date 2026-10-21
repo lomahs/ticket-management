@@ -68,13 +68,16 @@ function MemberRow({ m, access, addedAt, addedBy, roles, write, locked, confirmi
   confirming: boolean; onRole: (role: string) => void; onAsk: () => void; onCancel: () => void; onRemove: () => void;
 }) {
   const names = useMemberMap();
-  const by = names[addedBy]?.name ?? addedBy;
+  // added_by is the adder's e-mail, or "seed" for the first memberships made from Jira activity.
+  const email = addedBy.toLowerCase();
+  const by = Object.values(names).find((n) => n.email && n.email.toLowerCase() === email)?.name ?? addedBy;
+  const added = !addedBy ? '' : addedBy === 'seed' ? ` · added from Jira activity on ${addedAt}` : ` · added by ${by} on ${addedAt}`;
   return (
     <div role="listitem" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--border-subtle)' }}>
       <Avatar a={av(m, m.id)} size={26} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="ellipsis heading" style={{ fontWeight: 600 }}>{m.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.role ?? 'No role'} · access {access}{addedBy ? ` · added by ${by} on ${addedAt}` : ''}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.role ?? 'No role'} · access {access}{added}</div>
       </div>
       {write && !locked ? (
         <Select aria-label={`Role of ${m.name}`} value={m.role ?? NO_ROLE} style={{ width: 120 }} onChange={onRole}

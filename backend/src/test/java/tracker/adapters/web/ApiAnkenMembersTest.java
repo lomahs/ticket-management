@@ -96,6 +96,39 @@ class ApiAnkenMembersTest extends ApiTestSupport {
                 "epics", List.of("PAY-1300"))).with(as("pia@acme.vn"))), 404, "not_found");
     }
 
+    private void member(String id, Role role, String email, String epic) {
+        members.save(new Member(id, id, id, role, "VN", "#abcdef", email, Permission.USER, false, null));
+        access.saveStatus(id, AccessStatus.ACTIVE);
+        ankenMembers.add(epic, id, "test", Instant.now().toString());
+    }
+
+    @Test
+    void onlyTheAdminChangesTheRoleOfAPmOrPim() throws Exception {
+        member("pim-a", Role.PIM, "pim-a@acme.vn", "PAY-1100");
+        member("pm-b", Role.PM, "pm-b@acme.vn", "PAY-1100");
+        member("pim-c", Role.PIM, "pim-c@acme.vn", "PAY-1100");
+        member("ba-d", Role.BA, "ba-d@acme.vn", "PAY-1100");
+        problem(call(json(patch("/api/v1/people/pm-b"), Map.of("role", "BA")).with(as("pim-a@acme.vn"))), 403, "forbidden");
+        problem(call(json(patch("/api/v1/people/pim-c"), Map.of("role", "BA")).with(as("pim-a@acme.vn"))), 403, "forbidden");
+        problem(call(json(patch("/api/v1/people/pim-c"), Map.of("clear_role", true)).with(as("pim-a@acme.vn"))), 403, "forbidden");
+        assertThat(members.findById("pm-b").orElseThrow().role()).isEqualTo(Role.PM);
+        assertThat(members.findById("pim-c").orElseThrow().role()).isEqualTo(Role.PIM);
+        Res ba = call(json(patch("/api/v1/people/ba-d"), Map.of("role", "BAL")).with(as("pim-a@acme.vn")));
+        assertThat(ba.status()).as(ba.text()).isEqualTo(200);
+        assertThat(call(json(patch("/api/v1/people/pm-b"), Map.of("role", "BA"))).status()).isEqualTo(200); // the admin may
+    }
+
+    @Test
+    void aScopedPimCannotReachTheMembersOfAnotherAnken() throws Exception {
+        member("pim-e", Role.PIM, "pim-e@acme.vn", "PAY-1100");
+        access.saveAnkenScope("pim-e", AnkenScopeSetting.MEMBERS);
+        member("solo", Role.BA, "solo@acme.vn", "PAY-1300"); // a member of PAY-1300 only
+        problem(call(delete("/api/v1/anken/PAY-1300/members/solo").with(as("pim-e@acme.vn"))), 404, "not_found");
+        assertThat(ankenMembers.exists("PAY-1300", "solo")).isTrue();
+        problem(call(json(patch("/api/v1/people/solo"), Map.of("role", "BAL")).with(as("pim-e@acme.vn"))), 404, "not_found");
+        assertThat(members.findById("solo").orElseThrow().role()).isEqualTo(Role.BA);
+    }
+
     @Test
     void anotherAnkenIs404() throws Exception {
         problem(call(get("/api/v1/anken/PAY-9999/members")), 404, "not_found");

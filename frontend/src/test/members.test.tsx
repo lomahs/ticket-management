@@ -12,7 +12,7 @@ afterAll(() => server.close());
 const [an, binh] = fixtures.members;
 const view = (over: object = {}) => ({
   epic_key: 'PAY-1100',
-  members: [{ member: an, access: 'active', added_at: '2026-10-01', added_by: 'minh' }],
+  members: [{ member: an, access: 'active', added_at: '2026-10-01', added_by: 'minh.hoang@acme.vn' }],
   not_members: [],
   candidates: [binh],
   ...over,
@@ -40,6 +40,18 @@ describe('anken members', () => {
     expect(within(await screen.findByRole('region', { name: 'Members' })).getByText(/added by Minh on 2026-10-01/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Add to anken' }));
     await waitFor(() => expect(posted).toEqual([{ member_id: 'binh' }]));
+  });
+
+  it('says who added each member', async () => {
+    serve(detail(), view({ members: [
+      { member: an, access: 'active', added_at: '2026-10-01', added_by: 'seed' },
+      { member: binh, access: 'none', added_at: '2026-10-02', added_by: 'someone@client.co.jp' },
+    ], candidates: [] }));
+    renderApp('/anken/PAY-1100');
+    const p = await panel();
+    expect(await p.findByText(/added from Jira activity on 2026-10-01/)).toBeTruthy();
+    expect(p.getByText(/added by someone@client\.co\.jp on 2026-10-02/)).toBeTruthy();
+    expect(p.queryByText(/added by seed/)).toBeNull();
   });
 
   it('pim sees no PM option', async () => {

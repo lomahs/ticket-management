@@ -387,11 +387,16 @@ class AnkenScopeApiTest extends ApiTestSupport {
         assertThat(admin.status()).as(admin.text()).isEqualTo(201);
         int zoes = call(get("/api/v1/calendar").param("month", "2026-11")).json().get("rows").findValues("leave").stream()
                 .filter(l -> !l.isNull() && l.get("member_id").asText().equals(OUTSIDER)).findFirst().orElseThrow().get("id").asInt();
-        problem(call(json(put("/api/v1/leaves/" + zoes),
+        // Zoe's leave is not found, like a missing one: the answer does not say whose it is.
+        JsonNode edit = problem(call(json(put("/api/v1/leaves/" + zoes),
                 Map.of("member_id", "an", "type", "full", "date_from", "2026-11-04", "date_to", "2026-11-04", "note", "")).with(as(PIM))),
                 404, "not_found");
-        problem(call(delete("/api/v1/leaves/" + zoes).with(as(PIM))),
-                404, "not_found");
+        assertThat(edit.get("detail").asText()).isEqualTo("Leave " + zoes + " was not found");
+        JsonNode del = problem(call(delete("/api/v1/leaves/" + zoes).with(as(PIM))), 404, "not_found");
+        assertThat(del.get("detail").asText()).isEqualTo("Leave " + zoes + " was not found");
+        assertThat(del.toString()).doesNotContain(OUTSIDER);
+        JsonNode missing = problem(call(delete("/api/v1/leaves/999999").with(as(PIM))), 404, "not_found");
+        assertThat(missing.get("detail").asText()).isEqualTo("Leave 999999 was not found");
     }
 
     @Test

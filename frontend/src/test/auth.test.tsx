@@ -125,6 +125,7 @@ describe('sign-in and the route gate', () => {
     let out = false;
     let xsrf: string | null = null;
     document.cookie = 'XSRF-TOKEN=tok123; path=/';
+    localStorage.setItem('tt.anken', 'PAY-1100');
     server.use(
       http.get('*/api/v1/me', () => (out ? unauthenticated() : HttpResponse.json(meBa))),
       info,
@@ -137,5 +138,6 @@ describe('sign-in and the route gate', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
     expect(xsrf).toBe('tok123');
+    expect(localStorage.getItem('tt.anken') || null).toBeNull(); // the next user starts on All my anken
   });
 });

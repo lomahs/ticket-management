@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { http, unwrap } from '../../shared/api/client';
+import { forgetAnken } from '../../shared/state/anken';
 
 export const authInfoQuery = {
   queryKey: ['auth-info'] as const,
@@ -19,12 +20,14 @@ export function useLogin() {
   });
 }
 
+/** Signing out also forgets the switcher's anken: the next user of this browser may not see it. */
 export function useLogout() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   return useMutation({
     mutationFn: () => unwrap(http.POST('/api/v1/auth/logout')),
     onSuccess: async () => {
+      forgetAnken();
       await navigate({ to: '/login', search: {} });
       qc.clear();
     },

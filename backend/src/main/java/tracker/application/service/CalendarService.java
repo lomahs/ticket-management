@@ -119,9 +119,14 @@ public class CalendarService {
         }
     }
 
-    private static Leave stored(List<Leave> leaves, int leaveId) {
-        return leaves.stream().filter(lv -> lv.id() == leaveId).findFirst()
-                .orElseThrow(() -> new NotFound("Leave " + leaveId + " was not found"));
+    /**
+     * The owner of a stored leave of the people of the scope or of the viewer's own member. Any other leave is not found, the
+     * same as a missing one, so its owner is not revealed.
+     */
+    private static String storedOwner(List<Leave> leaves, int leaveId, List<String> people, Viewer viewer) {
+        return leaves.stream().filter(lv -> lv.id() == leaveId).map(Leave::memberId)
+                .filter(owner -> people.contains(owner) || owner.equals(viewer.memberId())).findFirst()
+                .orElseThrow(() -> new NotFound("Leave " + leaveId + " was not found", "id"));
     }
 
     /**
@@ -142,8 +147,7 @@ public class CalendarService {
         WorkCalendar cal = context.calendar(settings.load(), members, leaves);
         Integer editId = draft.editId();
         if (editId != null) {
-            String owner = stored(leaves, editId).memberId();
-            inScope(people, viewer, owner);
+            String owner = storedOwner(leaves, editId, people, viewer);
             ownLeave(viewer, owner);
             calendar.deleteLeave(editId);
         }
@@ -175,8 +179,7 @@ public class CalendarService {
     /** Only leave of the people of the scope or of the viewer's own member; without Calendar write the viewer may only delete their own leave. */
     @Transactional
     public void deleteLeave(AnkenScope scope, int leaveId, Viewer viewer) {
-        String owner = stored(calendar.findLeaves(), leaveId).memberId();
-        inScope(context.people(scope), viewer, owner);
+        String owner = storedOwner(calendar.findLeaves(), leaveId, context.people(scope), viewer);
         ownLeave(viewer, owner);
         calendar.deleteLeave(leaveId);
     }
