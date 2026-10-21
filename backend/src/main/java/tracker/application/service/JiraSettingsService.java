@@ -149,6 +149,7 @@ public class JiraSettingsService {
             if (!s.jira.epics.contains(k)) {
                 s.jira.epics.add(k);
             }
+            s.anken.computeIfAbsent(k, e -> TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
         });
         sync.run(true);
         return jiraSettings();

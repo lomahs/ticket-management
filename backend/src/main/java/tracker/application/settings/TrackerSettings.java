@@ -5,8 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
 import tracker.domain.Naming;
 import tracker.domain.StepKind;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
 import tracker.domain.WorkStructure;
@@ -22,6 +25,37 @@ public class TrackerSettings {
     public String defaultCountry = "VN";
     /** Phases in order and the fixed set of Tasks under every epic. */
     public WorkStructure structure = WorkStructure.empty();
+    /** Per tracked epic: its own Phases & Tasks and name rules. {@link #structure} and {@link #nameRules} are the default for new anken. */
+    public Map<String, AnkenSettings> anken = new LinkedHashMap<>();
+
+    /** The Phases & Tasks and the name rules of one anken. */
+    public static class AnkenSettings {
+        public WorkStructure structure = WorkStructure.empty();
+        public NameRules nameRules = new NameRules();
+
+        /** A deep copy: editing the copy never touches the source. */
+        public static AnkenSettings copyOf(WorkStructure structure, NameRules nameRules) {
+            AnkenSettings a = new AnkenSettings();
+            a.structure = new WorkStructure(new ArrayList<>(structure.phases()),
+                    structure.tasks().stream().map(t -> new TaskTemplate(t.match(), t.phase(), t.prefix(), t.workflow())).toList());
+            a.nameRules = new NameRules();
+            a.nameRules.rule = nameRules.rule;
+            a.nameRules.aliases = new LinkedHashMap<>(nameRules.aliases);
+            return a;
+        }
+    }
+
+    /** The Phases & Tasks of an epic; the default when the epic is null, blank or has none of its own. */
+    public WorkStructure structureOf(@Nullable String epic) {
+        AnkenSettings a = epic == null || epic.isBlank() ? null : anken.get(epic);
+        return a == null ? structure : a.structure;
+    }
+
+    /** The name rules of an epic; the default when the epic is null, blank or has none of its own. */
+    public NameRules nameRulesOf(@Nullable String epic) {
+        AnkenSettings a = epic == null || epic.isBlank() ? null : anken.get(epic);
+        return a == null ? nameRules : a.nameRules;
+    }
 
     public static class JiraConnection {
         public String url = "";

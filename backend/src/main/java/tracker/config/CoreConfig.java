@@ -16,6 +16,7 @@ import tracker.adapters.crypto.CryptoSecretBox;
 import tracker.application.ports.SecretBox;
 import tracker.application.service.AccessService;
 import tracker.application.service.AnkenMemberSeeder;
+import tracker.application.service.AnkenSettingsInitializer;
 
 /** Beans every profile needs: the team's clock and the encryption of the stored Jira token. */
 @Configuration(proxyBeanMethods = false)
@@ -44,6 +45,13 @@ public class CoreConfig {
         return properties.secretKey() != null && !properties.secretKey().isBlank()
                 ? new CryptoSecretBox(properties.secretKey())
                 : CryptoSecretBox.fromKeyFile(Path.of(properties.dataDir(), "secret.key"));
+    }
+
+    /** Gives every tracked epic its own settings, copied from the default; before the memberships are seeded. */
+    @Bean
+    @Order(-10)
+    public ApplicationRunner ankenSettingsInit(AnkenSettingsInitializer initializer) {
+        return args -> initializer.ensureAll();
     }
 
     /** Fills the anken memberships from Jira activity on the first start (in the demo, after the demo data is synced). */
