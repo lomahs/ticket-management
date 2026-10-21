@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../shared/api/client';
 import type { Schemas } from '../../shared/api/types';
 import { ankenParam } from '../../shared/state/anken';
+import type { ScheduleFilter } from './search';
 
 /** The cards of the switcher's anken (null: every anken the viewer sees). */
 export const overviewQuery = (anken: string | null) => ({
@@ -57,3 +58,9 @@ export function useSaveAllocation(memberId: string) {
     },
   });
 }
+
+/** The sub-tasks of an anken (or one phase) that carry a schedule label. */
+export const ticketListQuery = (epic: string, label: ScheduleFilter, phase?: string) => ({
+  queryKey: ['anken', epic, 'tickets', label, phase ?? null] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/anken/{epic}/tickets', { params: { path: { epic }, query: { label, phase } } })),
+});

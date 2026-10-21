@@ -224,7 +224,7 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
                       // a ticket not done yet has no actual end: its bar runs up to today
                       const acts = cl.items.flatMap(({ b: { card: k } }) => {
                         const end = k.actual_end ?? (k.actual_start && today ? (today > k.actual_start ? today : k.actual_start) : null);
-                        return k.actual_start && end ? [{ start: k.actual_start, end, late: !!(k.planned_end && end > k.planned_end) }] : [];
+                        return k.actual_start && end ? [{ start: k.actual_start, end, late: k.schedule.finish === 'overdue' || k.schedule.finish === 'late_finish' }] : [];
                       });
                       const actStart = acts.map((a) => a.start).sort()[0];
                       const actEnd = acts.map((a) => a.end).sort().at(-1);

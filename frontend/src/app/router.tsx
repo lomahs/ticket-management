@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LoginPage, NoAccessPage } from '../features/auth';
 import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
 import { burndownSearch, timesheetSearch } from '../features/effort/search';
+import { SCHEDULE_FILTERS } from '../features/overview/search';
 import { matrixSearch } from '../features/matrix/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
@@ -113,6 +114,13 @@ const matrixEntry = createRoute({
 });
 const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
+const ticketList = createRoute({
+  getParentRoute: () => app,
+  path: 'anken/$epic/tickets',
+  ...needs('overview'),
+  validateSearch: z.object({ label: z.enum(SCHEDULE_FILTERS).catch('overdue'), phase: z.string().optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('../features/overview'), 'TicketListPage'),
+});
 const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix', ...needs('matrix'), validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
 const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
 const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
@@ -171,7 +179,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, overview, ankenDetail, matrix, addFunction, phaseSettings, planning, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, planning, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

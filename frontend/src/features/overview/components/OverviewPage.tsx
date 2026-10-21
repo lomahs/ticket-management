@@ -13,6 +13,7 @@ import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ankenDetailQuery, overviewQuery } from '../api';
 import { MembersPanel, NotMembers } from './MembersPanel';
+import { PhaseSchedule, ScheduleSummary } from './ScheduleSummary';
 
 const ATTN: Record<string, { label: string; icon: IconName; meta: (c: Schemas['TaskCard']) => string }> = {
   overdue: { label: 'Overdue', icon: 'alarm-clock', meta: (c) => `late ${c.late_days}d` },
@@ -78,6 +79,7 @@ function AnkenCardView({ a, on }: { a: Schemas['AnkenCard']; on: boolean }) {
           ))}
         </div>
       </div>
+      <ScheduleSummary epic={a.key} s={a.schedule} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px', fontSize: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Plan → Forecast</div>
@@ -144,6 +146,7 @@ function PhaseRow({ epic, p, tasks }: { epic: string; p: Schemas['PhaseRollup'];
             border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
           }}><Icon name={open ? 'chevron-down' : 'chevron-right'} size={16} /></button>
       </div>
+      <PhaseSchedule epic={epic} phase={p.name} s={p.schedule} />
       {open && (
         <ul aria-label={`Tasks of ${p.name}`} style={{ listStyle: 'none', margin: 0, padding: '0 6px 6px' }}>
           {!tasks.length && <li style={{ ...muted, padding: '6px 8px' }}>No Tasks in this phase.</li>}

@@ -53,3 +53,22 @@ export const dayHeadStyle = (d: { is_today: boolean; extra_note?: string | null 
   fw: d.is_today || d.extra_note ? 700 : 500,
   tip: d.extra_note ? 'Extra working day · ' + d.extra_note : '',
 });
+
+/** The start, finish and effort labels of a sub-task (`schedule`) and of a roll-up. */
+export const SCHEDULE_LABEL: Record<string, string> = {
+  early_start: 'Early start', late_start: 'Late start', on_time_start: 'On time', not_due: 'Not due',
+  early_finish: 'Early finish', late_finish: 'Late finish', on_time_finish: 'On time', overdue: 'Overdue', open: 'Open',
+  under_burn: 'Under-burn', over_burn: 'Over-burn', on_plan: 'On plan',
+  no_plan: 'No plan', no_estimate: 'No estimate',
+};
+
+/** The main state of an anken or a phase. */
+export const STATE_LABEL: Record<string, string> = {
+  LATE: 'Late', EARLY: 'Early', ON_TRACK: 'On track', NOT_STARTED: 'Not started', DONE: 'Done', UNKNOWN: '—',
+};
+
+/** A signed number of hours: "+1h", "−14h" (the sign is always shown). */
+export const signedH = (n: number) => {
+  const r = Math.round(n * 10) / 10;
+  return (r < 0 ? '−' : '+') + Math.abs(r) + 'h';
+};

@@ -27,8 +27,8 @@ describe('screens render API data at their URLs', () => {
 
   it('lists the phases of an anken, expands a phase\'s Tasks and opens the matrix of a phase', async () => {
     const phases = [
-      { name: 'ITA', pct: 62, closed: 12, total: 20, start: '2026-10-17', end: '2026-11-30', spent_h: 31, remaining_h: 19 },
-      { name: 'Other', pct: 0, closed: 0, total: 0, start: null, end: null, spent_h: 0, remaining_h: 0 },
+      { name: 'ITA', pct: 62, closed: 12, total: 20, start: '2026-10-17', end: '2026-11-30', spent_h: 31, remaining_h: 19, schedule: fixtures.anken[0].phases[0].schedule },
+      { name: 'Other', pct: 0, closed: 0, total: 0, start: null, end: null, spent_h: 0, remaining_h: 0, schedule: fixtures.anken[0].phases[0].schedule },
     ];
     const tasks = [
       { key: 'PAY-1101', summary: '[Pay][LocalTask] ITA Prepare', name: 'ITA Prepare', phase: 'ITA', status: 'C', pct: 100, closed: 8, total: 8, start: '2026-10-17', end: '2026-10-20' },
