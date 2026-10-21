@@ -40,6 +40,7 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
   const num = (e: string) => Number(vals[e]) || 0;
   const total = epics.reduce((t, e) => t + num(e), 0);
   const over = total > day;
+  const negative = epics.some((e) => num(e) < 0);
   const submit = () => save.mutate({ from, hours: Object.fromEntries(epics.map((e) => [e, num(e)])) }, {
     onSuccess: () => toast('Allocation saved.'),
     onError: (e) => toast(errorMessage(e), true),
@@ -83,7 +84,7 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="spacer" />
         <Button appearance="subtle" onClick={close}>Close</Button>
-        {write && <Button disabled={over || !from || save.isPending} onClick={submit}>Save</Button>}
+        {write && <Button disabled={over || negative || !from || save.isPending} onClick={submit}>Save</Button>}
       </div>
     </>
   );

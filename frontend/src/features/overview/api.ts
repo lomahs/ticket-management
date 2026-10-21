@@ -48,6 +48,9 @@ export function useSaveAllocation(memberId: string) {
   return useMutation({
     mutationFn: (body: Schemas['AllocationIn']) => unwrap(
       http.PUT('/api/v1/people/{memberId}/allocations', { params: { path: { memberId } }, body })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['allocations'] }),
+    // Timesheet targets and planning capacity are measured against the allocation.
+    onSuccess: async () => {
+      await Promise.all(['allocations', 'timesheet', 'timesheet-day', 'planning'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+    },
   });
 }

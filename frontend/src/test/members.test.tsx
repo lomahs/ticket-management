@@ -173,6 +173,29 @@ describe('anken members', () => {
       await waitFor(() => expect(put).toEqual([{ from: '2026-10-07', hours: { X: 6, Y: 2 } }]));
     });
 
+    it('refetches the history after a save', async () => {
+      let puts = 0;
+      const longer = timeline({ steps: [...timeline().steps, { from: '2026-10-07', hours: { X: 6, Y: 2 }, set_by: 'pim@acme.vn', set_at: '2026-10-07T00:00:00Z' }] });
+      const dialog = await open();
+      server.use(
+        http.get('*/api/v1/people/an/allocations', () => HttpResponse.json(puts ? longer : timeline())),
+        http.put('*/api/v1/people/an/allocations', () => { puts += 1; return HttpResponse.json(longer); }),
+      );
+      expect(await dialog.findByText('2026-09-01')).toBeTruthy();
+      expect(dialog.getAllByRole('row')).toHaveLength(3);
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(dialog.getAllByRole('row')).toHaveLength(4));
+      expect(dialog.getByText('2026-10-07', { selector: 'td' })).toBeTruthy();
+    });
+
+    it('a negative value disables save', async () => {
+      const dialog = await open();
+      await dialog.findByLabelText('X');
+      fireEvent.change(dialog.getByLabelText('X'), { target: { value: '-2' } });
+      fireEvent.change(dialog.getByLabelText('Y'), { target: { value: '9' } });
+      expect((dialog.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
     it('total above the day disables save', async () => {
       const dialog = await open();
       await dialog.findByLabelText('X');
