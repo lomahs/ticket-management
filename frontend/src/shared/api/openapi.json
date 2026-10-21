@@ -99,6 +99,34 @@
         "tags" : [ "admin-api" ]
       }
     },
+    "/api/v1/admin/members/merge" : {
+      "post" : {
+        "operationId" : "merge",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MergeIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
     "/api/v1/admin/users" : {
       "get" : {
         "operationId" : "users",
@@ -3593,6 +3621,20 @@
           }
         },
         "required" : [ "days", "items", "member_id" ]
+      },
+      "MergeIn" : {
+        "type" : "object",
+        "properties" : {
+          "keep_id" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "remove_id" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "keep_id", "remove_id" ]
       },
       "Meta" : {
         "type" : "object",

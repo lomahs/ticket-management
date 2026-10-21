@@ -23,6 +23,7 @@ import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.IssueRepository;
+import tracker.application.ports.MemberMergeRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.ports.SettingsRepository;
 import tracker.application.ports.SyncRunRepository.SyncRun;
@@ -61,6 +62,8 @@ class PersistenceTest {
 
     @Autowired
     MemberRepository members;
+    @Autowired
+    MemberMergeRepository merger;
     @Autowired
     AccessRepository access;
     @Autowired
@@ -250,6 +253,40 @@ class PersistenceTest {
         assertThat(calendar.findLeaves()).isEmpty();
         assertThat(calendar.findHolidays()).isEmpty();
         assertThat(calendar.findExtraDays()).isEmpty();
+    }
+
+    @Test
+    void mergeResolvesLeaveConflictsInFavourOfTheKeptMember() {
+        members.save(new Member("a", "A", "A", Role.BA, "VN", "#111"));
+        members.save(new Member("b", "B", "B", Role.BA, "VN", "#222", "b@acme.vn", Permission.USER, false, "acc-b"));
+        calendar.saveLeave(new Leave(0, "a", "2026-11-02", LeaveType.FULL, "a-leave"));
+        calendar.saveLeave(new Leave(0, "b", "2026-11-02", LeaveType.FULL, "b-leave"));
+        calendar.saveLeave(new Leave(0, "b", "2026-11-03", LeaveType.FULL, "b-extra"));
+        anken.save(new Anken("PAY-1100", "PAY", "x", null));
+        issues.save(new Issue("PAY-1201", "PAY", "PAY-1100", "PAY-1102", IssueKind.SUBTASK, "[Implement_Coding][F01] X – Create",
+                "Implement_Coding", Status.WIP, "b", "2026-09-14", "2026-09-15", 10, 4, "2026-09-01", "In Progress", "F01", "X",
+                StepKind.CREATE, List.of(new Worklog("2026-09-15", "b", 2.5, "spec")),
+                List.of(new IssueEvent("2026-09-14", EventField.ASSIGNEE, "b", "b")), "b"));
+        ankenMembers.add("PAY-1100", "b", "minh", "2026-10-07T09:00:00Z");
+        access.saveStatus("b", AccessStatus.ACTIVE);
+        access.saveOverride("b", Feature.PLANNING, Level.WRITE);
+
+        merger.merge("a", "b");
+
+        assertThat(calendar.findLeaves()).extracting(Leave::memberId, Leave::date, Leave::note)
+                .containsExactlyInAnyOrder(org.assertj.core.api.Assertions.tuple("a", "2026-11-02", "a-leave"),
+                        org.assertj.core.api.Assertions.tuple("a", "2026-11-03", "b-extra"));
+        Issue got = issues.findByKey("PAY-1201").orElseThrow();
+        assertThat(got.assigneeId()).isEqualTo("a");
+        assertThat(got.reporterId()).isEqualTo("a");
+        assertThat(got.worklogs()).extracting(Worklog::memberId).containsExactly("a");
+        assertThat(got.events()).extracting(IssueEvent::fromValue, IssueEvent::toValue).containsExactly(org.assertj.core.api.Assertions.tuple("a", "a"));
+        assertThat(ankenMembers.exists("PAY-1100", "a")).isTrue();
+        assertThat(ankenMembers.findEpicsOf("b")).isEmpty();
+        assertThat(access.findStatus("a")).contains(AccessStatus.ACTIVE);
+        assertThat(access.findOverrides("b")).isEmpty();
+        assertThat(members.findById("a").orElseThrow().jiraAccountId()).isEqualTo("acc-b");
+        assertThat(members.findById("b")).isEmpty();
     }
 
     @Test

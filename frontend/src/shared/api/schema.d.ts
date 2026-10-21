@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/members/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["merge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -1446,6 +1462,10 @@ export interface components {
             items: components["schemas"]["PlanBlock"][];
             member_id: string;
         };
+        MergeIn: {
+            keep_id: string;
+            remove_id: string;
+        };
         Meta: {
             capabilities: components["schemas"]["Capabilities"];
             mode: string;
@@ -1915,6 +1935,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccessRequest"];
+                };
+            };
+        };
+    };
+    merge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRow"];
                 };
             };
         };

@@ -18,6 +18,7 @@ import tracker.application.AppError.Conflict;
 import tracker.application.AppError.Invalid;
 import tracker.application.ports.AccessRepository;
 import tracker.application.ports.AnkenMemberRepository;
+import tracker.application.ports.MemberMergeRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.service.AccessService;
 import tracker.application.service.AccessService.Approval;
@@ -48,6 +49,8 @@ class AccessServiceTest {
     @Autowired
     AnkenMemberRepository ankenMembers;
     @Autowired
+    MemberMergeRepository merger;
+    @Autowired
     SettingsStore settings;
     @Autowired
     Clock clock;
@@ -57,7 +60,7 @@ class AccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AccessService(access, members, ankenMembers, settings, clock, new AccessService.Config(Set.of("lan.vo@acme.vn")));
+        service = new AccessService(access, members, ankenMembers, merger, settings, clock, new AccessService.Config(Set.of("lan.vo@acme.vn")));
         members.save(new Member("minh", "Minh", "Minh Tran", Role.PM, "VN", "#111", "minh@acme.vn", Permission.ADMIN, false, null));
         members.save(new Member("an", "An", "An Nguyen", Role.BA, "VN", "#222", "an@acme.vn", Permission.USER, false, null));
         members.save(new Member("tanaka", "Tanaka", "Tanaka San", Role.JM, "JP", "#333", "tanaka@acme.vn", Permission.USER, false, null));
@@ -213,7 +216,7 @@ class AccessServiceTest {
         access.saveStatus("minh", AccessStatus.DISABLED);
         assertThat(service.hasActiveAdmin()).isFalse();
         assertThat(service.hasBootstrapAdmins()).isTrue();
-        assertThat(new AccessService(access, members, ankenMembers, settings, clock, new AccessService.Config(Set.of())).hasBootstrapAdmins()).isFalse();
+        assertThat(new AccessService(access, members, ankenMembers, merger, settings, clock, new AccessService.Config(Set.of())).hasBootstrapAdmins()).isFalse();
     }
 
     @Test
@@ -334,5 +337,13 @@ class AccessServiceTest {
                 null, List.of("NOPE-1"))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("anken");
         assertThat(ankenMembers.findEpicsOf("an")).containsExactly("PAY-1300");
+    }
+
+    @Test
+    void cannotMergeYourselfAway() {
+        assertThatThrownBy(() -> service.merge(admin, "an", "minh")).isInstanceOf(Invalid.class).hasMessageContaining("yourself");
+        assertThatThrownBy(() -> service.merge(admin, "an", "an")).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> service.merge(admin, "an", "ghost")).isInstanceOf(AppError.NotFound.class);
+        assertThatThrownBy(() -> service.merge(admin, "ghost", "an")).isInstanceOf(AppError.NotFound.class);
     }
 }

@@ -23,6 +23,7 @@ import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.AccessRepository;
 import tracker.application.ports.AnkenMemberRepository;
+import tracker.application.ports.MemberMergeRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AccessRequest;
@@ -52,15 +53,17 @@ public class AccessService {
     private final AccessRepository access;
     private final MemberRepository members;
     private final AnkenMemberRepository ankenMembers;
+    private final MemberMergeRepository merger;
     private final SettingsStore settings;
     private final Clock clock;
     private final Config config;
 
-    public AccessService(AccessRepository access, MemberRepository members, AnkenMemberRepository ankenMembers, SettingsStore settings,
-            Clock clock, Config config) {
+    public AccessService(AccessRepository access, MemberRepository members, AnkenMemberRepository ankenMembers,
+            MemberMergeRepository merger, SettingsStore settings, Clock clock, Config config) {
         this.access = access;
         this.members = members;
         this.ankenMembers = ankenMembers;
+        this.merger = merger;
         this.settings = settings;
         this.clock = clock;
         this.config = config;
@@ -386,5 +389,20 @@ public class AccessService {
             }
         }
         return row(updated, pendingEmails());
+    }
+
+    /** Folds {@code removeId} into {@code keepId}: their leave, worklogs, assignments, ankens and Jira account move to the kept one. */
+    @Transactional
+    public UserRow merge(Viewer actor, String keepId, String removeId) {
+        if (keepId.equals(removeId)) {
+            throw new Invalid("Choose two different members", "remove_id");
+        }
+        if (removeId.equals(actor.memberId())) {
+            throw new Invalid("You cannot merge yourself away", "remove_id");
+        }
+        members.findById(keepId).orElseThrow(() -> new NotFound("Member " + keepId + " was not found", "keep_id"));
+        members.findById(removeId).orElseThrow(() -> new NotFound("Member " + removeId + " was not found", "remove_id"));
+        merger.merge(keepId, removeId);
+        return row(members.findById(keepId).orElseThrow(), pendingEmails());
     }
 }

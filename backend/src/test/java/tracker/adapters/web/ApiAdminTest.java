@@ -103,4 +103,16 @@ class ApiAdminTest extends ApiTestSupport {
         assertThat(an.get("anken_scope").asText()).isEqualTo("all");
         assertThat(an.get("all_anken").asBoolean()).isTrue();
     }
+
+    @Test
+    void mergeOverHttp() throws Exception {
+        Res ok = call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", "tanaka")));
+        assertThat(ok.status()).as(ok.text()).isEqualTo(200);
+        assertThat(ok.json().get("member").get("id").asText()).isEqualTo("an");
+        JsonNode rows = call(get("/api/v1/admin/users")).json();
+        for (JsonNode r : rows) {
+            assertThat(r.get("member").get("id").asText()).isNotEqualTo("tanaka");
+        }
+        problem(call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", "tanaka"))), 404, "not_found");
+    }
 }

@@ -5,6 +5,7 @@ import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
@@ -49,6 +50,9 @@ public class AdminApi {
                               @Nullable AnkenScopeSetting ankenScope, @Nullable List<String> anken) {
     }
 
+    public record MergeIn(@NotBlank String keepId, @NotBlank String removeId) {
+    }
+
     public record ApproveIn(@Nullable String memberId, @NotNull Role role, @Nullable String name) {
     }
 
@@ -82,5 +86,11 @@ public class AdminApi {
     @PostMapping("/access-requests/{id}/reject")
     public AccessRequest reject(Viewer actor, @PathVariable int id) {
         return access.reject(actor, id);
+    }
+
+    @Open(Rule.ADMIN)
+    @PostMapping("/members/merge")
+    public UserRow merge(Viewer actor, @RequestBody @Valid MergeIn b) {
+        return access.merge(actor, b.keepId(), b.removeId());
     }
 }
