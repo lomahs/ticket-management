@@ -6,7 +6,14 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationContext;
+import org.springframework.core.annotation.Order;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.annotation.DirtiesContext;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import tracker.DemoTest;
 import tracker.application.service.AnkenSettingsInitializer;
@@ -24,23 +31,37 @@ class AnkenSettingsTest {
     AnkenSettingsInitializer initializer;
     @Autowired
     JiraSettingsService jiraSettings;
+    @Autowired
+    JdbcClient jdbc;
+    @Autowired
+    ObjectMapper json;
+    @Autowired
+    ApplicationContext context;
 
     private static final WorkStructure CUSTOM = new WorkStructure(List.of("Alpha", "Beta"), List.of());
 
     @Test
-    void oldDocumentIsInitialized() {
-        store.update(s -> {
-            s.anken.clear();
-            s.structure = CUSTOM;
-        });
-        int epics = store.load().jira.epics.size();
-        assertThat(epics).isPositive();
-        assertThat(initializer.ensureAll()).isEqualTo(epics);
+    void oldDocumentIsInitialized() throws Exception {
+        store.update(s -> s.structure = CUSTOM);
+        // an old database: the stored document has no "anken" key
+        ObjectNode doc = (ObjectNode) json.readTree(jdbc.sql("SELECT value FROM settings WHERE id = 1").query(String.class).single());
+        assertThat(doc.remove("anken")).isNotNull();
+        jdbc.sql("UPDATE settings SET value = :v WHERE id = 1").param("v", json.writeValueAsString(doc)).update();
+        assertThat(jdbc.sql("SELECT value FROM settings WHERE id = 1").query(String.class).single()).doesNotContain("\"anken\"");
+        assertThat(store.load().anken).isEmpty();
+
+        // start-up: the runner bean initializes every tracked epic, and runs before the member seeder
+        ApplicationRunner init = context.getBean("ankenSettingsInit", ApplicationRunner.class);
+        init.run(null);
         TrackerSettings s = store.load();
+        assertThat(s.jira.epics).isNotEmpty();
         for (String e : s.jira.epics) {
-            assertThat(s.structureOf(e).phases()).containsExactly("Alpha", "Beta");
-            assertThat(s.nameRulesOf(e).rule).isEqualTo(s.nameRules.rule);
+            assertThat(s.structureOf(e)).isEqualTo(CUSTOM);
+            assertThat(s.anken.get(e).nameRules.rule).isEqualTo(s.nameRules.rule);
         }
+        assertThat(s.anken.keySet()).containsExactlyInAnyOrderElementsOf(s.jira.epics);
+        assertThat(context.findAnnotationOnBean("ankenSettingsInit", Order.class).value())
+                .isLessThan(context.findAnnotationOnBean("ankenMemberSeed", Order.class).value());
         assertThat(initializer.ensureAll()).isZero();
     }
 
