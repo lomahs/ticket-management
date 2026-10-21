@@ -2,6 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import meBa from './fixtures/me-ba.json';
+import meMembersRead from './fixtures/me-members-read.json';
 import mePim from './fixtures/me-pim.json';
 import { fixtures, renderApp, server } from './renderApp';
 
@@ -135,5 +136,67 @@ describe('anken members', () => {
     serve();
     renderApp('/anken');
     expect(await screen.findByText('PIM: Minh')).toBeTruthy();
+  });
+
+  describe('allocation dialog', () => {
+    const timeline = (over: object = {}) => ({
+      member_id: 'an', epics: ['X', 'Y'], hours_per_day: 8,
+      steps: [
+        { from: '2026-09-01', hours: { X: 4, Y: 4 }, set_by: 'pim@acme.vn', set_at: '2026-09-01T00:00:00Z' },
+        { from: '2026-10-01', hours: { X: 5, Y: 2 }, set_by: 'pim@acme.vn', set_at: '2026-10-01T00:00:00Z' },
+      ],
+      ...over,
+    });
+    const open = async () => {
+      serve();
+      server.use(http.get('*/api/v1/people/an/allocations', () => HttpResponse.json(timeline())));
+      renderApp('/anken/PAY-1100');
+      fireEvent.click(await (await panel()).findByRole('button', { name: 'Allocation… An' }));
+      return within(await screen.findByRole('dialog', { name: 'Allocation · An' }));
+    };
+
+    it('shows history and saves a new step', async () => {
+      const put: unknown[] = [];
+      server.use(http.put('*/api/v1/people/an/allocations', async ({ request }) => {
+        put.push(await request.json());
+        return HttpResponse.json(timeline());
+      }));
+      const dialog = await open();
+      expect(await dialog.findByText('2026-09-01')).toBeTruthy();
+      expect(dialog.getAllByRole('row')).toHaveLength(3);
+      expect(dialog.getByText('current')).toBeTruthy();
+      expect((dialog.getByLabelText('X') as HTMLInputElement).value).toBe('5');
+      expect((dialog.getByLabelText('From') as HTMLInputElement).value).toBe('2026-10-07');
+      fireEvent.change(dialog.getByLabelText('X'), { target: { value: '6' } });
+      fireEvent.change(dialog.getByLabelText('Y'), { target: { value: '2' } });
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(put).toEqual([{ from: '2026-10-07', hours: { X: 6, Y: 2 } }]));
+    });
+
+    it('total above the day disables save', async () => {
+      const dialog = await open();
+      await dialog.findByLabelText('X');
+      fireEvent.change(dialog.getByLabelText('X'), { target: { value: '6' } });
+      fireEvent.change(dialog.getByLabelText('Y'), { target: { value: '3' } });
+      expect(dialog.getByText('Total 9h of 8h')).toBeTruthy();
+      expect((dialog.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('shows the backend refusal in a toast', async () => {
+      server.use(http.put('*/api/v1/people/an/allocations', () => HttpResponse.json(
+        { title: 'Invalid', detail: 'Total above the working day on 2026-10-20', errors: [{ field: 'hours', code: 'invalid' }] }, { status: 422 })));
+      const dialog = await open();
+      await dialog.findByLabelText('X');
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText(/Total above the working day/)).toBeTruthy();
+    });
+
+    it('read-only for members read', async () => {
+      server.use(http.get('*/api/v1/me', () => HttpResponse.json(meMembersRead)));
+      const dialog = await open();
+      expect(await dialog.findByText('2026-09-01')).toBeTruthy();
+      expect(dialog.queryByRole('button', { name: 'Save' })).toBeNull();
+      expect(dialog.queryByLabelText('X')).toBeNull();
+    });
   });
 });

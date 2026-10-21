@@ -9,6 +9,7 @@ import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ankenMembersQuery, useAddAnkenMember, usePatchPerson, useRemoveAnkenMember } from '../api';
 import { AddPersonDialog } from './AddPersonDialog';
+import { AllocationDialog } from './AllocationDialog';
 
 const NO_ROLE = '';
 const ROLES = ['BA', 'BAL', 'JM'];
@@ -26,6 +27,7 @@ export function MembersPanel({ epic }: { epic: string }) {
   const [pick, setPick] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [dialog, setDialog] = useState(false);
+  const [allocating, setAllocating] = useState<string | null>(null);
   const fail = (e: unknown) => toast(errorMessage(e), true);
   const roles = me?.admin ? ADMIN_ROLES : ROLES;
   const candidate = pick || q.data?.candidates[0]?.id || '';
@@ -42,7 +44,7 @@ export function MembersPanel({ epic }: { epic: string }) {
           <div role="list" aria-label="Anken members" style={{ display: 'flex', flexDirection: 'column' }}>
             {q.data.members.map(({ member: m, access, added_at, added_by }) => (
               <MemberRow key={m.id} m={m} access={access} addedAt={added_at} addedBy={added_by} roles={roles} write={write}
-                locked={!me?.admin && (m.role === 'PM' || m.role === 'PIM')} confirming={confirming === m.id}
+                locked={!me?.admin && (m.role === 'PM' || m.role === 'PIM')} confirming={confirming === m.id} onAllocate={() => setAllocating(m.id)}
                 onRole={(role) => patch.mutate({ id: m.id, body: role === NO_ROLE ? { clear_role: true } : { role: role as Schemas['Member']['role'] } }, { onError: fail })}
                 onAsk={() => setConfirming(m.id)} onCancel={() => setConfirming(null)}
                 onRemove={() => remove.mutate(m.id, { onSuccess: () => setConfirming(null), onError: fail })} />
@@ -59,13 +61,14 @@ export function MembersPanel({ epic }: { epic: string }) {
         </>
       )}
       {dialog && <AddPersonDialog epic={epic} close={() => setDialog(false)} />}
+      {allocating && <AllocationDialog memberId={allocating} close={() => setAllocating(null)} />}
     </section>
   );
 }
 
-function MemberRow({ m, access, addedAt, addedBy, roles, write, locked, confirming, onRole, onAsk, onCancel, onRemove }: {
+function MemberRow({ m, access, addedAt, addedBy, roles, write, locked, confirming, onAllocate, onRole, onAsk, onCancel, onRemove }: {
   m: Schemas['Member']; access: Schemas['AnkenMemberRow']['access']; addedAt: string; addedBy: string; roles: string[]; write: boolean; locked: boolean;
-  confirming: boolean; onRole: (role: string) => void; onAsk: () => void; onCancel: () => void; onRemove: () => void;
+  confirming: boolean; onAllocate: () => void; onRole: (role: string) => void; onAsk: () => void; onCancel: () => void; onRemove: () => void;
 }) {
   const names = useMemberMap();
   // added_by is the adder's e-mail, or "seed" for the first memberships made from Jira activity.
@@ -79,6 +82,7 @@ function MemberRow({ m, access, addedAt, addedBy, roles, write, locked, confirmi
         <div className="ellipsis heading" style={{ fontWeight: 600 }}>{m.name}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.role ?? 'No role'} · access {access}{added}</div>
       </div>
+      <Button size="sm" appearance="subtle" iconBefore="timer" aria-label={`Allocation… ${m.name}`} onClick={onAllocate}>Allocation…</Button>
       {write && !locked ? (
         <Select aria-label={`Role of ${m.name}`} value={m.role ?? NO_ROLE} style={{ width: 120 }} onChange={onRole}
           options={[{ value: NO_ROLE, label: 'No role' }, ...roles.map((r) => ({ value: r, label: r }))]} />

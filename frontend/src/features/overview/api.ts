@@ -37,3 +37,17 @@ export const useRemoveAnkenMember = (epic: string) => useMembersWrite((memberId:
 export const usePatchPerson = () => useMembersWrite(({ id, body }: { id: string; body: Schemas['PersonPatchIn'] }) => unwrap(
   http.PATCH('/api/v1/people/{memberId}', { params: { path: { memberId: id } }, body })));
 export const useCreatePerson = () => useMembersWrite((body: Schemas['NewPersonIn']) => unwrap(http.POST('/api/v1/people', { body })));
+
+export const allocationQuery = (memberId: string) => ({
+  queryKey: ['allocations', memberId] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/people/{memberId}/allocations', { params: { path: { memberId } } })),
+});
+
+export function useSaveAllocation(memberId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas['AllocationIn']) => unwrap(
+      http.PUT('/api/v1/people/{memberId}/allocations', { params: { path: { memberId } }, body })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['allocations'] }),
+  });
+}
