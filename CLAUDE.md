@@ -29,8 +29,8 @@ This rule drives every roll-up, so do not mix the levels up:
 3. A sub-task belongs to its parent Task's phase, through the Jira parent link and never through its title.
 
 Phase progress = `Σ logged hours / (Σ logged + Σ remaining estimate)` over the phase's **sub-tasks** (Jira's progress
-bar). Done = status Closed. `Overview.scheduleState` (early/late) is a stub that the user will write; don't fill it in
-unasked. `Issue.phase` (stored at sync, used by function creation and Effort Analysis) is a different thing from
+bar). Done = status Closed. Schedule state: `ScheduleRules` labels each sub-task's start, finish and effort on its own planned dates; a sub-task is
+late only when its finish is overdue (`IssueFlags.late`, one rule everywhere). `Overview.scheduleRollup` rolls the labels up per phase and anken. `Issue.phase` (stored at sync, used by function creation and Effort Analysis) is a different thing from
 phase groups.
 
 ## Commands

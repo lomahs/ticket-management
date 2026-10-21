@@ -135,6 +135,17 @@ in Planning is the sum of the allocation per week; a member with none shows *no 
 work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1100 and 3h PAY-1300, the others 8h on the anken
 with most of their open sub-tasks).
 
+**Schedule state:** the Anken Overview judges every sub-task on its own planned dates. *Start* is early, late or on time (a
+sub-task not started is *late start* only after its planned start day, and one without a recorded start date but past
+Not Yet Started counts as started on time), or *not due* / *no plan*. *Finish* is early, late or on time once Resolved
+or Closed (a finished sub-task is never late), *overdue* while open past its planned end, or *open*. *Effort* compares
+the hours logged with the plan to date: *under burn*, *over burn* or *on plan*, with the tolerance set in Settings →
+Alerts → "Effort deviation (hours)" (default 1h). *Overdue* is the one late rule: My Work, Q&A, the matrix, the
+ticket panel and the Planning bar all use it. Each anken card shows its state (done, late, not started, early, on
+track), effort against plan and an "Overdue n" link; each phase row shows plan to date, actual and chips that count
+late/early starts and finishes. A count opens the list of those sub-tasks (`/anken/{epic}/tickets?label=&phase=`), and
+a row opens the ticket panel with its Schedule section.
+
 **HTTPS or a reverse proxy:** set `server.servlet.session.cookie.secure=true` (`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`)
 and `server.forward-headers-strategy=native` (or `framework`; `SERVER_FORWARD_HEADERS_STRATEGY`). The login throttle (5
 failures for one username within 15 minutes lock it for 15 minutes) counts per username and client address; behind a
