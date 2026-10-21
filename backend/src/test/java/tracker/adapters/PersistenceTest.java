@@ -391,6 +391,15 @@ class PersistenceTest {
     }
 
     @Test
+    void missingThresholdDefaultsToOneHour() {
+        // a document written before the effort threshold existed
+        jdbc.sql("INSERT INTO settings (id, value) VALUES (1, :v)").param("v",
+                "{\"thresholds\":{\"soon_days\":4,\"effort_warn_pct\":70,\"held_days\":3,\"review_rounds\":3,\"capacity_pct\":100}}").update();
+        assertThat(settings.load().thresholds.effortDiffH()).isEqualTo(1.0);
+        assertThat(settings.load().thresholds.soonDays()).isEqualTo(4);
+    }
+
+    @Test
     void settingsAreOneJsonDocumentWithSnakeCaseNames() {
         settings.save(new TrackerSettings());
         String json = jdbc.sql("SELECT value FROM settings").query(String.class).single();

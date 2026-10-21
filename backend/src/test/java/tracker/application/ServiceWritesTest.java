@@ -264,7 +264,7 @@ class ServiceWritesTest {
         WorkingHours wh = teamSettings.saveWorkingHours(new WorkingHours(7.5, Arrays.asList(6, 1, 2, 3, 4, 5, 5), 0.5));
         assertThat(wh.days()).containsExactly(1, 2, 3, 4, 5, 6);
         assertThatThrownBy(() -> teamSettings.saveWorkingHours(new WorkingHours(0, List.of(1), 1))).isInstanceOf(Invalid.class);
-        Thresholds t = teamSettings.saveAlerts(new Thresholds(3, 80, 3, 3, 100));
+        Thresholds t = teamSettings.saveAlerts(new Thresholds(3, 80, 3, 3, 100, 1));
         assertThat(t.soonDays()).isEqualTo(3);
         assertThat(teamSettings.alerts().soonDays()).isEqualTo(3);
     }

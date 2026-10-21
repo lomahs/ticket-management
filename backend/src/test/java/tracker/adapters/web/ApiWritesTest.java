@@ -83,10 +83,20 @@ class ApiWritesTest extends ApiTestSupport {
         assertThat(epics.findValuesAsText("key")).contains("PAY-1500");
         problem(call(json(post("/api/v1/extra-days"), Map.of("date", "2026-10-07", "note", ""))), 422, "invalid");
         assertThat(call(json(put("/api/v1/settings/alerts"), Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3,
-                "review_rounds", 3, "capacity_pct", 100))).json().get("soon_days").asDouble()).isEqualTo(3);
+                "review_rounds", 3, "capacity_pct", 100, "effort_diff_h", 1))).json().get("soon_days").asDouble()).isEqualTo(3);
         JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function_name}] {step}", "sample", "[X] Create"))).json();
         assertThat(pv.get("sample_matches").asBoolean()).isTrue();
         assertThat(pv.get("step").asText()).isEqualTo("create");
+    }
+
+    @Test
+    void alertsSaveEffortDiff() throws Exception {
+        Map<String, Object> ok = Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3, "review_rounds", 3,
+                "capacity_pct", 100, "effort_diff_h", 2);
+        assertThat(call(json(put("/api/v1/settings/alerts"), ok)).json().get("effort_diff_h").asDouble()).isEqualTo(2);
+        assertThat(call(get("/api/v1/settings/alerts")).json().get("effort_diff_h").asDouble()).isEqualTo(2);
+        problem(call(json(put("/api/v1/settings/alerts"), Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3,
+                "review_rounds", 3, "capacity_pct", 100, "effort_diff_h", -1))), 400, "invalid");
     }
 
     @Test

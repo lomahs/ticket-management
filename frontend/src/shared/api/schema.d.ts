@@ -1007,6 +1007,8 @@ export interface components {
             /** Format: double */
             capacity_pct: number;
             /** Format: double */
+            effort_diff_h: number;
+            /** Format: double */
             effort_warn_pct: number;
             /** Format: double */
             held_days: number;
@@ -1813,6 +1815,8 @@ export interface components {
         Thresholds: {
             /** Format: double */
             capacity_pct: number;
+            /** Format: double */
+            effort_diff_h: number;
             /** Format: double */
             effort_warn_pct: number;
             /** Format: double */

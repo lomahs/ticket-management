@@ -255,6 +255,22 @@ describe('screens render API data at their URLs', () => {
       expect(screen.queryByRole('button', { name: 'Copy from…' })).toBeNull();
     });
 
+    it('Alerts tab edits the effort deviation threshold', async () => {
+      const alerts = { soon_days: 2, effort_warn_pct: 80, held_days: 3, review_rounds: 3, capacity_pct: 100, effort_diff_h: 1 };
+      const puts: unknown[] = [];
+      server.use(
+        http.get('*/api/v1/settings/alerts', () => HttpResponse.json(alerts)),
+        http.put('*/api/v1/settings/alerts', async ({ request }) => { const b = await request.json(); puts.push(b); return HttpResponse.json(b); }),
+      );
+      renderApp('/settings/alerts');
+      const field = (await screen.findByLabelText('Effort deviation (hours)')) as HTMLInputElement;
+      expect(field.value).toBe('1');
+      expect(screen.getByText('A sub-task is under- or over-burn when logged hours differ from plan-to-date by more than this.')).toBeTruthy();
+      fireEvent.change(field, { target: { value: '2.5' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(puts).toEqual([{ ...alerts, effort_diff_h: 2.5 }]));
+    });
+
     it('picking the default leaves the global switcher alone', async () => {
       localStorage.setItem('tt.anken', 'PAY-1100');
       server.use(

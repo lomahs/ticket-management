@@ -2232,6 +2232,10 @@
             "format" : "double",
             "minimum" : 0
           },
+          "effort_diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
           "effort_warn_pct" : {
             "type" : "number",
             "format" : "double",
@@ -2253,7 +2257,7 @@
             "minimum" : 0
           }
         },
-        "required" : [ "capacity_pct", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
+        "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
       "AllocationIn" : {
         "type" : "object",
@@ -4706,6 +4710,10 @@
             "type" : "number",
             "format" : "double"
           },
+          "effort_diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
           "effort_warn_pct" : {
             "type" : "number",
             "format" : "double"
@@ -4723,7 +4731,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "capacity_pct", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
+        "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
       "TicketDetail" : {
         "type" : "object",

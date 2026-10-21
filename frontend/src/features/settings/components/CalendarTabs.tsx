@@ -141,6 +141,7 @@ const ALERTS: [keyof Schemas['Thresholds'], string, string][] = [
   ['held_days', 'Held too long (days)', 'Stuck in Resolved or waiting on JM'],
   ['review_rounds', 'Review rounds', 'Flags ping-pong Fix comment tickets'],
   ['capacity_pct', 'Capacity overload (%)', 'Red in the Planning heatmap above this'],
+  ['effort_diff_h', 'Effort deviation (hours)', 'A sub-task is under- or over-burn when logged hours differ from plan-to-date by more than this.'],
 ];
 
 export function AlertsTab() {

@@ -110,7 +110,7 @@ public class TeamSettingsService {
     }
 
     public Thresholds saveAlerts(Thresholds t) {
-        if (t.soonDays() < 0 || t.effortWarnPct() < 0 || t.heldDays() < 0 || t.reviewRounds() < 0 || t.capacityPct() < 0) {
+        if (t.soonDays() < 0 || t.effortWarnPct() < 0 || t.heldDays() < 0 || t.reviewRounds() < 0 || t.capacityPct() < 0 || t.effortDiffH() < 0) {
             throw new Invalid("Thresholds cannot be negative");
         }
         settings.update(s -> s.thresholds = t);
