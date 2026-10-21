@@ -4797,10 +4797,6 @@
           "date" : {
             "type" : "string"
           },
-          "expected_h" : {
-            "type" : "number",
-            "format" : "double"
-          },
           "logged_h" : {
             "type" : "number",
             "format" : "double"
@@ -4814,9 +4810,17 @@
           },
           "state" : {
             "type" : "string"
+          },
+          "target_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "unallocated_h" : {
+            "type" : "number",
+            "format" : "double"
           }
         },
-        "required" : [ "date", "expected_h", "logged_h", "off_reason", "planned_h", "state" ]
+        "required" : [ "date", "logged_h", "off_reason", "planned_h", "state", "target_h", "unallocated_h" ]
       },
       "TimesheetRow" : {
         "type" : "object",
@@ -4826,10 +4830,6 @@
             "items" : {
               "$ref" : "#/components/schemas/TimesheetCell"
             }
-          },
-          "expected_h" : {
-            "type" : "number",
-            "format" : "double"
           },
           "logged_h" : {
             "type" : "number",
@@ -4841,9 +4841,17 @@
           "over_days" : {
             "type" : "integer",
             "format" : "int32"
+          },
+          "target_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "under_days" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         },
-        "required" : [ "cells", "expected_h", "logged_h", "member_id", "over_days" ]
+        "required" : [ "cells", "logged_h", "member_id", "over_days", "target_h", "under_days" ]
       },
       "TimesheetView" : {
         "type" : "object",

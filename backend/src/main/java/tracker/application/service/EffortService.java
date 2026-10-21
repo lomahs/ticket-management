@@ -35,6 +35,8 @@ import tracker.domain.Status;
 import tracker.domain.StepDef;
 import tracker.domain.Steps;
 import tracker.domain.Text;
+import tracker.application.ports.AllocationRepository;
+import tracker.domain.Allocations;
 import tracker.domain.Timesheet.TimesheetRow;
 import tracker.domain.Timesheet;
 import tracker.domain.WorkingHours;
@@ -45,8 +47,11 @@ import tracker.domain.Worklog;
 public class EffortService {
     private final TrackerContextLoader context;
 
-    public EffortService(TrackerContextLoader context) {
+    private final AllocationRepository allocations;
+
+    public EffortService(TrackerContextLoader context, AllocationRepository allocations) {
         this.context = context;
+        this.allocations = allocations;
     }
 
     public static final int MAX_DAYS = 62;
@@ -81,17 +86,20 @@ public class EffortService {
         }
         TrackerContext ctx = context.load(scope);
         List<String> days = Dates.daysBetween(start, end).stream().filter(ctx.cal::visible).toList();
-        Map<String, List<Worklog>> logs = new HashMap<>();
+        Map<String, Map<String, Double>> logs = new HashMap<>();
         for (Issue i : ctx.issues) {
             for (Worklog w : i.worklogs()) {
                 if (start.compareTo(w.date()) <= 0 && w.date().compareTo(end) <= 0) {
-                    logs.computeIfAbsent(Timesheet.logKey(w.memberId(), w.date()), k -> new ArrayList<>()).add(w);
+                    logs.computeIfAbsent(Timesheet.logKey(w.memberId(), w.date()), k -> new HashMap<>())
+                            .merge(i.epicKey(), w.hours(), Double::sum);
                 }
             }
         }
         WorkingHours wh = ctx.settings.workingHours;
-        List<TimesheetRow> rows = Timesheet.timesheet(ctx.people, days, logs, plan(ctx), ctx.cal,
-                ctx.today, wh.hoursPerDay(), wh.timesheetToleranceH());
+        Set<String> scopeEpics = new HashSet<>(ctx.settings.jira.epics);
+        scopeEpics.retainAll(scope.epics());
+        List<TimesheetRow> rows = Timesheet.timesheet(ctx.people, days, logs, plan(ctx), ctx.cal, ctx.today,
+                new Allocations(allocations.findAll()), scopeEpics, wh.timesheetToleranceH());
         return new TimesheetView(start, end,
                 days.stream().map(x -> new DayHead(x, x.equals(ctx.today), ctx.cal.extraDays().get(x))).toList(), rows);
     }

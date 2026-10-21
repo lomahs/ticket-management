@@ -1845,23 +1845,27 @@ export interface components {
         TimesheetCell: {
             date: string;
             /** Format: double */
-            expected_h: number;
-            /** Format: double */
             logged_h: number;
             off_reason: string | null;
             /** Format: double */
             planned_h: number;
             state: string;
+            /** Format: double */
+            target_h: number;
+            /** Format: double */
+            unallocated_h: number;
         };
         TimesheetRow: {
             cells: components["schemas"]["TimesheetCell"][];
-            /** Format: double */
-            expected_h: number;
             /** Format: double */
             logged_h: number;
             member_id: string;
             /** Format: int32 */
             over_days: number;
+            /** Format: double */
+            target_h: number;
+            /** Format: int32 */
+            under_days: number;
         };
         TimesheetView: {
             days: components["schemas"]["DayHead"][];

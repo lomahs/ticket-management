@@ -125,8 +125,8 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
                   );
                 })}
                 <div style={{ width: 110, flex: 'none', boxSizing: 'border-box', padding: '6px 12px', borderLeft: '1px solid var(--border-subtle)', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontWeight: 700, color: r.logged_h < r.expected_h ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{hrs(r.logged_h)}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>of {hrs(r.expected_h)}</span>
+                  <span style={{ fontWeight: 700, color: r.logged_h < r.target_h ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{hrs(r.logged_h)}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>of {hrs(r.target_h)}</span>
                 </div>
               </div>
             );

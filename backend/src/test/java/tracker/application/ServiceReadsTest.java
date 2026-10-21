@@ -24,6 +24,7 @@ import tracker.application.AppError.NotFound;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
@@ -42,6 +43,7 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.domain.Allocation;
 import tracker.domain.AnkenScope;
 import tracker.domain.Burndown;
 import tracker.domain.DateReason;
@@ -64,6 +66,8 @@ class ServiceReadsTest {
     PlanningService planning;
     @Autowired
     EffortService effort;
+    @Autowired
+    AllocationRepository allocations;
     @Autowired
     CalendarService calendar;
     @Autowired
@@ -242,13 +246,22 @@ class ServiceReadsTest {
         assertThat(v.days()).extracting(PlanningService.DayHead::date).containsExactly("2026-10-05", "2026-10-06", "2026-10-07",
                 "2026-10-08", "2026-10-09", "2026-10-10");
         var binh = v.rows().stream().filter(r -> r.memberId().equals("binh")).findFirst().orElseThrow();
-        assertThat(binh.expectedH()).isEqualTo(16);
+        assertThat(binh.targetH()).isEqualTo(0);
         assertThat(binh.loggedH()).isGreaterThanOrEqualTo(18.5);
         Map<String, String> chi = new HashMap<>();
         v.rows().stream().filter(r -> r.memberId().equals("chi")).findFirst().orElseThrow().cells().forEach(c -> chi.put(c.date(), c.state()));
         assertThat(chi.get("2026-10-09")).isEqualTo("off");
         assertThat(chi.get("2026-10-08")).isEqualTo("future");
         assertThatThrownBy(() -> effort.timesheet(ALL, "2026-01-01", "2026-12-31")).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void timesheetUsesAllocation() {
+        allocations.save(new Allocation("an", "PAY-1100", "2026-09-01", 8), "minh", "2026-10-07T09:00:00Z");
+        var an = effort.timesheet(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", "2026-10-11").rows().stream()
+                .filter(r -> r.memberId().equals("an")).findFirst().orElseThrow();
+        var monday = an.cells().stream().filter(c -> c.date().equals("2026-10-05")).findFirst().orElseThrow();
+        assertThat(monday.targetH()).isEqualTo(8);
     }
 
     @Test

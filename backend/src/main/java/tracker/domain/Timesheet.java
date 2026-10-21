@@ -4,56 +4,94 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 
-/** Timesheet: hours logged per member and day, compared with planned and expected hours. */
+/** Timesheet: hours logged per member and day, compared with planned hours and the member's allocation. */
 public final class Timesheet {
     private Timesheet() {
     }
 
-    /** @param state weekend | off | future | empty | ok | over */
-    public record TimesheetCell(String date, double loggedH, double plannedH, double expectedH, String state,
+    /**
+     * @param targetH      allocated hours of the day on the anken in scope, scaled by the member's capacity
+     * @param unallocatedH logged on anken in scope that the member has no allocation for
+     * @param state        weekend | off | future | empty | ok | over | under | no_allocation
+     */
+    public record TimesheetCell(String date, double loggedH, double plannedH, double targetH, double unallocatedH, String state,
                                 @Nullable String offReason) {
     }
 
-    /** @param expectedH working hours of past days (today and future excluded) */
-    public record TimesheetRow(String memberId, List<TimesheetCell> cells, double loggedH, double expectedH, int overDays) {
+    /** @param targetH allocated hours of past days (today and future excluded) */
+    public record TimesheetRow(String memberId, List<TimesheetCell> cells, double loggedH, double targetH, int overDays,
+                               int underDays) {
     }
 
-    private static TimesheetCell cell(String memberId, String d, double logged, double planned, WorkCalendar cal, String today,
-                                      double hoursPerDay, double toleranceH) {
-        String reason = cal.off(d, memberId);
-        double expected = hoursPerDay * cal.capacityFactor(memberId, d);
-        String state;
+    private static TimesheetCell cell(String m, String d, Map<String, Double> loggedByEpic, double planned, Allocations alloc,
+                                      Set<String> scopeEpics, WorkCalendar cal, String today, double toleranceH) {
+        String reason = cal.off(d, m);
+        double logged = loggedByEpic.values().stream().mapToDouble(Double::doubleValue).sum();
+        String offReason = reason == null || reason.equals(WorkCalendar.WEEKEND) ? null : reason;
         if (Text.hasText(reason)) {
-            state = reason.equals(WorkCalendar.WEEKEND) ? "weekend" : "off";
-        } else if (d.compareTo(today) > 0) {
-            state = "future";
-        } else if (logged == 0 && planned == 0) {
-            state = "empty";
-        } else {
-            state = logged > planned + toleranceH ? "over" : "ok";
+            return cellOf(d, logged, planned, 0, 0, reason.equals(WorkCalendar.WEEKEND) ? "weekend" : "off", offReason);
         }
-        return new TimesheetCell(d, Numbers.round(logged, 2), Numbers.round(planned, 2), expected, state,
-                reason == null || reason.equals(WorkCalendar.WEEKEND) ? null : reason);
+        if (d.compareTo(today) > 0) {
+            return cellOf(d, logged, planned, 0, 0, "future", offReason);
+        }
+        double factor = cal.capacityFactor(m, d);
+        double target = 0;
+        double loggedA = 0;
+        boolean allocated = false;
+        for (String e : scopeEpics) {
+            if (alloc.hasAny(m, e)) {
+                allocated = true;
+                target += Objects.requireNonNullElse(alloc.hoursOn(m, e, d), 0.0) * factor;
+                loggedA += loggedByEpic.getOrDefault(e, 0.0);
+            }
+        }
+        if (!allocated) {
+            return cellOf(d, logged, planned, 0, logged, logged == 0 ? "empty" : "no_allocation", offReason);
+        }
+        String state;
+        if (target == 0 && loggedA == 0) {
+            state = "empty";
+        } else if (loggedA > target + toleranceH) {
+            state = "over";
+        } else if (loggedA < target - toleranceH && d.compareTo(today) < 0) {
+            state = "under";
+        } else {
+            state = "ok";
+        }
+        return cellOf(d, logged, planned, target, logged - loggedA, state, offReason);
     }
 
-    /** @param logs worklogs by "member\u0000date" (see {@link #logKey}) */
-    public static List<TimesheetRow> timesheet(List<String> memberIds, List<String> days, Map<String, List<Worklog>> logs,
-                                               Capacity.Plan plan, WorkCalendar cal, String today, double hoursPerDay,
+    private static TimesheetCell cellOf(String d, double logged, double planned, double target, double unallocated, String state,
+                                        @Nullable String offReason) {
+        return new TimesheetCell(d, Numbers.round(logged, 2), Numbers.round(planned, 2), Numbers.round(target, 2),
+                Numbers.round(unallocated, 2), state, offReason);
+    }
+
+    /**
+     * @param loggedByKeyAndEpic hours by {@link #logKey}, then by epic
+     * @param scopeEpics         the anken in view; only those with an allocation of the member give a target
+     */
+    public static List<TimesheetRow> timesheet(List<String> memberIds, List<String> days,
+                                               Map<String, Map<String, Double>> loggedByKeyAndEpic, Capacity.Plan plan,
+                                               WorkCalendar cal, String today, Allocations alloc, Set<String> scopeEpics,
                                                double toleranceH) {
         List<TimesheetRow> rows = new ArrayList<>();
         for (String mid : memberIds) {
             List<TimesheetCell> cells = new ArrayList<>();
             for (String d : days) {
-                double logged = logs.getOrDefault(logKey(mid, d), List.of()).stream().mapToDouble(Worklog::hours).sum();
                 Capacity.DayPlan planned = plan.day(mid, d);
-                cells.add(cell(mid, d, logged, planned != null ? planned.total : 0, cal, today, hoursPerDay, toleranceH));
+                cells.add(cell(mid, d, loggedByKeyAndEpic.getOrDefault(logKey(mid, d), Map.of()), planned != null ? planned.total : 0,
+                        alloc, scopeEpics, cal, today, toleranceH));
             }
-            double expected = cells.stream().filter(c -> c.date().compareTo(today) < 0).mapToDouble(TimesheetCell::expectedH).sum();
+            double target = cells.stream().filter(c -> c.date().compareTo(today) < 0).mapToDouble(TimesheetCell::targetH).sum();
             rows.add(new TimesheetRow(mid, cells, Numbers.round(cells.stream().mapToDouble(TimesheetCell::loggedH).sum(), 2),
-                    expected, (int) cells.stream().filter(c -> c.state().equals("over")).count()));
+                    Numbers.round(target, 2), (int) cells.stream().filter(c -> c.state().equals("over")).count(),
+                    (int) cells.stream().filter(c -> c.state().equals("under")).count()));
         }
         return rows;
     }
