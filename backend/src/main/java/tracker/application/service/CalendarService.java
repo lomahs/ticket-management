@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -58,14 +59,18 @@ public class CalendarService {
     public record CalendarView(String month, List<DayHead> days, List<CalendarRow> rows) {
     }
 
-    /** One row per person of the scope. */
-    public CalendarView month(AnkenScope scope, String mon) {
+    /**
+     * One row per person of the scope, plus the viewer's own member so they can always register their leave; ordered by id.
+     *
+     * @param viewerMemberId the viewer's member, or null
+     */
+    public CalendarView month(AnkenScope scope, String mon, @Nullable String viewerMemberId) {
         String today = context.today();
         Map<String, Member> members = context.membersById();
         WorkCalendar cal = context.calendar(settings.load(), members, calendar.findLeaves());
         List<String> days = Dates.monthDays(mon).stream().filter(cal::visible).toList();
         List<CalendarRow> rows = new ArrayList<>();
-        for (String mid : context.people(scope)) {
+        for (String mid : rowsOf(context.people(scope), members, viewerMemberId)) {
             List<CalendarCell> cells = new ArrayList<>();
             double off = 0.0;
             for (String x : days) {
@@ -97,9 +102,19 @@ public class CalendarService {
         }
     }
 
-    /** Leave is changed only for the people of the scope; anyone else is not found. */
-    private static void inScope(List<String> people, String memberId) {
-        if (!people.contains(memberId)) {
+    private static List<String> rowsOf(List<String> people, Map<String, Member> members, @Nullable String viewerMemberId) {
+        if (viewerMemberId == null || people.contains(viewerMemberId) || !members.containsKey(viewerMemberId)) {
+            return people;
+        }
+        return Stream.concat(people.stream(), Stream.of(viewerMemberId)).sorted().toList();
+    }
+
+    /**
+     * Leave is changed only for the people of the scope, or for the viewer's own member (leave is personal, the same in every
+     * anken); anyone else is not found.
+     */
+    private static void inScope(List<String> people, Viewer viewer, String memberId) {
+        if (!people.contains(memberId) && !memberId.equals(viewer.memberId())) {
             throw new NotFound("Member " + memberId + " was not found", "member_id");
         }
     }
@@ -111,13 +126,13 @@ public class CalendarService {
 
     /**
      * Stores leave on each working day of the range (non-working days are skipped). Returns the number of days. The draft's
-     * member, and the edited leave's, must be people of the scope. Without Calendar write the viewer may only add or edit their
+     * member, and the edited leave's, must be people of the scope or the viewer's own member. Without Calendar write the viewer may only add or edit their
      * own leave.
      */
     @Transactional
     public int saveLeave(AnkenScope scope, LeaveDraft draft, Viewer viewer) {
         List<String> people = context.people(scope);
-        inScope(people, draft.memberId());
+        inScope(people, viewer, draft.memberId());
         ownLeave(viewer, draft.memberId());
         if (draft.dateTo().compareTo(draft.dateFrom()) < 0) {
             throw new Invalid("To date is before From date", "to");
@@ -128,7 +143,7 @@ public class CalendarService {
         Integer editId = draft.editId();
         if (editId != null) {
             String owner = stored(leaves, editId).memberId();
-            inScope(people, owner);
+            inScope(people, viewer, owner);
             ownLeave(viewer, owner);
             calendar.deleteLeave(editId);
         }
@@ -157,11 +172,11 @@ public class CalendarService {
         return n;
     }
 
-    /** Only leave of the people of the scope; without Calendar write the viewer may only delete their own leave. */
+    /** Only leave of the people of the scope or of the viewer's own member; without Calendar write the viewer may only delete their own leave. */
     @Transactional
     public void deleteLeave(AnkenScope scope, int leaveId, Viewer viewer) {
         String owner = stored(calendar.findLeaves(), leaveId).memberId();
-        inScope(context.people(scope), owner);
+        inScope(context.people(scope), viewer, owner);
         ownLeave(viewer, owner);
         calendar.deleteLeave(leaveId);
     }

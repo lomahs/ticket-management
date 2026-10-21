@@ -279,7 +279,7 @@ class ServiceReadsTest {
 
     @Test
     void calendarMonth() {
-        CalendarService.CalendarView v = calendar.month(ALL, "2026-10");
+        CalendarService.CalendarView v = calendar.month(ALL, "2026-10", null);
         assertThat(v.days().get(0).date()).isEqualTo("2026-10-01");
         assertThat(v.days()).anyMatch(d -> d.date().equals("2026-10-10"));
         assertThat(v.rows().stream().filter(r -> r.memberId().equals("an")).findFirst().orElseThrow().daysOff()).isEqualTo(3);

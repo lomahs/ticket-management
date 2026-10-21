@@ -102,8 +102,12 @@ class AnkenScopeApiTest extends ApiTestSupport {
     }
 
     private static List<String> ids(JsonNode members) {
+        return ids(members, "id");
+    }
+
+    private static List<String> ids(JsonNode rows, String field) {
         List<String> out = new ArrayList<>();
-        members.forEach(m -> out.add(m.get("id").asText()));
+        rows.forEach(m -> out.add(m.get(field).asText()));
         return out;
     }
 
@@ -374,6 +378,21 @@ class AnkenScopeApiTest extends ApiTestSupport {
                 404, "not_found");
         problem(call(delete("/api/v1/leaves/" + zoes).with(as(PIM))),
                 404, "not_found");
+    }
+
+    @Test
+    void ownLeaveNeedsNoMembership() throws Exception {
+        ankenMembers.remove("PAY-1100", "an"); // an is now a member of no anken
+        Res own = call(json(post("/api/v1/leaves"), Map.of("member_id", "an", "type", "full", "date_from", "2026-11-09",
+                "date_to", "2026-11-09", "note", "")).with(as(AN)));
+        assertThat(own.status()).as(own.text()).isEqualTo(201);
+        JsonNode rows = call(get("/api/v1/calendar").param("month", "2026-11").with(as(AN))).json().get("rows");
+        assertThat(ids(rows, "member_id")).containsExactly("an"); // their own row, nobody else's
+        int leaveId = rows.get(0).findValues("leave").stream().filter(l -> !l.isNull()).findFirst().orElseThrow().get("id").asInt();
+        assertThat(call(delete("/api/v1/leaves/" + leaveId).with(as(AN))).status()).isEqualTo(204);
+        JsonNode e = problem(call(json(post("/api/v1/leaves"), Map.of("member_id", OUTSIDER, "type", "full", "date_from", "2026-11-09",
+                "date_to", "2026-11-09", "note", "")).with(as(AN))), 404, "not_found");
+        assertThat(e.get("detail").asText()).isEqualTo("Member " + OUTSIDER + " was not found");
     }
 
     @Test

@@ -81,7 +81,7 @@ public class CalendarApi {
     @GetMapping("/calendar")
     public CalendarView month(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month,
                               @RequestParam(required = false) @Nullable String anken, Viewer viewer) {
-        return calendar.month(scopes.scope(viewer, anken), month);
+        return calendar.month(scopes.scope(viewer, anken), month, viewer.memberId());
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)

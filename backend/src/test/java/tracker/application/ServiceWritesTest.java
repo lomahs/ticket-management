@@ -186,7 +186,7 @@ class ServiceWritesTest {
                 .isEqualTo(1);
         assertThatThrownBy(() -> calendar.saveLeave(ALL, new CalendarService.LeaveDraft(null, "binh", LeaveType.FULL, "2026-11-02",
                 "2026-11-02", ""), BA_AN)).isInstanceOf(Forbidden.class).hasMessage("You can only change your own leave");
-        int binhs = calendar.month(ALL, "2026-10").rows().stream().filter(r -> r.memberId().equals("binh"))
+        int binhs = calendar.month(ALL, "2026-10", null).rows().stream().filter(r -> r.memberId().equals("binh"))
                 .flatMap(r -> r.cells().stream()).filter(c -> c.date().equals("2026-10-20")).findFirst().orElseThrow().leave().id();
         // moving someone else's leave onto yourself is still a change of their leave
         assertThatThrownBy(() -> calendar.saveLeave(ALL, new CalendarService.LeaveDraft(binhs, "an", LeaveType.FULL, "2026-11-04",
@@ -198,7 +198,7 @@ class ServiceWritesTest {
     }
 
     private tracker.domain.Leave leaveOn(String date) {
-        return calendar.month(ALL, "2026-11").rows().stream().filter(r -> r.memberId().equals("an"))
+        return calendar.month(ALL, "2026-11", null).rows().stream().filter(r -> r.memberId().equals("an"))
                 .flatMap(r -> r.cells().stream()).filter(c -> c.date().equals(date)).findFirst().orElseThrow().leave();
     }
 
