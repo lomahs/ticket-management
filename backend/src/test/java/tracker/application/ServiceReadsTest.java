@@ -90,10 +90,15 @@ class ServiceReadsTest {
         return new FunctionDraft(parent, name, "an", "minh", "tanaka", hours, new ArrayList<>(Collections.nCopies(5, null)));
     }
 
+    @Autowired
+    TrackerContextLoader contexts;
+
     @Test
     void cardCarriesTheEpicRollup() {
+        TrackerContext ctx = contexts.load(ALL);
         for (AnkenService.AnkenCard c : anken.overview(ALL)) {
-            long overdue = anken.tickets(ALL, c.key(), "overdue", null).size();
+            long overdue = ctx.subtasks().stream().filter(i -> i.epicKey().equals(c.key()))
+                    .filter(i -> ctx.schedule.get(i.key()).finish() == tracker.domain.FinishState.OVERDUE).count();
             assertThat(c.schedule().overdue()).as(c.key()).isEqualTo((int) overdue);
             assertThat(c.phases().stream().mapToInt(p -> p.schedule().overdue()).sum()).as(c.key()).isEqualTo((int) overdue);
         }

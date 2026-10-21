@@ -77,6 +77,27 @@ class ApiReadsTest extends ApiTestSupport {
             assertThat(days).isLessThanOrEqualTo(prev);
             prev = days;
         }
+        JsonNode inPhase = call(get("/api/v1/anken/PAY-1100/tickets?label=overdue&phase=Implement_Coding")).json();
+        JsonNode allOverdue = call(get("/api/v1/anken/PAY-1100/tickets?label=overdue")).json();
+        assertThat(inPhase).isNotEmpty().hasSizeLessThan(allOverdue.size());
+        for (JsonNode t : inPhase) {
+            assertThat(t.get("phase").asText()).isEqualTo("Implement_Coding");
+        }
+        JsonNode all = call(get("/api/v1/anken/PAY-1100/tickets?label=over_burn")).json();
+        assertThat(all).isNotEmpty();
+        double prevDiff = Double.MAX_VALUE;
+        String prevKey = "";
+        for (JsonNode t : all) {
+            assertThat(t.get("schedule").get("effort").asText()).isEqualTo("over_burn");
+            double diff = Math.abs(t.get("schedule").get("diff_h").asDouble());
+            assertThat(diff).isLessThanOrEqualTo(prevDiff);
+            if (diff == prevDiff) {
+                assertThat(t.get("key").asText().compareTo(prevKey)).isPositive();
+            }
+            prevDiff = diff;
+            prevKey = t.get("key").asText();
+        }
+        problem(call(get("/api/v1/anken/PAY-1100/tickets?label=overdue&phase=Other")), 404, "not_found");
         problem(call(get("/api/v1/anken/PAY-1100/tickets?label=bogus")), 400, "invalid");
         problem(call(get("/api/v1/anken/PAY-1100/tickets?label=overdue&phase=Nope")), 404, "not_found");
     }

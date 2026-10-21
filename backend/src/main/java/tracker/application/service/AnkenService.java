@@ -210,7 +210,7 @@ public class AnkenService {
         List<Issue> subs = epicSubtasks(ctx, epic);
         if (phase != null) {
             Map<String, String> groups = groupOfTask(ctx, epic);
-            if (!groups.containsValue(phase) && !PhaseGroups.OTHER.equals(phase)) {
+            if (card(ctx, epic).phases().stream().noneMatch(p -> p.name().equals(phase))) {
                 throw new NotFound(phase + " is not a phase of " + epic, "phase");
             }
             subs = subs.stream().filter(i -> phase.equals(groups.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), PhaseGroups.OTHER)))

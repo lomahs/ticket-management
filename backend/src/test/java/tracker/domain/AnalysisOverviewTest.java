@@ -100,6 +100,39 @@ class AnalysisOverviewTest {
     }
 
     @Test
+    void aStartedLateStartDoesNotMakeThePhaseLate() {
+        Issue lateButStarted = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-16").est(8)
+                .events(statusTo("2026-10-06", "W")).build();
+        Overview.ScheduleRollup r = roll(lateButStarted);
+        assertThat(r.lateStart()).isEqualTo(1);
+        assertThat(r.overdue()).isZero();
+        assertThat(r.state()).isEqualTo(Overview.Schedule.ON_TRACK);
+    }
+
+    @Test
+    void aStatusPastNysCountsAsStartedWithoutAnActualStart() {
+        Issue wip = issue().key("A").status(Status.WIP).ps("2026-10-12").pe("2026-10-16").logged(0).build();
+        assertThat(Flags.actualStart(wip)).isNull();
+        Issue idle = issue().key("B").status(Status.NYS).ps("2026-10-12").pe("2026-10-16").build();
+        assertThat(roll(wip, idle).state()).isNotEqualTo(Overview.Schedule.NOT_STARTED);
+        assertThat(roll(idle).state()).isEqualTo(Overview.Schedule.NOT_STARTED);
+    }
+
+    @Test
+    void rollupEffortUsesTheThresholdInclusively() {
+        Issue over = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(8).build();
+        double d = roll(over).diffH();
+        assertThat(d).isPositive();
+        assertThat(Overview.scheduleRollup(List.of(over), sched(over), d).effort()).isEqualTo(EffortState.ON_PLAN);
+        assertThat(Overview.scheduleRollup(List.of(over), sched(over), d - 0.01).effort()).isEqualTo(EffortState.OVER_BURN);
+        Issue under = issue().key("B").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(4).build();
+        double u = roll(under).diffH();
+        assertThat(u).isNegative();
+        assertThat(Overview.scheduleRollup(List.of(under), sched(under), -u).effort()).isEqualTo(EffortState.ON_PLAN);
+        assertThat(Overview.scheduleRollup(List.of(under), sched(under), -u - 0.01).effort()).isEqualTo(EffortState.UNDER_BURN);
+    }
+
+    @Test
     void unplannedSubtasksDoNotDistortSums() {
         Issue base = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(4).build();
         Overview.ScheduleRollup before = roll(base);
