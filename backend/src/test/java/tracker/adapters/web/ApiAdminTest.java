@@ -106,13 +106,24 @@ class ApiAdminTest extends ApiTestSupport {
 
     @Test
     void mergeOverHttp() throws Exception {
-        Res ok = call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", "tanaka")));
+        Res created = call(json(post("/api/v1/people"), Map.of("email", "an.second@acme.vn", "name", "An 2", "epics", java.util.List.of("PAY-1100"))));
+        assertThat(created.status()).as(created.text()).isEqualTo(201);
+        String dup = created.json().get("id").asText();
+        Res ok = call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", dup)));
         assertThat(ok.status()).as(ok.text()).isEqualTo(200);
         assertThat(ok.json().get("member").get("id").asText()).isEqualTo("an");
         JsonNode rows = call(get("/api/v1/admin/users")).json();
         for (JsonNode r : rows) {
-            assertThat(r.get("member").get("id").asText()).isNotEqualTo("tanaka");
+            assertThat(r.get("member").get("id").asText()).isNotEqualTo(dup);
         }
-        problem(call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", "tanaka"))), 404, "not_found");
+        problem(call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", dup))), 404, "not_found");
+    }
+
+    @Test
+    void twoJiraAccountsAreNotMergedOverHttp() throws Exception {
+        Res r = call(json(post("/api/v1/admin/members/merge"), Map.of("keep_id", "an", "remove_id", "tanaka")));
+        problem(r, 422, "invalid");
+        assertThat(r.text()).contains("Both members have a Jira account; they cannot be merged").contains("remove_id");
+        assertThat(row(call(get("/api/v1/admin/users")).json(), "tanaka").get("member").get("id").asText()).isEqualTo("tanaka");
     }
 }

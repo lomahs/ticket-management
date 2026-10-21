@@ -391,7 +391,11 @@ public class AccessService {
         return row(updated, pendingEmails());
     }
 
-    /** Folds {@code removeId} into {@code keepId}: their leave, worklogs, assignments, ankens and Jira account move to the kept one. */
+    /**
+     * Folds {@code removeId} into {@code keepId}: their leave, worklogs, assignments, ankens and Jira account move to the kept
+     * one, and so do the e-mail and role when the kept one has none, and the admin flag. Two members with different Jira
+     * accounts are two people and are not merged.
+     */
     @Transactional
     public UserRow merge(Viewer actor, String keepId, String removeId) {
         if (keepId.equals(removeId)) {
@@ -400,8 +404,13 @@ public class AccessService {
         if (removeId.equals(actor.memberId())) {
             throw new Invalid("You cannot merge yourself away", "remove_id");
         }
-        members.findById(keepId).orElseThrow(() -> new NotFound("Member " + keepId + " was not found", "keep_id"));
-        members.findById(removeId).orElseThrow(() -> new NotFound("Member " + removeId + " was not found", "remove_id"));
+        Member keep = members.findById(keepId).orElseThrow(() -> new NotFound("Member " + keepId + " was not found", "keep_id"));
+        Member remove = members.findById(removeId).orElseThrow(() -> new NotFound("Member " + removeId + " was not found", "remove_id"));
+        String keptAccount = keep.jiraAccountId();
+        String removedAccount = remove.jiraAccountId();
+        if (keptAccount != null && removedAccount != null && !keptAccount.equals(removedAccount)) {
+            throw new Invalid("Both members have a Jira account; they cannot be merged", "remove_id");
+        }
         merger.merge(keepId, removeId);
         return row(members.findById(keepId).orElseThrow(), pendingEmails());
     }

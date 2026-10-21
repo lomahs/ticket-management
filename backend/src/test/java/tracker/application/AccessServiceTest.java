@@ -340,6 +340,33 @@ class AccessServiceTest {
     }
 
     @Test
+    void mergeKeepsTheSignInOfAPmAddedDuplicate() {
+        members.save(new Member("lan-jira", "Lan", "Lan", null, "VN", "#444", "", Permission.USER, false, "acc-lan"));
+        members.save(new Member("lan", "Lan V", "Lan Vo", Role.PIM, "VN", "#555", "lan.pim@acme.vn", Permission.ADMIN, false, null));
+        access.saveStatus("lan", AccessStatus.ACTIVE);
+
+        AccessService.UserRow row = service.merge(admin, "lan-jira", "lan");
+
+        assertThat(row.member().email()).isEqualTo("lan.pim@acme.vn");
+        assertThat(row.member().role()).isEqualTo(Role.PIM);
+        assertThat(row.member().permission()).isEqualTo(Permission.ADMIN);
+        assertThat(row.member().jiraAccountId()).isEqualTo("acc-lan");
+        Viewer lan = service.viewer(new Identity("lan.pim@acme.vn", "Lan"));
+        assertThat(lan.memberId()).isEqualTo("lan-jira");
+        assertThat(lan.access()).isEqualTo(AccessStatus.ACTIVE);
+        assertThat(lan.admin()).isTrue();
+    }
+
+    @Test
+    void membersWithTwoJiraAccountsAreNotMerged() {
+        members.save(new Member("x", "X", "X", Role.BA, "VN", "#444", "x@acme.vn", Permission.USER, false, "acc-x"));
+        members.save(new Member("y", "Y", "Y", Role.BA, "VN", "#555", "", Permission.USER, false, "acc-y"));
+        assertThatThrownBy(() -> service.merge(admin, "x", "y")).isInstanceOf(Invalid.class)
+                .hasMessage("Both members have a Jira account; they cannot be merged").satisfies(e -> field(e, "remove_id"));
+        assertThat(members.findById("y")).isPresent();
+    }
+
+    @Test
     void cannotMergeYourselfAway() {
         assertThatThrownBy(() -> service.merge(admin, "an", "minh")).isInstanceOf(Invalid.class).hasMessageContaining("yourself");
         assertThatThrownBy(() -> service.merge(admin, "an", "an")).isInstanceOf(Invalid.class);

@@ -37,6 +37,14 @@ class JdbcMemberMergeRepository implements MemberMergeRepository {
         run("UPDATE member_access SET member_id = :keep WHERE member_id = :remove "
                 + "AND NOT EXISTS (SELECT 1 FROM member_access WHERE member_id = :keep)", keepId, removeId);
         run("DELETE FROM member_access WHERE member_id = :remove", keepId, removeId);
+        run("""
+                UPDATE members SET
+                    email = CASE WHEN trim(email) = '' THEN (SELECT r.email FROM members r WHERE r.id = :remove) ELSE email END,
+                    role = COALESCE(role, (SELECT r.role FROM members r WHERE r.id = :remove)),
+                    permission = CASE WHEN (SELECT r.permission FROM members r WHERE r.id = :remove) = 'admin' THEN 'admin'
+                                      ELSE permission END
+                WHERE id = :keep AND EXISTS (SELECT 1 FROM members r WHERE r.id = :remove)
+                """, keepId, removeId);
         String account = jdbc.sql("SELECT jira_account_id FROM members WHERE id = :remove").param("remove", removeId)
                 .query(String.class).optional().orElse(null);
         run("UPDATE members SET jira_account_id = NULL WHERE id = :remove", keepId, removeId);

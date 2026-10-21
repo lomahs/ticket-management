@@ -290,6 +290,39 @@ class PersistenceTest {
     }
 
     @Test
+    void mergeCarriesTheEmailRoleAndAdminFlagWhenTheKeptMemberHasNone() {
+        members.save(new Member("synced", "Lan", "Lan", null, "VN", "#111", "", Permission.USER, false, "acc-lan"));
+        members.save(new Member("added", "Lan V", "Lan Vo", Role.PIM, "VN", "#222", "lan.vo@acme.vn", Permission.ADMIN, false, null));
+        access.saveStatus("added", AccessStatus.ACTIVE);
+
+        merger.merge("synced", "added");
+
+        Member kept = members.findById("synced").orElseThrow();
+        assertThat(kept.email()).isEqualTo("lan.vo@acme.vn");
+        assertThat(kept.role()).isEqualTo(Role.PIM);
+        assertThat(kept.permission()).isEqualTo(Permission.ADMIN);
+        assertThat(kept.jiraAccountId()).isEqualTo("acc-lan");
+        assertThat(kept.name()).isEqualTo("Lan");
+        assertThat(access.findStatus("synced")).contains(AccessStatus.ACTIVE);
+        assertThat(members.findByEmail("lan.vo@acme.vn")).map(Member::id).contains("synced");
+        assertThat(members.findById("added")).isEmpty();
+    }
+
+    @Test
+    void mergeKeepsTheKeptMembersOwnEmailAndRole() {
+        members.save(new Member("a", "A", "A", Role.BA, "VN", "#111", "a@acme.vn", Permission.ADMIN, false, null));
+        members.save(new Member("b", "B", "B", Role.PM, "VN", "#222", "b@acme.vn", Permission.USER, false, "acc-b"));
+
+        merger.merge("a", "b");
+
+        Member kept = members.findById("a").orElseThrow();
+        assertThat(kept.email()).isEqualTo("a@acme.vn");
+        assertThat(kept.role()).isEqualTo(Role.BA);
+        assertThat(kept.permission()).isEqualTo(Permission.ADMIN);
+        assertThat(kept.jiraAccountId()).isEqualTo("acc-b");
+    }
+
+    @Test
     void settingsAnkenAndRuns() {
         TrackerSettings s = settings.load();
         s.jira.epics = new ArrayList<>(List.of("PAY-1100"));

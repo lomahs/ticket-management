@@ -190,8 +190,10 @@ describe('User management', () => {
       http.get('*/api/v1/admin/users', () => { usersFetches++; return HttpResponse.json([row('an'), row('minh'), row('an-2', {}, { member: an2 })]); }),
       http.post('*/api/v1/admin/members/merge', async ({ request: r }) => { bodies.push(await r.json()); return HttpResponse.json(row('an')); }),
     );
-    renderApp('/admin/users');
+    const { queryClient } = renderApp('/admin/users');
     await screen.findByLabelText('An Planning');
+    const elsewhere = [['members', 'PAY-9'], ['anken', 'list', 'PAY-9'], ['planning', '2026-10-05', 6, 'PAY-9'], ['calendar', '2026-10', 'PAY-9']];
+    elsewhere.forEach((k) => queryClient.setQueryData(k, {}));
     const before = usersFetches;
     fireEvent.click(screen.getByRole('button', { name: 'Merge An…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Merge members' });
@@ -202,6 +204,8 @@ describe('User management', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Merge' }));
     await waitFor(() => expect(bodies).toEqual([{ keep_id: 'an', remove_id: 'an-2' }]));
     await waitFor(() => expect(usersFetches).toBeGreaterThan(before));
+    // The merged member's anken, leave and work move too, so the screens that list people reload.
+    elsewhere.forEach((k) => expect(queryClient.getQueryState(k)?.isInvalidated, String(k[0])).toBe(true));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Merge members' })).toBeNull());
   });
 

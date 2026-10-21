@@ -40,5 +40,5 @@ export function renderApp(url: string) {
       </ToastProvider>
     </QueryClientProvider>,
   );
-  return { ...view, router };
+  return { ...view, router, queryClient };
 }
