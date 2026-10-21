@@ -492,7 +492,7 @@ class ServiceReadsTest {
         assertThat(m.projects()).containsExactly("CRM", "OPS", "PAY");
         assertThat(system.members(ALL)).extracting(x -> x.id()).startsWith("an", "binh");
 
-        WorkService.MyWork w = work.myWork(ALL, "binh", "week");
+        WorkService.MyWork w = work.myWork(ALL, "binh", "week", null);
         assertThat(w.nextDay()).isEqualTo("2026-10-08");
         assertThat(w.delay()).extracting(TaskCard::key).containsExactly("PAY-1012", "PAY-1186", "PAY-1184", "PAY-1185", "PAY-1213");
         assertThat(w.dueToday()).extracting(TaskCard::key).containsExactlyInAnyOrder("PAY-1183", "PAY-1187", "PAY-1188", "PAY-1265");
@@ -503,12 +503,12 @@ class ServiceReadsTest {
         assertThat(weeks.get(0).current()).isTrue();
         assertThat(w.openCount()).isEqualTo(w.backlog().stream().mapToInt(g -> g.items().size()).sum());
 
-        WorkService.MyWork month = work.myWork(ALL, "binh", "month");
+        WorkService.MyWork month = work.myWork(ALL, "binh", "month", null);
         assertThat(month.backlog()).extracting(WorkService.BacklogGroup::kind).startsWith("overdue", "month");
         assertThat(month.backlog().get(1).start()).isEqualTo("2026-10");
-        WorkService.MyWork minh = work.myWork(ALL, "minh", "week");
+        WorkService.MyWork minh = work.myWork(ALL, "minh", "week", null);
         assertThat(minh.relatedScope()).isEqualTo("reviewer");
         assertThat(minh.related()).allMatch(c -> !"balr".equals(c.step()));
-        assertThatThrownBy(() -> work.myWork(ALL, "nobody", "week")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> work.myWork(ALL, "nobody", "week", null)).isInstanceOf(NotFound.class);
     }
 }

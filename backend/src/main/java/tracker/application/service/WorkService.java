@@ -69,12 +69,15 @@ public class WorkService {
         return Numbers.round(items.stream().mapToDouble(i -> ctx.card(i).remainingH()).sum(), 2);
     }
 
-    /** The member must be one of the people of the scope; only the sub-tasks of the anken in scope are listed. */
-    public MyWork myWork(AnkenScope scope, String memberId, String backlog) {
+    /**
+     * Only the sub-tasks of the anken in scope are listed. The member must be one of the people of the scope, or the viewer's own
+     * member ({@code viewerMemberId}), who always has a My Work page even without a membership.
+     */
+    public MyWork myWork(AnkenScope scope, String memberId, String backlog, @Nullable String viewerMemberId) {
         TrackerContext ctx = context.load(scope);
         String today = ctx.today;
         Member me = ctx.members.get(memberId);
-        if (me == null || !ctx.people.contains(memberId)) {
+        if (me == null || !(ctx.people.contains(memberId) || memberId.equals(viewerMemberId))) {
             throw new NotFound("Member " + memberId + " was not found", "member");
         }
         List<Issue> mine = new ArrayList<>(ctx.subtasks().stream()

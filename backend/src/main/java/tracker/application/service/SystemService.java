@@ -20,6 +20,7 @@ import tracker.application.ports.SyncRunRepository.SyncRun;
 import tracker.application.ports.SyncRunRepository;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.EventField;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Member;
@@ -76,7 +77,7 @@ public class SystemService {
 
     /**
      * The people of the scope plus every member an issue in scope refers to (assignee, worker, function owner and reviewer,
-     * worklog author), ordered by id.
+     * worklog author, either side of an assignee change), ordered by id. The screens use it to show names.
      */
     public List<Member> members(AnkenScope scope) {
         TrackerContext ctx = context.load(scope);
@@ -85,6 +86,10 @@ public class SystemService {
             ids.add(i.assigneeId());
             ids.add(ctx.worker(i));
             i.worklogs().forEach(w -> ids.add(w.memberId()));
+            i.events().stream().filter(e -> e.field() == EventField.ASSIGNEE).forEach(e -> {
+                ids.add(e.fromValue());
+                ids.add(e.toValue());
+            });
         }
         for (Function f : ctx.functions) {
             ids.add(f.ownerId());

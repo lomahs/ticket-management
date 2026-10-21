@@ -23,9 +23,12 @@ import tracker.application.ports.IssueRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.domain.Flags;
 import tracker.domain.Function;
+import tracker.domain.EventField;
 import tracker.domain.Issue;
+import tracker.domain.IssueEvent;
 import tracker.domain.Member;
 import tracker.domain.Role;
+import tracker.domain.StepKind;
 import tracker.domain.Worklog;
 
 /** A viewer only ever receives the anken they may see; `an` is a member of PAY-1100 only, `zoe` of PAY-1300 only. */
@@ -100,6 +103,10 @@ class AnkenScopeApiTest extends ApiTestSupport {
         for (Issue i : pay1100) {
             allowed.add(i.assigneeId());
             i.worklogs().stream().map(Worklog::memberId).forEach(allowed::add);
+            i.events().stream().filter(e -> e.field() == EventField.ASSIGNEE).forEach(e -> {
+                allowed.add(e.fromValue());
+                allowed.add(e.toValue());
+            });
         }
         for (Function f : Flags.buildFunctions(pay1100)) {
             allowed.add(f.ownerId());
@@ -116,6 +123,48 @@ class AnkenScopeApiTest extends ApiTestSupport {
         assertThat(e.get("detail").asText()).isEqualTo("Member " + OUTSIDER + " was not found");
         assertThat(call(get("/api/v1/my-work").param("member", "an").with(as(AN))).status()).isEqualTo(200);
         assertThat(call(get("/api/v1/my-work").param("member", OUTSIDER)).status()).isEqualTo(200); // the admin sees PAY-1300
+    }
+
+    /** The epics of every task card on a My Work page. */
+    private static Set<String> epicsOf(JsonNode myWork) {
+        List<JsonNode> cards = new ArrayList<>();
+        for (String list : List.of("delay", "due_today", "due_next", "related")) {
+            myWork.get(list).forEach(cards::add);
+        }
+        myWork.get("backlog").forEach(g -> g.get("items").forEach(cards::add));
+        Set<String> out = new HashSet<>();
+        cards.forEach(c -> out.add(c.get("epic_key").asText()));
+        return out;
+    }
+
+    @Test
+    void myOwnWorkOpensWithoutAMembershipAndShowsOnlyTheScope() throws Exception {
+        Res all = call(get("/api/v1/my-work").param("member", "an")); // the admin sees an's work on every anken
+        assertThat(epicsOf(all.json())).contains("PAY-1100", "PAY-1300");
+        assertThat(epicsOf(call(get("/api/v1/my-work").param("member", "an").with(as(AN))).json())).containsExactly("PAY-1100");
+
+        ankenMembers.remove("PAY-1100", "an"); // an is now a member of no anken
+        Res own = call(get("/api/v1/my-work").param("member", "an").with(as(AN)));
+        assertThat(own.status()).as(own.text()).isEqualTo(200);
+        assertThat(epicsOf(own.json())).isEmpty();
+        problem(call(get("/api/v1/my-work").param("member", "binh").with(as(AN))), 404, "not_found");
+    }
+
+    @Test
+    void earlierAssigneesOfAHandoverAreNamed() throws Exception {
+        members.save(new Member("yuki", "Yuki", "Yuki Former", Role.BA, "JP", "#654321")); // in no anken, on no other issue
+        Issue review = issues.findByEpics(List.of("PAY-1100")).stream().filter(i -> i.step() == StepKind.JM_REVIEW).findFirst()
+                .orElseThrow();
+        List<IssueEvent> events = new ArrayList<>(review.events());
+        events.add(new IssueEvent("2026-09-01", EventField.ASSIGNEE, "yuki", review.assigneeId()));
+        issues.save(new Issue(review.key(), review.project(), review.epicKey(), review.parentKey(), review.kind(), review.summary(),
+                review.phase(), review.status(), review.assigneeId(), review.plannedStart(), review.plannedEnd(), review.estimateH(),
+                review.remainingH(), review.created(), review.jiraStatus(), review.functionId(), review.functionName(), review.step(),
+                review.worklogs(), events, review.reporterId()));
+
+        assertThat(call(get("/api/v1/tickets/" + review.key()).with(as(AN))).json().get("history").toString())
+                .contains("\"from_id\":\"yuki\"");
+        assertThat(ids(call(get("/api/v1/members").with(as(AN))).json())).contains("yuki");
     }
 
     @Test

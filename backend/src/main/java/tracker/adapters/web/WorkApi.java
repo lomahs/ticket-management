@@ -36,6 +36,6 @@ public class WorkApi {
                          @RequestParam(defaultValue = "week") @Pattern(regexp = "^(week|month)$", message = "must be week or month")
                          @Parameter(schema = @Schema(allowableValues = {"week", "month"})) String backlog,
                          @RequestParam(required = false) @Nullable String anken, Viewer viewer) {
-        return work.myWork(scopes.scope(viewer, anken), member, backlog);
+        return work.myWork(scopes.scope(viewer, anken), member, backlog, viewer.memberId());
     }
 }
