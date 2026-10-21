@@ -140,8 +140,9 @@ sub-task not started is *late start* only after its planned start day, and one w
 Not Yet Started counts as started on time), or *not due* / *no plan*. *Finish* is early, late or on time once Resolved
 or Closed (a finished sub-task is never late), *overdue* while open past its planned end, or *open*. *Effort* compares
 the hours logged with the plan to date: *under burn*, *over burn* or *on plan*, with the tolerance set in Settings →
-Alerts → "Effort deviation (hours)" (default 1h). *Overdue* is the one late rule: My Work, Q&A, the matrix, the
-ticket panel and the Planning bar all use it. Each anken card shows its state (done, late, not started, early, on
+Alerts → "Effort deviation (hours)" (default 1h). *Overdue* is the one late rule: My Work, Q&A, the matrix and the
+ticket panel use it, and Planning's bar shows overdue or late finish; Planning's function panel compares the actual span
+with a pending plan edit. Each anken card shows its state (done, late, not started, early, on
 track), effort against plan and an "Overdue n" link; each phase row shows plan to date, actual and chips that count
 late/early starts and finishes. A count opens the list of those sub-tasks (`/anken/{epic}/tickets?label=&phase=`), and
 a row opens the ticket panel with its Schedule section.
