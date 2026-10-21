@@ -1329,6 +1329,8 @@ export interface components {
             /** @enum {string} */
             access: "none" | "requested" | "active" | "rejected" | "disabled";
             admin: boolean;
+            all_anken: boolean;
+            anken: string[];
             email: string;
             member_id: string | null;
             name: string;
@@ -1674,6 +1676,9 @@ export interface components {
             /** @enum {string|null} */
             access?: "none" | "requested" | "active" | "rejected" | "disabled" | null;
             admin?: boolean | null;
+            anken?: string[] | null;
+            /** @enum {string|null} */
+            anken_scope?: "default" | "all" | "members" | null;
             clear_role?: boolean | null;
             /** @enum {string|null} */
             country?: "VN" | "JP" | null;
@@ -1689,6 +1694,10 @@ export interface components {
         UserRow: {
             /** @enum {string} */
             access: "none" | "requested" | "active" | "rejected" | "disabled";
+            all_anken: boolean;
+            anken: string[];
+            /** @enum {string} */
+            anken_scope: "default" | "all" | "members";
             bootstrap_admin: boolean;
             effective: {
                 [key: string]: "none" | "read" | "write";

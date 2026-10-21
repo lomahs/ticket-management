@@ -94,15 +94,18 @@ public class AuthApi {
      * The signed-in user.
      *
      * @param permissions what they can do per feature now: none for anyone without access, write everywhere for an admin
+     * @param allAnken    whether they see every anken
+     * @param anken       the ankens (epics) they are a member of, sorted
      */
     public record Me(String email, String name, @Nullable String memberId, @Nullable Role role, boolean admin, AccessStatus access,
-                     Map<Feature, Level> permissions) {
+                     Map<Feature, Level> permissions, boolean allAnken, List<String> anken) {
         static Me of(Viewer v) {
             Map<Feature, Level> levels = new EnumMap<>(Feature.class);
             for (Feature f : Feature.values()) {
                 levels.put(f, v.can(f, Level.WRITE) ? Level.WRITE : v.can(f, Level.READ) ? Level.READ : Level.NONE);
             }
-            return new Me(v.email(), v.name(), v.memberId(), v.role(), v.admin(), v.access(), levels);
+            return new Me(v.email(), v.name(), v.memberId(), v.role(), v.admin(), v.access(), levels, v.allAnken(),
+                    v.epics().stream().sorted().toList());
         }
     }
 

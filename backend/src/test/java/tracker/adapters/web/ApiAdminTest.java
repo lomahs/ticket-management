@@ -92,4 +92,15 @@ class ApiAdminTest extends ApiTestSupport {
     void selfLockoutIs422() throws Exception {
         problem(call(json(patch("/api/v1/admin/users/minh"), Map.of("admin", false))), 422, "invalid");
     }
+
+    @Test
+    void patchAnkenAndScope() throws Exception {
+        Res r = call(json(patch("/api/v1/admin/users/an"), Map.of("anken", java.util.List.of("PAY-1300"), "anken_scope", "all")));
+        assertThat(r.status()).as(r.text()).isEqualTo(200);
+        JsonNode an = r.json();
+        assertThat(an.get("anken")).hasSize(1);
+        assertThat(an.get("anken").get(0).asText()).isEqualTo("PAY-1300");
+        assertThat(an.get("anken_scope").asText()).isEqualTo("all");
+        assertThat(an.get("all_anken").asBoolean()).isTrue();
+    }
 }

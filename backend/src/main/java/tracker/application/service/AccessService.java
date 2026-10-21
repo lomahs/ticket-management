@@ -22,10 +22,12 @@ import tracker.application.AppError.Conflict;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Feature;
 import tracker.domain.Identity;
 import tracker.domain.Level;
@@ -49,13 +51,16 @@ public class AccessService {
 
     private final AccessRepository access;
     private final MemberRepository members;
+    private final AnkenMemberRepository ankenMembers;
     private final SettingsStore settings;
     private final Clock clock;
     private final Config config;
 
-    public AccessService(AccessRepository access, MemberRepository members, SettingsStore settings, Clock clock, Config config) {
+    public AccessService(AccessRepository access, MemberRepository members, AnkenMemberRepository ankenMembers, SettingsStore settings,
+            Clock clock, Config config) {
         this.access = access;
         this.members = members;
+        this.ankenMembers = ankenMembers;
         this.settings = settings;
         this.clock = clock;
         this.config = config;
@@ -117,15 +122,20 @@ public class AccessService {
         // Bootstrap admins stay active admins whatever their role, including JM.
         if (id.email().equals(BREAKGLASS_EMAIL) || bootstrap(id.email())) {
             Map<Feature, Level> levels = Permissions.effective(role, memberId != null ? access.findOverrides(memberId) : Map.of());
-            return new Viewer(id.email(), id.name(), memberId, role, true, AccessStatus.ACTIVE, levels);
+            return new Viewer(id.email(), id.name(), memberId, role, true, AccessStatus.ACTIVE, levels, true, epicsOf(memberId));
         }
         if (member == null) {
             return new Viewer(id.email(), id.name(), null, null, false, fromRequest(id.email()), none());
         }
         AccessStatus status = access.findStatus(member.id()).orElseGet(() -> fromRequest(id.email()));
         boolean admin = member.permission() == Permission.ADMIN && status == AccessStatus.ACTIVE;
+        boolean allAnken = admin || Permissions.allAnken(role, access.findAnkenScope(member.id()));
         return new Viewer(id.email(), id.name(), member.id(), role, admin, status,
-                Permissions.effective(role, access.findOverrides(member.id())));
+                Permissions.effective(role, access.findOverrides(member.id())), allAnken, epicsOf(member.id()));
+    }
+
+    private Set<String> epicsOf(@Nullable String memberId) {
+        return memberId == null ? Set.of() : ankenMembers.findEpicsOf(memberId);
     }
 
     /** A login succeeded: a bootstrap admin gets a member, ACTIVE and ADMIN; anyone else is looked up as they are. */
@@ -229,8 +239,13 @@ public class AccessService {
 
     // --- users ------------------------------------------------------------------------------------------------------
 
+    /**
+     * @param anken      the ankens (epics) they are a member of, sorted
+     * @param ankenScope the stored setting
+     * @param allAnken   whether they see every anken now
+     */
     public record UserRow(Member member, AccessStatus access, boolean bootstrapAdmin, Map<Feature, Level> overrides,
-                          Map<Feature, Level> effective) {
+                          Map<Feature, Level> effective, List<String> anken, AnkenScopeSetting ankenScope, boolean allAnken) {
     }
 
     private Set<String> pendingEmails() {
@@ -244,7 +259,10 @@ public class AccessService {
         AccessStatus status = bootstrap ? AccessStatus.ACTIVE : access.findStatus(m.id())
                 .orElse(pendingEmails.contains(m.email().toLowerCase(Locale.ROOT)) ? AccessStatus.REQUESTED : AccessStatus.NONE);
         Map<Feature, Level> overrides = access.findOverrides(m.id());
-        return new UserRow(m, status, bootstrap, overrides, Permissions.effective(m.role(), overrides));
+        AnkenScopeSetting scope = access.findAnkenScope(m.id());
+        boolean admin = bootstrap || (m.permission() == Permission.ADMIN && status == AccessStatus.ACTIVE);
+        return new UserRow(m, status, bootstrap, overrides, Permissions.effective(m.role(), overrides),
+                ankenMembers.findEpicsOf(m.id()).stream().sorted().toList(), scope, admin || Permissions.allAnken(m.role(), scope));
     }
 
     public List<UserRow> users() {
@@ -257,10 +275,19 @@ public class AccessService {
         return out;
     }
 
-    /** Fields that are null are not changed; {@code clearRole} removes the role; an override of null removes it. */
+    /**
+     * Fields that are null are not changed; {@code clearRole} removes the role; an override of null removes it. A non-null
+     * {@code anken} replaces the memberships.
+     */
     public record UserPatch(@Nullable String name, @Nullable String email, @Nullable Role role, boolean clearRole,
                             @Nullable String country, @Nullable Boolean admin, @Nullable AccessStatus access,
-                            Map<Feature, @Nullable Level> overrides) {
+                            Map<Feature, @Nullable Level> overrides, @Nullable AnkenScopeSetting ankenScope,
+                            @Nullable List<String> anken) {
+        public UserPatch(@Nullable String name, @Nullable String email, @Nullable Role role, boolean clearRole,
+                         @Nullable String country, @Nullable Boolean admin, @Nullable AccessStatus access,
+                         Map<Feature, @Nullable Level> overrides) {
+            this(name, email, role, clearRole, country, admin, access, overrides, null, null);
+        }
     }
 
     @Transactional
@@ -273,6 +300,14 @@ public class AccessService {
         }
         if (p.access() != null && p.access() != AccessStatus.ACTIVE && p.access() != AccessStatus.DISABLED) {
             throw new Invalid("Access can only be set to active or disabled", "access");
+        }
+        if (p.anken() != null) {
+            Set<String> tracked = new HashSet<>(settings.load().jira.epics);
+            for (String epic : p.anken()) {
+                if (!tracked.contains(epic)) {
+                    throw new Invalid("Anken " + epic + " is not tracked", "anken");
+                }
+            }
         }
         Member m = members.findById(memberId).orElseThrow(() -> new NotFound("Member " + memberId + " was not found"));
         String email = p.email() != null ? p.email().strip().toLowerCase(Locale.ROOT) : m.email();
@@ -319,6 +354,23 @@ public class AccessService {
         }
         for (Map.Entry<Feature, @Nullable Level> o : p.overrides().entrySet()) {
             access.saveOverride(memberId, o.getKey(), o.getValue());
+        }
+        if (p.ankenScope() != null) {
+            access.saveAnkenScope(memberId, p.ankenScope());
+        }
+        if (p.anken() != null) {
+            Set<String> wanted = new HashSet<>(p.anken());
+            Set<String> current = ankenMembers.findEpicsOf(memberId);
+            for (String epic : wanted) {
+                if (!current.contains(epic)) {
+                    ankenMembers.add(epic, memberId, actor.email(), now());
+                }
+            }
+            for (String epic : current) {
+                if (!wanted.contains(epic)) {
+                    ankenMembers.remove(epic, memberId);
+                }
+            }
         }
         return row(updated, pendingEmails());
     }

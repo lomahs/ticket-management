@@ -3183,6 +3183,15 @@
           "admin" : {
             "type" : "boolean"
           },
+          "all_anken" : {
+            "type" : "boolean"
+          },
+          "anken" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "email" : {
             "type" : "string"
           },
@@ -3204,7 +3213,7 @@
             "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         },
-        "required" : [ "access", "admin", "email", "member_id", "name", "permissions", "role" ]
+        "required" : [ "access", "admin", "all_anken", "anken", "email", "member_id", "name", "permissions", "role" ]
       },
       "Member" : {
         "type" : "object",
@@ -4199,6 +4208,16 @@
           "admin" : {
             "type" : [ "boolean", "null" ]
           },
+          "anken" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "anken_scope" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "default", "all", "members" ]
+          },
           "clear_role" : {
             "type" : [ "boolean", "null" ]
           },
@@ -4233,6 +4252,19 @@
             "type" : "string",
             "enum" : [ "none", "requested", "active", "rejected", "disabled" ]
           },
+          "all_anken" : {
+            "type" : "boolean"
+          },
+          "anken" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "anken_scope" : {
+            "type" : "string",
+            "enum" : [ "default", "all", "members" ]
+          },
           "bootstrap_admin" : {
             "type" : "boolean"
           },
@@ -4254,7 +4286,7 @@
             }
           }
         },
-        "required" : [ "access", "bootstrap_admin", "effective", "member", "overrides" ]
+        "required" : [ "access", "all_anken", "anken", "anken_scope", "bootstrap_admin", "effective", "member", "overrides" ]
       },
       "WeekLoad" : {
         "type" : "object",

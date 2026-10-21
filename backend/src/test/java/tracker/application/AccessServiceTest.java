@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +17,7 @@ import tracker.TrackerTest;
 import tracker.application.AppError.Conflict;
 import tracker.application.AppError.Invalid;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.service.AccessService;
 import tracker.application.service.AccessService.Approval;
@@ -22,6 +25,7 @@ import tracker.application.service.AccessService.UserPatch;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Feature;
 import tracker.domain.Identity;
 import tracker.domain.Level;
@@ -42,6 +46,8 @@ class AccessServiceTest {
     @Autowired
     MemberRepository members;
     @Autowired
+    AnkenMemberRepository ankenMembers;
+    @Autowired
     SettingsStore settings;
     @Autowired
     Clock clock;
@@ -51,10 +57,11 @@ class AccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AccessService(access, members, settings, clock, new AccessService.Config(Set.of("lan.vo@acme.vn")));
+        service = new AccessService(access, members, ankenMembers, settings, clock, new AccessService.Config(Set.of("lan.vo@acme.vn")));
         members.save(new Member("minh", "Minh", "Minh Tran", Role.PM, "VN", "#111", "minh@acme.vn", Permission.ADMIN, false, null));
         members.save(new Member("an", "An", "An Nguyen", Role.BA, "VN", "#222", "an@acme.vn", Permission.USER, false, null));
         members.save(new Member("tanaka", "Tanaka", "Tanaka San", Role.JM, "JP", "#333", "tanaka@acme.vn", Permission.USER, false, null));
+        settings.update(t -> t.jira.epics = new ArrayList<>(List.of("PAY-1100", "PAY-1300")));
         access.saveStatus("minh", AccessStatus.ACTIVE);
         access.saveStatus("an", AccessStatus.ACTIVE);
         admin = service.viewer(new Identity("minh@acme.vn", "Minh"));
@@ -206,7 +213,7 @@ class AccessServiceTest {
         access.saveStatus("minh", AccessStatus.DISABLED);
         assertThat(service.hasActiveAdmin()).isFalse();
         assertThat(service.hasBootstrapAdmins()).isTrue();
-        assertThat(new AccessService(access, members, settings, clock, new AccessService.Config(Set.of())).hasBootstrapAdmins()).isFalse();
+        assertThat(new AccessService(access, members, ankenMembers, settings, clock, new AccessService.Config(Set.of())).hasBootstrapAdmins()).isFalse();
     }
 
     @Test
@@ -290,5 +297,42 @@ class AccessServiceTest {
 
     private static UserPatch patch(Boolean admin, AccessStatus status) {
         return new UserPatch(null, null, null, false, null, admin, status, Map.of());
+    }
+
+    private static final Identity AN = new Identity("an@acme.vn", "An");
+
+    @Test
+    void viewerCarriesMembershipsAndScope() {
+        ankenMembers.add("PAY-1100", "an", "minh@acme.vn", "2026-10-07T00:00:00Z");
+        Viewer v = service.viewer(AN);
+        assertThat(v.epics()).containsExactly("PAY-1100");
+        assertThat(v.allAnken()).isFalse();
+        access.saveAnkenScope("an", AnkenScopeSetting.ALL);
+        assertThat(service.viewer(AN).allAnken()).isTrue();
+        assertThat(service.viewer(STRANGER).epics()).isEmpty();
+        assertThat(service.viewer(STRANGER).allAnken()).isFalse();
+    }
+
+    @Test
+    void pmSeesAllByDefault() {
+        service.patchUser(admin, "an", new UserPatch(null, null, Role.PM, false, null, null, null, Map.of()));
+        assertThat(service.viewer(AN).allAnken()).isTrue();
+        service.patchUser(admin, "an", new UserPatch(null, null, null, false, null, null, null, Map.of(),
+                AnkenScopeSetting.MEMBERS, null));
+        assertThat(service.viewer(AN).allAnken()).isFalse();
+    }
+
+    @Test
+    void patchReplacesMemberships() {
+        ankenMembers.add("PAY-1100", "an", "minh@acme.vn", "2026-10-07T00:00:00Z");
+        AccessService.UserRow r = service.patchUser(admin, "an", new UserPatch(null, null, null, false, null, null, null, Map.of(),
+                null, List.of("PAY-1300")));
+        assertThat(ankenMembers.findEpicsOf("an")).containsExactly("PAY-1300");
+        assertThat(r.anken()).containsExactly("PAY-1300");
+        assertThat(ankenMembers.findByEpic("PAY-1300").get(0).addedBy()).isEqualTo("minh@acme.vn");
+        assertThatThrownBy(() -> service.patchUser(admin, "an", new UserPatch(null, null, null, false, null, null, null, Map.of(),
+                null, List.of("NOPE-1"))))
+                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("anken");
+        assertThat(ankenMembers.findEpicsOf("an")).containsExactly("PAY-1300");
     }
 }

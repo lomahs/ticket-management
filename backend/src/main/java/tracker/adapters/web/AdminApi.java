@@ -26,6 +26,7 @@ import tracker.application.service.AccessService.UserPatch;
 import tracker.application.service.AccessService.UserRow;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.RequestStatus;
@@ -44,7 +45,8 @@ public class AdminApi {
 
     public record UserPatchIn(@Nullable String name, @Nullable @Email String email, @Nullable Role role,
                               @Nullable Boolean clearRole, @Nullable Country country, @Nullable Boolean admin,
-                              @Nullable AccessStatus access, @Nullable Map<Feature, @Nullable Level> overrides) {
+                              @Nullable AccessStatus access, @Nullable Map<Feature, @Nullable Level> overrides,
+                              @Nullable AnkenScopeSetting ankenScope, @Nullable List<String> anken) {
     }
 
     public record ApproveIn(@Nullable String memberId, @NotNull Role role, @Nullable String name) {
@@ -61,7 +63,7 @@ public class AdminApi {
     public UserRow patchUser(Viewer actor, @PathVariable String memberId, @RequestBody @Valid UserPatchIn b) {
         return access.patchUser(actor, memberId, new UserPatch(b.name(), b.email(), b.role(), Boolean.TRUE.equals(b.clearRole()),
                 b.country() == null ? null : b.country().name(), b.admin(), b.access(),
-                b.overrides() == null ? Map.of() : b.overrides()));
+                b.overrides() == null ? Map.of() : b.overrides(), b.ankenScope(), b.anken()));
     }
 
     @Open(Rule.ADMIN)
