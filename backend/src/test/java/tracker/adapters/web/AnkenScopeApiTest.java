@@ -288,6 +288,7 @@ class AnkenScopeApiTest extends ApiTestSupport {
         for (Map.Entry<RequestMappingInfo, HandlerMethod> e : mappings.getHandlerMethods().entrySet()) {
             Class<?> api = e.getValue().getBeanType();
             if (api == AuthApi.class || api == AdminApi.class || api == SettingsApi.class
+                    || api == AnkenMembersApi.class // needs the members feature: see ApiAnkenMembersTest
                     || !e.getKey().getMethodsCondition().getMethods().contains(RequestMethod.GET)) {
                 continue;
             }

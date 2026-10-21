@@ -155,7 +155,7 @@ public class AccessService {
         return viewer(id);
     }
 
-    private Member createMember(String email, String name, @Nullable Role role, Permission permission) {
+    Member createMember(String email, String name, @Nullable Role role, Permission permission) {
         String base = MemberIds.slugify(email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
         String memberId = MemberIds.newId(base, members.findAll().stream().map(Member::id).collect(Collectors.toSet()));
         String display = name.isBlank() ? email : name.strip();
@@ -185,6 +185,19 @@ public class AccessService {
             access.addRequest(id.email(), id.name(), note, now(), resolve(id.email()).map(Member::id).orElse(null));
         }
         return viewer(id);
+    }
+
+    /**
+     * Asks the admin to give this member sign-in access: a pending request for their e-mail. Nothing is filed for a JM (who
+     * cannot sign in), a member without an e-mail, one who already has a sign-in status, or one with a request pending.
+     */
+    @Transactional
+    public @Nullable AccessRequest fileRequestFor(Viewer actor, Member m, String note) {
+        if (m.role() == Role.JM || m.email().isBlank() || access.findStatus(m.id()).isPresent()) {
+            return null;
+        }
+        boolean pending = access.findLatestRequest(m.email()).map(r -> r.status() == RequestStatus.PENDING).orElse(false);
+        return pending ? null : access.addRequest(m.email(), m.name(), note, now(), m.id());
     }
 
     public List<AccessRequest> requests(@Nullable RequestStatus status) {

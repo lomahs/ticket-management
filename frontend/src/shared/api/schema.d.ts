@@ -164,6 +164,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/anken/{epic}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["members"];
+        put?: never;
+        post: operations["add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/anken/{epic}/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/info": {
         parameters: {
             query?: never;
@@ -491,7 +523,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["members"];
+        get: operations["members_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -530,6 +562,38 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/people/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["setRole"];
         trace?: never;
     };
     "/api/v1/planning": {
@@ -888,6 +952,9 @@ export interface components {
         AccessRequestIn: {
             note?: string | null;
         };
+        AddMemberIn: {
+            member_id: string;
+        };
         AlertsIn: {
             /** Format: double */
             capacity_pct: number;
@@ -912,6 +979,7 @@ export interface components {
             late_subtasks: number;
             member_ids: string[];
             phases: components["schemas"]["PhaseRollup"][];
+            pim_ids: string[];
             plan: string | null;
             project: string;
             /** Format: int32 */
@@ -923,7 +991,21 @@ export interface components {
         AnkenDetail: {
             attention: components["schemas"]["AttentionView"][];
             card: components["schemas"]["AnkenCard"];
+            not_members: components["schemas"]["NotMember"][];
             tasks: components["schemas"]["PhaseTask"][];
+        };
+        AnkenMemberRow: {
+            /** @enum {string} */
+            access: "none" | "requested" | "active" | "rejected" | "disabled";
+            added_at: string;
+            added_by: string;
+            member: components["schemas"]["Member"];
+        };
+        AnkenMembersView: {
+            candidates: components["schemas"]["Member"][];
+            epic_key: string;
+            members: components["schemas"]["AnkenMemberRow"][];
+            not_members: components["schemas"]["NotMember"][];
         };
         Answer: {
             chips: string[];
@@ -1318,6 +1400,7 @@ export interface components {
         MatrixView: {
             epic_key: string;
             functions: components["schemas"]["FunctionRow"][];
+            member_ids: string[];
             next_function_id: string;
             parents: components["schemas"]["ParentOption"][];
             phase: string;
@@ -1421,6 +1504,20 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        NewPersonIn: {
+            email: string;
+            epics: string[];
+            name: string;
+            /** @enum {string|null} */
+            role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
+        NotMember: {
+            /** Format: double */
+            logged_h: number;
+            member_id: string;
+            /** Format: int32 */
+            open_subtasks: number;
+        };
         ParentOption: {
             end: string | null;
             /** Format: int32 */
@@ -1433,6 +1530,11 @@ export interface components {
             start: string | null;
             summary: string;
             workflow: boolean;
+        };
+        PersonPatchIn: {
+            clear_role?: boolean | null;
+            /** @enum {string|null} */
+            role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
         PhaseRollup: {
             /** Format: int32 */
@@ -1985,6 +2087,77 @@ export interface operations {
             };
         };
     };
+    members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnkenMembersView"];
+                };
+            };
+        };
+    };
+    add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMemberIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnkenMembersView"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnkenMembersView"];
+                };
+            };
+        };
+    };
     info: {
         parameters: {
             query?: never;
@@ -2511,7 +2684,7 @@ export interface operations {
             };
         };
     };
-    members: {
+    members_1: {
         parameters: {
             query?: {
                 anken?: string;
@@ -2573,6 +2746,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyWork"];
+                };
+            };
+        };
+    };
+    addPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPersonIn"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+        };
+    };
+    setRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonPatchIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
                 };
             };
         };

@@ -336,6 +336,99 @@
         "tags" : [ "anken-api" ]
       }
     },
+    "/api/v1/anken/{epic}/members" : {
+      "get" : {
+        "operationId" : "members",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AnkenMembersView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-members-api" ]
+      },
+      "post" : {
+        "operationId" : "add",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddMemberIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AnkenMembersView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-members-api" ]
+      }
+    },
+    "/api/v1/anken/{epic}/members/{memberId}" : {
+      "delete" : {
+        "operationId" : "remove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "memberId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AnkenMembersView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-members-api" ]
+      }
+    },
     "/api/v1/auth/info" : {
       "get" : {
         "operationId" : "info",
@@ -993,7 +1086,7 @@
     },
     "/api/v1/members" : {
       "get" : {
-        "operationId" : "members",
+        "operationId" : "members_1",
         "parameters" : [ {
           "in" : "query",
           "name" : "anken",
@@ -1078,6 +1171,70 @@
           }
         },
         "tags" : [ "work-api" ]
+      }
+    },
+    "/api/v1/people" : {
+      "post" : {
+        "operationId" : "addPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewPersonIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Member"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "anken-members-api" ]
+      }
+    },
+    "/api/v1/people/{memberId}" : {
+      "patch" : {
+        "operationId" : "setRole",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "memberId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonPatchIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Member"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-members-api" ]
       }
     },
     "/api/v1/planning" : {
@@ -1885,6 +2042,16 @@
           }
         }
       },
+      "AddMemberIn" : {
+        "type" : "object",
+        "properties" : {
+          "member_id" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "member_id" ]
+      },
       "AlertsIn" : {
         "type" : "object",
         "properties" : {
@@ -1952,6 +2119,12 @@
               "$ref" : "#/components/schemas/PhaseRollup"
             }
           },
+          "pim_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "plan" : {
             "type" : [ "string", "null" ]
           },
@@ -1970,7 +2143,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "estimate_h", "forecast", "has_functions", "key", "late_functions", "late_subtasks", "member_ids", "phases", "plan", "project", "slip_days", "title", "used_h" ]
+        "required" : [ "estimate_h", "forecast", "has_functions", "key", "late_functions", "late_subtasks", "member_ids", "phases", "pim_ids", "plan", "project", "slip_days", "title", "used_h" ]
       },
       "AnkenDetail" : {
         "type" : "object",
@@ -1984,6 +2157,12 @@
           "card" : {
             "$ref" : "#/components/schemas/AnkenCard"
           },
+          "not_members" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NotMember"
+            }
+          },
           "tasks" : {
             "type" : "array",
             "items" : {
@@ -1991,7 +2170,53 @@
             }
           }
         },
-        "required" : [ "attention", "card", "tasks" ]
+        "required" : [ "attention", "card", "not_members", "tasks" ]
+      },
+      "AnkenMemberRow" : {
+        "type" : "object",
+        "properties" : {
+          "access" : {
+            "type" : "string",
+            "enum" : [ "none", "requested", "active", "rejected", "disabled" ]
+          },
+          "added_at" : {
+            "type" : "string"
+          },
+          "added_by" : {
+            "type" : "string"
+          },
+          "member" : {
+            "$ref" : "#/components/schemas/Member"
+          }
+        },
+        "required" : [ "access", "added_at", "added_by", "member" ]
+      },
+      "AnkenMembersView" : {
+        "type" : "object",
+        "properties" : {
+          "candidates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Member"
+            }
+          },
+          "epic_key" : {
+            "type" : "string"
+          },
+          "members" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AnkenMemberRow"
+            }
+          },
+          "not_members" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NotMember"
+            }
+          }
+        },
+        "required" : [ "candidates", "epic_key", "members", "not_members" ]
       },
       "Answer" : {
         "type" : "object",
@@ -3220,6 +3445,12 @@
               "$ref" : "#/components/schemas/FunctionRow"
             }
           },
+          "member_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "next_function_id" : {
             "type" : "string"
           },
@@ -3245,7 +3476,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "epic_key", "functions", "next_function_id", "parents", "phase", "stats", "task_keys", "title" ]
+        "required" : [ "epic_key", "functions", "member_ids", "next_function_id", "parents", "phase", "stats", "task_keys", "title" ]
       },
       "Me" : {
         "type" : "object",
@@ -3534,6 +3765,47 @@
         },
         "required" : [ "aliases", "matched", "rule", "total" ]
       },
+      "NewPersonIn" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "epics" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "name" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        },
+        "required" : [ "email", "epics", "name" ]
+      },
+      "NotMember" : {
+        "type" : "object",
+        "properties" : {
+          "logged_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "open_subtasks" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "logged_h", "member_id", "open_subtasks" ]
+      },
       "ParentOption" : {
         "type" : "object",
         "properties" : {
@@ -3570,6 +3842,18 @@
           }
         },
         "required" : [ "end", "functions", "group", "key", "name", "phase", "prefix", "start", "summary", "workflow" ]
+      },
+      "PersonPatchIn" : {
+        "type" : "object",
+        "properties" : {
+          "clear_role" : {
+            "type" : [ "boolean", "null" ]
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        }
       },
       "PhaseRollup" : {
         "type" : "object",

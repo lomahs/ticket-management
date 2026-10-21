@@ -40,6 +40,7 @@ import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.Overview;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Scheduling;
+import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
@@ -62,7 +63,11 @@ public class AnkenService {
     /** @param slipDays working days the forecast is past the plan */
     public record AnkenCard(String key, String title, String project, @Nullable String plan, @Nullable String forecast, int slipDays,
                             int lateFunctions, int lateSubtasks, double usedH, double estimateH, List<PhaseRollup> phases,
-                            List<String> memberIds, boolean hasFunctions) {
+                            List<String> memberIds, boolean hasFunctions, List<String> pimIds) {
+    }
+
+    /** Someone with work on the epic's sub-tasks who is not a member of the anken: open sub-tasks assigned and hours logged. */
+    public record NotMember(String memberId, int openSubtasks, double loggedH) {
     }
 
     /** @param items at most 6 */
@@ -79,8 +84,11 @@ public class AnkenService {
                             @Nullable String start, @Nullable String end) {
     }
 
-    /** @param tasks the epic's Tasks, by planned start then key */
-    public record AnkenDetail(AnkenCard card, List<AttentionView> attention, List<PhaseTask> tasks) {
+    /**
+     * @param tasks      the epic's Tasks, by planned start then key
+     * @param notMembers people with work here who are not members; empty unless the viewer may read members
+     */
+    public record AnkenDetail(AnkenCard card, List<AttentionView> attention, List<PhaseTask> tasks, List<NotMember> notMembers) {
     }
 
     private static List<Issue> epicSubtasks(TrackerContext ctx, String epic) {
@@ -123,7 +131,33 @@ public class AnkenService {
                 late.size(),
                 Numbers.round(subs.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(subs.stream().mapToDouble(Issue::estimateH).sum(), 2),
-                phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty());
+                phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty(),
+                ctx.ankenMembers.getOrDefault(key, Set.of()).stream().sorted()
+                        .filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.PIM).toList());
+    }
+
+    /** Assignees of open sub-tasks and authors of worklogs on the epic who are not in its anken, most open sub-tasks first. */
+    static List<NotMember> notMembers(TrackerContext ctx, String epic) {
+        Map<String, Integer> open = new HashMap<>();
+        Map<String, Double> logged = new HashMap<>();
+        for (Issue i : epicSubtasks(ctx, epic)) {
+            if (i.status() != Status.CLOSED && Text.hasText(i.assigneeId())) {
+                open.merge(i.assigneeId(), 1, Integer::sum);
+            }
+            i.worklogs().forEach(w -> logged.merge(w.memberId(), w.hours(), Double::sum));
+        }
+        Set<String> ids = new HashSet<>(open.keySet());
+        ids.addAll(logged.keySet());
+        return ids.stream().filter(id -> ctx.members.containsKey(id) && !ctx.isMember(epic, id))
+                .map(id -> new NotMember(id, open.getOrDefault(id, 0), Numbers.round(logged.getOrDefault(id, 0.0), 2)))
+                .sorted(Comparator.comparingInt(NotMember::openSubtasks).reversed().thenComparing(NotMember::memberId)).toList();
+    }
+
+    /** The not-a-member warning of one anken. */
+    public List<NotMember> notMembers(AnkenScope scope, String epic) {
+        TrackerContext ctx = context.load(scope);
+        require(ctx, epic);
+        return notMembers(ctx, epic);
     }
 
     /** The cards of the anken in scope, in tracked order. */
@@ -143,6 +177,11 @@ public class AnkenService {
     }
 
     public AnkenDetail detail(AnkenScope scope, String epic) {
+        return detail(scope, epic, false);
+    }
+
+    /** @param withNotMembers whether to fill {@link AnkenDetail#notMembers} */
+    public AnkenDetail detail(AnkenScope scope, String epic, boolean withNotMembers) {
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         List<Issue> subs = epicSubtasks(ctx, epic);
@@ -150,7 +189,8 @@ public class AnkenService {
                 .map(g -> new AttentionView(g.kind(), g.issues().size(),
                         g.issues().subList(0, Math.min(6, g.issues().size())).stream().map(ctx::card).toList()))
                 .toList();
-        return new AnkenDetail(card(ctx, epic), attention, phaseTasks(ctx, epic, subs));
+        return new AnkenDetail(card(ctx, epic), attention, phaseTasks(ctx, epic, subs),
+                withNotMembers ? notMembers(ctx, epic) : List.of());
     }
 
     private static List<PhaseTask> phaseTasks(TrackerContext ctx, String epic, List<Issue> subs) {
@@ -202,9 +242,11 @@ public class AnkenService {
      * @param functions the functions of the shown Tasks, Task by Task
      * @param parents   every Task of the epic, by phase group, then planned start
      * @param taskKeys  the shown Tasks, in the order of {@code parents}; empty when the epic has no Tasks
+     * @param memberIds the anken's members, by id
      */
     public record MatrixView(String epicKey, String title, String phase, MatrixStats stats, List<FunctionRow> functions,
-                             List<ParentOption> parents, String nextFunctionId, List<String> taskKeys) {
+                             List<ParentOption> parents, String nextFunctionId, List<String> taskKeys,
+                             List<String> memberIds) {
     }
 
     private static final Pattern FUNCTION_ID = Pattern.compile("([A-Za-z]+)(\\d+)");
@@ -340,7 +382,8 @@ public class AnkenService {
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
         String shownPhase = String.join(", ", picked.stream().map(ParentOption::group).distinct().toList());
-        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), taskKeys);
+        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), taskKeys,
+                ctx.ankenMembers.getOrDefault(epic, Set.of()).stream().sorted().toList());
     }
 
     // --- one function -------------------------------------------------------------------------------------------------

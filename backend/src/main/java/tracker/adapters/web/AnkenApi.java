@@ -89,7 +89,7 @@ public class AnkenApi {
     @Requires(feature = Feature.OVERVIEW, level = Level.READ)
     @GetMapping("/{epic}")
     public AnkenDetail detail(@PathVariable("epic") String epic, Viewer viewer) {
-        return anken.detail(epicScope(viewer, epic), epic);
+        return anken.detail(epicScope(viewer, epic), epic, viewer.can(Feature.MEMBERS, Level.READ));
     }
 
     /**
