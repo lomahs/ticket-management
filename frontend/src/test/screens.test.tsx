@@ -408,6 +408,7 @@ describe('screens render API data at their URLs', () => {
     );
     renderApp('/effort/timesheet?from=2026-10-05');
     const under = await screen.findByRole('button', { name: /Under allocation/ });
+    expect(under.getAttribute('aria-label')).toMatch(/^5h · plan .+ · Under allocation$/); // hours and plan stay in the name
     expect(under.getAttribute('title')).toContain('target 8h');
     expect(under.getAttribute('title')).toContain('+1.5h on anken without allocation');
     expect(screen.getByRole('button', { name: /No allocation/ })).toBeTruthy();

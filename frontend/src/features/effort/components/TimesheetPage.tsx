@@ -116,8 +116,10 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
                   const clickable = c.state !== 'future' && (c.logged_h > 0 || (c.state !== 'weekend' && c.state !== 'off'));
                   const value = c.state === 'off' ? 'off' : c.state === 'future' || c.state === 'weekend' || !c.logged_h ? '' : hrs(c.logged_h);
                   const planned = c.planned_h ? `plan ${hrs(c.planned_h)}` : c.state === 'weekend' || c.state === 'off' ? '' : 'plan –';
+                  // The state is told by colour, so screen readers hear it after what the cell shows.
+                  const name = [value, planned, STATE_LABEL[c.state]].filter(Boolean).join(' · ');
                   return (
-                    <button key={c.date} className="hv-dim2" aria-label={STATE_LABEL[c.state]}
+                    <button key={c.date} className="hv-dim2" aria-label={name || undefined}
                       title={`${m?.name ?? r.member_id} · ${WDN[dow(c.date)]} ${dm(c.date)} · ${hrs(c.logged_h)} logged${c.target_h > 0 ? ` · target ${hrs(c.target_h)}` : ''}${c.unallocated_h > 0 ? ` · +${hrs(c.unallocated_h)} on anken without allocation` : ''}${c.off_reason ? ' · ' + c.off_reason : ''}`}
                       onClick={(e) => clickable && setPin(pos(e, r.member_id, c.date, true))}
                       onMouseEnter={(e) => clickable && !pin && setHover(pos(e, r.member_id, c.date, false))}

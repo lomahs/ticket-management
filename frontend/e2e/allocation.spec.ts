@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+// The switcher's anken is remembered in the browser: put it back on every anken for the later specs, even after a failure.
+test.afterEach(async ({ page }) => {
+  await page.goto('/anken');
+  await page.getByLabel('Anken', { exact: true }).selectOption('');
+});
+
 test('PM changes an allocation', async ({ page }) => {
   await page.goto('/anken/PAY-1100');
   await page.getByRole('button', { name: 'Allocation… An' }).click();
@@ -19,6 +25,4 @@ test('timesheet compares with allocation', async ({ page }) => {
   await page.getByLabel('Anken', { exact: true }).selectOption('PAY-1100');
   // the change above starts on 10-08, so these days still carry the demo's 5h on PAY-1100
   await expect(page.getByTitle(/^An · .*target 5h/).first()).toBeVisible();
-  // leave the shared browser state as the other specs expect it
-  await page.getByLabel('Anken', { exact: true }).selectOption('');
 });

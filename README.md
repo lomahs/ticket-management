@@ -121,10 +121,13 @@ their own calendar, and nobody else sees their leave: add them to their anken. *
 member into another one (two members with different Jira accounts are two people and cannot be merged).
 
 **Allocation:** how many hours a day a member gives each anken. The PM, PIM or an admin sets it in the **Allocation…**
-dialog of the Members panel: pick a *From* date and the hours for each anken, and Save adds a step to the history (nothing is
-overwritten). The latest step on or before a day gives the hours for that day; 0 means off that anken from then on. The total
+dialog of the Members panel: pick a *From* date and the hours for each anken, and Save adds a step to the history; saving
+again on the same *From* date replaces that step. The fields start from the hours in force on the *From* date, the history
+marks the step in force today *current* and later ones *scheduled*, and a blank field is not saved (that anken keeps no
+allocation). The latest step on or before a day gives the hours for that day; 0 means off that anken from then on. The total
 over all anken may not exceed the working hours per day (Settings → Hours), on the *From* date and on every later date
-where a step takes effect, or the save is refused. A day's allocation follows the calendar: leave and holidays give 0 and
+where a step takes effect, or the save is refused. Allocations count only on tracked anken the member belongs to: rows of an
+anken they leave stay in the history and count again if they are added back. A day's allocation follows the calendar: leave and holidays give 0 and
 a half-day leave gives half. The **Timesheet** compares each day's logged hours with the target, the sum of the allocation
 of the anken in view that have one (under, ok, over, with the existing tolerance; *under* only before today). Hours logged on
 an anken without allocation are shown apart, and a member with no allocation in view has no target (*no allocation*). **Capacity**
