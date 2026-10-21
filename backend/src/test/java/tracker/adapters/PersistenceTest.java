@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tracker.TrackerTest;
 import tracker.adapters.crypto.CryptoSecretBox;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
@@ -33,6 +34,7 @@ import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
 import tracker.domain.Anken;
+import tracker.domain.Allocation;
 import tracker.domain.AnkenMember;
 import tracker.domain.AnkenScopeSetting;
 import tracker.domain.EventField;
@@ -69,6 +71,8 @@ class PersistenceTest {
     @Autowired
     AnkenMemberRepository ankenMembers;
     @Autowired
+    AllocationRepository allocations;
+    @Autowired
     IssueRepository issues;
     @Autowired
     AnkenRepository anken;
@@ -93,7 +97,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6");
     }
 
     @Test
@@ -253,6 +257,36 @@ class PersistenceTest {
         assertThat(calendar.findLeaves()).isEmpty();
         assertThat(calendar.findHolidays()).isEmpty();
         assertThat(calendar.findExtraDays()).isEmpty();
+    }
+
+    @Test
+    void allocationsRoundTripAndUpsert() {
+        members.save(new Member("a", "A", "A", Role.BA, "VN", "#111"));
+        allocations.save(new Allocation("a", "PAY-1100", "2026-10-01", 4), "minh", "2026-10-07T09:00:00Z");
+        allocations.save(new Allocation("a", "PAY-1100", "2026-10-01", 6), "minh", "2026-10-08T09:00:00Z");
+        allocations.save(new Allocation("a", "PAY-1100", "2026-11-02", 0), "minh", "2026-10-08T09:00:00Z");
+
+        assertThat(allocations.findByMember("a")).containsExactly(new Allocation("a", "PAY-1100", "2026-10-01", 6),
+                new Allocation("a", "PAY-1100", "2026-11-02", 0));
+        assertThat(allocations.findAll()).hasSize(2);
+        assertThat(jdbc.sql("SELECT set_at FROM allocations WHERE effective_from = '2026-10-01'").query(String.class).single())
+                .isEqualTo("2026-10-08T09:00:00Z");
+    }
+
+    @Test
+    void mergeMovesAllocations() {
+        members.save(new Member("a", "A", "A", Role.BA, "VN", "#111"));
+        members.save(new Member("b", "B", "B", Role.BA, "VN", "#222"));
+        allocations.save(new Allocation("a", "X", "2026-10-01", 5), "minh", "t");
+        allocations.save(new Allocation("b", "X", "2026-10-01", 2), "minh", "t");
+        allocations.save(new Allocation("b", "Y", "2026-10-01", 3), "minh", "t");
+
+        merger.merge("a", "b");
+
+        assertThat(allocations.findByMember("a")).containsExactlyInAnyOrder(new Allocation("a", "X", "2026-10-01", 5),
+                new Allocation("a", "Y", "2026-10-01", 3));
+        assertThat(allocations.findByMember("b")).isEmpty();
+        assertThat(allocations.findAll()).hasSize(2);
     }
 
     @Test

@@ -24,6 +24,9 @@ class JdbcMemberMergeRepository implements MemberMergeRepository {
         run("INSERT OR IGNORE INTO anken_members (epic_key, member_id, added_at, added_by) "
                 + "SELECT epic_key, :keep, added_at, added_by FROM anken_members WHERE member_id = :remove", keepId, removeId);
         run("DELETE FROM anken_members WHERE member_id = :remove", keepId, removeId);
+        run("INSERT OR IGNORE INTO allocations (member_id, epic_key, effective_from, hours_per_day, set_by, set_at) "
+                + "SELECT :keep, epic_key, effective_from, hours_per_day, set_by, set_at FROM allocations WHERE member_id = :remove", keepId, removeId);
+        run("DELETE FROM allocations WHERE member_id = :remove", keepId, removeId);
         run("DELETE FROM leaves WHERE member_id = :remove AND date IN (SELECT date FROM leaves WHERE member_id = :keep)", keepId, removeId);
         run("UPDATE leaves SET member_id = :keep WHERE member_id = :remove", keepId, removeId);
         run("UPDATE worklogs SET member_id = :keep WHERE member_id = :remove", keepId, removeId);
