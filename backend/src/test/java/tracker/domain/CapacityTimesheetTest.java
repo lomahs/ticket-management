@@ -18,6 +18,31 @@ class CapacityTimesheetTest {
             new PlanItem("PAY-2", "chi", "2026-10-08", "2026-10-09", 4),   // 09 is Chi's leave → all 4h on 08
             new PlanItem("PAY-3", "chi", "2026-10-09", "2026-10-09", 3));  // only day is off → lands on its start day
 
+    static final Allocations EIGHT_X = new Allocations(List.of(new Allocation("an", "X", "2026-09-01", 8),
+            new Allocation("chi", "X", "2026-09-01", 8)));
+
+    @Test
+    void capacityUsesAllocation() {
+        Allocations alloc = new Allocations(List.of(new Allocation("an", "X", "2026-10-01", 4)));
+        List<PlanItem> items = List.of(new PlanItem("PAY-1", "an", "2026-10-19", "2026-10-23", 20));
+        Capacity.WeekLoad w = Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-19", alloc, Set.of("X"), 100, 1).get("an").get(0);
+        assertThat(w.availableH()).isEqualTo(20); // Mon-Fri at 4h
+        assertThat(w.pct()).isEqualTo(100);
+        assertThat(w.level()).isEqualTo("near");
+        assertThat(Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-19", alloc, Set.of("X"), 90, 1).get("an").get(0).level())
+                .isEqualTo("over");
+    }
+
+    @Test
+    void capacityWithoutAllocationIsNotOver() {
+        List<PlanItem> items = List.of(new PlanItem("PAY-1", "an", "2026-10-05", "2026-10-09", 20));
+        Capacity.WeekLoad w = Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-05", new Allocations(List.of()), Set.of("X"), 100, 1)
+                .get("an").get(0);
+        assertThat(w.pct()).isNull();
+        assertThat(w.level()).isEqualTo("no_allocation");
+        assertThat(w.plannedH()).isEqualTo(20);
+    }
+
     @Test
     void dailyPlanSpreadsEstimateOverWorkingDays() {
         Capacity.Plan p = Capacity.dailyPlan(ITEMS, CAL);
@@ -30,7 +55,7 @@ class CapacityTimesheetTest {
     void weeklyCapacityLevels() {
         List<PlanItem> items = new ArrayList<>(ITEMS);
         items.add(new PlanItem("PAY-4", "an", "2026-10-12", "2026-10-16", 38));
-        Map<String, List<Capacity.WeekLoad>> weeks = Capacity.weeklyCapacity(items, CAL, List.of("an", "chi"), "2026-10-05", 8, 100, 5);
+        Map<String, List<Capacity.WeekLoad>> weeks = Capacity.weeklyCapacity(items, CAL, List.of("an", "chi"), "2026-10-05", EIGHT_X, Set.of("X"), 100, 5);
         List<Capacity.WeekLoad> an = weeks.get("an");
         assertThat(an.get(0).plannedH()).isEqualTo(10);
         assertThat(an.get(0).availableH()).isEqualTo(48); // Mon–Fri + extra Saturday 10/10
@@ -45,7 +70,7 @@ class CapacityTimesheetTest {
     @Test
     void itemsBeforeTheWindowAreNotCounted() {
         List<PlanItem> items = List.of(new PlanItem("OLD", "an", "2026-09-30", "2026-10-02", 6));
-        Map<String, List<Capacity.WeekLoad>> weeks = Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-05", 8, 100, 5);
+        Map<String, List<Capacity.WeekLoad>> weeks = Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-05", EIGHT_X, Set.of("X"), 100, 5);
         assertThat(weeks.get("an")).allMatch(w -> w.plannedH() == 0);
     }
 

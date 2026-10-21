@@ -3,10 +3,12 @@ package tracker.application.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.jspecify.annotations.Nullable;
@@ -19,7 +21,9 @@ import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.JiraWriter;
+import tracker.domain.Allocations;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.Capacity.PlanItem;
@@ -36,7 +40,6 @@ import tracker.domain.Scheduling;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.Text;
-import tracker.domain.WorkingHours;
 
 /** Planning: the Gantt by member, previews of pending moves (dates, reassignment, capacity) and pushing them to Jira. */
 @Service
@@ -44,8 +47,11 @@ public class PlanningService {
     private final TrackerContextLoader context;
     private final Optional<JiraWriter> writer;
     private final SyncService sync;
+    private final AllocationRepository allocations;
 
-    public PlanningService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync) {
+    public PlanningService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync,
+                           AllocationRepository allocations) {
+        this.allocations = allocations;
         this.context = context;
         this.writer = writer;
         this.sync = sync;
@@ -103,7 +109,7 @@ public class PlanningService {
                 && Text.hasText(i.plannedEnd())).toList();
     }
 
-    private static List<MemberCapacity> capacity(TrackerContext ctx, String start, Map<String, ChangePreview> moved) {
+    private List<MemberCapacity> capacity(TrackerContext ctx, AnkenScope scope, String start, Map<String, ChangePreview> moved) {
         List<PlanItem> items = new ArrayList<>();
         for (Issue i : planned(ctx)) {
             ChangePreview c = moved.get(i.key());
@@ -116,10 +122,11 @@ public class PlanningService {
                 }
             }
         }
-        WorkingHours wh = ctx.settings.workingHours;
+        Set<String> scopeEpics = new HashSet<>(ctx.settings.jira.epics);
+        scopeEpics.retainAll(scope.epics());
         List<String> memberIds = ctx.people;
         Map<String, List<WeekLoad>> loads = Capacity.weeklyCapacity(items, ctx.cal, memberIds, Dates.mondayOf(start),
-                wh.hoursPerDay(), ctx.settings.thresholds.capacityPct(), CAPACITY_WEEKS);
+                new Allocations(allocations.findAll()), scopeEpics, ctx.settings.thresholds.capacityPct(), CAPACITY_WEEKS);
         return memberIds.stream().map(m -> new MemberCapacity(m, loads.get(m))).toList();
     }
 
@@ -151,7 +158,7 @@ public class PlanningService {
         }
         List<DayHead> heads = days.stream().map(x -> new DayHead(x, x.equals(ctx.today), ctx.cal.extraDays().get(x))).toList();
         List<String> projects = List.copyOf(new TreeSet<>(ctx.anken.stream().map(Anken::project).toList()));
-        return new PlanningView(first, last, heads, projects, rows, capacity(ctx, first, Map.of()));
+        return new PlanningView(first, last, heads, projects, rows, capacity(ctx, scope, first, Map.of()));
     }
 
     /** Every key must be in the scope (else not found); a new worker must be a member of the ticket's anken. */
@@ -181,7 +188,7 @@ public class PlanningService {
         List<ChangePreview> pv = previews(ctx, changes);
         Map<String, ChangePreview> moved = new HashMap<>();
         pv.forEach(c -> moved.put(c.key(), c));
-        return new PlanningPreview(pv, capacity(ctx, start, moved));
+        return new PlanningPreview(pv, capacity(ctx, scope, start, moved));
     }
 
     /** Writes the moves to Jira and reads the moved issues back. */

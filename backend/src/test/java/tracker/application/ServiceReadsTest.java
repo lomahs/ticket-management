@@ -361,7 +361,20 @@ class ServiceReadsTest {
         assertThat(Set.copyOf(v.projects())).isEqualTo(Set.of("PAY", "CRM", "OPS"));
         var cap = v.capacity().stream().filter(c -> c.memberId().equals("chi")).findFirst().orElseThrow().weeks();
         assertThat(cap).hasSize(5);
-        assertThat(cap.get(0).availableH()).isEqualTo(40);
+        assertThat(cap.get(0).level()).isEqualTo("no_allocation");
+        assertThat(cap.get(0).pct()).isNull();
+    }
+
+    @Test
+    void planningCapacityScoped() {
+        allocations.save(new Allocation("chi", "PAY-1100", "2026-09-01", 6), "minh", "2026-10-07T09:00:00Z");
+        try {
+            var cap = planning.view(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", 1).capacity().stream()
+                    .filter(c -> c.memberId().equals("chi")).findFirst().orElseThrow().weeks();
+            assertThat(cap.get(0).availableH()).isEqualTo(30); // Mon-Thu plus the extra Saturday 10/10 (leave on Friday) x 6h
+        } finally {
+            jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi'").update();
+        }
     }
 
     @Test
