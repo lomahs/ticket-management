@@ -30,7 +30,7 @@ class AnalysisOverviewTest {
                         assigned("2026-10-02", "an", "minh"), assigned("2026-10-05", "minh", "an")).build());
         List<Function> fns = Flags.buildFunctions(cells);
         Map<String, Integer> rounds = new HashMap<>();
-        cells.forEach(c -> rounds.put(c.key(), Flags.issueFlags(c, true, "an", TODAY, T).rounds()));
+        cells.forEach(c -> rounds.put(c.key(), Fixtures.flags(c, true, "an").rounds()));
         List<Analysis.Rework> r = Analysis.reworkByMember(fns, List.of("an"), rounds);
         assertThat(r).containsExactly(new Analysis.Rework("an", 1, 10, 3, 0.3, 2, 2));
     }
@@ -69,7 +69,7 @@ class AnalysisOverviewTest {
         Issue jm = issue().key("J").assignee("tanaka").step(StepKind.JM_REVIEW).fid("F1").events(assigned("2026-09-29", "an", "tanaka")).build();
         List<Issue> issues = List.of(late, stuck, jm);
         Map<String, IssueFlags> flags = new HashMap<>();
-        issues.forEach(i -> flags.put(i.key(), Flags.issueFlags(i, true, "an", TODAY, T)));
+        issues.forEach(i -> flags.put(i.key(), Fixtures.flags(i, true, "an")));
         Map<String, List<String>> g = new LinkedHashMap<>();
         Overview.attentionGroups(issues, flags, members, T).forEach(x -> g.put(x.kind(), x.issues().stream().map(Issue::key).toList()));
         assertThat(g).isEqualTo(Map.of("overdue", List.of("L"), "stuck_resolved", List.of("R"), "many_rounds", List.of(),

@@ -29,7 +29,7 @@ class QaLeaveImportTest {
                 issue().key("PAY-3").fid("F03").step(StepKind.CREATE).assignee("binh").logged(3).logDate("2026-10-06").pe("2026-10-09").build());
         List<Function> fns = Flags.buildFunctions(cells);
         Map<String, IssueFlags> flags = new HashMap<>();
-        cells.forEach(c -> flags.put(c.key(), Flags.issueFlags(c, true, c.assigneeId(), TODAY, Thresholds.defaults())));
+        cells.forEach(c -> flags.put(c.key(), Fixtures.flags(c, true, c.assigneeId())));
         List<Worklog> logs = List.of(new Worklog("2026-10-05", "binh", 8), new Worklog("2026-10-07", "binh", 3),
                 new Worklog("2026-09-30", "binh", 8));
         return new Qa.QaContext(fns, flags, MEMBERS, logs, TODAY, 8, List.of(1, 2, 3, 4, 5));

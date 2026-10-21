@@ -86,27 +86,25 @@ public final class Flags {
         return issue.assigneeId();
     }
 
-    private static String tone(Issue i, String today) {
-        if (i.status() == Status.NYS) {
-            return "nys";
-        }
+    /** The tone of a card, from its status and schedule labels; the first matching rule wins. */
+    private static String tone(Issue i, IssueSchedule s) {
         if (i.status() == Status.RESOLVED) {
             return "res";
         }
         if (i.status() == Status.CLOSED) {
             return "clo";
         }
-        if (Text.hasText(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0) {
+        if (s.finish() == FinishState.OVERDUE) {
             return "delay";
         }
-        String first = actualStart(i);
-        if (first != null && Text.hasText(i.plannedStart())) {
-            if (first.compareTo(i.plannedStart()) > 0) {
-                return "latestart";
-            }
-            if (first.compareTo(i.plannedStart()) < 0) {
-                return "early";
-            }
+        if (s.start() == StartState.LATE_START) {
+            return "latestart";
+        }
+        if (s.start() == StartState.EARLY_START) {
+            return "early";
+        }
+        if (i.status() == Status.NYS) {
+            return "nys";
         }
         return "ontime";
     }
@@ -143,19 +141,21 @@ public final class Flags {
         return i.status() == Status.NYS ? 0 : 1;
     }
 
-    public static IssueFlags issueFlags(Issue issue, boolean isCurrent, String ownerId, String today, Thresholds thresholds) {
+    /** Late is the schedule's {@code overdue} finish; {@code soon} applies only to an active step that is not late. */
+    public static IssueFlags issueFlags(Issue issue, boolean isCurrent, String ownerId, String today, Thresholds thresholds,
+                                        IssueSchedule schedule) {
         boolean active = issue.status() == Status.WIP || (issue.status() == Status.NYS && isCurrent);
         String pe = issue.plannedEnd();
-        boolean late = active && Text.hasText(pe) && pe.compareTo(today) < 0;
+        boolean late = schedule.finish() == FinishState.OVERDUE;
         boolean soon = !late && active && Text.hasText(pe) && pe.compareTo(today) >= 0
                 && Dates.weekdaysAfter(today, pe) <= thresholds.soonDays();
         return new IssueFlags(
                 isCurrent,
                 late,
-                late ? Dates.weekdaysAfter(pe, today) : 0,
+                late ? schedule.finishDays() : 0,
                 soon,
                 issue.loggedH() > issue.estimateH(),
-                tone(issue, today),
+                tone(issue, schedule),
                 held(issue, today),
                 rounds(issue, ownerId));
     }

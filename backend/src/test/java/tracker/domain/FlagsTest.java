@@ -14,10 +14,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class FlagsTest {
-    static final Thresholds T = Thresholds.defaults();
 
     static IssueFlags flags(Issue i, boolean current, String owner) {
-        return Flags.issueFlags(i, current, owner, TODAY, T);
+        return Fixtures.flags(i, current, owner);
     }
 
     static IssueFlags flags(Issue i) {
@@ -131,12 +130,23 @@ class FlagsTest {
     }
 
     @Test
-    void lateOnlyWhenActiveAndPastPlannedEnd() {
+    void lateWhenOpenAndPastPlannedEnd() {
         assertThat(flags(issue().pe("2026-10-02").build()).late()).isTrue();
         assertThat(flags(issue().pe("2026-10-02").build()).lateDays()).isEqualTo(3);
         assertThat(flags(issue().pe("2026-10-02").status(Status.RESOLVED).build()).late()).isFalse();
+        assertThat(flags(issue().pe("2026-10-02").status(Status.CLOSED).build()).late()).isFalse();
         assertThat(flags(issue().pe("2026-10-02").status(Status.NYS).build(), true, "an").late()).isTrue();
-        assertThat(flags(issue().pe("2026-10-02").status(Status.NYS).build(), false, "an").late()).isFalse();
+        assertThat(flags(issue().pe(TODAY).build()).late()).isFalse(); // due today: not yet overdue
+        assertThat(flags(issue().pe(TODAY).build()).lateDays()).isZero();
+    }
+
+    @Test
+    void lateIsOverdue() {
+        // a step that is not the function's current one is judged on its own dates too
+        IssueFlags f = flags(issue().ps("2026-09-30").pe("2026-10-02").status(Status.NYS).build(), false, "an");
+        assertThat(f.late()).isTrue();
+        assertThat(f.lateDays()).isEqualTo(3);
+        assertThat(f.soon()).isFalse();
     }
 
     @Test
@@ -152,13 +162,23 @@ class FlagsTest {
     }
 
     @Test
-    void toneFromStatusPlanAndFirstWorklog() {
-        assertThat(flags(issue().status(Status.NYS).build()).tone()).isEqualTo("nys");
-        assertThat(flags(issue().status(Status.RESOLVED).build()).tone()).isEqualTo("res");
-        assertThat(flags(issue().status(Status.CLOSED).build()).tone()).isEqualTo("clo");
-        assertThat(flags(issue().pe("2026-10-02").build()).tone()).isEqualTo("delay");
+    void toneFollowsTheLabels() {
+        // status R / C first, even past the planned end
+        assertThat(flags(issue().status(Status.RESOLVED).pe("2026-10-02").build()).tone()).isEqualTo("res");
+        assertThat(flags(issue().status(Status.CLOSED).pe("2026-10-02").build()).tone()).isEqualTo("clo");
+        // finish overdue, also for a not-started issue, before a late start
+        assertThat(flags(issue().ps("2026-09-30").pe("2026-10-02").logged(1).logDate("2026-10-01").build()).tone()).isEqualTo("delay");
+        assertThat(flags(issue().status(Status.NYS).ps("2026-09-30").pe("2026-10-02").build(), false, "an").tone()).isEqualTo("delay");
+        // start late_start: started after the planned start, or not started and past it
         assertThat(flags(issue().logged(1).logDate("2026-10-06").build()).tone()).isEqualTo("latestart");
+        assertThat(flags(issue().status(Status.NYS).build()).tone()).isEqualTo("latestart");
+        // start early_start
         assertThat(flags(issue().logged(1).logDate("2026-10-02").build()).tone()).isEqualTo("early");
+        // status NYS: not due yet, or no plan
+        assertThat(flags(issue().status(Status.NYS).ps("2026-10-08").pe("2026-10-09").build()).tone()).isEqualTo("nys");
+        assertThat(flags(issue().status(Status.NYS).ps(TODAY).pe("2026-10-09").build()).tone()).isEqualTo("nys");
+        assertThat(flags(issue().status(Status.NYS).ps(null).pe(null).build()).tone()).isEqualTo("nys");
+        // otherwise
         assertThat(flags(issue().logged(1).logDate("2026-10-05").build()).tone()).isEqualTo("ontime");
     }
 

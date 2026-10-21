@@ -2,6 +2,7 @@ package tracker.domain;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** Small builders for domain objects used across domain tests. */
 final class Fixtures {
@@ -9,6 +10,16 @@ final class Fixtures {
     }
 
     static final String TODAY = "2026-10-07";
+
+    /** Mon-Fri for everyone: no holidays, leave or extra working days. */
+    static final WorkCalendar CAL = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), Map.of(), List.of());
+
+    /** The flags of {@code i} on {@link #TODAY}, from its schedule labels with the default thresholds. */
+    static IssueFlags flags(Issue i, boolean current, String owner) {
+        Thresholds t = Thresholds.defaults();
+        IssueSchedule s = ScheduleRules.of(i, Flags.workerOf(i, owner), TODAY, CAL, t.effortDiffH());
+        return Flags.issueFlags(i, current, owner, TODAY, t, s);
+    }
 
     /** A WIP sub-task of PAY-1100 planned 05/10–09/10 with an 8h estimate. */
     static final class I {

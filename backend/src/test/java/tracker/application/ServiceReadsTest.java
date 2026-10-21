@@ -444,8 +444,10 @@ class ServiceReadsTest {
     @Test
     void qaAnswersFromSyncedData() {
         var a = tickets.ask(ALL, "Which functions are late?");
-        assertThat(a.text()).startsWith("12 sub-tasks are past their plan, across 12 functions");
-        assertThat(a.chips()).hasSize(12).contains("PAY-1213", "PAY-1219", "PAY-1222", "PAY-1226", "PAY-1235", "PAY-1252");
+        // overdue counts every open sub-task past its own planned end, also a later step of a function: PAY-1326 … PAY-1335 of PAY-1300
+        assertThat(a.text()).startsWith("18 sub-tasks are past their plan, across 12 functions");
+        assertThat(a.chips()).hasSize(18).contains("PAY-1213", "PAY-1219", "PAY-1222", "PAY-1226", "PAY-1235", "PAY-1252")
+                .contains("PAY-1326", "PAY-1329", "PAY-1330", "PAY-1333", "PAY-1334", "PAY-1335");
     }
 
     @Test
@@ -569,6 +571,30 @@ class ServiceReadsTest {
                 .isEqualTo("Pattern must contain {function_id} or {function_name}");
         assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{prefix}] {step}", Map.of("create", "Create")))
                 .isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void myWorkOverdueMatchesFlags(@Autowired TrackerContextLoader context) {
+        TrackerContext ctx = context.load(ALL);
+        for (String member : ctx.people) {
+            WorkService.MyWork w = work.myWork(ALL, member, "week", null);
+            assertThat(w.delay()).as(member).allMatch(TaskCard::late);
+            List<String> overdue = w.backlog().stream().filter(g -> g.kind().equals("overdue"))
+                    .flatMap(g -> g.items().stream()).map(TaskCard::key).toList();
+            for (WorkService.BacklogGroup g : w.backlog()) {
+                if (g.kind().equals("overdue")) {
+                    assertThat(g.items()).as(member).allMatch(TaskCard::late);
+                } else {
+                    assertThat(g.items()).as(member + " " + g.kind()).noneMatch(TaskCard::late);
+                }
+            }
+            List<String> shown = new ArrayList<>(overdue);
+            w.delay().forEach(c -> shown.add(c.key()));
+            List<String> lateOpen = ctx.subtasks().stream()
+                    .filter(i -> member.equals(i.assigneeId()) && i.status() != tracker.domain.Status.CLOSED)
+                    .filter(i -> ctx.flags.get(i.key()).late()).map(Issue::key).toList();
+            assertThat(shown).as(member).containsAll(lateOpen);
+        }
     }
 
     @Test

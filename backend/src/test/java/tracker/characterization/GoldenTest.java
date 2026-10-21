@@ -23,8 +23,11 @@ import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueFlags;
+import tracker.domain.IssueSchedule;
 import tracker.domain.Naming;
+import tracker.domain.ScheduleRules;
 import tracker.domain.Thresholds;
+import tracker.domain.WorkCalendar;
 
 /**
  * The demo data, synced through the real pipeline, must reproduce what the UI mock showed: golden.json holds the figures
@@ -33,6 +36,9 @@ import tracker.domain.Thresholds;
 @DemoTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GoldenTest {
+    static final Thresholds T = Thresholds.defaults();
+    /** Mon-Fri for everyone; only the effort label (unused here) depends on the calendar. */
+    static final WorkCalendar CAL = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), Map.of(), List.of());
     Map<String, Object> golden;
     List<Function> fns;
     Map<String, IssueFlags> flags = new LinkedHashMap<>();
@@ -48,7 +54,8 @@ class GoldenTest {
             for (int i = 0; i < f.cells().size(); i++) {
                 Issue c = f.cells().get(i);
                 if (c != null) {
-                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), f.ownerId(), Dataset.DEMO_TODAY, Thresholds.defaults()));
+                    IssueSchedule s = ScheduleRules.of(c, Flags.workerOf(c, f.ownerId()), Dataset.DEMO_TODAY, CAL, T.effortDiffH());
+                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), f.ownerId(), Dataset.DEMO_TODAY, T, s));
                 }
             }
         }

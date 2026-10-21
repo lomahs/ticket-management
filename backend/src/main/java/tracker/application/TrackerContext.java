@@ -14,9 +14,11 @@ import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueFlags;
 import tracker.domain.IssueKind;
+import tracker.domain.IssueSchedule;
 import tracker.domain.Leave;
 import tracker.domain.Member;
 import tracker.domain.Numbers;
+import tracker.domain.ScheduleRules;
 import tracker.domain.Status;
 import tracker.domain.WorkCalendar;
 
@@ -35,6 +37,8 @@ public final class TrackerContext {
     public final Map<String, Set<String>> ankenMembers;
     public final List<Function> functions = new ArrayList<>();
     public final Map<String, IssueFlags> flags = new LinkedHashMap<>();
+    /** Start, finish and effort labels of every issue; {@link #flags} derive late and tone from them. */
+    public final Map<String, IssueSchedule> schedule = new LinkedHashMap<>();
     public final Map<String, String> owner = new LinkedHashMap<>();
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
@@ -94,7 +98,7 @@ public final class TrackerContext {
                 f.isCurrent(), f.late(), f.lateDays(), f.soon(), f.over(), f.tone(), f.heldDays(), f.rounds());
     }
 
-    /** Derives functions (the sub-tasks of one feature, by step) and the flags of every issue. */
+    /** Derives functions (the sub-tasks of one feature, by step), then the schedule labels and flags of every issue. */
     void deriveFlags() {
         functions.addAll(Flags.buildFunctions(subtasks()));
         for (Function fn : functions) {
@@ -102,15 +106,22 @@ public final class TrackerContext {
                 Issue c = fn.cells().get(idx);
                 if (c != null) {
                     owner.put(c.key(), fn.ownerId());
-                    flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), fn.ownerId(), today, settings.thresholds));
+                    flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), fn.ownerId(), today, settings.thresholds, schedule(c)));
                 }
             }
         }
         for (Issue i : issues) {
             if (!flags.containsKey(i.key())) {
                 owner.put(i.key(), null);
-                flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, null, today, settings.thresholds));
+                flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, null, today, settings.thresholds, schedule(i)));
             }
         }
+    }
+
+    /** Computes and keeps the schedule labels of {@code i}; its owner must be known already (the worker depends on it). */
+    private IssueSchedule schedule(Issue i) {
+        IssueSchedule s = ScheduleRules.of(i, worker(i), today, cal, settings.thresholds.effortDiffH());
+        schedule.put(i.key(), s);
+        return s;
     }
 }

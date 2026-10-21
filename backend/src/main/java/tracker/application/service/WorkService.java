@@ -94,7 +94,7 @@ public class WorkService {
             GroupKey k;
             if (pe == null) {
                 k = new GroupKey(3, "unplanned", null);
-            } else if (pe.compareTo(today) < 0 && i.status() != Status.RESOLVED) {
+            } else if (ctx.flags.get(i.key()).late()) {
                 k = new GroupKey(0, "overdue", null);
             } else if (backlog.equals("month")) {
                 k = new GroupKey(1, "month", pe.substring(0, Math.min(7, pe.length())));
@@ -140,7 +140,7 @@ public class WorkService {
 
         return new MyWork(
                 memberId, today, nextDay,
-                tasks.stream().filter(i -> Text.hasText(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0).map(ctx::card).toList(),
+                tasks.stream().filter(i -> ctx.flags.get(i.key()).late()).map(ctx::card).toList(),
                 tasks.stream().filter(i -> today.equals(i.plannedEnd())).map(ctx::card).toList(),
                 tasks.stream().filter(i -> nextDay.equals(i.plannedEnd())).map(ctx::card).toList(),
                 backlogGroups, related.stream().map(ctx::card).toList(), relatedScope,
