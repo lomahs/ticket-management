@@ -35,6 +35,7 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessStatus;
 import tracker.domain.AnkenScope;
 import tracker.domain.Issue;
@@ -98,10 +99,11 @@ class ServiceWritesTest {
     @Test
     void createFunctionWithCompanyNaming(@Autowired SettingsStore settings, @Autowired SyncService sync) {
         settings.update(s -> {
-            s.nameRules.rule = "[{prefix}][{function_name}]_{step}";
-            s.nameRules.aliases = new java.util.EnumMap<>(Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
+            TrackerSettings.AnkenSettings a = s.anken.computeIfAbsent("PAY-1100", e -> TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
+            a.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+            a.nameRules.aliases = new java.util.EnumMap<>(Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
                     StepKind.FIX_BAL, "FixCommentBAL", StepKind.JM_REVIEW, "JMReview", StepKind.FIX_JM, "FixCommentJM"));
-            s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"),
+            a.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"),
                     List.of(new TaskTemplate("[Implement_Coding] *", "Implement_Coding", "UCI"),
                             new TaskTemplate("[Prepare] *", "Prepare", "PRE", false)));
         });
@@ -120,9 +122,11 @@ class ServiceWritesTest {
     }
 
     @Test
-    void saveStructureResyncsPhases() {
+    void saveStructureResyncsPhases(@Autowired SettingsStore store) {
         jiraSettings.saveStructure(new WorkStructure(List.of("Coding", "Prepare"),
                 List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
+        // saveStructure still edits the default only (Task 3 makes it per anken): hand PAY-1100 the new default
+        store.update(s -> s.anken.put("PAY-1100", TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules)));
         AnkenService.AnkenCard card = anken.overview(ALL).stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
         assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
     }

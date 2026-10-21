@@ -205,20 +205,28 @@ public class SyncService {
     private final class Mapper {
         final TrackerSettings s;
         final Set<String> epics;
-        final Naming.CompiledRule rule;
+        final Map<String, Naming.CompiledRule> rules = new HashMap<>();
         final Map<String, Member> byAccount = new HashMap<>();
         final Set<String> ids = new HashSet<>();
 
         Mapper(TrackerSettings settings, List<String> epics) {
             this.s = settings;
             this.epics = new HashSet<>(epics);
-            this.rule = Naming.compileRule(settings.nameRules.rule, settings.nameRules.aliases);
             for (Member m : members.findAll()) {
                 if (Text.hasText(m.jiraAccountId())) {
                     byAccount.put(m.jiraAccountId(), m);
                 }
                 ids.add(m.id());
             }
+        }
+
+        /** The rule of one epic, compiled on first use; the default when the epic is unknown. */
+        Naming.CompiledRule ruleOf(@Nullable String epic) {
+            String key = epic == null ? "" : epic;
+            return rules.computeIfAbsent(key, k -> {
+                TrackerSettings.NameRules nr = s.nameRulesOf(epic);
+                return Naming.compileRule(nr.rule, nr.aliases);
+            });
         }
 
         boolean isPhaseParent(IssueSnapshot snap) {
@@ -254,12 +262,13 @@ public class SyncService {
 
         Issue issue(IssueSnapshot snap, @Nullable Issue parent) {
             boolean isParent = isPhaseParent(snap);
+            String epic = isParent ? snap.parentKey() : (parent != null ? parent.epicKey() : null);
             String functionId = null;
             String functionName = null;
             StepKind step = null;
             // Sub-tasks of a Task whose template turns the workflow off are never function steps.
-            if (!isParent && (parent == null || s.structure.hasWorkflow(parent.summary()))) {
-                Naming.Parsed p = Naming.parseSummary(rule, snap.summary());
+            if (!isParent && (parent == null || s.structureOf(epic).hasWorkflow(parent.summary()))) {
+                Naming.Parsed p = Naming.parseSummary(ruleOf(epic), snap.summary());
                 String key = p != null ? Naming.functionKey(p) : null;
                 if (key != null) {
                     functionId = key;
@@ -288,7 +297,7 @@ public class SyncService {
                     snap.key(), snap.project(),
                     isParent ? snap.parentKey() : (parent != null ? parent.epicKey() : ""),
                     snap.parentKey(), isParent ? IssueKind.PARENT : IssueKind.SUBTASK, snap.summary(),
-                    isParent ? s.structure.phaseOfTask(snap.summary()) : (parent != null ? parent.phase() : ""),
+                    isParent ? s.structureOf(epic).phaseOfTask(snap.summary()) : (parent != null ? parent.phase() : ""),
                     status(s, snap.statusName(), snap.statusCategory()), assigneeId,
                     JiraValues.date(snap.fields().get(fm.plannedStart)), JiraValues.date(snap.fields().get(fm.plannedEnd)),
                     hours != null ? hours : 0,

@@ -218,6 +218,25 @@ class ServiceReadsTest {
     }
 
     @Test
+    void functionPreviewUsesTheEpicsAliases(@Autowired SettingsStore store) {
+        String other = anken.matrix(ALL, "PAY-1300", null, null, null).parents().stream().filter(AnkenService.ParentOption::workflow)
+                .findFirst().orElseThrow().key();
+        Map<StepKind, String> before = new java.util.LinkedHashMap<>(store.load().nameRulesOf("PAY-1100").aliases);
+        try {
+            store.update(s -> {
+                s.anken.computeIfAbsent("PAY-1100", e -> tracker.application.settings.TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
+                s.anken.get("PAY-1100").nameRules.aliases.put(StepKind.CREATE, "Tao");
+            });
+            assertThat(anken.previewFunction(ALL, "PAY-1100", draft("PAY-1102", "Installment", 8)).steps().get(0).summary())
+                    .contains("Tao");
+            assertThat(anken.previewFunction(ALL, "PAY-1300", draft(other, "Installment", 8)).steps().get(0).summary())
+                    .doesNotContain("Tao");
+        } finally {
+            store.update(s -> s.anken.get("PAY-1100").nameRules.aliases = before);
+        }
+    }
+
+    @Test
     void timesheetWeek() {
         EffortService.TimesheetView v = effort.timesheet(ALL, "2026-10-05", "2026-10-11");
         assertThat(v.days()).extracting(PlanningService.DayHead::date).containsExactly("2026-10-05", "2026-10-06", "2026-10-07",

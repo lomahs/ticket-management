@@ -101,7 +101,7 @@ public class AnkenService {
 
     /** Task key → phase group of the epic's Tasks. */
     private static Map<String, String> groupOfTask(TrackerContext ctx, String epic) {
-        return PhaseGroups.of(ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList(), ctx.settings.structure);
+        return PhaseGroups.of(ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList(), ctx.settings.structureOf(epic));
     }
 
     private static AnkenCard card(TrackerContext ctx, String key) {
@@ -114,7 +114,7 @@ public class AnkenService {
             String g = groups.get(i.parentKey() == null ? "" : i.parentKey());
             byPhase.computeIfAbsent(g != null ? g : PhaseGroups.OTHER, x -> new ArrayList<>()).add(i);
         }
-        List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structure.phases()).stream()
+        List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structureOf(key).phases()).stream()
                 .map(n -> Overview.phaseRollup(n, byPhase.get(n))).toList();
         List<Issue> late = subs.stream().filter(i -> ctx.flags.get(i.key()).late()).toList();
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(key)).toList();
@@ -286,7 +286,7 @@ public class AnkenService {
 
     /** The epic's Tasks by phase group, then the earliest planned start of their sub-tasks, each with its template's prefix and workflow. */
     private static List<ParentOption> parentOptions(TrackerContext ctx, String epic) {
-        WorkStructure st = ctx.settings.structure;
+        WorkStructure st = ctx.settings.structureOf(epic);
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
         Map<String, String> groups = groupOfTask(ctx, epic);
         List<Issue> subs = epicSubtasks(ctx, epic);
@@ -425,13 +425,13 @@ public class AnkenService {
     }
 
     /** How a step is written in new sub-task Summaries: its first alias in the name rules. */
-    private static String stepText(TrackerContext ctx, StepKind kind) {
-        String first = ctx.settings.nameRules.aliases.getOrDefault(kind, "").split(",", -1)[0].strip();
+    private static String stepText(TrackerContext ctx, String epic, StepKind kind) {
+        String first = ctx.settings.nameRulesOf(epic).aliases.getOrDefault(kind, "").split(",", -1)[0].strip();
         return first.isEmpty() ? Steps.STEPS.get(Steps.index(kind)).label() : first;
     }
 
-    private static boolean ruleHasId(TrackerContext ctx) {
-        return ctx.settings.nameRules.rule.contains("{function_id}");
+    private static boolean ruleHasId(TrackerContext ctx, String epic) {
+        return ctx.settings.nameRulesOf(epic).rule.contains("{function_id}");
     }
 
     private static FunctionPreview plan(TrackerContext ctx, String epic, FunctionDraft draft, @Nullable String functionId) {
@@ -460,10 +460,10 @@ public class AnkenService {
         }
         overrides = overrides.subList(0, 5);
         String fid = Text.hasText(functionId) ? functionId
-                : ruleHasId(ctx) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
+                : ruleHasId(ctx, epic) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
                 List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()), ctx.cal, overrides);
-        String rule = ctx.settings.nameRules.rule;
+        String rule = ctx.settings.nameRulesOf(epic).rule;
         String ankenName = anken(ctx, epic).title();
         List<PreviewStep> steps = new ArrayList<>();
         for (int i = 0; i < plan.size(); i++) {
@@ -473,7 +473,7 @@ public class AnkenService {
             values.put("prefix", parent.prefix());
             values.put("function_id", fid);
             values.put("function_name", Text.orElse(draft.name(), "(function name)"));
-            values.put("step", stepText(ctx, p.step()));
+            values.put("step", stepText(ctx, epic, p.step()));
             values.put("anken_name", ankenName);
             steps.add(new PreviewStep(p.step().value(), Naming.renderSummary(rule, values), p.assigneeId(), p.estimateH(),
                     p.start(), p.end(), p.note(), p.reasons()));
@@ -502,7 +502,7 @@ public class AnkenService {
             throw new Conflict("Function " + functionId + " already exists in " + draft.parentKey(), "function_id");
         }
         String name = draft.name().strip();
-        if (!ruleHasId(ctx) && inTask.stream().anyMatch(f -> f.id().equals(name))) {
+        if (!ruleHasId(ctx, epic) && inTask.stream().anyMatch(f -> f.id().equals(name))) {
             throw new Conflict("Function " + name + " already exists in " + draft.parentKey(), "name");
         }
         FunctionPreview p = plan(ctx, epic, draft, functionId);

@@ -241,6 +241,49 @@ class SyncTest {
         assertThat(q.step()).isNull();
     }
 
+    static final IssueSnapshot E2_EPIC_TASK = snap("PAY-2102", "[Implement_Coding] Other flow", "PAY-2000");
+
+    private Map<String, EpicSnapshot> twoEpics() {
+        return Map.of("PAY-1100", EPIC, "PAY-2000", new EpicSnapshot("PAY-2000", "PAY", "Other flow", "2026-12-01"));
+    }
+
+    private void twoEpicSettings(TrackerSettings.AnkenSettings e1) {
+        TrackerSettings s = settings.load();
+        s.jira.epics = new ArrayList<>(List.of("PAY-1100", "PAY-2000"));
+        s.anken.put("PAY-1100", e1);
+        s.anken.put("PAY-2000", TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
+        settings.save(s);
+    }
+
+    @Test
+    void eachEpicIsParsedWithItsOwnRule() {
+        TrackerSettings.AnkenSettings e1 = TrackerSettings.AnkenSettings.copyOf(settings.load().structure, settings.load().nameRules);
+        e1.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        twoEpicSettings(e1);
+        run(new StubReader(List.of(snap("PAY-1102", "[Implement_Coding] Payment flow revision", "PAY-1100"), E2_EPIC_TASK,
+                snap("PAY-1201", "[Implement_Coding][Login]_Create", "PAY-1102"),
+                snap("PAY-1202", "[Implement_Coding][Login]_BAL Review", "PAY-1102"),
+                snap("PAY-2201", "[Implement_Coding][F07] Search – Create", "PAY-2102"),
+                snap("PAY-2202", "[Implement_Coding][F07] Search – BAL Review", "PAY-2102")), twoEpics(), null), true);
+        Map<String, Issue> got = issues();
+        assertThat(List.of(got.get("PAY-1201").functionId(), got.get("PAY-1201").step())).containsExactly("Login", StepKind.CREATE);
+        assertThat(got.get("PAY-1202").step()).isEqualTo(StepKind.BAL_REVIEW);
+        assertThat(List.of(got.get("PAY-2201").functionId(), got.get("PAY-2201").step())).containsExactly("F07", StepKind.CREATE);
+        assertThat(got.get("PAY-2202").step()).isEqualTo(StepKind.BAL_REVIEW);
+    }
+
+    @Test
+    void phaseOfTaskUsesTheEpicsStructure() {
+        TrackerSettings.AnkenSettings e1 = TrackerSettings.AnkenSettings.copyOf(settings.load().structure, settings.load().nameRules);
+        e1.structure = new WorkStructure(List.of("ITA"), List.of(new TaskTemplate("ITA *", "ITA", "ITA")));
+        twoEpicSettings(e1);
+        run(new StubReader(List.of(snap("PAY-1110", "ITA Prepare", "PAY-1100"), snap("PAY-2110", "ITA Prepare", "PAY-2000")),
+                twoEpics(), null), true);
+        Map<String, Issue> got = issues();
+        assertThat(got.get("PAY-1110").phase()).isEqualTo("ITA");
+        assertThat(got.get("PAY-2110").phase()).isNotEqualTo("ITA");
+    }
+
     @Test
     void taskWithoutATemplateKeepsTheBracketPhase() {
         configure("[{prefix}][{function_name}]_{step}");

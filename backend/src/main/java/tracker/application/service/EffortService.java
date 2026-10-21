@@ -190,7 +190,7 @@ public class EffortService {
                 createH != 0 ? Numbers.round(fixH / createH, 4) : null,
                 fixes.isEmpty() ? null : Numbers.round(fixes.stream().mapToInt(c -> rounds.get(c.key())).sum() / (double) fixes.size(), 2),
                 fixes.size(), (int) started.stream().filter(c -> ctx.flags.get(c.key()).over()).count());
-        List<Analysis.Group> phaseGroups = ctx.settings.structure.orderedPhases(byPhase.keySet()).stream()
+        List<Analysis.Group> phaseGroups = ctx.settings.structureOf(epic).orderedPhases(byPhase.keySet()).stream()
                 .map(p -> new Analysis.Group(p, byPhase.get(p))).toList();
         List<Analysis.Group> stepGroups = new ArrayList<>();
         for (StepDef s : Steps.STEPS) {
@@ -240,7 +240,7 @@ public class EffortService {
         List<BurndownOption> ankens = ctx.anken.stream().sorted(Comparator.comparingInt(a -> order.getOrDefault(a.key(), 99)))
                 .map(a -> new BurndownOption(a.key(), a.title())).toList();
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
-        Map<String, String> groups = PhaseGroups.of(parents, ctx.settings.structure);
+        Map<String, String> groups = PhaseGroups.of(parents, ctx.settings.structureOf(epic));
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
         Map<String, String> start = new HashMap<>();
         for (Issue i : ctx.subtasks()) {
@@ -251,7 +251,7 @@ public class EffortService {
                 }
             }
         }
-        List<String> phases = PhaseGroups.ordered(byPhase, ctx.settings.structure.phases());
+        List<String> phases = PhaseGroups.ordered(byPhase, ctx.settings.structureOf(epic).phases());
         String ph = Text.hasText(phase) ? phase : null;
         String tk = Text.hasText(task) ? task : null;
         List<BurndownOption> tasks = ph == null ? List.of() : parents.stream()
