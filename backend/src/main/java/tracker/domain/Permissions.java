@@ -25,6 +25,15 @@ public final class Permissions {
         return levels;
     }
 
+    /** Whether the user sees every anken: the setting decides, and DEFAULT means PM and PIM do. */
+    public static boolean allAnken(@Nullable Role role, AnkenScopeSetting s) {
+        return switch (s) {
+            case ALL -> true;
+            case MEMBERS -> false;
+            case DEFAULT -> role == Role.PM || role == Role.PIM;
+        };
+    }
+
     private static Level defaultLevel(@Nullable Role role, Feature f) {
         if (role == Role.PM || role == Role.PIM) {
             return Level.WRITE;

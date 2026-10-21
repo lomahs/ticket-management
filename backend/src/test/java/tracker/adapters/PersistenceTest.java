@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tracker.TrackerTest;
 import tracker.adapters.crypto.CryptoSecretBox;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.IssueRepository;
@@ -31,6 +32,8 @@ import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
 import tracker.domain.Anken;
+import tracker.domain.AnkenMember;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.EventField;
 import tracker.domain.Feature;
 import tracker.domain.Holiday;
@@ -61,6 +64,8 @@ class PersistenceTest {
     @Autowired
     AccessRepository access;
     @Autowired
+    AnkenMemberRepository ankenMembers;
+    @Autowired
     IssueRepository issues;
     @Autowired
     AnkenRepository anken;
@@ -85,7 +90,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5");
     }
 
     @Test
@@ -110,6 +115,36 @@ class PersistenceTest {
         assertThat(access.findOverrides()).isEqualTo(Map.of("an", Map.of(Feature.PLANNING, Level.WRITE)));
         access.saveOverride("an", Feature.PLANNING, null);
         assertThat(access.findOverrides("an")).isEmpty();
+    }
+
+    @Test
+    void ankenMembersRoundTrip() {
+        members.save(new Member("an", "An", "An", Role.BA, "VN", "#111"));
+        members.save(new Member("bo", "Bo", "Bo", Role.BA, "VN", "#222"));
+        assertThat(ankenMembers.isEmpty()).isTrue();
+        ankenMembers.add("PAY-1", "bo", "minh", "2026-10-07T09:00:00Z");
+        ankenMembers.add("PAY-1", "an", "minh", "2026-10-07T09:00:00Z");
+        ankenMembers.add("PAY-1", "an", "minh", "2026-10-08T09:00:00Z");
+        assertThat(ankenMembers.findByEpic("PAY-1")).containsExactly(new AnkenMember("PAY-1", "an", "2026-10-07T09:00:00Z", "minh"),
+                new AnkenMember("PAY-1", "bo", "2026-10-07T09:00:00Z", "minh"));
+        assertThat(ankenMembers.findEpicsOf("an")).containsExactly("PAY-1");
+        assertThat(ankenMembers.findAll()).isEqualTo(Map.of("PAY-1", java.util.Set.of("an", "bo")));
+        assertThat(ankenMembers.exists("PAY-1", "an")).isTrue();
+        ankenMembers.remove("PAY-1", "an");
+        ankenMembers.remove("PAY-1", "bo");
+        assertThat(ankenMembers.exists("PAY-1", "an")).isFalse();
+        assertThat(ankenMembers.isEmpty()).isTrue();
+    }
+
+    @Test
+    void ankenScopeRoundTrip() {
+        members.save(new Member("an", "An", "An", Role.BA, "VN", "#111"));
+        assertThat(access.findAnkenScope("an")).isEqualTo(AnkenScopeSetting.DEFAULT);
+        access.saveAnkenScope("an", AnkenScopeSetting.ALL);
+        assertThat(access.findAnkenScope("an")).isEqualTo(AnkenScopeSetting.ALL);
+        assertThat(access.findAnkenScopes()).isEqualTo(Map.of("an", AnkenScopeSetting.ALL));
+        access.saveAnkenScope("an", AnkenScopeSetting.DEFAULT);
+        assertThat(access.findAnkenScopes()).isEmpty();
     }
 
     @Test

@@ -8,6 +8,7 @@ import org.jspecify.annotations.Nullable;
 
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.RequestStatus;
@@ -39,4 +40,13 @@ public interface AccessRepository {
     List<AccessRequest> findRequests(@Nullable RequestStatus status);
 
     void decide(int id, RequestStatus status, String by, String at, @Nullable String memberId);
+
+    /** DEFAULT when the member has no row. */
+    AnkenScopeSetting findAnkenScope(String memberId);
+
+    /** Member id to setting, only for members with a non-default one. */
+    Map<String, AnkenScopeSetting> findAnkenScopes();
+
+    /** Saving DEFAULT removes the row. */
+    void saveAnkenScope(String memberId, AnkenScopeSetting s);
 }

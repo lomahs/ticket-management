@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import tracker.application.ports.AccessRepository;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.RequestStatus;
@@ -125,5 +126,30 @@ class JdbcAccessRepository implements AccessRepository {
     public void decide(int id, RequestStatus status, String by, String at, @Nullable String memberId) {
         jdbc.sql("UPDATE access_requests SET status = :status, decided_by = :by, decided_at = :at, member_id = :member WHERE id = :id")
                 .param("status", status.value()).param("by", by).param("at", at).param("member", memberId).param("id", id).update();
+    }
+
+    @Override
+    public AnkenScopeSetting findAnkenScope(String memberId) {
+        return jdbc.sql("SELECT anken_scope FROM member_scope WHERE member_id = :id").param("id", memberId).query(String.class).optional()
+                .map(AnkenScopeSetting::of).orElse(AnkenScopeSetting.DEFAULT);
+    }
+
+    @Override
+    public Map<String, AnkenScopeSetting> findAnkenScopes() {
+        Map<String, AnkenScopeSetting> out = new HashMap<>();
+        jdbc.sql("SELECT member_id, anken_scope FROM member_scope").query(r -> {
+            out.put(r.getString("member_id"), AnkenScopeSetting.of(r.getString("anken_scope")));
+        });
+        return out;
+    }
+
+    @Override
+    public void saveAnkenScope(String memberId, AnkenScopeSetting s) {
+        if (s == AnkenScopeSetting.DEFAULT) {
+            jdbc.sql("DELETE FROM member_scope WHERE member_id = :id").param("id", memberId).update();
+            return;
+        }
+        jdbc.sql("INSERT INTO member_scope (member_id, anken_scope) VALUES (:id, :s) ON CONFLICT (member_id) DO UPDATE SET anken_scope = excluded.anken_scope")
+                .param("id", memberId).param("s", s.value()).update();
     }
 }
