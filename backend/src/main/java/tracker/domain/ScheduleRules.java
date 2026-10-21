@@ -16,6 +16,7 @@ public final class ScheduleRules {
         String actualStart = span != null ? span[0] : null;
         String actualEnd = span != null ? span[1] : null;
         boolean done = i.status() == Status.RESOLVED || i.status() == Status.CLOSED;
+        boolean started = i.status() != Status.NYS;
         boolean hasStart = Text.hasText(i.plannedStart());
         boolean hasEnd = Text.hasText(i.plannedEnd());
 
@@ -27,7 +28,8 @@ public final class ScheduleRules {
                 int c = actualStart.compareTo(ps);
                 start = c < 0 ? StartState.EARLY_START : c > 0 ? StartState.LATE_START : StartState.ON_TIME_START;
                 startDays = c < 0 ? Dates.weekdaysAfter(actualStart, ps) : Dates.weekdaysAfter(ps, actualStart);
-            } else if (done) {
+            } else if (started) {
+                // moved on from NYS without a recorded start day: started, and not judged late
                 start = StartState.ON_TIME_START;
             } else if (today.compareTo(ps) > 0) {
                 start = StartState.LATE_START;

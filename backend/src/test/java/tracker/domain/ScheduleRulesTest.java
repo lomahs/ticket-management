@@ -148,4 +148,14 @@ class ScheduleRulesTest {
         assertThat(onlyEnd.effort()).isEqualTo(EffortState.NO_PLAN);
         assertThat(onlyEnd.start()).isEqualTo(StartState.NO_PLAN);
     }
+
+    @Test
+    void inProgressWithoutARecordedStartHasStartedOnTime() {
+        // status W, no status events, no worklogs: started, but the day is unknown
+        IssueSchedule s = of(Fixtures.issue().status(Status.WIP).ps("2026-10-01").pe("2026-10-05").build());
+        assertThat(s.start()).isEqualTo(StartState.ON_TIME_START);
+        assertThat(s.startDays()).isZero();
+        assertThat(s.finish()).isEqualTo(FinishState.OVERDUE); // still unfinished past its planned end
+        assertThat(s.finishDays()).isEqualTo(2);
+    }
 }
