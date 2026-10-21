@@ -48,13 +48,14 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
 2. Add the epics to track. Each epic is an anken; its children are Tasks (a fixed set under every epic), whose
    sub-tasks are the work items.
 3. Field mapping: the custom field ids for Planned Start / Planned End and the effort field; **Check** against a ticket.
-4. Phases & tasks: the phases in project order, and one row per Task of the fixed set — the Task name (matched against
+4. Phases & tasks (per anken: pick the anken at the top; "Default for new anken" is the template that a newly added
+   epic copies, and **Copy from…** copies another anken's settings): the phases in project order, and one row per Task of the fixed set — the Task name (matched against
    the Task Summary, ignoring case; `*` matches any text), its phase, the prefix its sub-tasks use (`{prefix}`), and
    whether its sub-tasks follow the 5-step review workflow (turn it off for Q&A, Work Request, Change Request…). The
    "Tasks in Jira" table shows how the synced Tasks are classified before you save. A Task no row matches takes its
    phase from a leading `[Phase]` in its Summary. Functions are grouped per Task, so the Function Matrix shows one Task
-   at a time. Saving runs a full sync.
-5. Name rules: how sub-task Summaries encode the function and the step, for example
+   at a time. Saving or copying runs a full sync.
+5. Name rules (also per anken, with the same picker and **Copy from…**): how sub-task Summaries encode the function and the step, for example
    `[{prefix}][{function_name}]_{step}` with the step aliases `Create`, `BALReview`, `FixCommentBAL`, `JMReview`,
    `FixCommentJM` (default `[{phase_name}][{function_id}] {function_name} – {step}`). Without `{function_id}` the
    function name identifies the function; the first alias of each step is used when the tracker creates sub-tasks.

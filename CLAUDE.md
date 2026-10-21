@@ -22,7 +22,7 @@ This rule drives every roll-up, so do not mix the levels up:
 
 **Phase groups** (`backend/src/main/java/tracker/domain/PhaseGroups.java`) are computed per epic at read time:
 
-1. A Task template from Settings → Structure that matches the Task decides its phase. So does a leading `[Phase]`
+1. A Task template from **the anken's** Settings → Structure that matches the Task decides its phase. So does a leading `[Phase]`
    that names a configured phase; the demo data relies on this.
 2. Otherwise, drop the leading `[...]` groups. The first word of what remains (`ITA`) is a phase if **two or more**
    Tasks of the epic share it. Every other Task goes to `Other` (e.g. `WorkRequest`, `Change Request`).
