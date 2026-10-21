@@ -99,6 +99,8 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
   `ApiAdminTest` (users and access requests), `AccessServiceTest` (roles, overrides, admins);
 - anken separation: `AnkenMemberSeederTest` (memberships seeded once), `AnkenMembersServiceTest` (members panel, not-members),
   `ScopeServiceTest` (anken scope per user), `AnkenScopeApiTest` (hidden anken answer 404) and `ApiAnkenMembersTest`;
+- allocation: `AllocationsTest` (domain), `AllocationServiceTest`, `ApiAllocationTest`; the Timesheet and Planning capacity
+  figures are in `ServiceReadsTest` (the demo seeds allocations once, so tests that change one restore it);
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:

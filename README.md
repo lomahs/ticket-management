@@ -120,6 +120,18 @@ Calendar has a row for each member of the visible anken, so a PM or PIM who is a
 their own calendar, and nobody else sees their leave: add them to their anken. **Users → Merge…** joins a duplicate
 member into another one (two members with different Jira accounts are two people and cannot be merged).
 
+**Allocation:** how many hours a day a member gives each anken. The PM, PIM or an admin sets it in the **Allocation…**
+dialog of the Members panel: pick a *From* date and the hours for each anken, and Save adds a step to the history (nothing is
+overwritten). The latest step on or before a day gives the hours for that day; 0 means off that anken from then on. The total
+over all anken may not exceed the working hours per day (Settings → Hours), on the *From* date and on every later date
+where a step takes effect, or the save is refused. A day's allocation follows the calendar: leave and holidays give 0 and
+a half-day leave gives half. The **Timesheet** compares each day's logged hours with the target, the sum of the allocation
+of the anken in view that have one (under, ok, over, with the existing tolerance; *under* only before today). Hours logged on
+an anken without allocation are shown apart, and a member with no allocation in view has no target (*no allocation*). **Capacity**
+in Planning is the sum of the allocation per week; a member with none shows *no allocation*, and a 0h allocation with planned
+work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1100 and 3h PAY-1300, the others 8h on the anken
+with most of their open sub-tasks).
+
 **HTTPS or a reverse proxy:** set `server.servlet.session.cookie.secure=true` (`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`)
 and `server.forward-headers-strategy=native` (or `framework`; `SERVER_FORWARD_HEADERS_STRATEGY`). The login throttle (5
 failures for one username within 15 minutes lock it for 15 minutes) counts per username and client address; behind a

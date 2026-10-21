@@ -3,6 +3,10 @@ package tracker.config;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.ApplicationRunner;
@@ -18,7 +22,9 @@ import tracker.adapters.fake.FakeJira;
 import tracker.adapters.web.auth.DemoLogins;
 import tracker.application.SyncService;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.AnkenMemberRepository;
+import tracker.application.ports.IssueRepository;
 import tracker.application.ports.SeedRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.JiraReaderFactory;
@@ -28,6 +34,12 @@ import tracker.application.ports.SettingsRepository;
 import tracker.application.service.SystemService.Mode;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessStatus;
+import tracker.domain.Allocation;
+import tracker.domain.Issue;
+import tracker.domain.IssueKind;
+import tracker.domain.Member;
+import tracker.domain.Role;
+import tracker.domain.Status;
 import tracker.domain.WorkStructure;
 
 /**
@@ -90,16 +102,43 @@ public class DemoConfig {
      */
     @Bean
     @Order(Ordered.LOWEST_PRECEDENCE)
-    public ApplicationRunner demoAnkenScope(AnkenMemberRepository ankenMembers, SeedRepository seeds, Clock clock, TransactionTemplate tx) {
+    public ApplicationRunner demoAnkenScope(AnkenMemberRepository ankenMembers, SeedRepository seeds, Clock clock, TransactionTemplate tx,
+                                            MemberRepository members, IssueRepository issues, AllocationRepository allocations) {
         return args -> tx.executeWithoutResult(status -> {
-            if (seeds.done("demo_an_anken")) {
-                return;
-            }
             String now = Instant.now(clock).toString();
-            List<String> keep = List.of("PAY-1100", "PAY-1300");
-            ankenMembers.findEpicsOf("an").stream().filter(e -> !keep.contains(e)).forEach(e -> ankenMembers.remove(e, "an"));
-            keep.forEach(e -> ankenMembers.add(e, "an", "seed", now));
-            seeds.markDone("demo_an_anken", now);
+            if (!seeds.done("demo_an_anken")) {
+                List<String> keep = List.of("PAY-1100", "PAY-1300");
+                ankenMembers.findEpicsOf("an").stream().filter(e -> !keep.contains(e)).forEach(e -> ankenMembers.remove(e, "an"));
+                keep.forEach(e -> ankenMembers.add(e, "an", "seed", now));
+                seeds.markDone("demo_an_anken", now);
+            }
+            if (!seeds.done("demo_allocations")) {
+                seedAllocations(ankenMembers, members, issues, allocations, now);
+                seeds.markDone("demo_allocations", now);
+            }
         });
+    }
+
+    /**
+     * From 2026-09-01: an gives 5h to PAY-1100 and 3h to PAY-1300; every other BA and BAL gives all 8h to the anken they are a
+     * member of and have the most open sub-tasks on. Demo data, so it goes straight to the repository, not through the rules.
+     */
+    private static void seedAllocations(AnkenMemberRepository ankenMembers, MemberRepository members, IssueRepository issues,
+                                        AllocationRepository allocations, String now) {
+        String from = "2026-09-01";
+        allocations.save(new Allocation("an", "PAY-1100", from, 5), "seed", now);
+        allocations.save(new Allocation("an", "PAY-1300", from, 3), "seed", now);
+        List<Issue> open = issues.findAll().stream()
+                .filter(i -> i.kind() == IssueKind.SUBTASK && i.status() != Status.CLOSED && i.assigneeId() != null).toList();
+        for (Member m : members.findAll()) {
+            if (m.id().equals("an") || (m.role() != Role.BA && m.role() != Role.BAL)) {
+                continue;
+            }
+            Set<String> mine = ankenMembers.findEpicsOf(m.id());
+            open.stream().filter(i -> i.assigneeId().equals(m.id()) && mine.contains(i.epicKey()))
+                    .collect(Collectors.groupingBy(Issue::epicKey, TreeMap::new, Collectors.counting()))
+                    .entrySet().stream().max(Map.Entry.comparingByValue())
+                    .ifPresent(e -> allocations.save(new Allocation(m.id(), e.getKey(), from, 8), "seed", now));
+        }
     }
 }

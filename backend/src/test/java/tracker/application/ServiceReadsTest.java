@@ -248,7 +248,7 @@ class ServiceReadsTest {
         assertThat(v.days()).extracting(PlanningService.DayHead::date).containsExactly("2026-10-05", "2026-10-06", "2026-10-07",
                 "2026-10-08", "2026-10-09", "2026-10-10");
         var binh = v.rows().stream().filter(r -> r.memberId().equals("binh")).findFirst().orElseThrow();
-        assertThat(binh.targetH()).isEqualTo(0);
+        assertThat(binh.targetH()).isEqualTo(16); // the demo gives Bình 8h a day (2 days counted before today)
         assertThat(binh.loggedH()).isGreaterThanOrEqualTo(18.5);
         Map<String, String> chi = new HashMap<>();
         v.rows().stream().filter(r -> r.memberId().equals("chi")).findFirst().orElseThrow().cells().forEach(c -> chi.put(c.date(), c.state()));
@@ -259,6 +259,8 @@ class ServiceReadsTest {
 
     @Test
     void timesheetUsesAllocation() {
+        var before = allocations.findByMember("an");
+        jdbc.sql("DELETE FROM allocations WHERE member_id = 'an'").update();
         allocations.save(new Allocation("an", "PAY-1100", "2026-09-01", 8), "minh", "2026-10-07T09:00:00Z");
         try {
             var an = effort.timesheet(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", "2026-10-11").rows().stream()
@@ -267,6 +269,7 @@ class ServiceReadsTest {
             assertThat(monday.targetH()).isEqualTo(8);
         } finally {
             jdbc.sql("DELETE FROM allocations WHERE member_id = 'an'").update();
+            before.forEach(a -> allocations.save(a, "seed", "2026-10-07T09:00:00Z"));
         }
     }
 
@@ -361,19 +364,22 @@ class ServiceReadsTest {
         assertThat(Set.copyOf(v.projects())).isEqualTo(Set.of("PAY", "CRM", "OPS"));
         var cap = v.capacity().stream().filter(c -> c.memberId().equals("chi")).findFirst().orElseThrow().weeks();
         assertThat(cap).hasSize(5);
-        assertThat(cap.get(0).level()).isEqualTo("no_allocation");
-        assertThat(cap.get(0).pct()).isNull();
+        assertThat(cap.get(0).level()).isEqualTo("over"); // the demo gives Chi 8h a day, less than the planned work
+        assertThat(cap.get(0).pct()).isNotNull();
     }
 
     @Test
     void planningCapacityScoped() {
+        var before = allocations.findByMember("chi");
+        jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi'").update();
         allocations.save(new Allocation("chi", "PAY-1100", "2026-09-01", 6), "minh", "2026-10-07T09:00:00Z");
         try {
             var cap = planning.view(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", 1).capacity().stream()
                     .filter(c -> c.memberId().equals("chi")).findFirst().orElseThrow().weeks();
             assertThat(cap.get(0).availableH()).isEqualTo(30); // Mon-Thu plus the extra Saturday 10/10 (leave on Friday) x 6h
         } finally {
-            jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi' AND epic_key = 'PAY-1100' AND effective_from = '2026-09-01'").update();
+            jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi'").update();
+            before.forEach(a -> allocations.save(a, "seed", "2026-10-07T09:00:00Z"));
         }
     }
 
