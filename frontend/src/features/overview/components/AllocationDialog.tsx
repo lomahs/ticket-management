@@ -10,7 +10,10 @@ import { allocationQuery, useSaveAllocation } from '../api';
 
 const cell = { padding: '4px 8px', textAlign: 'right' as const };
 
-/** A member's hours per day on each of their anken, from an effective date; every change adds a step to the history. */
+/**
+ * A member's hours per day on each of their anken, from an effective date. Saving adds a step to the history, or replaces the
+ * step that starts on the same date.
+ */
 export function AllocationDialog({ memberId, close }: { memberId: string; close: () => void }) {
   const names = useMemberMap();
   const q = useQuery(allocationQuery(memberId));
@@ -28,20 +31,34 @@ export function AllocationDialog({ memberId, close }: { memberId: string; close:
   );
 }
 
+type Step = Schemas['AllocationTimeline']['steps'][number];
+
+/** The step in force on `date`: the last one that starts on or before it. */
+const stepOn = (steps: Step[], date: string) => steps.filter((s) => s.from <= date).at(-1);
+
 function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; close: () => void }) {
   const write = useCan('members', 'write');
   const toast = useToast();
   const today = useMeta().data?.today ?? '';
   const save = useSaveAllocation(timeline.member_id);
   const { epics, steps, hours_per_day: day } = timeline;
-  const current = steps[steps.length - 1];
-  const [from, setFrom] = useState(today);
-  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(epics.map((e) => [e, String(current?.hours[e] ?? 0)])));
+  const current = today ? stepOn(steps, today) : undefined;
+  // From follows today until picked; the fields show the values in force on From until edited for that date.
+  const [picked, setPicked] = useState<string | null>(null);
+  const from = picked ?? today;
+  const [edits, setEdits] = useState<{ from: string; vals: Record<string, string> } | null>(null);
+  const prefill = (date: string): Record<string, string> => {
+    const s = stepOn(steps, date);
+    return Object.fromEntries(epics.map((e) => [e, s?.hours[e] == null ? '' : String(s.hours[e])]));
+  };
+  const vals = edits && edits.from === from ? edits.vals : prefill(from);
+  const filled = epics.filter((e) => (vals[e] ?? '').trim() !== '');
   const num = (e: string) => Number(vals[e]) || 0;
   const total = epics.reduce((t, e) => t + num(e), 0);
   const over = total > day;
   const negative = epics.some((e) => num(e) < 0);
-  const submit = () => save.mutate({ from, hours: Object.fromEntries(epics.map((e) => [e, num(e)])) }, {
+  // A blank field stays "no allocation"; only the anken with a value are sent.
+  const submit = () => save.mutate({ from, hours: Object.fromEntries(filled.map((e) => [e, num(e)])) }, {
     onSuccess: () => toast('Allocation saved.'),
     onError: (e) => toast(errorMessage(e), true),
   });
@@ -58,12 +75,14 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
             </tr>
           </thead>
           <tbody>
-            {steps.map((s, i) => (
+            {steps.map((s) => (
               <tr key={s.from} style={{ borderTop: '1px solid var(--border-subtle)' }}>
                 <td style={{ ...cell, textAlign: 'left' }}>{s.from}</td>
                 {epics.map((e) => <td key={e} style={cell}>{s.hours[e] ?? 0}</td>)}
                 <td style={cell}>{epics.reduce((t, e) => t + (s.hours[e] ?? 0), 0)}</td>
-                <td style={{ ...cell, textAlign: 'left', color: 'var(--text-muted)' }}>{i === steps.length - 1 ? 'current' : ''}</td>
+                <td style={{ ...cell, textAlign: 'left', color: 'var(--text-muted)' }}>
+                  {s === current ? 'current' : today && s.from > today ? 'scheduled' : ''}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -71,11 +90,11 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
       ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No allocation yet.</div>}
       {write && (
         <>
-          <TextField label="From" type="date" value={from} onChange={setFrom} />
+          <TextField label="From" type="date" value={from} onChange={setPicked} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {epics.map((e) => (
               <TextField key={e} label={e} type="number" min={0} step={0.5} value={vals[e] ?? ''} style={{ width: 110 }}
-                onChange={(v) => setVals((x) => ({ ...x, [e]: v }))} />
+                onChange={(v) => setEdits({ from, vals: { ...vals, [e]: v } })} />
             ))}
           </div>
           <div style={{ fontWeight: 600, color: over ? 'var(--hl-red-fg)' : 'var(--text-body)' }}>Total {total}h of {day}h</div>
@@ -84,7 +103,7 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="spacer" />
         <Button appearance="subtle" onClick={close}>Close</Button>
-        {write && <Button disabled={over || negative || !from || save.isPending} onClick={submit}>Save</Button>}
+        {write && <Button disabled={over || negative || !from || !filled.length || save.isPending} onClick={submit}>Save</Button>}
       </div>
     </>
   );

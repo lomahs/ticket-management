@@ -173,6 +173,44 @@ describe('anken members', () => {
       await waitFor(() => expect(put).toEqual([{ from: '2026-10-07', hours: { X: 6, Y: 2 } }]));
     });
 
+    it('labels a future step scheduled and pre-fills from the values on the chosen From date', async () => {
+      const scheduled = { from: '2026-10-20', hours: { X: 7, Y: 1 }, set_by: 'pim@acme.vn', set_at: '2026-10-06T00:00:00Z' };
+      serve();
+      server.use(http.get('*/api/v1/people/an/allocations', () => HttpResponse.json(timeline({ steps: [...timeline().steps, scheduled] }))));
+      renderApp('/anken/PAY-1100');
+      fireEvent.click(await (await panel()).findByRole('button', { name: 'Allocation… An' }));
+      const dialog = within(await screen.findByRole('dialog', { name: 'Allocation · An' }));
+      const row = async (from: string) => within((await dialog.findByText(from, { selector: 'td' })).closest('tr')!);
+      expect((await row('2026-10-01')).getByText('current')).toBeTruthy();
+      expect((await row('2026-10-20')).getByText('scheduled')).toBeTruthy();
+      expect((await row('2026-09-01')).queryByText(/current|scheduled/)).toBeNull();
+      expect((dialog.getByLabelText('X') as HTMLInputElement).value).toBe('5');
+      expect((dialog.getByLabelText('Y') as HTMLInputElement).value).toBe('2');
+      fireEvent.change(dialog.getByLabelText('From'), { target: { value: '2026-10-21' } });
+      expect((dialog.getByLabelText('X') as HTMLInputElement).value).toBe('7');
+      expect((dialog.getByLabelText('Y') as HTMLInputElement).value).toBe('1');
+      fireEvent.change(dialog.getByLabelText('From'), { target: { value: '2026-09-15' } });
+      expect((dialog.getByLabelText('X') as HTMLInputElement).value).toBe('4');
+    });
+
+    it('a blank field is left out of the save, not sent as 0', async () => {
+      const put: unknown[] = [];
+      serve();
+      server.use(
+        http.get('*/api/v1/people/an/allocations', () => HttpResponse.json(timeline({
+          steps: [{ from: '2026-10-01', hours: { X: 5 }, set_by: 'pim@acme.vn', set_at: '2026-10-01T00:00:00Z' }],
+        }))),
+        http.put('*/api/v1/people/an/allocations', async ({ request }) => { put.push(await request.json()); return HttpResponse.json(timeline()); }),
+      );
+      renderApp('/anken/PAY-1100');
+      fireEvent.click(await (await panel()).findByRole('button', { name: 'Allocation… An' }));
+      const dialog = within(await screen.findByRole('dialog', { name: 'Allocation · An' }));
+      expect((await dialog.findByLabelText('Y') as HTMLInputElement).value).toBe('');
+      fireEvent.change(dialog.getByLabelText('X'), { target: { value: '6' } });
+      fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(put).toEqual([{ from: '2026-10-07', hours: { X: 6 } }]));
+    });
+
     it('refetches the history after a save', async () => {
       let puts = 0;
       const longer = timeline({ steps: [...timeline().steps, { from: '2026-10-07', hours: { X: 6, Y: 2 }, set_by: 'pim@acme.vn', set_at: '2026-10-07T00:00:00Z' }] });
