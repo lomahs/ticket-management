@@ -373,7 +373,7 @@ class ServiceReadsTest {
                     .filter(c -> c.memberId().equals("chi")).findFirst().orElseThrow().weeks();
             assertThat(cap.get(0).availableH()).isEqualTo(30); // Mon-Thu plus the extra Saturday 10/10 (leave on Friday) x 6h
         } finally {
-            jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi'").update();
+            jdbc.sql("DELETE FROM allocations WHERE member_id = 'chi' AND epic_key = 'PAY-1100' AND effective_from = '2026-09-01'").update();
         }
     }
 

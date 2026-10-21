@@ -119,7 +119,9 @@ public final class Capacity {
                     continue;
                 }
                 Integer pct = avail != 0 ? (int) Math.round(loads[w] / avail * 100) : null;
-                rows.add(new WeekLoad(ws, Numbers.round(loads[w], 2), avail, pct, level(pct, capPct)));
+                // allocated but zero hours ("off this anken"): any planned load is over capacity
+                String level = avail == 0 && loads[w] > 0 ? "over" : level(pct, capPct);
+                rows.add(new WeekLoad(ws, Numbers.round(loads[w], 2), avail, pct, level));
             }
             out.put(mid, rows);
         }

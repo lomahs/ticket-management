@@ -43,6 +43,36 @@ class CapacityTimesheetTest {
         assertThat(w.plannedH()).isEqualTo(20);
     }
 
+    private static Capacity.WeekLoad week(Allocations alloc, Set<String> scope, double estimate) {
+        List<PlanItem> items = estimate == 0 ? List.of() : List.of(new PlanItem("PAY-1", "an", "2026-10-19", "2026-10-23", estimate));
+        return Capacity.weeklyCapacity(items, CAL, List.of("an"), "2026-10-19", alloc, scope, 100, 1).get("an").get(0);
+    }
+
+    @Test
+    void zeroHourAllocationWithLoadIsOver() {
+        Allocations off = new Allocations(List.of(new Allocation("an", "X", "2026-10-01", 0)));
+        Capacity.WeekLoad loaded = week(off, Set.of("X"), 10);
+        assertThat(loaded.pct()).isNull();
+        assertThat(loaded.level()).isEqualTo("over");
+        assertThat(week(off, Set.of("X"), 0).level()).isEqualTo("idle");
+    }
+
+    @Test
+    void partlyAllocatedWeekCountsOnlyAllocatedDays() {
+        Allocations mid = new Allocations(List.of(new Allocation("an", "X", "2026-10-22", 4)));
+        Capacity.WeekLoad w = week(mid, Set.of("X"), 8);
+        assertThat(w.availableH()).isEqualTo(8); // Thu and Fri only
+        assertThat(w.level()).isNotEqualTo("no_allocation");
+    }
+
+    @Test
+    void severalScopeAnkenAreSummedAndOthersIgnored() {
+        Allocations alloc = new Allocations(List.of(new Allocation("an", "X", "2026-10-01", 3), new Allocation("an", "Y", "2026-10-01", 2),
+                new Allocation("an", "Z", "2026-10-01", 8)));
+        assertThat(week(alloc, Set.of("X", "Y"), 0).availableH()).isEqualTo(25);
+        assertThat(week(alloc, Set.of("Q"), 5).level()).isEqualTo("no_allocation");
+    }
+
     @Test
     void dailyPlanSpreadsEstimateOverWorkingDays() {
         Capacity.Plan p = Capacity.dailyPlan(ITEMS, CAL);
