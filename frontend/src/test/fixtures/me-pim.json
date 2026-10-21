@@ -1,0 +1,23 @@
+{
+  "access": "active",
+  "admin": false,
+  "email": "pim@acme.vn",
+  "member_id": "pim",
+  "name": "Pim",
+  "permissions": {
+    "my_work": "write",
+    "overview": "write",
+    "matrix": "write",
+    "ticket": "write",
+    "planning": "write",
+    "effort": "write",
+    "qa": "write",
+    "calendar": "write",
+    "members": "write"
+  },
+  "role": "PIM",
+  "all_anken": false,
+  "anken": [
+    "PAY-1100"
+  ]
+}

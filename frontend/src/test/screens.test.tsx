@@ -34,7 +34,7 @@ describe('screens render API data at their URLs', () => {
       { key: 'PAY-1101', summary: '[Pay][LocalTask] ITA Prepare', name: 'ITA Prepare', phase: 'ITA', status: 'C', pct: 100, closed: 8, total: 8, start: '2026-10-17', end: '2026-10-20' },
       { key: 'PAY-1102', summary: '[Pay][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA', status: 'W', pct: 30, closed: 4, total: 12, start: '2026-10-21', end: '2026-11-30' },
     ];
-    server.use(http.get('*/api/v1/anken/PAY-1100', () => HttpResponse.json({ card: { ...fixtures.anken[0], phases }, attention: [], tasks })));
+    server.use(http.get('*/api/v1/anken/PAY-1100', () => HttpResponse.json({ card: { ...fixtures.anken[0], phases }, attention: [], tasks, not_members: [] })));
     const { router } = renderApp('/anken/PAY-1100');
     const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
     expect(within(detail).getByText('12/20 sub-tasks done')).toBeTruthy();

@@ -43,7 +43,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
   const toast = useToast();
   const { ok: canWrite, off } = useJiraWrite('matrix');
   const create = useCreateFunction(epic);
-  const byRole = (r: string) => Object.values(members).filter((x) => x.role === r).map((x) => ({ value: x.id, label: x.name }));
+  const byRole = (r: string) => Object.values(members).filter((x) => x.role === r && m.member_ids.includes(x.id)).map((x) => ({ value: x.id, label: x.name }));
   const baOpts = byRole('BA'), balOpts = byRole('BAL'), jmOpts = byRole('JM');
   const workflowParents = m.parents.filter((p) => p.workflow);
   const defaultParent = workflowParents.find((p) => p.key === m.task_keys[0]) ?? workflowParents[0];

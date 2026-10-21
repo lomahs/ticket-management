@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
-import { useMemberMap } from '../../../shared/api/queries';
+import { useCan, useMemberMap } from '../../../shared/api/queries';
 import { Icon, type IconName } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
@@ -12,6 +12,7 @@ import { useOpenTicket } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ankenDetailQuery, overviewQuery } from '../api';
+import { MembersPanel, NotMembers } from './MembersPanel';
 
 const ATTN: Record<string, { label: string; icon: IconName; meta: (c: Schemas['TaskCard']) => string }> = {
   overdue: { label: 'Overdue', icon: 'alarm-clock', meta: (c) => `late ${c.late_days}d` },
@@ -59,6 +60,9 @@ function AnkenCardView({ a, on }: { a: Schemas['AnkenCard']; on: boolean }) {
       <div>
         <div style={{ font: '600 11px/1 var(--font-mono)', color: 'var(--text-muted)' }}>{a.key}</div>
         <div style={{ marginTop: 4, font: '700 15px/1.3 var(--font-display)', color: 'var(--text-heading)' }}>{a.title}</div>
+        {a.pim_ids.length > 0 && (
+          <div style={{ marginTop: 2, fontSize: 12, color: 'var(--text-muted)' }}>PIM: {a.pim_ids.map((id) => members[id]?.name ?? id).join(', ')}</div>
+        )}
       </div>
       <div>
         <div style={{ display: 'flex', gap: 3, height: 8 }}>
@@ -174,6 +178,7 @@ function Detail({ epic }: { epic: string }) {
   const q = useQuery(ankenDetailQuery(epic));
   const members = useMemberMap();
   const open = useOpenTicket();
+  const canMembers = useCan('members');
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
   const a = q.data.card;
@@ -225,6 +230,8 @@ function Detail({ epic }: { epic: string }) {
           })}
         </div>
       </div>
+      {q.data.not_members.length > 0 && <NotMembers epic={a.key} rows={q.data.not_members} />}
+      {canMembers && <MembersPanel epic={a.key} />}
     </section>
   );
 }
