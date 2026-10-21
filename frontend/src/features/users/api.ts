@@ -30,3 +30,4 @@ export const useApprove = () => useAdminWrite(({ id, body }: { id: number; body:
   http.POST('/api/v1/admin/access-requests/{id}/approve', { params: { path: { id } }, body })));
 export const useReject = () => useAdminWrite((id: number) => unwrap(
   http.POST('/api/v1/admin/access-requests/{id}/reject', { params: { path: { id } } })));
+export const useMerge = () => useAdminWrite((body: Schemas['MergeIn']) => unwrap(http.POST('/api/v1/admin/members/merge', { body })));

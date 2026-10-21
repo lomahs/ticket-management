@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Feature, Schemas } from '../../../shared/api/types';
-import { IconButton, Select } from '../../../shared/ds';
+import { Button, IconButton, Select } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { usePatchUser, usersQuery } from '../api';
+import { AnkenDialog } from './AnkenDialog';
+import { MergeDialog } from './MergeDialog';
 import { RequestsSection } from './RequestsSection';
 
 const FEATURES: [Feature, string][] = [
@@ -16,7 +19,8 @@ const LEVELS = [{ value: 'none', label: 'None' }, { value: 'read', label: 'Read'
 const ROLES = [...['PM', 'PIM', 'BAL', 'BA', 'JM'].map((r) => ({ value: r, label: r })), { value: '', label: 'No role' }];
 const ACCESS = [{ value: 'active', label: 'Active' }, { value: 'disabled', label: 'Disabled' }];
 const COUNTRIES = [{ value: 'VN', label: 'Vietnam' }, { value: 'JP', label: 'Japan' }];
-const GRID = `minmax(230px,1.3fr) 110px 70px 120px 110px repeat(${FEATURES.length}, 112px)`;
+const SCOPES = [{ value: 'default', label: 'Default (role)' }, { value: 'all', label: 'All anken' }, { value: 'members', label: 'Members only' }];
+const GRID = `minmax(230px,1.3fr) 110px 70px 120px 110px minmax(180px,1fr) 150px 100px repeat(${FEATURES.length}, 112px)`;
 
 export function UsersPage() {
   const q = useQuery(usersQuery);
@@ -34,12 +38,12 @@ export function UsersPage() {
           <RequestsSection users={q.data} />
           <section className="card card-clip" aria-label="Users">
             <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 1600 }}>
+              <div style={{ minWidth: 2000 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 12, padding: '8px 20px', background: 'var(--surface-hover)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
-                  <span>User</span><span>Role</span><span>Admin</span><span>Access</span><span>Country</span>
+                  <span>User</span><span>Role</span><span>Admin</span><span>Access</span><span>Country</span><span>Anken</span><span>Anken scope</span><span />
                   {FEATURES.map(([k, label]) => <span key={k}>{label}</span>)}
                 </div>
-                {q.data.map((u) => <UserLine key={u.member.id} u={u} update={update} />)}
+                {q.data.map((u) => <UserLine key={u.member.id} u={u} users={q.data} update={update} />)}
               </div>
             </div>
           </section>
@@ -49,7 +53,8 @@ export function UsersPage() {
   );
 }
 
-function UserLine({ u, update }: { u: Schemas['UserRow']; update: (id: string, body: Schemas['UserPatchIn']) => void }) {
+function UserLine({ u, users, update }: { u: Schemas['UserRow']; users: Schemas['UserRow'][]; update: (id: string, body: Schemas['UserPatchIn']) => void }) {
+  const [dialog, setDialog] = useState<'anken' | 'merge' | null>(null);
   const m = u.member;
   const id = m.id;
   const isAdmin = m.permission === 'admin' || u.bootstrap_admin;
@@ -70,6 +75,13 @@ function UserLine({ u, update }: { u: Schemas['UserRow']; update: (id: string, b
       <Select aria-label={`${m.name} access`} value={u.access} options={access} disabled={u.bootstrap_admin}
         title={u.bootstrap_admin ? 'Set in TRACKER_ADMINS' : undefined} onChange={(v) => update(id, { access: v as 'active' })} />
       <Select aria-label={`${m.name} country`} value={m.country} options={COUNTRIES} onChange={(v) => update(id, { country: v as 'VN' })} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
+        {u.all_anken ? <span className="muted">All anken</span> : u.anken.map((k) => <span key={k} className="mono">{k}</span>)}
+        <Button size="sm" appearance="subtle" aria-label={`${m.name} anken`} onClick={() => setDialog('anken')}>Edit</Button>
+      </span>
+      <Select aria-label={`${m.name} anken scope`} value={u.anken_scope} options={SCOPES} disabled={isAdmin}
+        title={isAdmin ? 'An admin always sees every anken' : undefined} onChange={(v) => update(id, { anken_scope: v as 'all' })} />
+      <Button size="sm" appearance="subtle" aria-label={`Merge ${m.name}…`} onClick={() => setDialog('merge')}>Merge…</Button>
       {FEATURES.map(([f, label]) => {
         const aria = `${m.name} ${label}`;
         // An admin has every feature; the role defaults in `effective` would mislead, and overrides do not apply.
@@ -88,6 +100,8 @@ function UserLine({ u, update }: { u: Schemas['UserRow']; update: (id: string, b
           </span>
         );
       })}
+      {dialog === 'anken' && <AnkenDialog user={u} close={() => setDialog(null)} />}
+      {dialog === 'merge' && <MergeDialog keep={u} users={users} close={() => setDialog(null)} />}
     </div>
   );
 }

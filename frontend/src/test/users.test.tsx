@@ -12,7 +12,8 @@ afterAll(() => server.close());
 const LEVELS = ['my_work', 'overview', 'matrix', 'ticket', 'planning', 'effort', 'qa', 'calendar', 'members'];
 const effective = (over: Record<string, string> = {}) => Object.fromEntries(LEVELS.map((f) => [f, over[f] ?? (f === 'members' ? 'none' : 'read')]));
 const row = (id: string, over: Record<string, string> = {}, extra: Record<string, unknown> = {}) => ({
-  member: members.find((m) => m.id === id)!, access: 'active', bootstrap_admin: false, overrides: over, effective: effective(over), ...extra,
+  member: members.find((m) => m.id === id)!, access: 'active', bootstrap_admin: false, overrides: over, effective: effective(over),
+  anken: [], anken_scope: 'default', all_anken: false, ...extra,
 });
 const request = (over: Record<string, unknown> = {}) => ({
   id: 7, email: 'lan.vo@acme.vn', name: 'Lan', note: 'Please add me', requested_at: '2026-10-06T08:00:00Z', status: 'pending',
@@ -137,6 +138,71 @@ describe('User management', () => {
     renderApp('/admin/users');
     fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
     await waitFor(() => expect(called).toBe(true));
+  });
+
+  it("edits a user's anken", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an', {}, { anken: ['PAY-1100'] })])),
+      http.patch('*/api/v1/admin/users/an', async ({ request: r }) => { bodies.push(await r.json()); return HttpResponse.json(row('an')); }),
+    );
+    renderApp('/admin/users');
+    expect(await screen.findByText('PAY-1100')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'An anken' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit anken' });
+    const pay1100 = (await within(dialog).findByLabelText('PAY-1100')) as HTMLInputElement;
+    expect(pay1100.checked).toBe(true);
+    fireEvent.click(pay1100);
+    fireEvent.click(within(dialog).getByLabelText('PAY-1300'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(bodies).toEqual([{ anken: ['PAY-1300'] }]));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit anken' })).toBeNull());
+  });
+
+  it('shows All anken for a user who sees everything', async () => {
+    server.use(http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an', {}, { all_anken: true })])));
+    renderApp('/admin/users');
+    expect(await screen.findByText('All anken', { selector: 'span' })).toBeTruthy();
+  });
+
+  it('sets scope to all', async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an')])),
+      http.patch('*/api/v1/admin/users/an', async ({ request: r }) => { bodies.push(await r.json()); return HttpResponse.json(row('an')); }),
+    );
+    renderApp('/admin/users');
+    fireEvent.change(await screen.findByLabelText('An anken scope'), { target: { value: 'all' } });
+    await waitFor(() => expect(bodies).toEqual([{ anken_scope: 'all' }]));
+  });
+
+  it('disables the scope of an admin', async () => {
+    server.use(http.get('*/api/v1/admin/users', () => HttpResponse.json([row('an', {}, { bootstrap_admin: true })])));
+    renderApp('/admin/users');
+    expect(((await screen.findByLabelText('An anken scope')) as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it('merges two members', async () => {
+    const bodies: unknown[] = [];
+    let usersFetches = 0;
+    const an2 = { ...members.find((m) => m.id === 'an')!, id: 'an-2', name: 'An Two' };
+    server.use(
+      http.get('*/api/v1/admin/users', () => { usersFetches++; return HttpResponse.json([row('an'), row('minh'), row('an-2', {}, { member: an2 })]); }),
+      http.post('*/api/v1/admin/members/merge', async ({ request: r }) => { bodies.push(await r.json()); return HttpResponse.json(row('an')); }),
+    );
+    renderApp('/admin/users');
+    await screen.findByLabelText('An Planning');
+    const before = usersFetches;
+    fireEvent.click(screen.getByRole('button', { name: 'Merge An…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Merge members' });
+    const pick = within(dialog).getByLabelText('Member to merge') as HTMLSelectElement;
+    // The actor (Minh) cannot be the one removed, and a member cannot be merged into itself.
+    expect([...pick.options].map((o) => o.value)).toEqual(['an-2']);
+    expect(within(dialog).getByText(/This moves An Two's anken, leave and Jira history to An and deletes An Two\./)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Merge' }));
+    await waitFor(() => expect(bodies).toEqual([{ keep_id: 'an', remove_id: 'an-2' }]));
+    await waitFor(() => expect(usersFetches).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Merge members' })).toBeNull());
   });
 
   it('sends a non-admin away', async () => {
