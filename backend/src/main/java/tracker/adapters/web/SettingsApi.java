@@ -10,7 +10,6 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
@@ -304,7 +303,7 @@ public class SettingsApi {
     public record AlertsIn(@NotNull @DecimalMin("0") Double soonDays, @NotNull @DecimalMin("0") Double effortWarnPct,
                            @NotNull @DecimalMin("0") Double heldDays, @NotNull @DecimalMin("0") Double reviewRounds,
                            @NotNull @DecimalMin("0") Double capacityPct,
-                           @NotNull @PositiveOrZero Double effortDiffH) {
+                           @NotNull @DecimalMin("0") Double effortDiffH) {
     }
 
     @Open(Rule.ADMIN)

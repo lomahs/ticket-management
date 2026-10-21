@@ -2278,7 +2278,8 @@
           },
           "effort_diff_h" : {
             "type" : "number",
-            "format" : "double"
+            "format" : "double",
+            "minimum" : 0
           },
           "effort_warn_pct" : {
             "type" : "number",
