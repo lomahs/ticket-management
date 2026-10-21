@@ -462,17 +462,17 @@ class ServiceReadsTest {
 
     @Test
     void structureListsJiraTasksWithTheirTemplate() {
-        JiraSettingsService.StructureView v = jiraSettings.structure();
+        JiraSettingsService.StructureView v = jiraSettings.structure(null);
         assertThat(v.phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
         assertThat(v.tasks()).isEmpty();
         assertThat(v.seen().stream().filter(t -> t.epicKey().equals("PAY-1100")))
                 .extracting(t -> t.key() + "/" + t.phase() + "/" + t.template())
                 .containsExactly("PAY-1101/Prepare/null", "PAY-1102/Implement_Coding/null", "PAY-1103/Function Unit Test/null");
         WorkStructure draft = new WorkStructure(List.of("Coding"), List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI")));
-        JiraSettingsService.SeenTask t = jiraSettings.previewStructure(draft).seen().stream()
+        JiraSettingsService.SeenTask t = jiraSettings.previewStructure(null, draft).seen().stream()
                 .filter(x -> x.key().equals("PAY-1102")).findFirst().orElseThrow();
         assertThat(List.of(t.phase(), t.template())).containsExactly("Coding", 0);
-        assertThat(jiraSettings.structure().tasks()).isEmpty(); // a preview does not save
+        assertThat(jiraSettings.structure(null).tasks()).isEmpty(); // a preview does not save
     }
 
     @Test
@@ -484,23 +484,23 @@ class ServiceReadsTest {
                 new WorkStructure(List.of("A"), List.of(new TaskTemplate("X", "A", ""), new TaskTemplate(" x ", "A", ""))),
                 new WorkStructure(List.of("A"), List.of(new TaskTemplate(" ", "A", ""))));
         for (WorkStructure ws : bad) {
-            assertThatThrownBy(() -> jiraSettings.saveStructure(ws)).isInstanceOf(Invalid.class);
+            assertThatThrownBy(() -> jiraSettings.saveStructure(null, ws)).isInstanceOf(Invalid.class);
         }
-        assertThat(jiraSettings.structure().phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
+        assertThat(jiraSettings.structure(null).phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
     }
 
     @Test
     void nameRulePreviewAndValidation() {
-        JiraSettingsService.NameRulePreview p = jiraSettings.previewNameRule(tracker.domain.Naming.DEFAULT_RULE, null,
+        JiraSettingsService.NameRulePreview p = jiraSettings.previewNameRule(null, tracker.domain.Naming.DEFAULT_RULE, null,
                 "[Implement_Coding][F03] Domestic card payment – Fix comment BAL");
         assertThat(p.error()).isNull();
         assertThat(p.step()).isEqualTo(StepKind.FIX_BAL.value());
         assertThat(p.values().get("function_id")).isEqualTo("F03");
         assertThat(p.matched()).isGreaterThanOrEqualTo(60).isLessThan(p.total());
-        assertThat(jiraSettings.previewNameRule("[{phase}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase}");
-        assertThat(jiraSettings.previewNameRule("[{prefix}] {step}", null, "[X] Create").error())
+        assertThat(jiraSettings.previewNameRule(null, "[{phase}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase}");
+        assertThat(jiraSettings.previewNameRule(null, "[{prefix}] {step}", null, "[X] Create").error())
                 .isEqualTo("Pattern must contain {function_id} or {function_name}");
-        assertThatThrownBy(() -> jiraSettings.saveNameRules("[{prefix}] {step}", Map.of("create", "Create")))
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{prefix}] {step}", Map.of("create", "Create")))
                 .isInstanceOf(Invalid.class);
     }
 

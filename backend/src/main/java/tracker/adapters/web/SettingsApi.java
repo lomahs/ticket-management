@@ -7,6 +7,7 @@ import java.util.Map;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,6 +29,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Open;
+import tracker.application.service.JiraSettingsService.AnkenSettingsView;
 import tracker.application.service.JiraSettingsService.FieldMappingCheck;
 import tracker.application.service.JiraSettingsService.FieldMappingView;
 import tracker.application.service.JiraSettingsService.JiraSettingsView;
@@ -189,20 +192,20 @@ public class SettingsApi {
 
     @Open(Rule.ADMIN)
     @GetMapping("/settings/structure")
-    public StructureView structure() {
-        return jiraSettings.structure();
+    public StructureView structure(@RequestParam(required = false) @Nullable String anken) {
+        return jiraSettings.structure(anken);
     }
 
     @Open(Rule.ADMIN)
     @PutMapping("/settings/structure")
-    public StructureView saveStructure(@RequestBody @Valid StructureIn body) {
-        return jiraSettings.saveStructure(body.domain());
+    public StructureView saveStructure(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StructureIn body) {
+        return jiraSettings.saveStructure(anken, body.domain());
     }
 
     @Open(Rule.ADMIN)
     @PostMapping("/settings/structure/preview")
-    public StructureView previewStructure(@RequestBody @Valid StructureIn body) {
-        return jiraSettings.previewStructure(body.domain());
+    public StructureView previewStructure(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StructureIn body) {
+        return jiraSettings.previewStructure(anken, body.domain());
     }
 
     // --- name rules -------------------------------------------------------------------------------------------------
@@ -217,20 +220,30 @@ public class SettingsApi {
 
     @Open(Rule.ADMIN)
     @GetMapping("/settings/name-rules")
-    public NameRulesView nameRules() {
-        return jiraSettings.nameRules();
+    public NameRulesView nameRules(@RequestParam(required = false) @Nullable String anken) {
+        return jiraSettings.nameRules(anken);
     }
 
     @Open(Rule.ADMIN)
     @PutMapping("/settings/name-rules")
-    public NameRulesView saveNameRules(@RequestBody @Valid NameRulesIn body) {
-        return jiraSettings.saveNameRules(body.rule(), body.aliases());
+    public NameRulesView saveNameRules(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid NameRulesIn body) {
+        return jiraSettings.saveNameRules(anken, body.rule(), body.aliases());
     }
 
     @Open(Rule.ADMIN)
     @PostMapping("/settings/name-rules/preview")
-    public NameRulePreview previewNameRule(@RequestBody @Valid NameRulePreviewIn body) {
-        return jiraSettings.previewNameRule(body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
+    public NameRulePreview previewNameRule(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid NameRulePreviewIn body) {
+        return jiraSettings.previewNameRule(anken, body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
+    }
+
+    public record CopyIn(@NotBlank String from) {
+    }
+
+    /** Copies the Phases & Tasks and name rules of "default" or another anken onto this one, then runs a full sync. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/settings/anken/{epic}/copy")
+    public AnkenSettingsView copySettings(@PathVariable String epic, @RequestBody @Valid CopyIn body) {
+        return jiraSettings.copySettings(epic, body.from());
     }
 
     // --- calendar settings ------------------------------------------------------------------------------------------

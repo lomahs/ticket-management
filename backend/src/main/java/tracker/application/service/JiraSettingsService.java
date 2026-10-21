@@ -317,8 +317,24 @@ public class JiraSettingsService {
     public record StructureView(List<String> phases, List<TaskTemplate> tasks, List<SeenTask> seen) {
     }
 
-    private StructureView structureView(WorkStructure ws) {
-        List<Issue> parents = new ArrayList<>(issues.findByEpics(settings.load().jira.epics).stream()
+    /** The epic a request names: null for the default (blank), else a tracked epic. */
+    private @Nullable String tracked(@Nullable String epic) {
+        if (epic == null || epic.isBlank()) {
+            return null;
+        }
+        if (!settings.load().jira.epics.contains(epic)) {
+            throw new NotFound("Anken " + epic + " is not tracked", "anken");
+        }
+        return epic;
+    }
+
+    /** The epics whose issues a view counts: the named one, or every tracked epic for the default. */
+    private List<String> scopeOf(TrackerSettings s, @Nullable String epic) {
+        return epic == null ? s.jira.epics : List.of(epic);
+    }
+
+    private StructureView structureView(WorkStructure ws, @Nullable String epic) {
+        List<Issue> parents = new ArrayList<>(issues.findByEpics(scopeOf(settings.load(), epic)).stream()
                 .filter(i -> i.kind() == IssueKind.PARENT).toList());
         parents.sort(Comparator.comparing(Issue::epicKey).thenComparing(Issue::key));
         List<SeenTask> seen = parents.stream().map(p -> {
@@ -354,20 +370,58 @@ public class JiraSettingsService {
         return new WorkStructure(phases, tasks);
     }
 
-    public StructureView structure() {
-        return structureView(settings.load().structure);
+    public StructureView structure(@Nullable String epic) {
+        String e = tracked(epic);
+        return structureView(settings.load().structureOf(e), e);
     }
 
     /** Classifies the Tasks with unsaved settings, so the screen can show matches while the admin types. */
-    public StructureView previewStructure(WorkStructure draft) {
-        return structureView(draft);
+    public StructureView previewStructure(@Nullable String epic, WorkStructure draft) {
+        return structureView(draft, tracked(epic));
     }
 
-    public StructureView saveStructure(WorkStructure draft) {
+    /** @param epic the anken to save for; null or blank saves the default for new anken */
+    public StructureView saveStructure(@Nullable String epic, WorkStructure draft) {
+        String e = tracked(epic);
         WorkStructure ws = checked(draft);
-        settings.update(s -> s.structure = ws);
+        settings.update(s -> {
+            if (e == null) {
+                s.structure = ws;
+            } else {
+                ankenSettings(s, e).structure = ws;
+            }
+        });
         sync.run(true);
-        return structure();
+        return structure(e);
+    }
+
+    private static TrackerSettings.AnkenSettings ankenSettings(TrackerSettings s, String epic) {
+        return s.anken.computeIfAbsent(epic, k -> TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
+    }
+
+    public record AnkenSettingsView(StructureView structure, NameRulesView nameRules) {
+    }
+
+    /**
+     * Copies the Phases & Tasks and the name rules of {@code from} onto {@code epic}, then runs a full sync.
+     *
+     * @param from "default" or a tracked epic key
+     */
+    public AnkenSettingsView copySettings(String epic, String from) {
+        String target = tracked(epic);
+        if (target == null) {
+            throw new NotFound("Anken " + epic + " is not tracked", "anken");
+        }
+        if (from.equals(epic)) {
+            throw new Invalid("Pick another anken to copy from", "from");
+        }
+        String source = "default".equals(from) ? null : tracked(from);
+        settings.update(s -> {
+            TrackerSettings.AnkenSettings copy = TrackerSettings.AnkenSettings.copyOf(s.structureOf(source), s.nameRulesOf(source));
+            s.anken.put(target, copy);
+        });
+        sync.run(true);
+        return new AnkenSettingsView(structure(target), nameRules(target));
     }
 
     // --- name rules -------------------------------------------------------------------------------------------------
@@ -380,8 +434,8 @@ public class JiraSettingsService {
                                   boolean sampleMatches, int matched, int total) {
     }
 
-    private List<String> summaries() {
-        return issues.findByEpics(settings.load().jira.epics).stream().filter(i -> i.kind() == IssueKind.SUBTASK)
+    private List<String> summaries(@Nullable String epic) {
+        return issues.findByEpics(scopeOf(settings.load(), epic)).stream().filter(i -> i.kind() == IssueKind.SUBTASK)
                 .map(Issue::summary).toList();
     }
 
@@ -407,17 +461,19 @@ public class JiraSettingsService {
         return out;
     }
 
-    public NameRulesView nameRules() {
-        TrackerSettings.NameRules nr = settings.load().nameRules;
-        List<String> summaries = summaries();
+    public NameRulesView nameRules(@Nullable String epic) {
+        String e = tracked(epic);
+        TrackerSettings.NameRules nr = settings.load().nameRulesOf(e);
+        List<String> summaries = summaries(e);
         return new NameRulesView(nr.rule, aliasValues(nr.aliases), Naming.coverage(Naming.compileRule(nr.rule, nr.aliases), summaries),
                 summaries.size());
     }
 
     /** @param rawAliases null uses the saved aliases */
-    public NameRulePreview previewNameRule(String rule, @Nullable Map<String, String> rawAliases, String sample) {
-        List<String> summaries = summaries();
-        Map<StepKind, String> al = aliases(rawAliases, settings.load().nameRules.aliases);
+    public NameRulePreview previewNameRule(@Nullable String epic, String rule, @Nullable Map<String, String> rawAliases, String sample) {
+        String scope = tracked(epic);
+        List<String> summaries = summaries(scope);
+        Map<StepKind, String> al = aliases(rawAliases, settings.load().nameRulesOf(scope).aliases);
         Naming.CompiledRule compiled;
         try {
             compiled = Naming.compileRule(rule, al);
@@ -431,7 +487,8 @@ public class JiraSettingsService {
     }
 
     /** @param rule "" restores the default rule */
-    public NameRulesView saveNameRules(String rule, Map<String, String> rawAliases) {
+    public NameRulesView saveNameRules(@Nullable String epic, String rule, Map<String, String> rawAliases) {
+        String scope = tracked(epic);
         Map<StepKind, String> al = aliases(rawAliases, Map.of());
         String r = Text.orElse(rule, Naming.DEFAULT_RULE);
         try {
@@ -440,10 +497,11 @@ public class JiraSettingsService {
             throw new Invalid(e.getMessage(), "rule");
         }
         settings.update(s -> {
-            s.nameRules.rule = r;
-            s.nameRules.aliases = al;
+            TrackerSettings.NameRules nr = scope == null ? s.nameRules : ankenSettings(s, scope).nameRules;
+            nr.rule = r;
+            nr.aliases = al;
         });
         sync.run(true);
-        return nameRules();
+        return nameRules(scope);
     }
 }

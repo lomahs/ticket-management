@@ -140,6 +140,16 @@ class ApiReadsTest extends ApiTestSupport {
     }
 
     @Test
+    void structurePerAnken() throws Exception {
+        List<String> epics = call(get("/api/v1/settings/structure?anken=PAY-1100")).json().get("seen").findValues("epic_key").stream()
+                .map(JsonNode::asText).distinct().toList();
+        assertThat(epics).containsExactly("PAY-1100");
+        assertThat(call(get("/api/v1/settings/structure")).json().get("seen").findValues("epic_key").stream().map(JsonNode::asText)
+                .distinct().count()).isGreaterThan(1);
+        problem(call(get("/api/v1/settings/structure?anken=NOPE-1")), 404, "not_found");
+    }
+
+    @Test
     void settingsReads() throws Exception {
         JsonNode j = call(get("/api/v1/settings/jira")).json();
         assertThat(j.has("token")).isFalse();

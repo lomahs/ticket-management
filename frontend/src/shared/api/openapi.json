@@ -1454,6 +1454,42 @@
         "tags" : [ "settings-api" ]
       }
     },
+    "/api/v1/settings/anken/{epic}/copy" : {
+      "post" : {
+        "operationId" : "copySettings",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CopyIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AnkenSettingsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      }
+    },
     "/api/v1/settings/epics" : {
       "post" : {
         "operationId" : "addEpic",
@@ -1655,6 +1691,14 @@
     "/api/v1/settings/name-rules" : {
       "get" : {
         "operationId" : "nameRules",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -1671,6 +1715,14 @@
       },
       "put" : {
         "operationId" : "saveNameRules",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1699,6 +1751,14 @@
     "/api/v1/settings/name-rules/preview" : {
       "post" : {
         "operationId" : "previewNameRule",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1777,6 +1837,14 @@
     "/api/v1/settings/structure" : {
       "get" : {
         "operationId" : "structure",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -1793,6 +1861,14 @@
       },
       "put" : {
         "operationId" : "saveStructure",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1821,6 +1897,14 @@
     "/api/v1/settings/structure/preview" : {
       "post" : {
         "operationId" : "previewStructure",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -2246,6 +2330,18 @@
         },
         "required" : [ "candidates", "epic_key", "members", "not_members" ]
       },
+      "AnkenSettingsView" : {
+        "type" : "object",
+        "properties" : {
+          "name_rules" : {
+            "$ref" : "#/components/schemas/NameRulesView"
+          },
+          "structure" : {
+            "$ref" : "#/components/schemas/StructureView"
+          }
+        },
+        "required" : [ "name_rules", "structure" ]
+      },
       "Answer" : {
         "type" : "object",
         "properties" : {
@@ -2594,6 +2690,16 @@
           }
         },
         "required" : [ "day_off", "from_end", "from_member", "from_start", "key", "to_end", "to_member", "to_start" ]
+      },
+      "CopyIn" : {
+        "type" : "object",
+        "properties" : {
+          "from" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "from" ]
       },
       "DateReason" : {
         "type" : "object",

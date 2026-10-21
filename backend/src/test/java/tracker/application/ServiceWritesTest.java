@@ -122,11 +122,9 @@ class ServiceWritesTest {
     }
 
     @Test
-    void saveStructureResyncsPhases(@Autowired SettingsStore store) {
-        jiraSettings.saveStructure(new WorkStructure(List.of("Coding", "Prepare"),
+    void saveStructureResyncsPhases() {
+        jiraSettings.saveStructure("PAY-1100", new WorkStructure(List.of("Coding", "Prepare"),
                 List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
-        // saveStructure still edits the default only (Task 3 makes it per anken): hand PAY-1100 the new default
-        store.update(s -> s.anken.put("PAY-1100", TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules)));
         AnkenService.AnkenCard card = anken.overview(ALL).stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
         assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
     }

@@ -692,6 +692,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/anken/{epic}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["copySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/epics": {
         parameters: {
             query?: never;
@@ -1023,6 +1039,10 @@ export interface components {
             members: components["schemas"]["AnkenMemberRow"][];
             not_members: components["schemas"]["NotMember"][];
         };
+        AnkenSettingsView: {
+            name_rules: components["schemas"]["NameRulesView"];
+            structure: components["schemas"]["StructureView"];
+        };
         Answer: {
             chips: string[];
             text: string;
@@ -1131,6 +1151,9 @@ export interface components {
             to_end: string;
             to_member: string;
             to_start: string;
+        };
+        CopyIn: {
+            from: string;
         };
         DateReason: {
             date: string;
@@ -3003,6 +3026,32 @@ export interface operations {
             };
         };
     };
+    copySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopyIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnkenSettingsView"];
+                };
+            };
+        };
+    };
     addEpic: {
         parameters: {
             query?: never;
@@ -3187,7 +3236,9 @@ export interface operations {
     };
     nameRules: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3207,7 +3258,9 @@ export interface operations {
     };
     saveNameRules: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3231,7 +3284,9 @@ export interface operations {
     };
     previewNameRule: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3299,7 +3354,9 @@ export interface operations {
     };
     structure: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3319,7 +3376,9 @@ export interface operations {
     };
     saveStructure: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3343,7 +3402,9 @@ export interface operations {
     };
     previewStructure: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

@@ -110,6 +110,49 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void savingAnAnkensRulesLeavesOthersAlone() throws Exception {
+        String before1300 = call(get("/api/v1/settings/name-rules?anken=PAY-1300")).text();
+        String beforeDefault = call(get("/api/v1/settings/name-rules")).text();
+        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{function_id}] {function_name} - {step}", "aliases", Map.of("create", "Make"))));
+        JsonNode own = call(get("/api/v1/settings/name-rules?anken=PAY-1100")).json();
+        assertThat(own.get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(own.get("aliases").get("create").asText()).isEqualTo("Make");
+        assertThat(call(get("/api/v1/settings/name-rules?anken=PAY-1300")).text()).isEqualTo(before1300);
+        assertThat(call(get("/api/v1/settings/name-rules")).text()).isEqualTo(beforeDefault);
+    }
+
+    @Test
+    void invalidStructureForAnAnkenSavesNothing() throws Exception {
+        String structure = call(get("/api/v1/settings/structure?anken=PAY-1100")).json().get("phases").toString();
+        String started = call(get("/api/v1/sync/runs/latest")).json().get("started_at").asText();
+        problem(call(json(put("/api/v1/settings/structure?anken=PAY-1100"), Map.of("phases", List.of("UC"),
+                "tasks", List.of(Map.of("match", "X", "phase", "QA"))))), 422, "invalid");
+        assertThat(call(get("/api/v1/settings/structure?anken=PAY-1100")).json().get("phases").toString()).isEqualTo(structure);
+        assertThat(call(get("/api/v1/sync/runs/latest")).json().get("started_at").asText()).isEqualTo(started);
+    }
+
+    @Test
+    void copyRejectsSelfAndUnknown() throws Exception {
+        problem(call(json(post("/api/v1/settings/anken/PAY-1100/copy"), Map.of("from", "PAY-1100"))), 422, "invalid");
+        problem(call(json(post("/api/v1/settings/anken/PAY-1100/copy"), Map.of("from", "NOPE-1"))), 404, "not_found");
+        problem(call(json(post("/api/v1/settings/anken/NOPE-1/copy"), Map.of("from", "default"))), 404, "not_found");
+    }
+
+    @Test
+    void copyFromAnotherAnken() throws Exception {
+        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{function_id}] {function_name} - {step}", "aliases", Map.of("create", "Make"))));
+        JsonNode view = call(json(post("/api/v1/settings/anken/PAY-1300/copy"), Map.of("from", "PAY-1100"))).json();
+        assertThat(view.get("name_rules").get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(view.get("structure").get("phases").toString()).isEqualTo(
+                call(get("/api/v1/settings/structure?anken=PAY-1100")).json().get("phases").toString());
+        JsonNode copied = call(get("/api/v1/settings/name-rules?anken=PAY-1300")).json();
+        assertThat(copied.get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(copied.get("aliases").get("create").asText()).isEqualTo("Make");
+        call(json(post("/api/v1/settings/anken/PAY-1300/copy"), Map.of("from", "default")));
+        assertThat(call(get("/api/v1/settings/name-rules?anken=PAY-1300")).json().get("aliases").get("create").asText()).isEqualTo("Create");
+    }
+
+    @Test
     void syncEndpoint() throws Exception {
         assertThat(call(json(post("/api/v1/sync"), Map.of("full", false))).json().get("status").asText()).isEqualTo("ok");
     }
