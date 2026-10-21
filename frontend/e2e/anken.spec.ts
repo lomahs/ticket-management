@@ -40,8 +40,9 @@ test('PM adds a not-member', async ({ page }) => {
   // An works on CRM-400 but the demo makes them a member of PAY-1100 and PAY-1300 only.
   await page.goto('/anken/CRM-400');
   const warning = page.getByRole('region', { name: 'Working here but not a member' });
-  await expect(warning.getByText(/Nguyễn Thị An|An —/)).toBeVisible();
-  await warning.getByRole('button', { name: 'Add to anken' }).first().click();
-  await expect(warning).toBeHidden();
-  await expect(page.getByRole('list', { name: 'Anken members' }).getByText('An', { exact: false }).first()).toBeVisible();
+  const anRow = warning.locator('div').filter({ hasText: /^An — / });
+  await expect(anRow).toHaveCount(1);
+  await anRow.getByRole('button', { name: 'Add to anken' }).click();
+  await expect(anRow).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Anken members' }).getByText('An', { exact: true })).toBeVisible();
 });
