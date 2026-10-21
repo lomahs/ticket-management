@@ -91,6 +91,16 @@ class ServiceReadsTest {
     }
 
     @Test
+    void cardCarriesTheEpicRollup() {
+        for (AnkenService.AnkenCard c : anken.overview(ALL)) {
+            long overdue = anken.tickets(ALL, c.key(), "overdue", null).size();
+            assertThat(c.schedule().overdue()).as(c.key()).isEqualTo((int) overdue);
+            assertThat(c.phases().stream().mapToInt(p -> p.schedule().overdue()).sum()).as(c.key()).isEqualTo((int) overdue);
+        }
+        assertThat(anken.overview(ALL).get(0).schedule().overdue()).isPositive();
+    }
+
+    @Test
     void overviewCards() {
         Map<String, AnkenService.AnkenCard> cards = new java.util.LinkedHashMap<>();
         anken.overview(ALL).forEach(c -> cards.put(c.key(), c));

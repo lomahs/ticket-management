@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import tracker.adapters.web.auth.Requires;
+import tracker.application.TaskCard;
 import tracker.application.service.AnkenService.AnkenCard;
 import tracker.application.service.AnkenService.AnkenDetail;
 import tracker.application.service.AnkenService.FunctionDraft;
@@ -90,6 +91,16 @@ public class AnkenApi {
     @GetMapping("/{epic}")
     public AnkenDetail detail(@PathVariable("epic") String epic, Viewer viewer) {
         return anken.detail(epicScope(viewer, epic), epic, viewer.can(Feature.MEMBERS, Level.READ));
+    }
+
+    /** The epic's sub-tasks with one schedule label, optionally within one phase group. */
+    @Requires(feature = Feature.OVERVIEW, level = Level.READ)
+    @GetMapping("/{epic}/tickets")
+    public List<TaskCard> tickets(@PathVariable("epic") String epic,
+                                  @RequestParam @Pattern(regexp = "overdue|late_start|early_start|late_finish|early_finish|under_burn|over_burn",
+                                          message = "must be a schedule label") String label,
+                                  @RequestParam(required = false) @Nullable String phase, Viewer viewer) {
+        return anken.tickets(epicScope(viewer, epic), epic, label, phase);
     }
 
     /**

@@ -35,23 +35,81 @@ class AnalysisOverviewTest {
         assertThat(r).containsExactly(new Analysis.Rework("an", 1, 10, 3, 0.3, 2, 2));
     }
 
+    private static Map<String, IssueSchedule> sched(Issue... issues) {
+        Map<String, IssueSchedule> m = new HashMap<>();
+        for (Issue i : issues) {
+            m.put(i.key(), ScheduleRules.of(i, null, TODAY, Fixtures.CAL, 1.0));
+        }
+        return m;
+    }
+
+    private static Overview.ScheduleRollup roll(Issue... issues) {
+        return Overview.scheduleRollup(List.of(issues), sched(issues), 1.0);
+    }
+
     @Test
     void phaseRollupUsesSpentOverSpentPlusRemaining() {
-        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(
-                issue().status(Status.CLOSED).ps("2026-09-01").pe("2026-09-05").logged(6).remaining(0).build(),
-                issue().status(Status.WIP).ps("2026-09-03").pe("2026-09-11").logged(2).remaining(2).build()));
-        assertThat(p).isEqualTo(new Overview.PhaseRollup("Prepare", 80, 1, 2, "2026-09-01", "2026-09-11", 8.0, 2.0));
+        Issue a = issue().key("A").status(Status.CLOSED).ps("2026-09-01").pe("2026-09-05").logged(6).remaining(0).build();
+        Issue b = issue().key("B").status(Status.WIP).ps("2026-09-03").pe("2026-09-11").logged(2).remaining(2).build();
+        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, b), sched(a, b), 1.0);
+        assertThat(p).usingRecursiveComparison().ignoringFields("schedule")
+                .isEqualTo(new Overview.PhaseRollup("Prepare", 80, 1, 2, "2026-09-01", "2026-09-11", 8.0, 2.0, null));
+        assertThat(p.schedule().overdue()).isEqualTo(1);
     }
 
     @Test
     void phaseRollupOfNoSubtasksIsZero() {
-        assertThat(Overview.phaseRollup("X", List.of())).isEqualTo(new Overview.PhaseRollup("X", 0, 0, 0, null, null, 0, 0));
-        assertThat(Overview.phaseRollup("X", List.of(issue().remaining(0).build())).pct()).isZero();
+        Overview.PhaseRollup p = Overview.phaseRollup("X", List.of(), Map.of(), 1.0);
+        assertThat(p).usingRecursiveComparison().ignoringFields("schedule")
+                .isEqualTo(new Overview.PhaseRollup("X", 0, 0, 0, null, null, 0, 0, null));
+        assertThat(p.schedule().state()).isEqualTo(Overview.Schedule.UNKNOWN);
+        Issue i = issue().remaining(0).build();
+        assertThat(Overview.phaseRollup("X", List.of(i), sched(i), 1.0).pct()).isZero();
     }
 
     @Test
-    void scheduleStateIsAStubForNow() {
-        assertThat(Overview.scheduleState(List.of(issue().build()), TODAY)).isEqualTo(Overview.Schedule.UNKNOWN);
+    void rollupSumsAndCounts() {
+        Issue overdue = issue().key("A").status(Status.WIP).ps("2026-10-01").pe("2026-10-05").est(8).logged(8).build();
+        Issue early = issue().key("B").status(Status.RESOLVED).ps("2026-10-05").pe("2026-10-09").est(8).logged(4)
+                .events(statusTo("2026-10-05", "W"), statusTo("2026-10-06", "R")).build();
+        Issue idle = issue().key("C").status(Status.NYS).ps("2026-10-12").pe("2026-10-16").est(8).logged(0).build();
+        Overview.ScheduleRollup r = roll(overdue, early, idle);
+        Map<String, IssueSchedule> s = sched(overdue, early, idle);
+        assertThat(r.overdue()).isEqualTo(1);
+        assertThat(r.earlyFinish()).isEqualTo(1);
+        assertThat(r.planToDateH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::planToDateH).sum(), 2));
+        assertThat(r.actualToDateH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::actualToDateH).sum(), 2));
+        assertThat(r.diffH()).isEqualTo(Numbers.round(r.actualToDateH() - r.planToDateH(), 2));
+        assertThat(r.state()).isEqualTo(Overview.Schedule.LATE);
+    }
+
+    @Test
+    void rollupStates() {
+        Issue closed = issue().key("A").status(Status.CLOSED).ps("2026-10-05").pe("2026-10-09").build();
+        assertThat(roll(closed).state()).isEqualTo(Overview.Schedule.DONE);
+        Issue idle = issue().key("B").status(Status.NYS).ps("2026-10-12").pe("2026-10-16").build();
+        assertThat(roll(idle).state()).isEqualTo(Overview.Schedule.NOT_STARTED);
+        Issue early = issue().key("C").status(Status.WIP).ps("2026-10-07").pe("2026-10-09").events(statusTo("2026-10-06", "W")).build();
+        assertThat(roll(early, idle).state()).isEqualTo(Overview.Schedule.EARLY);
+        Issue onTime = issue().key("D").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").events(statusTo("2026-10-05", "W")).build();
+        assertThat(roll(onTime, idle).state()).isEqualTo(Overview.Schedule.ON_TRACK);
+        Issue lateStart = issue().key("E").status(Status.NYS).ps("2026-10-05").pe("2026-10-16").build();
+        assertThat(roll(lateStart).lateStart()).isEqualTo(1);
+        assertThat(roll(onTime, lateStart).state()).isEqualTo(Overview.Schedule.LATE);
+        assertThat(roll().state()).isEqualTo(Overview.Schedule.UNKNOWN);
+    }
+
+    @Test
+    void unplannedSubtasksDoNotDistortSums() {
+        Issue base = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(4).build();
+        Overview.ScheduleRollup before = roll(base);
+        Issue noPlan = issue().key("B").status(Status.WIP).ps(null).pe(null).est(8).logged(3).build();
+        Issue noEstimate = issue().key("C").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(0).logged(2).build();
+        Overview.ScheduleRollup after = roll(base, noPlan, noEstimate);
+        assertThat(sched(noPlan).get("B").effort()).isEqualTo(EffortState.NO_PLAN);
+        assertThat(sched(noEstimate).get("C").effort()).isEqualTo(EffortState.NO_ESTIMATE);
+        assertThat(after.planToDateH()).isEqualTo(before.planToDateH());
+        assertThat(after.actualToDateH()).isEqualTo(before.actualToDateH());
     }
 
     @Test

@@ -95,7 +95,8 @@ public final class TrackerContext {
                 i.plannedStart(), i.plannedEnd(), i.estimateH(), Numbers.round(i.loggedH(), 2),
                 closed ? 0 : Numbers.round(Math.max(0.0, i.estimateH() - i.loggedH()), 2),
                 span != null ? span[0] : null, span != null ? span[1] : null,
-                f.isCurrent(), f.late(), f.lateDays(), f.soon(), f.over(), f.tone(), f.heldDays(), f.rounds());
+                f.isCurrent(), f.late(), f.lateDays(), f.soon(), f.over(), f.tone(), f.heldDays(), f.rounds(),
+                schedule.get(i.key()));
     }
 
     /** Derives functions (the sub-tasks of one feature, by step), then the schedule labels and flags of every issue. */

@@ -7,7 +7,11 @@ const card = (over: Partial<TaskCard> = {}): TaskCard => ({
   phase: 'Implement_Coding', function_id: 'F03', function_name: 'Domestic card payment', step: 'fixb', status: 'W', jira_status: 'In Progress',
   assignee_id: 'binh', worker_id: 'binh', planned_start: '2026-10-01', planned_end: '2026-10-06', estimate_h: 4, logged_h: 7.5, remaining_h: 0,
   actual_start: '2026-10-01', actual_end: '2026-10-07', is_current: true, late: true, late_days: 1, soon: false, over: true, tone: 'delay',
-  held_days: 2, rounds: 3, ...over,
+  held_days: 2, rounds: 3,
+  schedule: {
+    start: 'on_time_start', start_days: 0, finish: 'overdue', finish_days: 1, effort: 'on_plan', plan_to_date_h: 4, actual_to_date_h: 4, diff_h: 0,
+  },
+  ...over,
 });
 
 describe('task display', () => {

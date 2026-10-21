@@ -67,6 +67,21 @@ class ApiReadsTest extends ApiTestSupport {
     }
 
     @Test
+    void ticketListByLabel() throws Exception {
+        JsonNode list = call(get("/api/v1/anken/PAY-1100/tickets?label=overdue")).json();
+        assertThat(list).isNotEmpty();
+        int prev = Integer.MAX_VALUE;
+        for (JsonNode t : list) {
+            assertThat(t.get("schedule").get("finish").asText()).isEqualTo("overdue");
+            int days = t.get("schedule").get("finish_days").asInt();
+            assertThat(days).isLessThanOrEqualTo(prev);
+            prev = days;
+        }
+        problem(call(get("/api/v1/anken/PAY-1100/tickets?label=bogus")), 400, "invalid");
+        problem(call(get("/api/v1/anken/PAY-1100/tickets?label=overdue&phase=Nope")), 404, "not_found");
+    }
+
+    @Test
     void functionPreviewValidatesTheBody() throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of("parent_key", "PAY-1102", "name", "Installment", "ba", "an",
                 "bal", "minh", "jm", "tanaka", "create_hours", 8));

@@ -457,6 +457,50 @@
         "tags" : [ "anken-members-api" ]
       }
     },
+    "/api/v1/anken/{epic}/tickets" : {
+      "get" : {
+        "operationId" : "tickets",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "label",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "overdue|late_start|early_start|late_finish|early_finish|under_burn|over_burn"
+          }
+        }, {
+          "in" : "query",
+          "name" : "phase",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/TaskCard"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "anken-api" ]
+      }
+    },
     "/api/v1/auth/info" : {
       "get" : {
         "operationId" : "info",
@@ -2371,6 +2415,9 @@
           "project" : {
             "type" : "string"
           },
+          "schedule" : {
+            "$ref" : "#/components/schemas/ScheduleRollup"
+          },
           "slip_days" : {
             "type" : "integer",
             "format" : "int32"
@@ -2383,7 +2430,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "estimate_h", "forecast", "has_functions", "key", "late_functions", "late_subtasks", "member_ids", "phases", "pim_ids", "plan", "project", "slip_days", "title", "used_h" ]
+        "required" : [ "estimate_h", "forecast", "has_functions", "key", "late_functions", "late_subtasks", "member_ids", "phases", "pim_ids", "plan", "project", "schedule", "slip_days", "title", "used_h" ]
       },
       "AnkenDetail" : {
         "type" : "object",
@@ -3492,6 +3539,44 @@
           }
         }
       },
+      "IssueSchedule" : {
+        "type" : "object",
+        "properties" : {
+          "actual_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "effort" : {
+            "type" : "string",
+            "enum" : [ "under_burn", "over_burn", "on_plan", "no_plan", "no_estimate" ]
+          },
+          "finish" : {
+            "type" : "string",
+            "enum" : [ "early_finish", "late_finish", "on_time_finish", "overdue", "open", "no_plan" ]
+          },
+          "finish_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "plan_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "start" : {
+            "type" : "string",
+            "enum" : [ "early_start", "late_start", "on_time_start", "not_due", "no_plan" ]
+          },
+          "start_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "actual_to_date_h", "diff_h", "effort", "finish", "finish_days", "plan_to_date_h", "start", "start_days" ]
+      },
       "JiraField" : {
         "type" : "object",
         "properties" : {
@@ -4152,6 +4237,9 @@
             "type" : "number",
             "format" : "double"
           },
+          "schedule" : {
+            "$ref" : "#/components/schemas/ScheduleRollup"
+          },
           "spent_h" : {
             "type" : "number",
             "format" : "double"
@@ -4164,7 +4252,7 @@
             "format" : "int32"
           }
         },
-        "required" : [ "closed", "end", "name", "pct", "remaining_h", "spent_h", "start", "total" ]
+        "required" : [ "closed", "end", "name", "pct", "remaining_h", "schedule", "spent_h", "start", "total" ]
       },
       "PhaseTask" : {
         "type" : "object",
@@ -4392,6 +4480,52 @@
           }
         },
         "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate" ]
+      },
+      "ScheduleRollup" : {
+        "type" : "object",
+        "properties" : {
+          "actual_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "early_finish" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "early_start" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "effort" : {
+            "type" : "string",
+            "enum" : [ "under_burn", "over_burn", "on_plan", "no_plan", "no_estimate" ]
+          },
+          "late_finish" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "late_start" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "overdue" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "plan_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "UNKNOWN", "NOT_STARTED", "EARLY", "ON_TRACK", "LATE", "DONE" ]
+          }
+        },
+        "required" : [ "actual_to_date_h", "diff_h", "early_finish", "early_start", "effort", "late_finish", "late_start", "overdue", "plan_to_date_h", "state" ]
       },
       "ScopeMember" : {
         "type" : "object",
@@ -4646,6 +4780,9 @@
             "type" : "integer",
             "format" : "int32"
           },
+          "schedule" : {
+            "$ref" : "#/components/schemas/IssueSchedule"
+          },
           "soon" : {
             "type" : "boolean"
           },
@@ -4665,7 +4802,7 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "planned_end", "planned_start", "project", "remaining_h", "rounds", "soon", "status", "step", "summary", "tone", "worker_id" ]
+        "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "planned_end", "planned_start", "project", "remaining_h", "rounds", "schedule", "soon", "status", "step", "summary", "tone", "worker_id" ]
       },
       "TaskTemplate" : {
         "type" : "object",

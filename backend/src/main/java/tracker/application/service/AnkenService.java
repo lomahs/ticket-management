@@ -30,16 +30,21 @@ import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.DateReason;
 import tracker.domain.Dates;
+import tracker.domain.EffortState;
+import tracker.domain.FinishState;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
+import tracker.domain.IssueSchedule;
 import tracker.domain.Naming;
 import tracker.domain.Numbers;
 import tracker.domain.Role;
 import tracker.domain.Overview.PhaseRollup;
+import tracker.domain.Overview.ScheduleRollup;
 import tracker.domain.Overview;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Scheduling;
+import tracker.domain.StartState;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
@@ -63,7 +68,7 @@ public class AnkenService {
     /** @param slipDays working days the forecast is past the plan */
     public record AnkenCard(String key, String title, String project, @Nullable String plan, @Nullable String forecast, int slipDays,
                             int lateFunctions, int lateSubtasks, double usedH, double estimateH, List<PhaseRollup> phases,
-                            List<String> memberIds, boolean hasFunctions, List<String> pimIds) {
+                            List<String> memberIds, boolean hasFunctions, List<String> pimIds, ScheduleRollup schedule) {
     }
 
     /** Someone with work on the epic's sub-tasks who is not a member of the anken: open sub-tasks assigned and hours logged. */
@@ -114,8 +119,9 @@ public class AnkenService {
             String g = groups.get(i.parentKey() == null ? "" : i.parentKey());
             byPhase.computeIfAbsent(g != null ? g : PhaseGroups.OTHER, x -> new ArrayList<>()).add(i);
         }
+        double t = ctx.settings.thresholds.effortDiffH();
         List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structureOf(key).phases()).stream()
-                .map(n -> Overview.phaseRollup(n, byPhase.get(n))).toList();
+                .map(n -> Overview.phaseRollup(n, byPhase.get(n), ctx.schedule, t)).toList();
         List<Issue> late = subs.stream().filter(i -> ctx.flags.get(i.key()).late()).toList();
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(key)).toList();
         Set<String> lateKeys = new HashSet<>(late.stream().map(Issue::key).toList());
@@ -133,7 +139,8 @@ public class AnkenService {
                 Numbers.round(subs.stream().mapToDouble(Issue::estimateH).sum(), 2),
                 phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty(),
                 ctx.ankenMembers.getOrDefault(key, Set.of()).stream().sorted()
-                        .filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.PIM).toList());
+                        .filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.PIM).toList(),
+                Overview.scheduleRollup(subs, ctx.schedule, t));
     }
 
     /** Assignees of open sub-tasks and authors of worklogs on the epic who are not in its anken, most open sub-tasks first. */
@@ -193,10 +200,50 @@ public class AnkenService {
                 withNotMembers ? notMembers(ctx, epic) : List.of());
     }
 
+    /**
+     * The sub-tasks of the epic with the schedule label {@code label}, restricted to the phase group {@code phase} when given,
+     * most days (or largest effort difference) first, then by key.
+     */
+    public List<TaskCard> tickets(AnkenScope scope, String epic, String label, @Nullable String phase) {
+        TrackerContext ctx = context.load(scope);
+        require(ctx, epic);
+        List<Issue> subs = epicSubtasks(ctx, epic);
+        if (phase != null) {
+            Map<String, String> groups = groupOfTask(ctx, epic);
+            if (!groups.containsValue(phase) && !PhaseGroups.OTHER.equals(phase)) {
+                throw new NotFound(phase + " is not a phase of " + epic, "phase");
+            }
+            subs = subs.stream().filter(i -> phase.equals(groups.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), PhaseGroups.OTHER)))
+                    .toList();
+        }
+        java.util.function.ToDoubleFunction<IssueSchedule> weight = switch (label) {
+            case "overdue", "late_finish", "early_finish" -> IssueSchedule::finishDays;
+            case "late_start", "early_start" -> IssueSchedule::startDays;
+            default -> s -> Math.abs(s.diffH());
+        };
+        return subs.stream().filter(i -> hasLabel(ctx.schedule.get(i.key()), label))
+                .sorted(Comparator.comparingDouble((Issue i) -> -weight.applyAsDouble(ctx.schedule.get(i.key()))).thenComparing(Issue::key))
+                .map(ctx::card).toList();
+    }
+
+    private static boolean hasLabel(IssueSchedule s, String label) {
+        return switch (label) {
+            case "overdue" -> s.finish() == FinishState.OVERDUE;
+            case "late_start" -> s.start() == StartState.LATE_START;
+            case "early_start" -> s.start() == StartState.EARLY_START;
+            case "late_finish" -> s.finish() == FinishState.LATE_FINISH;
+            case "early_finish" -> s.finish() == FinishState.EARLY_FINISH;
+            case "under_burn" -> s.effort() == EffortState.UNDER_BURN;
+            case "over_burn" -> s.effort() == EffortState.OVER_BURN;
+            default -> throw new IllegalArgumentException(label);
+        };
+    }
+
     private static List<PhaseTask> phaseTasks(TrackerContext ctx, String epic, List<Issue> subs) {
         Map<String, String> groups = groupOfTask(ctx, epic);
         return ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).map(t -> {
-            PhaseRollup r = Overview.phaseRollup(t.key(), subs.stream().filter(i -> t.key().equals(i.parentKey())).toList());
+            PhaseRollup r = Overview.phaseRollup(t.key(), subs.stream().filter(i -> t.key().equals(i.parentKey())).toList(), ctx.schedule,
+                    ctx.settings.thresholds.effortDiffH());
             return new PhaseTask(t.key(), t.summary(), PhaseGroups.taskName(t.summary()), groups.get(t.key()), t.status().value(), r.pct(), r.closed(), r.total(),
                     r.start(), r.end());
         }).sorted(Comparator.comparing((PhaseTask t) -> t.start() == null ? "9999" : t.start()).thenComparing(PhaseTask::key))

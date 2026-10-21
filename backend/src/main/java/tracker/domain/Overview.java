@@ -12,30 +12,98 @@ public final class Overview {
     private Overview() {
     }
 
-    /** @param pct time spent over time spent plus remaining, like Jira's progress bar */
+    /**
+     * @param schedule the date and effort roll-up of the phase's sub-tasks
+     * @param pct      time spent over time spent plus remaining, like Jira's progress bar
+     */
     public record PhaseRollup(String name, int pct, int closed, int total, @Nullable String start, @Nullable String end,
-                              double spentH, double remainingH) {
+                              double spentH, double remainingH, ScheduleRollup schedule) {
     }
 
-    /** Progress of a phase from its sub-tasks' effort: spent / (spent + remaining). */
-    public static PhaseRollup phaseRollup(String name, List<Issue> subtasks) {
+    public enum Schedule { UNKNOWN, NOT_STARTED, EARLY, ON_TRACK, LATE, DONE }
+
+    /**
+     * Schedule labels of a set of sub-tasks added up. {@code planToDateH}, {@code actualToDateH} and {@code diffH} skip sub-tasks
+     * with no plan or no estimate; {@code effort} is judged on their sum with the same threshold as one sub-task.
+     */
+    public record ScheduleRollup(double planToDateH, double actualToDateH, double diffH, EffortState effort, int overdue,
+                                 int lateStart, int earlyStart, int lateFinish, int earlyFinish, Schedule state) {
+    }
+
+    /** Progress of a phase from its sub-tasks' effort: spent / (spent + remaining), plus its schedule roll-up. */
+    public static PhaseRollup phaseRollup(String name, List<Issue> subtasks, Map<String, IssueSchedule> schedules, double thresholdH) {
         String start = subtasks.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
         String end = subtasks.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
         double spent = Numbers.round(subtasks.stream().mapToDouble(Issue::loggedH).sum(), 2);
         double remaining = Numbers.round(subtasks.stream().mapToDouble(Issue::remainingH).sum(), 2);
         int pct = spent + remaining > 0 ? (int) Math.round(spent / (spent + remaining) * 100) : 0;
         int closed = (int) subtasks.stream().filter(i -> i.status() == Status.CLOSED).count();
-        return new PhaseRollup(name, pct, closed, subtasks.size(), start, end, spent, remaining);
+        return new PhaseRollup(name, pct, closed, subtasks.size(), start, end, spent, remaining,
+                scheduleRollup(subtasks, schedules, thresholdH));
     }
 
-    public enum Schedule { UNKNOWN, NOT_STARTED, EARLY, ON_TRACK, LATE, DONE }
-
     /**
-     * Early / on track / late of a phase from its sub-tasks (planned dates, estimate, remaining, logged hours, status).
-     * Placeholder: the rule is not decided yet, so it always answers {@link Schedule#UNKNOWN}.
+     * Sums and counts of the schedule labels of {@code subtasks}, and their main state by dates only: done when all are Closed;
+     * late when any is overdue or is a late start that has not started; not started when none has; early when any started or
+     * finished early; else on track. "Started" means an actual start exists or the status is past NYS.
      */
-    public static Schedule scheduleState(List<Issue> subtasks, String today) {
-        return Schedule.UNKNOWN;
+    public static ScheduleRollup scheduleRollup(List<Issue> subtasks, Map<String, IssueSchedule> schedules, double thresholdH) {
+        double plan = 0;
+        double actual = 0;
+        boolean estimated = false;
+        int overdue = 0;
+        int lateStart = 0;
+        int earlyStart = 0;
+        int lateFinish = 0;
+        int earlyFinish = 0;
+        boolean lateNow = false;
+        boolean anyStarted = false;
+        for (Issue i : subtasks) {
+            IssueSchedule s = schedules.get(i.key());
+            boolean started = Flags.actualStart(i) != null || i.status() != Status.NYS;
+            anyStarted |= started;
+            if (s.effort() != EffortState.NO_PLAN && s.effort() != EffortState.NO_ESTIMATE) {
+                estimated = true;
+                plan += s.planToDateH();
+                actual += s.actualToDateH();
+            }
+            switch (s.start()) {
+                case LATE_START -> {
+                    lateStart++;
+                    lateNow |= !started;
+                }
+                case EARLY_START -> earlyStart++;
+                default -> { }
+            }
+            switch (s.finish()) {
+                case OVERDUE -> {
+                    overdue++;
+                    lateNow = true;
+                }
+                case LATE_FINISH -> lateFinish++;
+                case EARLY_FINISH -> earlyFinish++;
+                default -> { }
+            }
+        }
+        double diff = Numbers.round(actual - plan, 2);
+        EffortState effort = !estimated ? EffortState.NO_PLAN
+                : Math.abs(diff) <= thresholdH ? EffortState.ON_PLAN : diff < 0 ? EffortState.UNDER_BURN : EffortState.OVER_BURN;
+        Schedule state;
+        if (subtasks.isEmpty()) {
+            state = Schedule.UNKNOWN;
+        } else if (subtasks.stream().allMatch(i -> i.status() == Status.CLOSED)) {
+            state = Schedule.DONE;
+        } else if (lateNow) {
+            state = Schedule.LATE;
+        } else if (!anyStarted) {
+            state = Schedule.NOT_STARTED;
+        } else if (earlyStart + earlyFinish > 0) {
+            state = Schedule.EARLY;
+        } else {
+            state = Schedule.ON_TRACK;
+        }
+        return new ScheduleRollup(Numbers.round(plan, 2), Numbers.round(actual, 2), diff, effort, overdue, lateStart, earlyStart,
+                lateFinish, earlyFinish, state);
     }
 
     /** The remaining schedule slips by the worst current delay, counted in Mon–Fri days. */

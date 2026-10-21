@@ -212,6 +212,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/anken/{epic}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/info": {
         parameters: {
             query?: never;
@@ -1053,6 +1069,7 @@ export interface components {
             pim_ids: string[];
             plan: string | null;
             project: string;
+            schedule: components["schemas"]["ScheduleRollup"];
             /** Format: int32 */
             slip_days: number;
             title: string;
@@ -1402,6 +1419,24 @@ export interface components {
             /** Format: binary */
             file?: string | null;
         };
+        IssueSchedule: {
+            /** Format: double */
+            actual_to_date_h: number;
+            /** Format: double */
+            diff_h: number;
+            /** @enum {string} */
+            effort: "under_burn" | "over_burn" | "on_plan" | "no_plan" | "no_estimate";
+            /** @enum {string} */
+            finish: "early_finish" | "late_finish" | "on_time_finish" | "overdue" | "open" | "no_plan";
+            /** Format: int32 */
+            finish_days: number;
+            /** Format: double */
+            plan_to_date_h: number;
+            /** @enum {string} */
+            start: "early_start" | "late_start" | "on_time_start" | "not_due" | "no_plan";
+            /** Format: int32 */
+            start_days: number;
+        };
         JiraField: {
             id: string;
             name: string;
@@ -1627,6 +1662,7 @@ export interface components {
             pct: number;
             /** Format: double */
             remaining_h: number;
+            schedule: components["schemas"]["ScheduleRollup"];
             /** Format: double */
             spent_h: number;
             start: string | null;
@@ -1704,6 +1740,28 @@ export interface components {
             member_id: string;
             /** Format: double */
             rate: number;
+        };
+        ScheduleRollup: {
+            /** Format: double */
+            actual_to_date_h: number;
+            /** Format: double */
+            diff_h: number;
+            /** Format: int32 */
+            early_finish: number;
+            /** Format: int32 */
+            early_start: number;
+            /** @enum {string} */
+            effort: "under_burn" | "over_burn" | "on_plan" | "no_plan" | "no_estimate";
+            /** Format: int32 */
+            late_finish: number;
+            /** Format: int32 */
+            late_start: number;
+            /** Format: int32 */
+            overdue: number;
+            /** Format: double */
+            plan_to_date_h: number;
+            /** @enum {string} */
+            state: "UNKNOWN" | "NOT_STARTED" | "EARLY" | "ON_TRACK" | "LATE" | "DONE";
         };
         ScopeMember: {
             color: string;
@@ -1793,6 +1851,7 @@ export interface components {
             remaining_h: number;
             /** Format: int32 */
             rounds: number;
+            schedule: components["schemas"]["IssueSchedule"];
             soon: boolean;
             status: string;
             step: string | null;
@@ -2281,6 +2340,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnkenMembersView"];
+                };
+            };
+        };
+    };
+    tickets: {
+        parameters: {
+            query: {
+                label: string;
+                phase?: string;
+            };
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCard"][];
                 };
             };
         };
