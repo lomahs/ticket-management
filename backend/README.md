@@ -69,6 +69,7 @@ Needs a JDK 25 (`java -version`). Maven comes with the wrapper (`./mvnw`). From 
 | `SPRING_LDAP_URLS` | LDAP server URL(s), e.g. `ldaps://ad.company.local:636` (demo: the embedded server) | none |
 | `SPRING_LDAP_BASE` | LDAP search base | none |
 | `SPRING_LDAP_USERNAME` / `SPRING_LDAP_PASSWORD` | bind account used to search for the user | none |
+| `TRACKER_LDAP_AD_DOMAIN` | Active Directory without a bind account: bind as `username@domain`, read the own entry by `userPrincipalName` | none |
 | `TRACKER_LDAP_USER_FILTER` | filter for the typed username (`{0}`) | `(\|(uid={0})(sAMAccountName={0})(mail={0}))` |
 | `TRACKER_LDAP_MAIL_ATTRIBUTE` / `TRACKER_LDAP_NAME_ATTRIBUTE` | attributes with the identity e-mail and the display name | `mail` / `displayName` |
 | `TRACKER_ADMINS` | comma-separated e-mails of the bootstrap admins (always admin and active) | none |

@@ -30,8 +30,17 @@ public record TrackerProperties(@Nullable String today, @DefaultValue("Asia/Ho_C
      * @param userFilter    LDAP search filter for the username typed at login ({@code {0}}), under {@code spring.ldap.base}
      * @param mailAttribute the attribute with the e-mail: the identity of the user, matched to the member's e-mail
      * @param nameAttribute the attribute with the display name
+     * @param adDomain      set: Active Directory without a service account, a bind as {@code username@adDomain} that
+     *                      reads the user's own entry; {@code userFilter} and {@code spring.ldap.username} are not used
      */
     public record Ldap(@DefaultValue("(|(uid={0})(sAMAccountName={0})(mail={0}))") String userFilter,
-                       @DefaultValue("mail") String mailAttribute, @DefaultValue("displayName") String nameAttribute) {
+                       @DefaultValue("mail") String mailAttribute, @DefaultValue("displayName") String nameAttribute,
+                       @Nullable String adDomain) {
+        public Ldap {
+            if (adDomain != null) {
+                adDomain = adDomain.strip().replaceFirst("^@", "");
+                adDomain = adDomain.isEmpty() ? null : adDomain;
+            }
+        }
     }
 }

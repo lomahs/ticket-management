@@ -88,6 +88,7 @@ yet lands on a page where they can send an access request; an admin approves it 
 | `SPRING_LDAP_USERNAME` / `SPRING_LDAP_PASSWORD` | bind account that searches for the user |
 | `TRACKER_LDAP_USER_FILTER` | filter for the typed username, `{0}` is the username (default `(\|(uid={0})(sAMAccountName={0})(mail={0}))`) |
 | `TRACKER_LDAP_MAIL_ATTRIBUTE` / `TRACKER_LDAP_NAME_ATTRIBUTE` | attributes with the e-mail and the display name (default `mail`, `displayName`) |
+| `TRACKER_LDAP_AD_DOMAIN` | Active Directory **without** a bind account: see below |
 | `TRACKER_ADMINS` | comma-separated e-mails of the bootstrap admins: always admin and active |
 | `TRACKER_BREAKGLASS_PASSWORD_HASH` | bcrypt hash of an emergency password for the user `breakglass`; **off unless set** |
 
@@ -99,6 +100,18 @@ SPRING_LDAP_BASE=dc=company,dc=local
 SPRING_LDAP_USERNAME='cn=svc-tracker,ou=service,dc=company,dc=local'
 SPRING_LDAP_PASSWORD=...
 TRACKER_LDAP_USER_FILTER='(sAMAccountName={0})'
+TRACKER_ADMINS=lead@company.com
+```
+
+Active Directory without a bind account: the app binds as `username@company.local` (the user principal name; a
+username typed with `@company.local` is kept as it is) and reads the user's own entry, found by `userPrincipalName`, over
+the user's connection. `SPRING_LDAP_USERNAME`, `SPRING_LDAP_PASSWORD` and `TRACKER_LDAP_USER_FILTER` are then not used.
+`SPRING_LDAP_BASE` is optional: unset, it comes from the domain (`dc=company,dc=local`). Set it when the principal name
+suffix is not the directory's domain.
+
+```bash
+SPRING_LDAP_URLS=ldaps://ad.company.local:636
+TRACKER_LDAP_AD_DOMAIN=company.local
 TRACKER_ADMINS=lead@company.com
 ```
 

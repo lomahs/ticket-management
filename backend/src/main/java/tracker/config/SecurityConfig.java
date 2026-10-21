@@ -12,8 +12,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.ldap.LdapProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -40,6 +42,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tracker.adapters.web.ApiExceptionHandler;
+import tracker.adapters.web.auth.ActiveDirectoryAuthenticator;
 import tracker.adapters.web.auth.BreakGlass;
 import tracker.adapters.web.auth.LdapLookup;
 import tracker.application.service.AccessService;
@@ -157,11 +160,20 @@ public class SecurityConfig {
     }
 
     /**
-     * Binds as the user found by {@code tracker.ldap.user-filter} under {@code spring.ldap.base}, on Boot's LDAP context
-     * source ({@code spring.ldap.*}; in the demo the embedded server).
+     * With {@code tracker.ldap.ad-domain}: Active Directory without a service account ({@link ActiveDirectoryAuthenticator},
+     * on {@code spring.ldap.urls}, {@code spring.ldap.base} and its timeouts). Otherwise binds as the user found by
+     * {@code tracker.ldap.user-filter} under {@code spring.ldap.base}, on Boot's LDAP context source ({@code spring.ldap.*},
+     * searching as {@code spring.ldap.username} or anonymously; in the demo the embedded server).
      */
     @Bean
-    public LdapAuthenticator ldapAuthenticator(BaseLdapPathContextSource contextSource, LdapLookup lookup) {
+    public LdapAuthenticator ldapAuthenticator(TrackerProperties properties, LdapProperties ldap, Environment environment,
+                                               BaseLdapPathContextSource contextSource, LdapLookup lookup) {
+        String domain = properties.ldap().adDomain();
+        if (domain != null) {
+            log.info("sign-in: Active Directory, a bind as <username>@{} without a service account", domain);
+            return new ActiveDirectoryAuthenticator(domain, String.join(" ", ldap.determineUrls(environment)),
+                    StringUtils.hasText(ldap.getBase()) ? ldap.getBase() : null, ldap.getBaseEnvironment());
+        }
         FilterBasedLdapUserSearch search = new FilterBasedLdapUserSearch("", lookup.userFilter(), contextSource);
         search.setSearchSubtree(true);
         search.setSearchTimeLimit(10_000);
