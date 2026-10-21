@@ -105,6 +105,17 @@ class AnkenMembersServiceTest {
     }
 
     @Test
+    void personWithoutAnkenNeedsTheAdmin() {
+        assertThatThrownBy(() -> service.addPerson(pim, new NewPerson("none@acme.vn", "None", Role.BA, List.of())))
+                .isInstanceOf(Invalid.class).satisfies(e -> assertThat(((Invalid) e).field()).isEqualTo("epics"));
+        Viewer admin = new Viewer("adm@acme.vn", "adm", "adm", Role.PM, true, AccessStatus.ACTIVE, Permissions.defaults(Role.PM), true,
+                Set.of());
+        Member m = service.addPerson(admin, new NewPerson("none@acme.vn", "None", Role.BA, List.of()));
+        assertThat(access.requests(RequestStatus.PENDING)).filteredOn(r -> m.id().equals(r.memberId())).singleElement()
+                .satisfies(r -> assertThat(r.note()).isEqualTo("Added by adm"));
+    }
+
+    @Test
     void setRoleChecksMembershipAndJm() {
         assertThat(service.setRole(pim, "an", Role.BAL).role()).isEqualTo(Role.BAL);
         assertThat(service.setRole(pim, "an", null).role()).isNull();

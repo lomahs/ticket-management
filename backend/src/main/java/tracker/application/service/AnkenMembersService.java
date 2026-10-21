@@ -126,6 +126,9 @@ public class AnkenMembersService {
         if (!members.findAllByEmail(email).isEmpty()) {
             throw new Conflict("A member with this e-mail already exists", "email");
         }
+        if (p.epics().isEmpty() && !v.admin()) {
+            throw new Invalid("Choose at least one anken", "epics");
+        }
         for (String epic : p.epics()) {
             scopes.requireVisible(v, epic);
         }
@@ -133,7 +136,8 @@ public class AnkenMembersService {
         for (String epic : p.epics()) {
             ankenMembers.add(epic, m.id(), v.email(), now());
         }
-        accessService.fileRequestFor(v, m, "Added to " + String.join(", ", p.epics()) + " by " + v.name());
+        accessService.fileRequestFor(v, m,
+                (p.epics().isEmpty() ? "Added" : "Added to " + String.join(", ", p.epics())) + " by " + v.name());
         return m;
     }
 

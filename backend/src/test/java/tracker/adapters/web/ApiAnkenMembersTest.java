@@ -87,6 +87,11 @@ class ApiAnkenMembersTest extends ApiTestSupport {
         problem(call(json(post("/api/v1/anken/PAY-1300/members"), Map.of("member_id", "an")).with(as("pia@acme.vn"))), 404, "not_found");
         problem(call(json(post("/api/v1/people"), Map.of("email", "q@acme.vn", "name", "Q", "role", "PM",
                 "epics", List.of("PAY-1100"))).with(as("pia@acme.vn"))), 403, "forbidden");
+        JsonNode e = problem(call(json(post("/api/v1/people"), Map.of("email", "r@acme.vn", "name", "R", "role", "BA",
+                "epics", List.of())).with(as("pia@acme.vn"))), 422, "invalid");
+        assertThat(e.get("errors").get(0).get("field").asText()).isEqualTo("epics");
+        assertThat(call(json(post("/api/v1/people"), Map.of("email", "r@acme.vn", "name", "R", "role", "BA",
+                "epics", List.of()))).status()).isEqualTo(201);
         problem(call(json(post("/api/v1/people"), Map.of("email", "q@acme.vn", "name", "Q", "role", "BA",
                 "epics", List.of("PAY-1300"))).with(as("pia@acme.vn"))), 404, "not_found");
     }
