@@ -135,6 +135,16 @@ class CapacityTimesheetTest {
     }
 
     @Test
+    void allocationOnlyCountsFromItsEffectiveDate() {
+        Allocations alloc = new Allocations(List.of(new Allocation("an", "X", "2026-11-02", 8)));
+        Map<String, Map<String, Double>> logs = logged("an", "2026-10-15", "X", 8, "an", "2026-11-03", "X", 8);
+        var before = cellOf(CAL, logs, alloc, Set.of("X"), "2026-10-15", "2026-12-01");
+        assertThat(before.state()).isEqualTo("no_allocation");
+        assertThat(before.unallocatedH()).isEqualTo(8);
+        assertThat(cellOf(CAL, logs, alloc, Set.of("X"), "2026-11-03", "2026-12-01").state()).isEqualTo("ok");
+    }
+
+    @Test
     void underOnlyBeforeToday() {
         Allocations alloc = new Allocations(List.of(new Allocation("an", "X", "2026-10-01", 5)));
         Map<String, Map<String, Double>> logs = logged("an", "2026-10-06", "X", 2, "an", "2026-10-07", "X", 2);

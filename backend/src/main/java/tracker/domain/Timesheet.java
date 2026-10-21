@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
@@ -31,7 +30,8 @@ public final class Timesheet {
     private static TimesheetCell cell(String m, String d, Map<String, Double> loggedByEpic, double planned, Allocations alloc,
                                       Set<String> scopeEpics, WorkCalendar cal, String today, double toleranceH) {
         String reason = cal.off(d, m);
-        double logged = loggedByEpic.values().stream().mapToDouble(Double::doubleValue).sum();
+        double logged = loggedByEpic.entrySet().stream().filter(e -> scopeEpics.contains(e.getKey()))
+                .mapToDouble(Map.Entry::getValue).sum();
         String offReason = reason == null || reason.equals(WorkCalendar.WEEKEND) ? null : reason;
         if (Text.hasText(reason)) {
             return cellOf(d, logged, planned, 0, 0, reason.equals(WorkCalendar.WEEKEND) ? "weekend" : "off", offReason);
@@ -44,9 +44,10 @@ public final class Timesheet {
         double loggedA = 0;
         boolean allocated = false;
         for (String e : scopeEpics) {
-            if (alloc.hasAny(m, e)) {
+            Double hours = alloc.hoursOn(m, e, d);
+            if (hours != null) {
                 allocated = true;
-                target += Objects.requireNonNullElse(alloc.hoursOn(m, e, d), 0.0) * factor;
+                target += hours * factor;
                 loggedA += loggedByEpic.getOrDefault(e, 0.0);
             }
         }

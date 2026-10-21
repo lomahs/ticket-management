@@ -69,6 +69,8 @@ class ServiceReadsTest {
     @Autowired
     AllocationRepository allocations;
     @Autowired
+    org.springframework.jdbc.core.simple.JdbcClient jdbc;
+    @Autowired
     CalendarService calendar;
     @Autowired
     TicketService tickets;
@@ -258,10 +260,14 @@ class ServiceReadsTest {
     @Test
     void timesheetUsesAllocation() {
         allocations.save(new Allocation("an", "PAY-1100", "2026-09-01", 8), "minh", "2026-10-07T09:00:00Z");
-        var an = effort.timesheet(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", "2026-10-11").rows().stream()
-                .filter(r -> r.memberId().equals("an")).findFirst().orElseThrow();
-        var monday = an.cells().stream().filter(c -> c.date().equals("2026-10-05")).findFirst().orElseThrow();
-        assertThat(monday.targetH()).isEqualTo(8);
+        try {
+            var an = effort.timesheet(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", "2026-10-11").rows().stream()
+                    .filter(r -> r.memberId().equals("an")).findFirst().orElseThrow();
+            var monday = an.cells().stream().filter(c -> c.date().equals("2026-10-05")).findFirst().orElseThrow();
+            assertThat(monday.targetH()).isEqualTo(8);
+        } finally {
+            jdbc.sql("DELETE FROM allocations WHERE member_id = 'an'").update();
+        }
     }
 
     @Test
