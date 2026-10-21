@@ -27,7 +27,10 @@ class ScheduleRulesTest {
         IssueSchedule early = of(review);
         assertThat(early.start()).isEqualTo(StartState.NOT_DUE);
         assertThat(early.finish()).isEqualTo(FinishState.OPEN);
-        assertThat(ScheduleRules.of(review, null, "2026-10-12", CAL, 1.0).start()).isEqualTo(StartState.LATE_START);
+        assertThat(ScheduleRules.of(review, null, "2026-10-12", CAL, 1.0).start()).isEqualTo(StartState.NOT_DUE);
+        IssueSchedule next = ScheduleRules.of(review, null, "2026-10-13", CAL, 1.0);
+        assertThat(next.start()).isEqualTo(StartState.LATE_START);
+        assertThat(next.startDays()).isEqualTo(1);
     }
 
     @Test
@@ -104,5 +107,45 @@ class ScheduleRulesTest {
         WorkCalendar full = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M,
                 List.of(new Leave(1, "an", "2026-10-06", LeaveType.FULL, "")));
         assertThat(ScheduleRules.of(i, null, TODAY, full, 1.0).planToDateH()).isEqualTo(5);
+    }
+
+    @Test
+    void effortLabelUsesTheRoundedDiff() {
+        IssueSchedule s = of(Fixtures.issue().est(7).ps("2026-10-05").pe("2026-10-09").logged(5.2).build());
+        assertThat(s.diffH()).isEqualTo(1.0);
+        assertThat(s.effort()).isEqualTo(EffortState.ON_PLAN);
+    }
+
+    @Test
+    void doneIssueWithoutHistoryIsNeverLate() {
+        IssueSchedule s = of(Fixtures.issue().status(Status.CLOSED).ps("2026-10-01").pe("2026-10-05").build());
+        assertThat(s.start()).isEqualTo(StartState.ON_TIME_START);
+        assertThat(s.startDays()).isZero();
+        assertThat(s.finish()).isEqualTo(FinishState.ON_TIME_FINISH);
+        assertThat(s.finishDays()).isZero();
+    }
+
+    @Test
+    void boundaries() {
+        assertThat(of(Fixtures.issue().ps("2026-10-05").pe(TODAY).build()).finish()).isEqualTo(FinishState.OPEN);
+        IssueSchedule onDay = of(Fixtures.issue().status(Status.RESOLVED).ps("2026-10-01").pe("2026-10-05")
+                .events(Fixtures.statusTo("2026-10-01", "W"), Fixtures.statusTo("2026-10-05", "R")).build());
+        assertThat(onDay.finish()).isEqualTo(FinishState.ON_TIME_FINISH);
+        assertThat(onDay.finishDays()).isZero();
+        // plan 6h, actual 5h: |diff| == t
+        assertThat(of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").logged(5).build()).effort())
+                .isEqualTo(EffortState.ON_PLAN);
+        IssueSchedule future = of(Fixtures.issue().status(Status.NYS).est(10).ps("2026-10-12").pe("2026-10-16").build());
+        assertThat(future.planToDateH()).isZero();
+        WorkCalendar other = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M,
+                List.of(new Leave(1, "chi", "2026-10-06", LeaveType.FULL, "")));
+        assertThat(ScheduleRules.of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").build(), null, TODAY, other, 1.0)
+                .planToDateH()).isEqualTo(6);
+        IssueSchedule onlyStart = of(Fixtures.issue().ps("2026-10-05").pe(null).build());
+        assertThat(onlyStart.effort()).isEqualTo(EffortState.NO_PLAN);
+        assertThat(onlyStart.finish()).isEqualTo(FinishState.NO_PLAN);
+        IssueSchedule onlyEnd = of(Fixtures.issue().ps(null).pe("2026-10-09").build());
+        assertThat(onlyEnd.effort()).isEqualTo(EffortState.NO_PLAN);
+        assertThat(onlyEnd.start()).isEqualTo(StartState.NO_PLAN);
     }
 }
