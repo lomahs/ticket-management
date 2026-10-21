@@ -74,7 +74,7 @@ test('settings reject an unknown epic and preview name rules', async ({ page }) 
 
 test('phases & tasks classify the Jira Tasks before saving', async ({ page }) => {
   await page.goto('/settings/structure');
-  await page.getByLabel('Anken').selectOption('PAY-1100');
+  await page.getByLabel('Settings for').selectOption('PAY-1100');
   const jira = page.getByRole('region', { name: 'Tasks in Jira' });
   await expect(jira.getByText('[Implement_Coding] Payment flow revision')).toBeVisible();
   await page.getByRole('button', { name: 'Add task' }).click();

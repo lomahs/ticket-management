@@ -22,7 +22,7 @@ export function NameRulesTab() {
   if (t.status === 'error') return <QueryError error={t.error} />;
   return (
     <>
-      <AnkenPicker anken={anken} onCopied={() => setRev((r) => r + 1)} />
+      <AnkenPicker anken={anken} untracked={t.untracked} onCopied={() => setRev((r) => r + 1)} />
       {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <NameRulesForm key={`${anken ?? ''}:${rev}`} anken={anken} v={q.data} />}
     </>
   );

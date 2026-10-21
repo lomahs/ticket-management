@@ -9,7 +9,7 @@ import { jiraQuery, useCopyAnkenSettings } from '../api';
 
 const DEFAULT = '';
 
-type Target = { status: 'pending' } | { status: 'error'; error: Error } | { status: 'ready'; anken: string | null };
+type Target = { status: 'pending' } | { status: 'error'; error: Error } | { status: 'ready'; anken: string | null; untracked?: string };
 
 /**
  * The anken whose rules Settings edits: `?for=` (`default`: the template for new anken), else the switcher's anken, else the
@@ -23,11 +23,12 @@ export function useSettingsTarget(): Target {
   if (jira.isPending) return { status: 'pending' };
   if (jira.isError) return { status: 'error', error: jira.error };
   const want = forParam ? (forParam === 'default' ? null : forParam) : scoped;
-  return { status: 'ready', anken: want && jira.data.epics.some((e) => e.key === want) ? want : null };
+  const tracked = !!want && jira.data.epics.some((e) => e.key === want);
+  return { status: 'ready', anken: tracked ? want : null, untracked: want && !tracked ? want : undefined };
 }
 
 /** Picks the anken (or the default) that Phases & tasks and Name rules show; for an anken it can copy another's rules in. */
-export function AnkenPicker({ anken, onCopied }: { anken: string | null; onCopied: () => void }) {
+export function AnkenPicker({ anken, untracked, onCopied }: { anken: string | null; untracked?: string; onCopied: () => void }) {
   const navigate = useNavigate();
   const epics = useQuery(jiraQuery).data?.epics ?? [];
   const toast = useToast();
@@ -42,20 +43,21 @@ export function AnkenPicker({ anken, onCopied }: { anken: string | null; onCopie
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-        <Select label="Anken" value={anken ?? DEFAULT} style={{ minWidth: 280 }} onChange={pick}
+        <Select label="Settings for" value={anken ?? DEFAULT} style={{ minWidth: 280 }} onChange={pick}
           options={[{ value: DEFAULT, label: 'Default for new anken' }, ...epics.map((e) => ({ value: e.key, label: ankenLabel(e) }))]} />
         {anken && !copying && <Button appearance="secondary" onClick={() => setCopying(true)}>Copy from…</Button>}
         {anken && copying && (
           <>
             <Select aria-label="Copy from" value={from} options={fromOpts} onChange={setFrom} style={{ minWidth: 240 }} />
             <Button disabled={!from || copy.isPending} onClick={() => copy.mutate(from, {
-              onSuccess: () => { toast(`Copied settings from ${from}. Sync started.`); setCopying(false); setFrom(''); onCopied(); },
+              onSuccess: () => { toast(`Copied settings from ${from === 'default' ? 'Default for new anken' : from}. Sync started.`); setCopying(false); setFrom(''); onCopied(); },
               onError: (e) => toast(errorMessage(e), true),
             })}>Copy</Button>
             <Button appearance="subtle" onClick={() => { setCopying(false); setFrom(''); }}>Cancel</Button>
           </>
         )}
       </div>
+      {untracked && <span className="eyebrow" role="status">{`${untracked} is not tracked; showing the default.`}</span>}
       <span className="eyebrow">
         {anken ? `These rules apply to ${anken} only.` : 'New anken start with these rules. Existing anken keep their own.'}
       </span>

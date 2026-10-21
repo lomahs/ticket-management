@@ -24,7 +24,7 @@ export function SettingsPage() {
       </div>
       <div role="tablist" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
         {SETTINGS_TABS.map(([k, label]) => (
-          <Link key={k} to="/settings/$tab" params={{ tab: k }} role="tab" aria-selected={k === tab} style={{
+          <Link key={k} to="/settings/$tab" params={{ tab: k }} search={(p) => ({ for: p.for })} role="tab" aria-selected={k === tab} style={{
             padding: '10px 0', marginBottom: -1, whiteSpace: 'nowrap', textDecoration: 'none', font: 'var(--fw-semibold) var(--fs-small)/1.2 var(--font-text)',
             color: k === tab ? 'var(--text-heading)' : 'var(--text-muted)', borderBottom: `2px solid ${k === tab ? 'var(--color-accent)' : 'transparent'}`,
           }}>{label}</Link>

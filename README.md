@@ -60,9 +60,10 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
    function name identifies the function; the first alias of each step is used when the tracker creates sub-tasks.
    The preview shows how many synced sub-tasks match.
 
-   Steps 4 and 5 are set per anken: pick the anken in the **Anken** picker at the top of each page. The picker only
+   Steps 4 and 5 are set per anken: pick the anken in the **Settings for** picker at the top of each page. The picker only
    affects Settings; it does not change the sidebar anken switcher. **Default for new anken** is the template: it is
-   copied into every epic you add, and at start-up into every tracked epic that has no settings yet (so an upgrade
+   copied into every new epic you add (re-adding an epic you removed restores its earlier settings; use **Copy from…**
+   Default to reset it), and at start-up into every tracked epic that has no settings yet (so an upgrade
    starts each anken from the current settings). **Copy from…** copies the phases & tasks and the name rules of the
    Default or of another anken into the selected one. Saving or copying runs a full sync; an invalid save changes
    nothing.
@@ -177,7 +178,7 @@ Import boundaries are checked by `src/architecture.test.ts`.
 | `/planning?start=&weeks=&hide=` | Planning |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
-| `/settings/$tab` | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts) |
+| `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts) |
 
 ## Tests
 

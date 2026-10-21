@@ -263,7 +263,7 @@ describe('screens render API data at their URLs', () => {
       );
       const { router } = renderApp('/settings/structure');
       expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
-      const picker = screen.getAllByLabelText('Anken').find((e) => (e as HTMLSelectElement).options[0]?.text === 'Default for new anken') as HTMLSelectElement;
+      const picker = screen.getByLabelText('Settings for') as HTMLSelectElement;
       fireEvent.change(picker, { target: { value: '' } });
       expect(await screen.findByText('New anken start with these rules. Existing anken keep their own.')).toBeTruthy();
       expect(router.state.location.search).toMatchObject({ for: 'default' });
@@ -284,6 +284,44 @@ describe('screens render API data at their URLs', () => {
       expect(screen.queryByText('New anken start with these rules. Existing anken keep their own.')).toBeNull();
       expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
       expect(gets).toEqual(['PAY-1100']);
+    });
+
+    it('keeps the picked anken across Settings tabs', async () => {
+      const gets: (string | null)[] = [];
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+        http.get('*/api/v1/settings/name-rules', ({ request }) => { gets.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json({ rule: '[{phase_name}] {function_name} – {step}', aliases: {} }); }),
+      );
+      renderApp('/settings/structure');
+      await screen.findByText('New anken start with these rules. Existing anken keep their own.');
+      fireEvent.change(screen.getByLabelText('Settings for'), { target: { value: 'PAY-1100' } });
+      expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('tab', { name: 'Name rules' }));
+      await waitFor(() => expect(gets).toEqual(['PAY-1100']));
+    });
+
+    it('says when ?for= names an untracked anken', async () => {
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+      );
+      renderApp('/settings/structure?for=NOPE-1');
+      expect(await screen.findByText('NOPE-1 is not tracked; showing the default.')).toBeTruthy();
+    });
+
+    it('copying the template is toasted by its label', async () => {
+      const nameRules = { rule: '[{phase_name}] {function_name} – {step}', aliases: {} };
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/anken/:epic/copy', () => HttpResponse.json({ structure, name_rules: nameRules })),
+      );
+      renderApp('/settings/structure?for=PAY-1100');
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy from…' }));
+      fireEvent.change(screen.getByLabelText('Copy from'), { target: { value: 'default' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await screen.findByText('Copied settings from Default for new anken. Sync started.')).toBeTruthy();
     });
 
     it('copy from another anken', async () => {
