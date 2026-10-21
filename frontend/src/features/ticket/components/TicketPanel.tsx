@@ -4,12 +4,20 @@ import { useJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import type { Status } from '../../../shared/api/types';
 import { Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
-import { STATUS, statusOf } from '../../../shared/format/labels';
+import { SCHEDULE_LABEL, STATUS, statusOf, signedH } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket, useTicketBack, useTicketKey, type TicketBack } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ticketQuery, usePatchTicket } from '../api';
+
+const days = (n: number) => `${n} working day${n === 1 ? '' : 's'}`;
+
+/** "Late start · 2 working days"; a missing plan reads "No planned dates". */
+function dateLine(label: string, n: number) {
+  if (label === 'no_plan') return 'No planned dates';
+  return SCHEDULE_LABEL[label] + (n > 0 ? ` · ${days(n)}` : '');
+}
 
 const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (v: number) => string }> = {
   late: { icon: 'alarm-clock', bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)', label: (v) => `Late by ${v} days` },
@@ -65,6 +73,9 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const tot = Math.max(c.estimate_h, c.logged_h) || 1;
   const inn = Math.min(c.logged_h, c.estimate_h);
   const ov = Math.max(0, c.logged_h - c.estimate_h);
+  const sc = c.schedule;
+  const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
+    : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f1(sc.plan_to_date_h)}h · actual ${f1(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
   const disabled = !canWrite || patch.isPending;
 
@@ -104,6 +115,14 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           <TextField label="Planned End" type="date" disabled={disabled} value={c.planned_end ?? ''} onChange={(v) => write('planned_end', 'Planned End', v, dm)} />
         </div>
         {!canWrite && <div className="eyebrow">{off}. Edit this ticket in Jira; it syncs back here.</div>}
+        <div>
+          <div className="title" style={{ marginBottom: 8 }}>Schedule</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-body)' }}>
+            <div>{`Start: ${dateLine(sc.start, sc.start_days)}`}</div>
+            <div>{`Finish: ${dateLine(sc.finish, sc.finish_days)}`}</div>
+            <div>{`Effort: ${effortLine}`}</div>
+          </div>
+        </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span className="title">Effort</span>

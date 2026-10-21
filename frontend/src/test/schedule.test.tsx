@@ -145,3 +145,28 @@ describe('planning actual bar', () => {
     expect(bars[0]).toContain('text-heading');
   });
 });
+
+describe('ticket panel', () => {
+  const serveTicket = (schedule: object) => server.use(
+    http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({ ...fixtures.ticket, card: { ...fixtures.ticket.card, schedule } })),
+  );
+
+  it('ticket panel shows the three labels', async () => {
+    serveTicket(issue({
+      start: 'late_start', start_days: 2, finish: 'overdue', finish_days: 1, effort: 'under_burn',
+      plan_to_date_h: 6, actual_to_date_h: 2, diff_h: -4,
+    }));
+    renderApp('/my-work?member=binh&ticket=PAY-1213');
+    expect(await screen.findByText('Start: Late start · 2 working days')).toBeTruthy();
+    expect(screen.getByText('Finish: Overdue · 1 working day')).toBeTruthy();
+    expect(screen.getByText('Effort: Under-burn · plan to date 6h · actual 2h · −4h')).toBeTruthy();
+  });
+
+  it('says so without a plan or an estimate', async () => {
+    serveTicket(issue({ start: 'no_plan', finish: 'no_plan', effort: 'no_estimate' }));
+    renderApp('/my-work?member=binh&ticket=PAY-1213');
+    expect(await screen.findByText('Start: No planned dates')).toBeTruthy();
+    expect(screen.getByText('Finish: No planned dates')).toBeTruthy();
+    expect(screen.getByText('Effort: No estimate')).toBeTruthy();
+  });
+});
