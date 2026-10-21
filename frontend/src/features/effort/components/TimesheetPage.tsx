@@ -3,6 +3,7 @@ import { getRouteApi } from '@tanstack/react-router';
 import { useState, type MouseEvent } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap, useMeta } from '../../../shared/api/queries';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { IconButton } from '../../../shared/ds';
 import { add, dm, dow, f1, hrs, monLabel, monthDays, mondayOf, shiftMon, WDN } from '../../../shared/format/dates';
 import { dayHeadStyle, hatch, stepLabel } from '../../../shared/format/labels';
@@ -31,7 +32,8 @@ export function TimesheetPage() {
   const isWeek = view === 'week';
   const from = isWeek ? mondayOf(search.from ?? today) : (search.month ?? today.slice(0, 7)) + '-01';
   const to = isWeek ? add(from, 6) : monthDays(from.slice(0, 7)).at(-1)!;
-  const q = useQuery(timesheetQuery(from, to));
+  const { anken } = useAnkenScope();
+  const q = useQuery(timesheetQuery(from, to, anken));
   const step = (dir: 1 | -1) => navigate({
     search: (p) => (isWeek ? { ...p, from: add(from, 7 * dir) } : { ...p, month: shiftMon(from.slice(0, 7), dir) }),
   });
@@ -142,7 +144,8 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
 }
 
 function DayPopover({ pop, close }: { pop: Pop; close: () => void }) {
-  const q = useQuery(dayDetailQuery(pop.member, pop.date));
+  const { anken } = useAnkenScope();
+  const q = useQuery(dayDetailQuery(pop.member, pop.date, anken));
   const members = useMemberMap();
   const open = useOpenTicket();
   const d = q.data;

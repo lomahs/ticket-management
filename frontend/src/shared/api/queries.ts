@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ankenParam, useAnkenScope } from '../state/anken';
 import { http, unwrap } from './client';
 import { ApiError } from './errors';
 import type { Feature, Me, Member } from './types';
@@ -9,9 +10,17 @@ export const metaQuery = {
   staleTime: 30_000,
 };
 
-export const membersQuery = {
-  queryKey: ['members'] as const,
-  queryFn: () => unwrap(http.GET('/api/v1/members')),
+/** @param anken null: the members of every anken the viewer sees */
+export const membersQuery = (anken: string | null) => ({
+  queryKey: ['members', anken] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/members', { params: { query: ankenParam(anken) } })),
+  staleTime: 60_000,
+});
+
+/** Every anken the viewer may see, whatever the switcher says: the switcher's options. */
+export const visibleAnkenQuery = {
+  queryKey: ['anken', 'visible'] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/anken')),
   staleTime: 60_000,
 };
 
@@ -44,8 +53,20 @@ export function useMeta() {
   return useQuery(metaQuery);
 }
 
+/** The members of the switcher's anken. */
 export function useMembers() {
-  return useQuery(membersQuery);
+  return useQuery(membersQuery(useAnkenScope().anken));
+}
+
+/**
+ * The anken the viewer may see, as key and title. Without read on the Overview the cards cannot be listed, so the
+ * keys come from /me.
+ */
+export function useVisibleAnken(): { key: string; title: string }[] {
+  const me = useMe().data;
+  const listable = can(me, 'overview');
+  const cards = useQuery({ ...visibleAnkenQuery, enabled: listable }).data;
+  return listable ? cards ?? [] : (me?.anken ?? []).map((key) => ({ key, title: '' }));
 }
 
 /** Members by id; empty until loaded. */

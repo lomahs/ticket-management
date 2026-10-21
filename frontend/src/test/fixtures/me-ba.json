@@ -15,5 +15,9 @@
     "calendar": "read",
     "members": "none"
   },
-  "role": "BA"
+  "role": "BA",
+  "all_anken": false,
+  "anken": [
+    "PAY-1100"
+  ]
 }

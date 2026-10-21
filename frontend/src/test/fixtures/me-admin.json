@@ -15,5 +15,10 @@
     "calendar": "write",
     "members": "write"
   },
-  "role": "BAL"
+  "role": "BAL",
+  "all_anken": true,
+  "anken": [
+    "PAY-1100",
+    "PAY-1300"
+  ]
 }

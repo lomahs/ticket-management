@@ -6,10 +6,8 @@ export const timesheetSearch = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/).optional().catch(undefined),
 });
 
-export const analysisSearch = z.object({ anken: z.string().optional().catch(undefined) });
-
+/** The anken is the global switcher's (the root search's `anken`). */
 export const burndownSearch = z.object({
-  anken: z.string().optional().catch(undefined),
   phase: z.string().optional().catch(undefined),
   task: z.string().optional().catch(undefined),
   member: z.string().optional().catch(undefined),

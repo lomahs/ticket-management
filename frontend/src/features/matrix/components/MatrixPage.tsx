@@ -48,7 +48,7 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
   const members = useMemberMap();
   const f = fromSearch(search);
   const setF = (patch: Partial<MatrixFilter>) => navigate({
-    search: (p) => ({ ticket: (p as { ticket?: string }).ticket, tasks: (p as { tasks?: string }).tasks, phase: (p as { phase?: string }).phase, ...toSearch({ ...f, ...patch }) }), replace: true,
+    search: (p) => ({ ticket: p.ticket, anken: p.anken, tasks: p.tasks, phase: p.phase, ...toSearch({ ...f, ...patch }) }), replace: true,
   });
   const [sumOpen, setSumOpen] = useState(true);
   const [rangeOpen, setRangeOpen] = useState<{ i: number; top: number; left: number } | null>(null);

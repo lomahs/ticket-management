@@ -8,6 +8,7 @@ import { Button, Icon, IconButton } from '../../../shared/ds';
 import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, OTHER_STEP, STEPS, dayHeadStyle, hatch, mix, statusOf, stepColor } from '../../../shared/format/labels';
 import { taskTitle } from '../../../shared/format/task';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket, useProvideTicketBack, useTicketKey } from '../../../shared/state/ticket';
 import { Avatar, av, PageHead } from '../../../shared/ui/bits';
@@ -31,7 +32,8 @@ export function PlanningPage() {
   const hidden = (search.hide ?? '').split(',').filter(Boolean);
   const setSearch = (p: Partial<{ start: string; weeks: 1 | 2; hide: string }>) =>
     navigate({ search: (prev) => ({ ...prev, ...p, hide: p.hide !== undefined ? p.hide || undefined : prev.hide }) });
-  const view = useQuery(planningQuery(start, weeks));
+  const { anken } = useAnkenScope();
+  const view = useQuery(planningQuery(start, weeks, anken));
   const last = add(start, weeks * 7 - 1);
 
   return (
@@ -83,7 +85,8 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
   const toast = useToast();
   const { ok: canWrite, off } = useJiraWrite('planning');
   const { moves, set, revert, clear } = usePendingMoves();
-  const preview = useQuery(planningPreviewQuery(v.start, moves));
+  const { anken } = useAnkenScope();
+  const preview = useQuery(planningPreviewQuery(v.start, moves, anken));
   const push = usePushPlan();
   const [dropRow, setDropRow] = useState<string | null>(null);
   const drag = useRef<{ items: DragItem[]; grab: number; start: string } | null>(null);

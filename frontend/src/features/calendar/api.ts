@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../shared/api/client';
 import type { Schemas } from '../../shared/api/types';
+import { ankenParam } from '../../shared/state/anken';
 
-export const calendarQuery = (month: string) => ({
-  queryKey: ['calendar', month] as const,
-  queryFn: () => unwrap(http.GET('/api/v1/calendar', { params: { query: { month } } })),
+export const calendarQuery = (month: string, anken: string | null) => ({
+  queryKey: ['calendar', month, anken] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/calendar', { params: { query: { month, ...ankenParam(anken) } } })),
 });
 
 /** Leave affects planning, capacity and timesheets, so every write refreshes all screens. */
@@ -31,5 +32,5 @@ export const useImportPreview = () => useMutation({
 
 export const useImportConfirm = () => useCalendarWrite((rows: string[][]) => unwrap(http.POST('/api/v1/leaves/import', { body: { rows } })));
 
-export const exportUrl = (month: string) => `/api/v1/leaves/export?month=${month}`;
+export const exportUrl = (month: string, anken: string | null) => `/api/v1/leaves/export?${new URLSearchParams({ month, ...ankenParam(anken) })}`;
 export const TEMPLATE_URL = '/api/v1/leaves/template';

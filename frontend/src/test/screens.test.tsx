@@ -157,14 +157,14 @@ describe('screens render API data at their URLs', () => {
     expect(screen.getByText('UAT, ITA')).toBeTruthy(); // in this browser's phase order
   });
 
-  it('draws the effort burndown and writes the anken, phase, sub-phase and member filters to the URL', async () => {
+  it('draws the effort burndown, writes the phase, sub-phase and member filters to the URL and drops them for another anken', async () => {
     const day = (date: string, plan: number, act: number | null) => ({ date, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
     let seen: URLSearchParams | undefined;
     server.use(http.get('*/api/v1/effort/burndown', ({ request }) => {
       seen = new URL(request.url).searchParams;
       return HttpResponse.json({
-        epic_key: seen.get('anken') ?? 'PAY-1100', title: 'Payment flow revision',
-        ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }, { key: 'PAY-1200', label: 'Booking UI' }],
+        epic_key: seen.get('anken'), title: 'Payment flow revision',
+        ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }, { key: 'PAY-1300', label: 'e-KYC integration' }],
         phases: ['Prepare', 'Implement_Coding'], phase: seen.get('phase'),
         tasks: seen.get('phase') ? [{ key: 'PAY-1301', label: 'Implement_Coding Screen' }] : [], task: seen.get('task'),
         members: ['binh'], member: seen.get('member'), subtasks: 3, today: '2026-10-07',
@@ -172,7 +172,7 @@ describe('screens render API data at their URLs', () => {
           days: [day('2026-10-05', 12, 12), day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
       });
     }));
-    const { router } = renderApp('/effort/burndown');
+    const { router } = renderApp('/effort/burndown?anken=PAY-1100');
     expect(await screen.findByText('Behind plan')).toBeTruthy();
     expect(screen.getByText('+2h')).toBeTruthy();
     expect(screen.getByRole('img', { name: /4h planned and 6h actually remaining of 12h/ })).toBeTruthy();
@@ -184,10 +184,11 @@ describe('screens render API data at their URLs', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Member' }), { target: { value: 'binh' } });
     await waitFor(() => expect(seen?.get('member')).toBe('binh'));
     expect(seen?.get('phase')).toBe('Implement_Coding');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Anken' }), { target: { value: 'PAY-1200' } });
-    await waitFor(() => expect(seen?.get('anken')).toBe('PAY-1200'));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Anken' }), { target: { value: 'PAY-1300' } }); // the global switcher
+    await waitFor(() => expect(seen?.get('anken')).toBe('PAY-1300'));
     expect(seen?.get('phase')).toBeNull(); // another anken has its own phases
     expect(seen?.get('task')).toBeNull();
+    expect(seen?.get('member')).toBeNull(); // and its own people
   });
 
   it('shows API errors instead of a blank screen', async () => {

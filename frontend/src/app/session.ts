@@ -1,5 +1,6 @@
 import { MutationCache, QueryCache, QueryClient, type QueryClientConfig, type QueryKey } from '@tanstack/react-query';
 import { ApiError } from '../shared/api/errors';
+import { forgetAnken } from '../shared/state/anken';
 import type { makeRouter } from './router';
 
 type AppRouter = ReturnType<typeof makeRouter>;
@@ -7,6 +8,8 @@ type AppRouter = ReturnType<typeof makeRouter>;
 /**
  * A request other than /me that answers 401 `unauthenticated` means the session ended: forget the user and go to sign-in.
  * One that answers 403 `no_access` means the user lost access (e.g. was disabled): reload /me, then go to /no-access.
+ * One that answers 404 `not_found` on the field `anken` means the switcher's anken is no longer visible: go back to
+ * "All my anken".
  * The /me query is skipped because the route gate owns those redirects.
  */
 export function handleSessionErrors(error: unknown, queryKey: QueryKey | undefined, queryClient: QueryClient, router: AppRouter) {
@@ -22,6 +25,11 @@ export function handleSessionErrors(error: unknown, queryKey: QueryKey | undefin
     // Refetched first, so /no-access does not see the old, active user and send them back.
     void queryClient.invalidateQueries({ queryKey: ['me'], refetchType: 'all' })
       .finally(() => { if (router.state.location.pathname !== '/no-access') void router.navigate({ to: '/no-access' }); });
+  } else if (error.code === 'not_found' && error.field('anken') !== undefined) {
+    forgetAnken();
+    if (router.state.location.search.anken) {
+      void router.navigate({ to: '.', search: (prev) => ({ ...prev, anken: undefined }), replace: true });
+    }
   }
 }
 

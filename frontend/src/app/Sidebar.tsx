@@ -9,6 +9,7 @@ import { Icon, IconButton } from '../shared/ds';
 import { ROLE_LABEL } from '../shared/format/labels';
 import { visibleNav } from '../shared/nav';
 import { Avatar, av } from '../shared/ui/bits';
+import { AnkenSwitcher } from './AnkenSwitcher';
 
 export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
   const [open, setOpen] = useState(true);
@@ -34,6 +35,9 @@ export function Sidebar({ theme, toggleTheme }: { theme: string; toggleTheme: ()
           </div>
         )}
         <IconButton icon={open ? 'panel-left-close' : 'panel-left-open'} label={open ? 'Hide sidebar' : 'Show sidebar'} size="sm" onClick={() => setOpen(!open)} />
+      </div>
+      <div style={{ padding: open ? '10px 10px 0' : 0 }}>
+        <AnkenSwitcher compact={!open} />
       </div>
       <nav aria-label="Main" style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 1 }}>
         {visibleNav(me).map((n) => {

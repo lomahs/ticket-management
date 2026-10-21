@@ -7,6 +7,7 @@ import { useCan, useMe, useMemberMap, useMeta, VIEW_ONLY } from '../../../shared
 import type { LeaveTypeKey } from '../../../shared/api/types';
 import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { LEAVE, LEAVE_KEYS } from '../../../shared/format/labels';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { useToast } from '../../../shared/state/toast';
 import { calendarQuery, useDeleteLeave, useSaveLeave } from '../api';
 import { useCalendarMonth } from './CalendarPage';
@@ -16,7 +17,8 @@ export function LeaveDialogRoute() {
   const params = useParams({ strict: false }) as { id?: string };
   const search = useSearch({ strict: false }) as { member?: string; date?: string };
   const month = useCalendarMonth();
-  const q = useQuery(calendarQuery(month));
+  const { anken } = useAnkenScope();
+  const q = useQuery(calendarQuery(month, anken));
   const today = useMeta().data?.today ?? '';
   if (params.id) {
     if (q.isPending) return null;

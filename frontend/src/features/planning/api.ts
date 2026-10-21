@@ -1,16 +1,17 @@
 import { keepPreviousData, useMutation, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../shared/api/client';
 import type { Schemas } from '../../shared/api/types';
+import { ankenParam } from '../../shared/state/anken';
 
-export const planningQuery = (start: string, weeks: number) => ({
-  queryKey: ['planning', start, weeks] as const,
-  queryFn: () => unwrap(http.GET('/api/v1/planning', { params: { query: { start, weeks } } })),
+export const planningQuery = (start: string, weeks: number, anken: string | null) => ({
+  queryKey: ['planning', start, weeks, anken] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/planning', { params: { query: { start, weeks, ...ankenParam(anken) } } })),
   placeholderData: keepPreviousData,
 });
 
-export const planningPreviewQuery = (start: string, changes: Schemas['PlanChangeIn'][]) => ({
-  queryKey: ['planning-preview', start, changes] as const,
-  queryFn: () => unwrap(http.POST('/api/v1/planning/preview', { body: { start, changes } })),
+export const planningPreviewQuery = (start: string, changes: Schemas['PlanChangeIn'][], anken: string | null) => ({
+  queryKey: ['planning-preview', start, changes, anken] as const,
+  queryFn: () => unwrap(http.POST('/api/v1/planning/preview', { params: { query: ankenParam(anken) }, body: { start, changes } })),
   enabled: changes.length > 0,
   placeholderData: keepPreviousData,
   retry: false,

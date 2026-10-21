@@ -7,6 +7,7 @@ import type { LeaveTypeKey } from '../../../shared/api/types';
 import { Button, IconButton } from '../../../shared/ds';
 import { dm, dow, monLabel, shiftMon, WDN } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, leaveBg } from '../../../shared/format/labels';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { useToast } from '../../../shared/state/toast';
 import { Avatar, av, PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -27,14 +28,15 @@ export function useCalendarMonth(): string {
 export function CalendarPage() {
   const month = useCalendarMonth();
   const navigate = useNavigate();
-  const q = useQuery(calendarQuery(month));
+  const { anken } = useAnkenScope();
+  const q = useQuery(calendarQuery(month, anken));
   const toast = useToast();
   const canImport = useCan('calendar', 'write');
   const importState = useState<ImportState | null>(null);
   const setMonth = (m: string) => navigate({ to: '/calendar', search: (p) => ({ ...p, month: m }) });
   const exportXls = () => {
     const a = document.createElement('a');
-    a.href = exportUrl(month);
+    a.href = exportUrl(month, anken);
     document.body.appendChild(a);
     a.click();
     a.remove();

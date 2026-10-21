@@ -7,6 +7,7 @@ import { Icon, type IconName } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 import { taskShort } from '../../../shared/format/task';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -21,7 +22,7 @@ const ATTN: Record<string, { label: string; icon: IconName; meta: (c: Schemas['T
 
 export function OverviewPage() {
   const params = useParams({ strict: false }) as { epic?: string };
-  const q = useQuery(overviewQuery);
+  const q = useQuery(overviewQuery(useAnkenScope().anken));
   const projects = [...new Set((q.data ?? []).map((a) => a.project))].join(', ');
   const selected = params.epic ?? q.data?.[0]?.key;
   return (

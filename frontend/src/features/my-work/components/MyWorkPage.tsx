@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useMe, useMemberMap } from '../../../shared/api/queries';
+import { useAnkenScope } from '../../../shared/state/anken';
 import type { TaskCard } from '../../../shared/api/types';
 import { Icon, Select, type IconName } from '../../../shared/ds';
 import { add, dm, hrs, longDate } from '../../../shared/format/dates';
@@ -20,7 +21,8 @@ export function MyWorkPage() {
   const me = useMe().data;
   const member = search.member ?? me?.member_id ?? '';
   const backlog = search.backlog ?? 'week';
-  const q = useQuery({ ...myWorkQuery(member, backlog), enabled: !!member });
+  const { anken } = useAnkenScope();
+  const q = useQuery({ ...myWorkQuery(member, backlog, anken), enabled: !!member });
   const members = useMemberMap();
   const pick = (id: string) => { navigate({ search: (p) => ({ ...p, member: id }) }); };
   const opts = Object.values(members).filter((m) => m.role !== 'JM').map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));

@@ -1,26 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import { f1, hrs } from '../../../shared/format/dates';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { analysisQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
+import { PickAnken } from './PickAnken';
 
-const route = getRouteApi('/app/effort/analysis');
 const RW_GRID = 'minmax(150px,1.2fr) 80px 90px 110px minmax(180px,2fr) 90px 90px';
 const pct = (x: number | null | undefined) => (x == null ? '–' : Math.round(x * 100) + '%');
 
 export function AnalysisPage() {
-  const { anken } = route.useSearch();
-  const q = useQuery(analysisQuery(anken));
+  const { anken } = useAnkenScope();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
       <EffortHeader tab="analysis" />
-      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <Analysis a={q.data} />}
+      {anken ? <AnalysisOf anken={anken} /> : <PickAnken />}
     </div>
   );
+}
+
+function AnalysisOf({ anken }: { anken: string }) {
+  const q = useQuery(analysisQuery(anken));
+  return q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <Analysis a={q.data} />;
 }
 
 function Bars({ list }: { list: Schemas['EffortBar'][] }) {

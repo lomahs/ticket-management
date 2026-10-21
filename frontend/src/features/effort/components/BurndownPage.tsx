@@ -5,62 +5,65 @@ import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import { Select } from '../../../shared/ds';
 import { D, dm, f1, WDN } from '../../../shared/format/dates';
+import { useAnkenScope } from '../../../shared/state/anken';
 import { Seg } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { burndownQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
+import { PickAnken } from './PickAnken';
 
 const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
 const signed = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + f1(Math.abs(n)) + 'h';
 
 export function BurndownPage() {
-  const search = route.useSearch();
-  const navigate = route.useNavigate();
-  const members = useMemberMap();
-  const q = useQuery(burndownQuery(search));
-  const v = q.data;
+  const { anken } = useAnkenScope();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
       <EffortHeader tab="burndown" />
-      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : v && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <Select
-              aria-label="Anken"
-              style={{ width: 240 }}
-              value={v.epic_key ?? ALL}
-              options={v.ankens.map((a) => ({ value: a.key, label: `${a.key} · ${a.label}` }))}
-              onChange={(a) => navigate({ search: (s) => ({ ...s, anken: a || undefined, phase: undefined, task: undefined }) })}
-            />
-            <Seg<string>
-              items={[[ALL, 'All phases'], ...v.phases.map((p): [string, string] => [p, p])]}
-              value={v.phase ?? ALL}
-              onPick={(p) => navigate({ search: (s) => ({ ...s, phase: p || undefined, task: undefined }) })}
-            />
-            {v.phase && v.tasks.length > 0 && (
-              <Select
-                aria-label="Sub-phase"
-                style={{ width: 220 }}
-                value={v.task ?? ALL}
-                options={[{ value: ALL, label: 'All sub-phases' }, ...v.tasks.map((t) => ({ value: t.key, label: t.label }))]}
-                onChange={(t) => navigate({ search: (s) => ({ ...s, task: t || undefined }) })}
-              />
-            )}
-            <Select
-              aria-label="Member"
-              style={{ width: 200 }}
-              value={v.member ?? ALL}
-              options={[{ value: ALL, label: 'All members' }, ...v.members.map((id) => ({ value: id, label: members[id]?.name ?? id }))]}
-              onChange={(m) => navigate({ search: (s) => ({ ...s, member: m || undefined }) })}
-            />
-            <span className="spacer" />
-            <span className="eyebrow">{v.title} · working days only</span>
-          </div>
-          <Burndown v={v} />
-        </>
-      )}
+      {anken ? <BurndownOf anken={anken} /> : <PickAnken />}
     </div>
+  );
+}
+
+/** The anken is picked in the global switcher; changing it drops the phase, sub-phase and member (see the route). */
+function BurndownOf({ anken }: { anken: string }) {
+  const { phase, task, member } = route.useSearch();
+  const navigate = route.useNavigate();
+  const members = useMemberMap();
+  const q = useQuery(burndownQuery({ phase, task, member }, anken));
+  if (q.isPending) return <Loading />;
+  if (q.isError) return <QueryError error={q.error} />;
+  const v = q.data;
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Seg<string>
+          items={[[ALL, 'All phases'], ...v.phases.map((p): [string, string] => [p, p])]}
+          value={v.phase ?? ALL}
+          onPick={(p) => navigate({ search: (s) => ({ ...s, phase: p || undefined, task: undefined }) })}
+        />
+        {v.phase && v.tasks.length > 0 && (
+          <Select
+            aria-label="Sub-phase"
+            style={{ width: 220 }}
+            value={v.task ?? ALL}
+            options={[{ value: ALL, label: 'All sub-phases' }, ...v.tasks.map((t) => ({ value: t.key, label: t.label }))]}
+            onChange={(t) => navigate({ search: (s) => ({ ...s, task: t || undefined }) })}
+          />
+        )}
+        <Select
+          aria-label="Member"
+          style={{ width: 200 }}
+          value={v.member ?? ALL}
+          options={[{ value: ALL, label: 'All members' }, ...v.members.map((id) => ({ value: id, label: members[id]?.name ?? id }))]}
+          onChange={(m) => navigate({ search: (s) => ({ ...s, member: m || undefined }) })}
+        />
+        <span className="spacer" />
+        <span className="eyebrow">{v.title} · working days only</span>
+      </div>
+      <Burndown v={v} />
+    </>
   );
 }
 

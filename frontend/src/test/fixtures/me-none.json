@@ -15,5 +15,7 @@
     "calendar": "none",
     "members": "none"
   },
-  "role": null
+  "role": null,
+  "all_anken": false,
+  "anken": []
 }

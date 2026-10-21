@@ -1,20 +1,20 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, Outlet, redirect, type RouterHistory } from '@tanstack/react-router';
 import { z } from 'zod';
-// Search schemas, the overview query and the tab list are imported directly so each screen's code can load lazily.
+// Search schemas and the tab list are imported directly so each screen's code can load lazily.
 import { LoginPage, NoAccessPage } from '../features/auth';
 import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
-import { analysisSearch, burndownSearch, timesheetSearch } from '../features/effort/search';
+import { burndownSearch, timesheetSearch } from '../features/effort/search';
 import { matrixSearch } from '../features/matrix/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
-import { overviewQuery } from '../features/overview/api';
 import { planningSearch } from '../features/planning/search';
 import { isSettingsTab } from '../features/settings/search';
 import { ApiError } from '../shared/api/errors';
-import { can, meQuery } from '../shared/api/queries';
+import { can, meQuery, visibleAnkenQuery } from '../shared/api/queries';
 import type { Feature } from '../shared/api/types';
 import { homeOf } from '../shared/nav';
+import { storedAnken } from '../shared/state/anken';
 import { AppShell, NotFound } from './AppShell';
 
 const calendarPages = () => import('../features/calendar');
@@ -23,8 +23,9 @@ const matrixPages = () => import('../features/matrix');
 
 interface Ctx { queryClient: QueryClient }
 
+/** On every screen: `ticket` is open in the side panel; `anken` is the global switcher's anken (useAnkenScope). */
 const root = createRootRouteWithContext<Ctx>()({
-  validateSearch: z.object({ ticket: z.string().optional().catch(undefined) }),
+  validateSearch: z.object({ ticket: z.string().optional().catch(undefined), anken: z.string().optional().catch(undefined) }),
   component: Outlet,
   notFoundComponent: NotFound,
 });
@@ -75,15 +76,19 @@ const needs = (feature: Feature) => ({ staticData: { feature } });
 const index = createRoute({ getParentRoute: () => app, path: '/', beforeLoad: async ({ context }) => { throw redirect({ to: await home(context.queryClient) }); } });
 const myWork = createRoute({ getParentRoute: () => app, path: 'my-work', ...needs('my_work'), validateSearch: myWorkSearch, component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage') });
 
-/** "Function Matrix" in the sidebar: the first tracked anken that has functions, else the first one (its matrix explains why it is empty). */
+/**
+ * "Function Matrix" in the sidebar: the switcher's anken; under "All my anken" the first visible anken that has functions,
+ * else the first one (its matrix explains why it is empty).
+ */
 const matrixEntry = createRoute({
   getParentRoute: () => app,
   path: 'matrix',
   ...needs('matrix'),
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, search }) => {
     if (!can(await context.queryClient.ensureQueryData(meQuery), 'matrix')) return;
-    const anken = await context.queryClient.ensureQueryData(overviewQuery);
-    const first = anken.find((a) => a.has_functions) ?? anken[0];
+    const anken = await context.queryClient.ensureQueryData(visibleAnkenQuery);
+    const scope = search.anken || storedAnken();
+    const first = anken.find((a) => a.key === scope) ?? anken.find((a) => a.has_functions) ?? anken[0];
     throw first ? redirect({ to: '/anken/$epic/matrix', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });
@@ -97,8 +102,19 @@ const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...n
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
 const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needs('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
-const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', ...needs('effort'), validateSearch: analysisSearch, component: lazyRouteComponent(effortPages, 'AnalysisPage') });
-const burndown = createRoute({ getParentRoute: () => app, path: 'effort/burndown', ...needs('effort'), validateSearch: burndownSearch, component: lazyRouteComponent(effortPages, 'BurndownPage') });
+const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', ...needs('effort'), component: lazyRouteComponent(effortPages, 'AnalysisPage') });
+const burndown = createRoute({
+  getParentRoute: () => app,
+  path: 'effort/burndown',
+  ...needs('effort'),
+  validateSearch: burndownSearch,
+  // Phase, sub-phase and member belong to one anken: another anken in the switcher drops them.
+  search: { middlewares: [({ search, next }) => {
+    const out = next(search);
+    return out.anken === search.anken ? out : { ...out, phase: undefined, task: undefined, member: undefined };
+  }] },
+  component: lazyRouteComponent(effortPages, 'BurndownPage'),
+});
 
 const calendar = createRoute({ getParentRoute: () => app, path: 'calendar', ...needs('calendar'), validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
 const newLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/new', validateSearch: newLeaveSearch, component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });

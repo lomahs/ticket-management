@@ -21,3 +21,4 @@ export function usePref(key: string, fallback: string): [string, (v: string) => 
 
 export const systemTheme = () => (typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 export const readPref = read;
+export const writePref = write;
