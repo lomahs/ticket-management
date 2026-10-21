@@ -7,26 +7,32 @@ import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { namePreviewQuery, nameRulesQuery, useSaveNameRules } from '../api';
+import { AnkenPicker, useSettingsAnken } from './AnkenPicker';
 import { ErrText, Section, useDebounced } from './common';
 
 const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['os_task', 'OS task'], ['prefix', 'Task prefix'], ['phase_name', 'Phase'], ['function_id', 'Function ID'], ['function_name', 'Function name'], ['step', 'Step']];
 const DEFAULT_RULE = '[{phase_name}][{function_id}] {function_name} – {step}';
 
 export function NameRulesTab() {
-  const q = useQuery(nameRulesQuery);
-  if (q.isPending) return <Loading />;
-  if (q.isError) return <QueryError error={q.error} />;
-  return <NameRulesForm v={q.data} />;
+  const anken = useSettingsAnken();
+  const [rev, setRev] = useState(0);
+  const q = useQuery(nameRulesQuery(anken));
+  return (
+    <>
+      <AnkenPicker onCopied={() => setRev((r) => r + 1)} />
+      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <NameRulesForm key={`${anken ?? ''}:${rev}`} anken={anken} v={q.data} />}
+    </>
+  );
 }
 
-function NameRulesForm({ v }: { v: Schemas['NameRulesView'] }) {
+function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: string | null }) {
   const toast = useToast();
-  const save = useSaveNameRules();
+  const save = useSaveNameRules(anken);
   const [rule, setRule] = useState(v.rule);
   const [aliases, setAliases] = useState<Record<string, string>>(v.aliases);
   const [sample, setSample] = useState('[Implement_Coding][F03] Domestic card payment – Fix comment BAL');
   const body = useDebounced({ rule, aliases, sample }, 250);
-  const p = useQuery(namePreviewQuery(body)).data;
+  const p = useQuery(namePreviewQuery(anken, body)).data;
   const parsedStepIndex = STEPS.findIndex((s) => s.k === p?.step);
   const used = p?.tokens ?? [];
   return (

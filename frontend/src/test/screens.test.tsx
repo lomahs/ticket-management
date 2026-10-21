@@ -222,6 +222,61 @@ describe('screens render API data at their URLs', () => {
     await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks }));
   });
 
+  describe('per-anken settings', () => {
+    const structure = {
+      phases: ['UC', 'FUT'],
+      tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
+      seen: [],
+    };
+
+    it('structure tab edits the selected anken', async () => {
+      const puts: (string | null)[] = [];
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+        http.put('*/api/v1/settings/structure', ({ request }) => { puts.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json(structure); }),
+      );
+      renderApp('/settings/structure?anken=PAY-1100');
+      expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
+      fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(puts).toEqual(['PAY-1100']));
+    });
+
+    it('default is selected without a switcher anken', async () => {
+      const gets: (string | null)[] = [];
+      server.use(
+        http.get('*/api/v1/settings/structure', ({ request }) => { gets.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json(structure); }),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+      );
+      renderApp('/settings/structure');
+      expect(await screen.findByText('New anken start with these rules. Existing anken keep their own.')).toBeTruthy();
+      await screen.findByRole('button', { name: 'Save' });
+      expect(gets).toEqual([null]);
+      expect(screen.queryByRole('button', { name: 'Copy from…' })).toBeNull();
+    });
+
+    it('copy from another anken', async () => {
+      let body: unknown;
+      let path = '';
+      const nameRules = { rule: '[{phase_name}] {function_name} – {step}', aliases: {} };
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/anken/:epic/copy', async ({ request }) => {
+          path = new URL(request.url).pathname; body = await request.json();
+          return HttpResponse.json({ structure, name_rules: nameRules });
+        }),
+      );
+      renderApp('/settings/structure?anken=PAY-1100');
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy from…' }));
+      fireEvent.change(screen.getByLabelText('Copy from'), { target: { value: 'PAY-1300' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(await screen.findByText('Copied settings from PAY-1300. Sync started.')).toBeTruthy();
+      expect(path).toBe('/api/v1/settings/anken/PAY-1100/copy');
+      expect(body).toEqual({ from: 'PAY-1300' });
+    });
+  });
+
   it('maps tracker fields to Jira fields picked from the site\'s field list', async () => {
     const f = (key: string, label: string, expects: string, types: string[], field_id: string, mappable = true) =>
       ({ key, label, used_for: `${label} use`, expects, types, field_id, mappable });

@@ -6,6 +6,7 @@ import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { structurePreviewQuery, structureQuery, useSaveStructure } from '../api';
+import { AnkenPicker, useSettingsAnken } from './AnkenPicker';
 import { Section, useDebounced } from './common';
 
 type Template = Schemas['TaskTemplate'];
@@ -21,19 +22,24 @@ function swap<T>(xs: T[], i: number, j: number): T[] {
 }
 
 export function StructureTab() {
-  const q = useQuery(structureQuery);
-  if (q.isPending) return <Loading />;
-  if (q.isError) return <QueryError error={q.error} />;
-  return <StructureForm v={q.data} />;
+  const anken = useSettingsAnken();
+  const [rev, setRev] = useState(0);
+  const q = useQuery(structureQuery(anken));
+  return (
+    <>
+      <AnkenPicker onCopied={() => setRev((r) => r + 1)} />
+      {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <StructureForm key={`${anken ?? ''}:${rev}`} anken={anken} v={q.data} />}
+    </>
+  );
 }
 
-function StructureForm({ v }: { v: Schemas['StructureView'] }) {
+function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: string | null }) {
   const toast = useToast();
-  const save = useSaveStructure();
+  const save = useSaveStructure(anken);
   const [phases, setPhases] = useState<string[]>(v.phases);
   const [tasks, setTasks] = useState<Template[]>(v.tasks);
   const body = useDebounced({ phases, tasks }, 250);
-  const seen = useQuery(structurePreviewQuery(body)).data?.seen ?? v.seen;
+  const seen = useQuery(structurePreviewQuery(anken, body)).data?.seen ?? v.seen;
   const setTask = (i: number, patch: Partial<Template>) => setTasks((ts) => ts.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   const phaseOpts = [{ value: '', label: '— Choose phase —' }, ...phases.filter(Boolean).map((p) => ({ value: p, label: p }))];
   const unmatched = seen.filter((s) => s.template == null).length;
