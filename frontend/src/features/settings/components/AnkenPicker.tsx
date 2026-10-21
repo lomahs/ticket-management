@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { Button, Select } from '../../../shared/ds';
@@ -8,26 +9,32 @@ import { jiraQuery, useCopyAnkenSettings } from '../api';
 
 const DEFAULT = '';
 
+type Target = { status: 'pending' } | { status: 'error'; error: Error } | { status: 'ready'; anken: string | null };
+
 /**
- * The anken whose rules Settings edits: the URL's `anken`, else the switcher's, else null (the default for new anken).
- * An anken that is no longer tracked falls back to the default rather than answering 404.
+ * The anken whose rules Settings edits: `?for=` (`default`: the template for new anken), else the switcher's anken, else the
+ * default. It stays pending until the tracked epics are known, so a tab never loads or saves the wrong target; an anken that
+ * is not tracked falls back to the default.
  */
-export function useSettingsAnken(): string | null {
-  const { anken } = useAnkenScope();
-  const epics = useQuery(jiraQuery).data?.epics;
-  return anken && epics?.some((e) => e.key === anken) ? anken : null;
+export function useSettingsTarget(): Target {
+  const { anken: scoped } = useAnkenScope();
+  const forParam = useSearch({ strict: false, select: (s) => (s as { for?: string }).for });
+  const jira = useQuery(jiraQuery);
+  if (jira.isPending) return { status: 'pending' };
+  if (jira.isError) return { status: 'error', error: jira.error };
+  const want = forParam ? (forParam === 'default' ? null : forParam) : scoped;
+  return { status: 'ready', anken: want && jira.data.epics.some((e) => e.key === want) ? want : null };
 }
 
 /** Picks the anken (or the default) that Phases & tasks and Name rules show; for an anken it can copy another's rules in. */
-export function AnkenPicker({ onCopied }: { onCopied: () => void }) {
-  const anken = useSettingsAnken();
-  const { setAnken } = useAnkenScope();
+export function AnkenPicker({ anken, onCopied }: { anken: string | null; onCopied: () => void }) {
+  const navigate = useNavigate();
   const epics = useQuery(jiraQuery).data?.epics ?? [];
   const toast = useToast();
   const copy = useCopyAnkenSettings(anken ?? '');
   const [copying, setCopying] = useState(false);
   const [from, setFrom] = useState('');
-  const pick = (k: string) => { setCopying(false); setFrom(''); setAnken(k || null); };
+  const pick = (k: string) => { setCopying(false); setFrom(''); void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, for: k || 'default' }) }); };
   const fromOpts = [
     { value: '', label: 'Choose…' }, { value: 'default', label: 'Default for new anken' },
     ...epics.filter((e) => e.key !== anken).map((e) => ({ value: e.key, label: ankenLabel(e) })),

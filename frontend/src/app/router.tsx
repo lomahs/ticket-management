@@ -9,7 +9,7 @@ import { matrixSearch } from '../features/matrix/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
 import { planningSearch } from '../features/planning/search';
-import { isSettingsTab } from '../features/settings/search';
+import { isSettingsTab, settingsSearch } from '../features/settings/search';
 import { ApiError } from '../shared/api/errors';
 import { can, meQuery, visibleAnkenQuery } from '../shared/api/queries';
 import type { Feature } from '../shared/api/types';
@@ -153,6 +153,7 @@ const settings = createRoute({
 const settingsTab = createRoute({
   getParentRoute: () => app,
   path: 'settings/$tab',
+  validateSearch: settingsSearch,
   beforeLoad: async ({ context, params }) => {
     await adminOnly(context.queryClient);
     if (!isSettingsTab(params.tab)) throw redirect({ to: '/settings/$tab', params: { tab: 'jira' } });

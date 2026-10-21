@@ -7,19 +7,22 @@ import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { namePreviewQuery, nameRulesQuery, useSaveNameRules } from '../api';
-import { AnkenPicker, useSettingsAnken } from './AnkenPicker';
+import { AnkenPicker, useSettingsTarget } from './AnkenPicker';
 import { ErrText, Section, useDebounced } from './common';
 
 const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['os_task', 'OS task'], ['prefix', 'Task prefix'], ['phase_name', 'Phase'], ['function_id', 'Function ID'], ['function_name', 'Function name'], ['step', 'Step']];
 const DEFAULT_RULE = '[{phase_name}][{function_id}] {function_name} – {step}';
 
 export function NameRulesTab() {
-  const anken = useSettingsAnken();
+  const t = useSettingsTarget();
+  const anken = t.status === 'ready' ? t.anken : null;
   const [rev, setRev] = useState(0);
-  const q = useQuery(nameRulesQuery(anken));
+  const q = useQuery({ ...nameRulesQuery(anken), enabled: t.status === 'ready' });
+  if (t.status === 'pending') return <Loading />;
+  if (t.status === 'error') return <QueryError error={t.error} />;
   return (
     <>
-      <AnkenPicker onCopied={() => setRev((r) => r + 1)} />
+      <AnkenPicker anken={anken} onCopied={() => setRev((r) => r + 1)} />
       {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <NameRulesForm key={`${anken ?? ''}:${rev}`} anken={anken} v={q.data} />}
     </>
   );

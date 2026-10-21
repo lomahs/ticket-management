@@ -236,7 +236,7 @@ describe('screens render API data at their URLs', () => {
         http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
         http.put('*/api/v1/settings/structure', ({ request }) => { puts.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json(structure); }),
       );
-      renderApp('/settings/structure?anken=PAY-1100');
+      renderApp('/settings/structure?for=PAY-1100');
       expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
       fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
       await waitFor(() => expect(puts).toEqual(['PAY-1100']));
@@ -255,6 +255,37 @@ describe('screens render API data at their URLs', () => {
       expect(screen.queryByRole('button', { name: 'Copy from…' })).toBeNull();
     });
 
+    it('picking the default leaves the global switcher alone', async () => {
+      localStorage.setItem('tt.anken', 'PAY-1100');
+      server.use(
+        http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+      );
+      const { router } = renderApp('/settings/structure');
+      expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
+      const picker = screen.getAllByLabelText('Anken').find((e) => (e as HTMLSelectElement).options[0]?.text === 'Default for new anken') as HTMLSelectElement;
+      fireEvent.change(picker, { target: { value: '' } });
+      expect(await screen.findByText('New anken start with these rules. Existing anken keep their own.')).toBeTruthy();
+      expect(router.state.location.search).toMatchObject({ for: 'default' });
+      expect(router.state.location.search).not.toHaveProperty('anken');
+      expect(localStorage.getItem('tt.anken')).toBe('PAY-1100');
+    });
+
+    it('waits for the tracked anken before loading any settings', async () => {
+      const gets: (string | null)[] = [];
+      server.use(
+        http.get('*/api/v1/settings/jira', async () => { await new Promise((r) => setTimeout(r, 150)); return HttpResponse.json(fixtures.jira); }),
+        http.get('*/api/v1/settings/structure', ({ request }) => { gets.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json(structure); }),
+        http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
+      );
+      renderApp('/settings/structure?for=PAY-1100');
+      await new Promise((r) => setTimeout(r, 60));
+      expect(gets).toEqual([]);
+      expect(screen.queryByText('New anken start with these rules. Existing anken keep their own.')).toBeNull();
+      expect(await screen.findByText('These rules apply to PAY-1100 only.')).toBeTruthy();
+      expect(gets).toEqual(['PAY-1100']);
+    });
+
     it('copy from another anken', async () => {
       let body: unknown;
       let path = '';
@@ -267,7 +298,7 @@ describe('screens render API data at their URLs', () => {
           return HttpResponse.json({ structure, name_rules: nameRules });
         }),
       );
-      renderApp('/settings/structure?anken=PAY-1100');
+      renderApp('/settings/structure?for=PAY-1100');
       fireEvent.click(await screen.findByRole('button', { name: 'Copy from…' }));
       fireEvent.change(screen.getByLabelText('Copy from'), { target: { value: 'PAY-1300' } });
       fireEvent.click(screen.getByRole('button', { name: 'Copy' }));

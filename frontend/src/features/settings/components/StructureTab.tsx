@@ -6,7 +6,7 @@ import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { structurePreviewQuery, structureQuery, useSaveStructure } from '../api';
-import { AnkenPicker, useSettingsAnken } from './AnkenPicker';
+import { AnkenPicker, useSettingsTarget } from './AnkenPicker';
 import { Section, useDebounced } from './common';
 
 type Template = Schemas['TaskTemplate'];
@@ -22,12 +22,15 @@ function swap<T>(xs: T[], i: number, j: number): T[] {
 }
 
 export function StructureTab() {
-  const anken = useSettingsAnken();
+  const t = useSettingsTarget();
+  const anken = t.status === 'ready' ? t.anken : null;
   const [rev, setRev] = useState(0);
-  const q = useQuery(structureQuery(anken));
+  const q = useQuery({ ...structureQuery(anken), enabled: t.status === 'ready' });
+  if (t.status === 'pending') return <Loading />;
+  if (t.status === 'error') return <QueryError error={t.error} />;
   return (
     <>
-      <AnkenPicker onCopied={() => setRev((r) => r + 1)} />
+      <AnkenPicker anken={anken} onCopied={() => setRev((r) => r + 1)} />
       {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <StructureForm key={`${anken ?? ''}:${rev}`} anken={anken} v={q.data} />}
     </>
   );
