@@ -89,6 +89,26 @@ class AllocationServiceTest {
         assertThat(allocations.findByMember(M)).extracting(Allocation::epicKey).containsExactly(X);
     }
 
+    /** Rows of an anken the member left stay as history but no longer count towards the working day. */
+    @Test
+    void rowsOfAnAnkenTheMemberLeftDoNotCount() {
+        bothMember();
+        service.set(pm, M, new AllocationChange("2026-09-01", Map.of(X, 5.0, Y, 3.0)));
+        ankenMembers.remove(Y, M);
+        AllocationTimeline t = service.set(pm, M, new AllocationChange("2026-10-07", Map.of(X, 8.0)));
+        assertThat(t.steps().get(t.steps().size() - 1).hours()).containsExactly(Map.entry(X, 8.0));
+        assertThat(allocations.findByMember(M)).extracting(Allocation::epicKey).contains(Y); // kept
+    }
+
+    @Test
+    void rowsOfAnUntrackedEpicDoNotCount() {
+        bothMember();
+        ankenMembers.add("OLD-1", M, "t", "2026-10-01T00:00:00Z");
+        allocations.save(new Allocation(M, "OLD-1", "2026-09-01", 5), "seed", "2026-09-01T00:00:00Z");
+        service.set(pm, M, new AllocationChange("2026-10-07", Map.of(X, 8.0)));
+        assertThat(allocations.findByMember(M)).extracting(Allocation::epicKey).contains("OLD-1", X);
+    }
+
     @Test
     void notAMemberIsRefused() {
         ankenMembers.remove(Y, M);

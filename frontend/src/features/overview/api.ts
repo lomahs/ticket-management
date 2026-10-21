@@ -19,13 +19,16 @@ export const ankenMembersQuery = (epic: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/anken/{epic}/members', { params: { path: { epic } } })),
 });
 
+/** Allocations count only on the anken a member belongs to, so a membership change moves targets and capacity. */
+export const ALLOCATION_READERS = ['allocations', 'timesheet', 'timesheet-day', 'planning'] as const;
+
 /** Members decide who the pickers offer, the cards' avatars and /me's anken, so everything that lists them is refetched. */
 function useMembersWrite<T, R>(fn: (v: T) => Promise<R>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
     onSuccess: async () => {
-      await Promise.all(['anken', 'members', 'me', 'admin'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+      await Promise.all(['anken', 'members', 'me', 'admin', ...ALLOCATION_READERS].map((k) => qc.invalidateQueries({ queryKey: [k] })));
     },
   });
 }
@@ -50,7 +53,7 @@ export function useSaveAllocation(memberId: string) {
       http.PUT('/api/v1/people/{memberId}/allocations', { params: { path: { memberId } }, body })),
     // Timesheet targets and planning capacity are measured against the allocation.
     onSuccess: async () => {
-      await Promise.all(['allocations', 'timesheet', 'timesheet-day', 'planning'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+      await Promise.all(ALLOCATION_READERS.map((k) => qc.invalidateQueries({ queryKey: [k] })));
     },
   });
 }

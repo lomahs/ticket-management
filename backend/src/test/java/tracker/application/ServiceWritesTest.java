@@ -155,7 +155,7 @@ class ServiceWritesTest {
     /** Without a JiraWriter (the Jira profile in phase 1) nothing is written to Jira. */
     @Test
     void writesNeedJiraWrite(@Autowired TrackerContextLoader context, @Autowired SyncService sync,
-                                @Autowired tracker.application.ports.AllocationRepository allocations) {
+                                @Autowired tracker.application.service.AllocationService allocations) {
         assertThatThrownBy(() -> new AnkenService(context, Optional.empty(), sync).createFunction(ALL, "PAY-1100", draft("PAY-1102", "X", 8), null))
                 .isInstanceOf(CapabilityDisabled.class);
         assertThatThrownBy(() -> new PlanningService(context, Optional.empty(), sync, allocations)

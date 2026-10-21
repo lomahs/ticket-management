@@ -35,8 +35,6 @@ import tracker.domain.Status;
 import tracker.domain.StepDef;
 import tracker.domain.Steps;
 import tracker.domain.Text;
-import tracker.application.ports.AllocationRepository;
-import tracker.domain.Allocations;
 import tracker.domain.Timesheet.TimesheetRow;
 import tracker.domain.Timesheet;
 import tracker.domain.WorkingHours;
@@ -47,9 +45,9 @@ import tracker.domain.Worklog;
 public class EffortService {
     private final TrackerContextLoader context;
 
-    private final AllocationRepository allocations;
+    private final AllocationService allocations;
 
-    public EffortService(TrackerContextLoader context, AllocationRepository allocations) {
+    public EffortService(TrackerContextLoader context, AllocationService allocations) {
         this.context = context;
         this.allocations = allocations;
     }
@@ -96,10 +94,9 @@ public class EffortService {
             }
         }
         WorkingHours wh = ctx.settings.workingHours;
-        Set<String> scopeEpics = new HashSet<>(ctx.settings.jira.epics);
-        scopeEpics.retainAll(scope.epics());
+        AllocationService.Counted counted = allocations.counted(scope);
         List<TimesheetRow> rows = Timesheet.timesheet(ctx.people, days, logs, plan(ctx), ctx.cal, ctx.today,
-                new Allocations(allocations.findAll()), scopeEpics, wh.timesheetToleranceH());
+                counted.allocations(), counted.epics(), wh.timesheetToleranceH());
         return new TimesheetView(start, end,
                 days.stream().map(x -> new DayHead(x, x.equals(ctx.today), ctx.cal.extraDays().get(x))).toList(), rows);
     }

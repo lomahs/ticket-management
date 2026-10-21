@@ -27,8 +27,11 @@ function useAdminWrite<T, R>(fn: (v: T) => Promise<R>, also: readonly string[] =
 /** A merge moves anken membership, leave, worklogs and assignments, so every screen that lists people reloads. */
 const MERGED = ['members', 'anken', 'planning', 'calendar', 'my-work', 'timesheet'] as const;
 
+/** A patch can replace the user's anken, and allocations count only on the anken a member belongs to. */
+const ANKEN_CHANGED = ['allocations', 'timesheet', 'timesheet-day', 'planning'] as const;
+
 export const usePatchUser = () => useAdminWrite(({ id, body }: { id: string; body: Schemas['UserPatchIn'] }) => unwrap(
-  http.PATCH('/api/v1/admin/users/{memberId}', { params: { path: { memberId: id } }, body })));
+  http.PATCH('/api/v1/admin/users/{memberId}', { params: { path: { memberId: id } }, body })), ANKEN_CHANGED);
 export const useApprove = () => useAdminWrite(({ id, body }: { id: number; body: Schemas['ApproveIn'] }) => unwrap(
   http.POST('/api/v1/admin/access-requests/{id}/approve', { params: { path: { id } }, body })));
 export const useReject = () => useAdminWrite((id: number) => unwrap(

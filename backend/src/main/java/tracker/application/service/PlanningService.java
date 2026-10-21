@@ -3,12 +3,10 @@ package tracker.application.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeSet;
 
 import org.jspecify.annotations.Nullable;
@@ -21,9 +19,7 @@ import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
-import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.JiraWriter;
-import tracker.domain.Allocations;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.Capacity.PlanItem;
@@ -47,10 +43,10 @@ public class PlanningService {
     private final TrackerContextLoader context;
     private final Optional<JiraWriter> writer;
     private final SyncService sync;
-    private final AllocationRepository allocations;
+    private final AllocationService allocations;
 
     public PlanningService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync,
-                           AllocationRepository allocations) {
+                           AllocationService allocations) {
         this.allocations = allocations;
         this.context = context;
         this.writer = writer;
@@ -122,11 +118,10 @@ public class PlanningService {
                 }
             }
         }
-        Set<String> scopeEpics = new HashSet<>(ctx.settings.jira.epics);
-        scopeEpics.retainAll(scope.epics());
+        AllocationService.Counted counted = allocations.counted(scope);
         List<String> memberIds = ctx.people;
         Map<String, List<WeekLoad>> loads = Capacity.weeklyCapacity(items, ctx.cal, memberIds, Dates.mondayOf(start),
-                new Allocations(allocations.findAll()), scopeEpics, ctx.settings.thresholds.capacityPct(), CAPACITY_WEEKS);
+                counted.allocations(), counted.epics(), ctx.settings.thresholds.capacityPct(), CAPACITY_WEEKS);
         return memberIds.stream().map(m -> new MemberCapacity(m, loads.get(m))).toList();
     }
 

@@ -25,6 +25,7 @@ import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
 import tracker.application.ports.AllocationRepository;
+import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
@@ -68,6 +69,8 @@ class ServiceReadsTest {
     EffortService effort;
     @Autowired
     AllocationRepository allocations;
+    @Autowired
+    AnkenMemberRepository ankenMembers;
     @Autowired
     org.springframework.jdbc.core.simple.JdbcClient jdbc;
     @Autowired
@@ -270,6 +273,32 @@ class ServiceReadsTest {
         } finally {
             jdbc.sql("DELETE FROM allocations WHERE member_id = 'an'").update();
             before.forEach(a -> allocations.save(a, "seed", "2026-10-07T09:00:00Z"));
+        }
+    }
+
+    /**
+     * The demo gives an 5h on PAY-1100 and 3h on PAY-1300; once an leaves PAY-1300 that row is history: neither the timesheet
+     * target nor the capacity of the scope of every anken counts it. Restores an's rows and membership exactly.
+     */
+    @Test
+    void allocationOfAnAnkenTheMemberLeftDoesNotCount() {
+        var rows = allocations.findStampedByMember("an");
+        var membership = ankenMembers.findByEpic("PAY-1300").stream().filter(m -> m.memberId().equals("an")).findFirst().orElseThrow();
+        allocations.save(new Allocation("an", "PAY-1100", "2026-09-01", 8), "minh", "2026-10-07T09:00:00Z");
+        ankenMembers.remove("PAY-1300", "an");
+        try {
+            var monday = effort.timesheet(ALL, "2026-10-05", "2026-10-11").rows().stream().filter(r -> r.memberId().equals("an"))
+                    .findFirst().orElseThrow().cells().stream().filter(c -> c.date().equals("2026-10-05")).findFirst().orElseThrow();
+            assertThat(monday.targetH()).isEqualTo(8); // not 8 + 3
+            var everything = planning.view(ALL, "2026-10-05", 1).capacity().stream().filter(c -> c.memberId().equals("an"))
+                    .findFirst().orElseThrow().weeks().get(0);
+            var pay1100 = planning.view(new AnkenScope(Set.of("PAY-1100")), "2026-10-05", 1).capacity().stream()
+                    .filter(c -> c.memberId().equals("an")).findFirst().orElseThrow().weeks().get(0);
+            assertThat(everything.availableH()).isPositive().isEqualTo(pay1100.availableH());
+        } finally {
+            ankenMembers.add("PAY-1300", "an", membership.addedBy(), membership.addedAt());
+            jdbc.sql("DELETE FROM allocations WHERE member_id = 'an'").update();
+            rows.forEach(r -> allocations.save(r.allocation(), r.setBy(), r.setAt()));
         }
     }
 
