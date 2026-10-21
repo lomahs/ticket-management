@@ -7,8 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -80,8 +82,17 @@ class ApiReadsTest extends ApiTestSupport {
         JsonNode inPhase = call(get("/api/v1/anken/PAY-1100/tickets?label=overdue&phase=Implement_Coding")).json();
         JsonNode allOverdue = call(get("/api/v1/anken/PAY-1100/tickets?label=overdue")).json();
         assertThat(inPhase).isNotEmpty().hasSizeLessThan(allOverdue.size());
+        int phaseOverdue = -1;
+        for (JsonNode ph : call(get("/api/v1/anken/PAY-1100")).json().get("card").get("phases")) {
+            if (ph.get("name").asText().equals("Implement_Coding")) {
+                phaseOverdue = ph.get("schedule").get("overdue").asInt();
+            }
+        }
+        assertThat(inPhase).hasSize(phaseOverdue);
+        Set<String> allKeys = new HashSet<>();
+        allOverdue.forEach(t -> allKeys.add(t.get("key").asText()));
         for (JsonNode t : inPhase) {
-            assertThat(t.get("phase").asText()).isEqualTo("Implement_Coding");
+            assertThat(allKeys).contains(t.get("key").asText());
         }
         JsonNode all = call(get("/api/v1/anken/PAY-1100/tickets?label=over_burn")).json();
         assertThat(all).isNotEmpty();

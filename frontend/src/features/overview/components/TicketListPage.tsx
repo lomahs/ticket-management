@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getRouteApi, Link } from '@tanstack/react-router';
 import { useMemberMap } from '../../../shared/api/queries';
 import { dm } from '../../../shared/format/dates';
-import { SCHEDULE_LABEL, signedH } from '../../../shared/format/labels';
+import { days, SCHEDULE_LABEL, signedH } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ticketListQuery } from '../api';
@@ -30,16 +30,16 @@ export function TicketListPage() {
         <ul className="card" aria-label="Tickets" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           {q.data.map((c) => {
             const sc = c.schedule;
-            const days = label.endsWith('start') ? sc.start_days : sc.finish_days;
+            const n = label.endsWith('start') ? sc.start_days : sc.finish_days;
             return (
-              <li key={c.key} className="hv-bg" role="button" tabIndex={0} onClick={() => open(c.key)} onKeyDown={(e) => e.key === 'Enter' && open(c.key)}
+              <li key={c.key} className="hv-bg" role="button" tabIndex={0} onClick={() => open(c.key)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.key); } }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', borderTop: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                 <span style={{ font: '600 11px/1 var(--font-mono)', color: 'var(--text-link)', flex: 'none' }}>{c.key}</span>
                 <span className="ellipsis heading" style={{ flex: 1, minWidth: 0 }}>{c.summary}</span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{members[c.assignee_id ?? '']?.name ?? '–'}</span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dm(c.planned_start)} → {dm(c.planned_end)}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', minWidth: 90, textAlign: 'right' }}>
-                  {byDate ? `${days} working days` : signedH(sc.diff_h)}
+                  {byDate ? (n > 0 ? days(n) : '') : signedH(sc.diff_h)}
                 </span>
               </li>
             );

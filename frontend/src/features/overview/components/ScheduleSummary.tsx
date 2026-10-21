@@ -11,15 +11,30 @@ const STATE_TONE: Record<string, { bg: string; fg: string }> = {
 };
 const neutral = { bg: 'var(--surface-hover)', fg: 'var(--text-heading)' };
 
+/** Chip colour per label: overdue and late start are red, early start and finish green, the rest plain text. */
+const CHIP_FG: Record<string, string> = {
+  overdue: 'var(--hl-red-fg)', late_start: 'var(--hl-red-fg)', early_start: 'var(--hl-ok-fg)', early_finish: 'var(--hl-ok-fg)',
+};
+
 /** An anken card's schedule: the state badge, the effort against plan and the overdue count (a link to the ticket list). */
 export function ScheduleSummary({ epic, s }: { epic: string; s: Rollup }) {
   const tone = STATE_TONE[s.state] ?? neutral;
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 10px', fontSize: 12 }}>
       <span style={{ padding: '2px 8px', borderRadius: 99, fontWeight: 600, background: tone.bg, color: tone.fg }}>{STATE_LABEL[s.state]}</span>
-      <span style={{ color: 'var(--text-muted)' }}>Effort: {signedH(s.diff_h)} ({SCHEDULE_LABEL[s.effort]})</span>
+      <EffortText epic={epic} s={s} />
       <CountLink epic={epic} label="overdue" n={s.overdue} />
     </div>
+  );
+}
+
+/** "Effort: +1h (Over-burn)"; a link to the ticket list for an under- or over-burn. */
+function EffortText({ epic, s }: { epic: string; s: Rollup }) {
+  const text = `Effort: ${signedH(s.diff_h)} (${SCHEDULE_LABEL[s.effort]})`;
+  if (s.effort !== 'under_burn' && s.effort !== 'over_burn') return <span style={{ color: 'var(--text-muted)' }}>{text}</span>;
+  return (
+    <Link to="/anken/$epic/tickets" params={{ epic }} search={{ label: s.effort }} onClick={(e) => e.stopPropagation()}
+      style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>{text}</Link>
   );
 }
 
@@ -29,7 +44,7 @@ export function CountLink({ epic, label, n, phase }: { epic: string; label: Sche
   if (!n) return <span style={{ color: 'var(--text-muted)', opacity: 0.6, whiteSpace: 'nowrap' }}>{text}</span>;
   return (
     <Link to="/anken/$epic/tickets" params={{ epic }} search={{ label, phase }} onClick={(e) => e.stopPropagation()}
-      style={{ color: 'var(--hl-red-fg)', fontWeight: 600, whiteSpace: 'nowrap' }}>{text}</Link>
+      style={{ color: CHIP_FG[label] ?? 'var(--text-heading)', fontWeight: 600, whiteSpace: 'nowrap' }}>{text}</Link>
   );
 }
 
@@ -37,7 +52,12 @@ export function CountLink({ epic, label, n, phase }: { epic: string; label: Sche
 export function PhaseSchedule({ epic, phase, s }: { epic: string; phase: string; s: Rollup }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 14px', padding: '0 14px 8px', fontSize: 12 }}>
-      <span style={{ color: 'var(--text-muted)' }}>plan to date {f1(s.plan_to_date_h)}h · actual {f1(s.actual_to_date_h)}h · {signedH(s.diff_h)}</span>
+      <span style={{ color: 'var(--text-muted)' }}>
+        plan to date {f1(s.plan_to_date_h)}h · actual {f1(s.actual_to_date_h)}h · {signedH(s.diff_h)} ({SCHEDULE_LABEL[s.effort]})
+      </span>
+      <span style={{ padding: '1px 7px', borderRadius: 99, fontWeight: 600, fontSize: 11, background: (STATE_TONE[s.state] ?? neutral).bg, color: (STATE_TONE[s.state] ?? neutral).fg }}>
+        {STATE_LABEL[s.state]}
+      </span>
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px 8px' }}>
         <CountLink epic={epic} phase={phase} label="overdue" n={s.overdue} />
         <CountLink epic={epic} phase={phase} label="late_start" n={s.late_start} />

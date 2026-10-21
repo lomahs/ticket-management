@@ -72,3 +72,6 @@ export const signedH = (n: number) => {
   const r = Math.round(n * 10) / 10;
   return (r < 0 ? '−' : '+') + Math.abs(r) + 'h';
 };
+
+/** "1 working day", "3 working days". */
+export const days = (n: number) => `${n} working day${n === 1 ? '' : 's'}`;

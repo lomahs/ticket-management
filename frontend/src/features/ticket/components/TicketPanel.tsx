@@ -4,14 +4,12 @@ import { useJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import type { Status } from '../../../shared/api/types';
 import { Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
-import { SCHEDULE_LABEL, STATUS, statusOf, signedH } from '../../../shared/format/labels';
+import { days, SCHEDULE_LABEL, STATUS, statusOf, signedH } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket, useTicketBack, useTicketKey, type TicketBack } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { ticketQuery, usePatchTicket } from '../api';
-
-const days = (n: number) => `${n} working day${n === 1 ? '' : 's'}`;
 
 /** "Late start · 2 working days"; a missing plan reads "No planned dates". */
 function dateLine(label: string, n: number) {

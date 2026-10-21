@@ -45,6 +45,32 @@ describe('schedule state on the overview', () => {
     expect(screen.getByText('Effort: −14h (Under-burn)')).toBeTruthy();
     const link = screen.getByRole('link', { name: 'Overdue 3' });
     expect(link.getAttribute('href')).toBe('/anken/PAY-1100/tickets?label=overdue');
+    expect(screen.getByRole('link', { name: 'Effort: −14h (Under-burn)' }).getAttribute('href'))
+      .toBe('/anken/PAY-1100/tickets?label=under_burn');
+  });
+
+  it('links an over-burn effort but not an on-plan one', async () => {
+    serveAnken({ schedule: rollup({ diff_h: 1, effort: 'over_burn' }) }, [phase('ITA', rollup())]);
+    renderApp('/anken');
+    expect((await screen.findByRole('link', { name: 'Effort: +1h (Over-burn)' })).getAttribute('href'))
+      .toBe('/anken/PAY-1100/tickets?label=over_burn');
+    cleanup();
+    serveAnken({ schedule: rollup() }, [phase('ITA', rollup())]);
+    renderApp('/anken');
+    expect(await screen.findByText('Effort: +0h (On plan)')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /^Effort:/ })).toBeNull();
+  });
+
+  it('tones the chips by label: red for overdue and late start, green for early, plain for late finish', async () => {
+    serveAnken({ schedule: rollup({ overdue: 3 }) }, [phase('ITA', rollup({ late_start: 1, early_start: 1, late_finish: 1, early_finish: 2 }))]);
+    renderApp('/anken/PAY-1100');
+    const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
+    const fg = (name: string) => within(detail).getByRole('link', { name }).style.color;
+    expect(fg('Late start 1')).toBe('var(--hl-red-fg)');
+    expect(fg('Early finish 2')).toBe('var(--hl-ok-fg)');
+    expect(fg('Early start 1')).toBe('var(--hl-ok-fg)');
+    expect(fg('Late finish 1')).toBe('var(--text-heading)');
+    expect(screen.getByRole('link', { name: 'Overdue 3' }).style.color).toBe('var(--hl-red-fg)');
   });
 
   it('shows a positive effort deviation with its sign', async () => {
@@ -56,13 +82,14 @@ describe('schedule state on the overview', () => {
   it('phase chips link to the ticket list', async () => {
     serveAnken(
       { schedule: rollup() },
-      [phase('ITA', rollup({ plan_to_date_h: 6, actual_to_date_h: 7.5, diff_h: 1.5, late_start: 2, early_finish: 0 }))],
+      [phase('ITA', rollup({ plan_to_date_h: 6, actual_to_date_h: 7.5, diff_h: 1.5, effort: 'over_burn', state: 'LATE', late_start: 2, early_finish: 0 }))],
     );
     renderApp('/anken/PAY-1100');
     const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
-    expect(within(detail).getByText('plan to date 6h · actual 7.5h · +1.5h')).toBeTruthy();
+    expect(within(detail).getByText('plan to date 6h · actual 7.5h · +1.5h (Over-burn)')).toBeTruthy();
     const chip = within(detail).getByRole('link', { name: 'Late start 2' });
     expect(chip.getAttribute('href')).toBe('/anken/PAY-1100/tickets?label=late_start&phase=ITA');
+    expect(within(detail).getByText('Late')).toBeTruthy();
     expect(within(detail).getByText('Early finish 0')).toBeTruthy();
     expect(within(detail).queryByRole('link', { name: 'Early finish 0' })).toBeNull();
   });
@@ -77,6 +104,20 @@ describe('ticket list', () => {
     expect(rows[0].textContent).toContain('3 working days');
     fireEvent.click(rows[0]);
     await waitFor(() => expect(router.state.location.search).toMatchObject({ ticket: 'PAY-1012' }));
+  });
+
+  it('says one working day in the singular, hides a zero and opens a row with Space', async () => {
+    server.use(http.get('*/api/v1/anken/PAY-1100/tickets', () => HttpResponse.json([
+      { ...late, schedule: issue({ finish: 'overdue', finish_days: 1 }) },
+      { ...late, key: 'PAY-1013', schedule: issue({ finish: 'overdue', finish_days: 0 }) },
+    ])));
+    const { router } = renderApp('/anken/PAY-1100/tickets?label=overdue');
+    const rows = await screen.findAllByRole('button', { name: /PAY-10/ });
+    expect(rows[0].textContent).toContain('1 working day');
+    expect(rows[0].textContent).not.toContain('1 working days');
+    expect(rows[1].textContent).not.toContain('working day');
+    fireEvent.keyDown(rows[1], { key: ' ' });
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ ticket: 'PAY-1013' }));
   });
 
   it('shows effort labels as hours and the phase in the heading', async () => {
