@@ -74,7 +74,26 @@ async function home(queryClient: QueryClient) {
 const needs = (feature: Feature) => ({ staticData: { feature } });
 
 const index = createRoute({ getParentRoute: () => app, path: '/', beforeLoad: async ({ context }) => { throw redirect({ to: await home(context.queryClient) }); } });
-const myWork = createRoute({ getParentRoute: () => app, path: 'my-work', ...needs('my_work'), validateSearch: myWorkSearch, component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage') });
+/**
+ * A search middleware that drops `keys` when a navigation changes the switcher's anken: they belong to one anken (a phase,
+ * a person of its scope) and would show another anken's data or a 404.
+ */
+function dropOnAnkenChange<K extends string>(...keys: K[]) {
+  return <S extends { anken?: string } & Partial<Record<K, unknown>>>({ search, next }: { search: S; next: (s: S) => S }): S => {
+    const out = next(search);
+    return out.anken === search.anken ? out : { ...out, ...Object.fromEntries(keys.map((k) => [k, undefined])) };
+  };
+}
+
+// A member picked in another anken may not be a person of the new one; without it My Work shows the viewer's own work.
+const myWork = createRoute({
+  getParentRoute: () => app,
+  path: 'my-work',
+  ...needs('my_work'),
+  validateSearch: myWorkSearch,
+  search: { middlewares: [dropOnAnkenChange('member')] },
+  component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage'),
+});
 
 /**
  * "Function Matrix" in the sidebar: the switcher's anken; under "All my anken" the first visible anken that has functions,
@@ -108,11 +127,7 @@ const burndown = createRoute({
   path: 'effort/burndown',
   ...needs('effort'),
   validateSearch: burndownSearch,
-  // Phase, sub-phase and member belong to one anken: another anken in the switcher drops them.
-  search: { middlewares: [({ search, next }) => {
-    const out = next(search);
-    return out.anken === search.anken ? out : { ...out, phase: undefined, task: undefined, member: undefined };
-  }] },
+  search: { middlewares: [dropOnAnkenChange('phase', 'task', 'member')] },
   component: lazyRouteComponent(effortPages, 'BurndownPage'),
 });
 

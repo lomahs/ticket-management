@@ -127,4 +127,26 @@ describe('global anken switcher', () => {
     expect((await within(dialog).findByRole('alert')).textContent).toBe('Member binh was not found');
     expect(localStorage.getItem('tt.anken')).toBeNull(); // not about the anken: the switcher is left alone
   });
+
+  it('my work drops a picked member when another anken is chosen', async () => {
+    const asked: { member: string | null; anken: string | null }[] = [];
+    server.use(http.get('*/api/v1/my-work', ({ request }) => {
+      const q = new URL(request.url).searchParams;
+      asked.push({ member: q.get('member'), anken: q.get('anken') });
+      return q.get('member') === 'binh' && q.get('anken') !== 'PAY-1100'
+        ? HttpResponse.json({ code: 'not_found', detail: 'Member binh was not found', errors: [{ field: 'member', message: 'Member binh was not found' }] },
+          { status: 404, headers: { 'Content-Type': 'application/problem+json' } })
+        : HttpResponse.json(fixtures.myWork);
+    }));
+    const { router } = renderApp('/my-work?member=binh&anken=PAY-1100');
+    await waitFor(() => expect(asked).toContainEqual({ member: 'binh', anken: 'PAY-1100' }));
+    const s = await switcher();
+    await waitFor(() => expect(s.value).toBe('PAY-1100'));
+    fireEvent.change(s, { target: { value: 'PAY-1300' } });
+    await waitFor(() => expect(asked.at(-1)?.anken).toBe('PAY-1300'));
+    expect(asked.filter((a) => a.anken === 'PAY-1300').map((a) => a.member)).toEqual(['minh']); // the viewer's own member
+    expect((router.state.location.search as { member?: string }).member).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });
