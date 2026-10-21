@@ -131,14 +131,14 @@ public class AnkenApi {
 
     @Requires(feature = Feature.MATRIX, level = Level.WRITE)
     @PostMapping("/{epic}/functions/preview")
-    public FunctionPreview previewFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionDraftIn body) {
-        return anken.previewFunction(epic, draft(body));
+    public FunctionPreview previewFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionDraftIn body, Viewer viewer) {
+        return anken.previewFunction(epicScope(viewer, epic), epic, draft(body));
     }
 
     @Requires(feature = Feature.MATRIX, level = Level.WRITE)
     @PostMapping("/{epic}/functions")
     @ResponseStatus(HttpStatus.CREATED)
-    public KeysOut createFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionCreateIn body) {
-        return new KeysOut(anken.createFunction(epic, draft(body.draft()), body.functionId()));
+    public KeysOut createFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionCreateIn body, Viewer viewer) {
+        return new KeysOut(anken.createFunction(epicScope(viewer, epic), epic, draft(body.draft()), body.functionId()));
     }
 }

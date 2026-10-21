@@ -1,32 +1,55 @@
 package tracker.adapters.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
 import tracker.DemoTest;
+import tracker.adapters.fake.Dataset;
+import tracker.adapters.web.auth.AuthApi;
+import tracker.application.ports.AccessRepository;
 import tracker.application.ports.AnkenMemberRepository;
+import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.MemberRepository;
+import tracker.domain.AccessStatus;
+import tracker.domain.Anken;
+import tracker.domain.AnkenScopeSetting;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
 import tracker.domain.Member;
+import tracker.domain.Permission;
 import tracker.domain.Role;
 import tracker.domain.StepKind;
 import tracker.domain.Worklog;
@@ -41,9 +64,20 @@ class AnkenScopeApiTest extends ApiTestSupport {
     static final String PAY_1300_SUBTASK = "PAY-1342";
     /** Every demo member works on PAY-1100, so the test adds one who does not. */
     static final String OUTSIDER = "zoe";
+    /** A PIM whose anken scope is limited to their membership (PAY-1100); see {@link #pimOfPay1100Only()}. */
+    static final String PIM = "pia@acme.vn";
+    /** A sub-task of PAY-1100. */
+    static final String PAY_1100_SUBTASK = "PAY-1213";
 
     @Autowired
     AnkenMemberRepository ankenMembers;
+    @Autowired
+    AnkenRepository anken;
+    @Autowired
+    AccessRepository access;
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    RequestMappingHandlerMapping mappings;
     @Autowired
     IssueRepository issues;
     @Autowired
@@ -175,5 +209,183 @@ class AnkenScopeApiTest extends ApiTestSupport {
     @Test
     void ankenParamNarrows() throws Exception {
         assertThat(keys(call(get("/api/v1/anken").param("anken", "PAY-1300")).json())).containsExactly("PAY-1300");
+    }
+
+    /** A PIM sees every anken by default; with the scope setting "members" only the anken they are a member of. */
+    private void pimOfPay1100Only() {
+        members.save(new Member("pia", "Pia", "Pia Planner", Role.PIM, "VN", "#abcdef", PIM, Permission.USER, false, "acc-pia"));
+        access.saveStatus("pia", AccessStatus.ACTIVE);
+        access.saveAnkenScope("pia", AnkenScopeSetting.MEMBERS);
+        ankenMembers.add("PAY-1100", "pia", "test", Instant.now().toString());
+    }
+
+    private String titleOf(String epic) {
+        return anken.findAll().stream().filter(a -> a.key().equals(epic)).map(Anken::title).findFirst().orElseThrow();
+    }
+
+    /**
+     * Every scoped GET under /api/v1 (auth, admin and settings aside): its pattern, the probes of PAY-1300 that `an` sends, and
+     * the same request without them.
+     */
+    static Stream<Arguments> scopedGets() {
+        String other = "anken=PAY-1300";
+        return Stream.of(
+                Arguments.of("/api/v1/anken", List.of("/api/v1/anken?" + other), "/api/v1/anken"),
+                Arguments.of("/api/v1/anken/{epic}", List.of("/api/v1/anken/PAY-1300"), "/api/v1/anken/PAY-1100"),
+                Arguments.of("/api/v1/anken/{epic}/matrix", List.of("/api/v1/anken/PAY-1300/matrix"), "/api/v1/anken/PAY-1100/matrix"),
+                Arguments.of("/api/v1/my-work", List.of("/api/v1/my-work?member=an&" + other, "/api/v1/my-work?member=" + OUTSIDER),
+                        "/api/v1/my-work?member=an"),
+                Arguments.of("/api/v1/members", List.of("/api/v1/members?" + other), "/api/v1/members"),
+                Arguments.of("/api/v1/meta", List.of("/api/v1/meta"), "/api/v1/meta"),
+                Arguments.of("/api/v1/sync/runs/latest", List.of("/api/v1/sync/runs/latest"), "/api/v1/sync/runs/latest"),
+                Arguments.of("/api/v1/tickets/{key}", List.of("/api/v1/tickets/" + PAY_1300_SUBTASK), "/api/v1/tickets/" + PAY_1100_SUBTASK),
+                Arguments.of("/api/v1/tickets/{key}/function", List.of("/api/v1/tickets/" + PAY_1300_SUBTASK + "/function"),
+                        "/api/v1/tickets/" + PAY_1100_SUBTASK + "/function"),
+                Arguments.of("/api/v1/planning", List.of("/api/v1/planning?start=2026-10-05&" + other), "/api/v1/planning?start=2026-10-05"),
+                Arguments.of("/api/v1/effort/timesheet", List.of("/api/v1/effort/timesheet?from=2026-10-05&to=2026-10-11&" + other),
+                        "/api/v1/effort/timesheet?from=2026-10-05&to=2026-10-11"),
+                Arguments.of("/api/v1/effort/timesheet/{member}/{date}",
+                        List.of("/api/v1/effort/timesheet/" + OUTSIDER + "/2026-10-06", "/api/v1/effort/timesheet/binh/2026-10-06?" + other),
+                        "/api/v1/effort/timesheet/binh/2026-10-06"),
+                Arguments.of("/api/v1/effort/analysis", List.of("/api/v1/effort/analysis?" + other), "/api/v1/effort/analysis"),
+                Arguments.of("/api/v1/effort/burndown", List.of("/api/v1/effort/burndown?" + other, "/api/v1/effort/burndown?member=" + OUTSIDER),
+                        "/api/v1/effort/burndown"),
+                Arguments.of("/api/v1/calendar", List.of("/api/v1/calendar?month=2026-10&" + other), "/api/v1/calendar?month=2026-10"),
+                Arguments.of("/api/v1/leaves/export", List.of("/api/v1/leaves/export?month=2026-10&" + other),
+                        "/api/v1/leaves/export?month=2026-10"),
+                Arguments.of("/api/v1/leaves/template", List.of("/api/v1/leaves/template"), "/api/v1/leaves/template"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("scopedGets")
+    void noEndpointLeaksAnotherAnken(String pattern, List<String> probes, String plain) throws Exception {
+        for (String url : probes) {
+            Res r = call(get(url).with(as(AN)));
+            if (r.status() != 404) {
+                assertThat(r.status()).as(url + " " + r.text()).isEqualTo(200);
+                assertThat(r.text()).as(url).doesNotContain("PAY-13").doesNotContain("\"" + OUTSIDER + "\"").doesNotContain("Zoe Outsider");
+            }
+        }
+        Res r = call(get(plain).with(as(AN)));
+        assertThat(r.status()).as(plain + " " + r.text()).isEqualTo(200);
+        for (String epic : Dataset.TRACKED_EPICS) {
+            if (!epic.equals("PAY-1100")) {
+                assertThat(r.text()).as(plain).doesNotContain(epic);
+            }
+        }
+        assertThat(r.text()).as(plain).doesNotContain("\"" + OUTSIDER + "\"").doesNotContain("Zoe Outsider");
+    }
+
+    @Test
+    void theLeakTestCoversEveryScopedGet() {
+        Set<String> listed = new TreeSet<>();
+        scopedGets().forEach(a -> listed.add((String) a.get()[0]));
+        Set<String> found = new TreeSet<>();
+        for (Map.Entry<RequestMappingInfo, HandlerMethod> e : mappings.getHandlerMethods().entrySet()) {
+            Class<?> api = e.getValue().getBeanType();
+            if (api == AuthApi.class || api == AdminApi.class || api == SettingsApi.class
+                    || !e.getKey().getMethodsCondition().getMethods().contains(RequestMethod.GET)) {
+                continue;
+            }
+            e.getKey().getPatternValues().stream().filter(p -> p.startsWith("/api/v1/")).forEach(found::add);
+        }
+        assertThat(listed).isEqualTo(found);
+    }
+
+    @Test
+    void timesheetRowsArePeopleOfTheScope() throws Exception {
+        JsonNode rows = call(get("/api/v1/effort/timesheet").param("from", "2026-10-05").param("to", "2026-10-11").with(as(AN)))
+                .json().get("rows");
+        List<String> ids = new ArrayList<>();
+        rows.forEach(r -> ids.add(r.get("member_id").asText()));
+        assertThat(ids).isEqualTo(List.copyOf(new TreeSet<>(ankenMembers.findAll().get("PAY-1100"))));
+        List<String> all = new ArrayList<>();
+        call(get("/api/v1/effort/timesheet").param("from", "2026-10-05").param("to", "2026-10-11")).json().get("rows")
+                .forEach(r -> all.add(r.get("member_id").asText()));
+        assertThat(all).contains(OUTSIDER); // the admin sees PAY-1300's people too
+    }
+
+    @Test
+    void dayDetailListsOnlyWorklogsOnIssuesInScope() throws Exception {
+        Issue elsewhere = issues.findAll().stream().filter(i -> !i.epicKey().equals("PAY-1100") && !i.worklogs().isEmpty())
+                .filter(i -> ankenMembers.exists("PAY-1100", i.worklogs().get(0).memberId())).findFirst().orElseThrow();
+        Worklog w = elsewhere.worklogs().get(0);
+        String url = "/api/v1/effort/timesheet/" + w.memberId() + "/" + w.date();
+        assertThat(call(get(url)).json().get("entries").toString()).contains(elsewhere.key()); // the admin sees every anken
+        Res mine = call(get(url).with(as(AN)));
+        assertThat(mine.status()).as(mine.text()).isEqualTo(200);
+        assertThat(mine.json().get("entries").toString()).doesNotContain(elsewhere.key());
+    }
+
+    @Test
+    void cannotAssignANonMember() throws Exception {
+        JsonNode e = problem(call(json(patch("/api/v1/tickets/" + PAY_1100_SUBTASK), Map.of("assignee_id", OUTSIDER))), 422, "invalid");
+        assertThat(e.get("errors").get(0).get("field").asText()).isEqualTo("assignee_id");
+        assertThat(e.get("detail").asText()).isEqualTo("Zoe is not a member of " + titleOf("PAY-1100"));
+    }
+
+    @Test
+    void planningAndNewFunctionsNeedMembersOfTheAnken() throws Exception {
+        JsonNode e = problem(call(json(post("/api/v1/planning/preview"), Map.of("start", "2026-10-05",
+                "changes", List.of(Map.of("key", "PAY-1262", "start", "2026-10-11", "member_id", OUTSIDER))))), 422, "invalid");
+        assertThat(e.get("errors").get(0).get("field").asText()).isEqualTo("changes.0.member_id");
+        assertThat(e.get("detail").asText()).isEqualTo("Zoe is not a member of " + titleOf("PAY-1100"));
+        e = problem(call(json(post("/api/v1/anken/PAY-1100/functions/preview"), Map.of("parent_key", "PAY-1102", "name", "Installment",
+                "ba", "an", "bal", "minh", "jm", OUTSIDER, "create_hours", 8))), 422, "invalid");
+        assertThat(e.get("errors").get(0).get("field").asText()).isEqualTo("jm");
+        assertThat(e.get("detail").asText()).isEqualTo("Zoe is not a member of " + titleOf("PAY-1100"));
+    }
+
+    @Test
+    void writesToAHiddenTicketAre404() throws Exception {
+        pimOfPay1100Only();
+        problem(call(json(patch("/api/v1/tickets/" + PAY_1300_SUBTASK), Map.of("status", "R")).with(as(PIM))), 404, "not_found");
+        problem(call(json(post("/api/v1/planning/preview"), Map.of("start", "2026-10-05",
+                "changes", List.of(Map.of("key", PAY_1300_SUBTASK, "start", "2026-10-11", "member_id", "chi")))).with(as(PIM))),
+                404, "not_found");
+        problem(call(json(post("/api/v1/anken/PAY-1300/functions/preview"), Map.of("parent_key", "PAY-1301", "name", "X",
+                "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)).with(as(PIM))), 404, "not_found");
+    }
+
+    @Test
+    void pmCannotPushAPlanForAHiddenAnken() throws Exception {
+        pimOfPay1100Only();
+        JsonNode e = problem(call(json(post("/api/v1/planning/push"),
+                Map.of("changes", List.of(Map.of("key", PAY_1300_SUBTASK, "start", "2026-10-12", "member_id", "chi")))).with(as(PIM))),
+                404, "not_found");
+        assertThat(e.get("detail").asText()).isEqualTo("Ticket " + PAY_1300_SUBTASK + " was not found");
+    }
+
+    @Test
+    void leaveOfAMemberOutsideScopeIs404() throws Exception {
+        pimOfPay1100Only();
+        JsonNode e = problem(call(json(post("/api/v1/leaves"), Map.of("member_id", OUTSIDER, "type", "full", "date_from", "2026-11-02",
+                "date_to", "2026-11-02", "note", "")).with(as(PIM))), 404, "not_found");
+        assertThat(e.get("detail").asText()).isEqualTo("Member " + OUTSIDER + " was not found");
+        assertThat(call(json(post("/api/v1/leaves"), Map.of("member_id", "an", "type", "full", "date_from", "2026-11-02",
+                "date_to", "2026-11-02", "note", "")).with(as(PIM))).status()).isEqualTo(201);
+        Res admin = call(json(post("/api/v1/leaves"), Map.of("member_id", OUTSIDER, "type", "full", "date_from", "2026-11-03",
+                "date_to", "2026-11-03", "note", "")));
+        assertThat(admin.status()).as(admin.text()).isEqualTo(201);
+        int zoes = call(get("/api/v1/calendar").param("month", "2026-11")).json().get("rows").findValues("leave").stream()
+                .filter(l -> !l.isNull() && l.get("member_id").asText().equals(OUTSIDER)).findFirst().orElseThrow().get("id").asInt();
+        problem(call(json(put("/api/v1/leaves/" + zoes),
+                Map.of("member_id", "an", "type", "full", "date_from", "2026-11-04", "date_to", "2026-11-04", "note", "")).with(as(PIM))),
+                404, "not_found");
+        problem(call(delete("/api/v1/leaves/" + zoes).with(as(PIM))),
+                404, "not_found");
+    }
+
+    @Test
+    void importAndExportCoverOnlyPeopleOfTheScope() throws Exception {
+        pimOfPay1100Only();
+        call(json(post("/api/v1/leaves"), Map.of("member_id", OUTSIDER, "type", "full", "date_from", "2026-10-26",
+                "date_to", "2026-10-26", "note", ""))); // as the admin
+        assertThat(call(get("/api/v1/leaves/export").param("month", "2026-10")).text()).contains("Zoe Outsider");
+        assertThat(call(get("/api/v1/leaves/export").param("month", "2026-10").with(as(PIM))).text()).doesNotContain("Zoe Outsider");
+        JsonNode rows = call(json(post("/api/v1/leaves/import"), Map.of("rows", List.of(
+                List.of("Zoe", "2026-12-01", "2026-12-01", "All day", ""), List.of("Chi", "2026-12-01", "2026-12-01", "All day", ""))))
+                .with(as(PIM))).json();
+        assertThat(rows.get("imported").asInt()).isEqualTo(1);
     }
 }

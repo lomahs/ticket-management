@@ -3,6 +3,7 @@ package tracker.application.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +19,7 @@ import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.SettingsRepository;
 import tracker.application.service.PlanningService.DayHead;
 import tracker.application.settings.TrackerSettings;
+import tracker.domain.AnkenScope;
 import tracker.domain.Dates;
 import tracker.domain.Feature;
 import tracker.domain.Holiday;
@@ -56,13 +58,14 @@ public class CalendarService {
     public record CalendarView(String month, List<DayHead> days, List<CalendarRow> rows) {
     }
 
-    public CalendarView month(String mon) {
+    /** One row per person of the scope. */
+    public CalendarView month(AnkenScope scope, String mon) {
         String today = context.today();
         Map<String, Member> members = context.membersById();
         WorkCalendar cal = context.calendar(settings.load(), members, calendar.findLeaves());
         List<String> days = Dates.monthDays(mon).stream().filter(cal::visible).toList();
         List<CalendarRow> rows = new ArrayList<>();
-        for (String mid : members.keySet()) {
+        for (String mid : context.people(scope)) {
             List<CalendarCell> cells = new ArrayList<>();
             double off = 0.0;
             for (String x : days) {
@@ -94,30 +97,39 @@ public class CalendarService {
         }
     }
 
+    /** Leave is changed only for the people of the scope; anyone else is not found. */
+    private static void inScope(List<String> people, String memberId) {
+        if (!people.contains(memberId)) {
+            throw new NotFound("Member " + memberId + " was not found", "member_id");
+        }
+    }
+
     private static Leave stored(List<Leave> leaves, int leaveId) {
         return leaves.stream().filter(lv -> lv.id() == leaveId).findFirst()
                 .orElseThrow(() -> new NotFound("Leave " + leaveId + " was not found"));
     }
 
     /**
-     * Stores leave on each working day of the range (non-working days are skipped). Returns the number of days. Without
-     * Calendar write the viewer may only add or edit their own leave.
+     * Stores leave on each working day of the range (non-working days are skipped). Returns the number of days. The draft's
+     * member, and the edited leave's, must be people of the scope. Without Calendar write the viewer may only add or edit their
+     * own leave.
      */
     @Transactional
-    public int saveLeave(LeaveDraft draft, Viewer viewer) {
+    public int saveLeave(AnkenScope scope, LeaveDraft draft, Viewer viewer) {
+        List<String> people = context.people(scope);
+        inScope(people, draft.memberId());
         ownLeave(viewer, draft.memberId());
         if (draft.dateTo().compareTo(draft.dateFrom()) < 0) {
             throw new Invalid("To date is before From date", "to");
         }
         Map<String, Member> members = context.membersById();
-        if (!members.containsKey(draft.memberId())) {
-            throw new Invalid("Unknown member " + draft.memberId(), "member");
-        }
         List<Leave> leaves = calendar.findLeaves();
         WorkCalendar cal = context.calendar(settings.load(), members, leaves);
         Integer editId = draft.editId();
         if (editId != null) {
-            ownLeave(viewer, stored(leaves, editId).memberId());
+            String owner = stored(leaves, editId).memberId();
+            inScope(people, owner);
+            ownLeave(viewer, owner);
             calendar.deleteLeave(editId);
         }
         Map<String, Leave> existing = new HashMap<>();
@@ -145,10 +157,12 @@ public class CalendarService {
         return n;
     }
 
-    /** Without Calendar write the viewer may only delete their own leave. */
+    /** Only leave of the people of the scope; without Calendar write the viewer may only delete their own leave. */
     @Transactional
-    public void deleteLeave(int leaveId, Viewer viewer) {
-        ownLeave(viewer, stored(calendar.findLeaves(), leaveId).memberId());
+    public void deleteLeave(AnkenScope scope, int leaveId, Viewer viewer) {
+        String owner = stored(calendar.findLeaves(), leaveId).memberId();
+        inScope(context.people(scope), owner);
+        ownLeave(viewer, owner);
         calendar.deleteLeave(leaveId);
     }
 
@@ -162,12 +176,16 @@ public class CalendarService {
     private record Checked(TrackerSettings settings, List<ImportRow> rows) {
     }
 
-    private Checked validate(List<? extends List<?>> rows) {
-        return new Checked(settings.load(), LeaveImport.validateRows(rows, context.membersById(), calendar.findLeaves()));
+    /** Rows for anyone but the people of the scope are rows of an unknown member. */
+    private Checked validate(AnkenScope scope, List<? extends List<?>> rows) {
+        List<String> people = context.people(scope);
+        Map<String, Member> members = new LinkedHashMap<>(context.membersById());
+        members.keySet().retainAll(people);
+        return new Checked(settings.load(), LeaveImport.validateRows(rows, members, calendar.findLeaves()));
     }
 
-    public ImportPreview importPreview(List<? extends List<?>> rows) {
-        Checked c = validate(rows);
+    public ImportPreview importPreview(AnkenScope scope, List<? extends List<?>> rows) {
+        Checked c = validate(scope, rows);
         List<Integer> workingDays = c.settings().workingHours.days();
         int days = 0;
         for (ImportRow r : c.rows()) {
@@ -184,8 +202,8 @@ public class CalendarService {
 
     /** Adds the leave of the valid rows; invalid rows are skipped. */
     @Transactional
-    public ImportResult importConfirm(List<? extends List<?>> rows) {
-        Checked c = validate(rows);
+    public ImportResult importConfirm(AnkenScope scope, List<? extends List<?>> rows) {
+        Checked c = validate(scope, rows);
         List<ImportRow> ok = c.rows().stream().filter(r -> r.error().isEmpty()).toList();
         List<Integer> workingDays = c.settings().workingHours.days();
         int n = 0;
@@ -204,10 +222,12 @@ public class CalendarService {
     public record ExportRow(String who, String date, String type, String note) {
     }
 
-    /** Rows for the month: leave by date, then holidays (who = countries). */
-    public List<ExportRow> export(String mon) {
+    /** Rows for the month: leave of the people of the scope by date, then holidays (who = countries). */
+    public List<ExportRow> export(AnkenScope scope, String mon) {
         Map<String, Member> members = context.membersById();
-        List<Leave> leaves = new ArrayList<>(calendar.findLeaves().stream().filter(lv -> lv.date().startsWith(mon)).toList());
+        List<String> people = context.people(scope);
+        List<Leave> leaves = new ArrayList<>(calendar.findLeaves().stream()
+                .filter(lv -> lv.date().startsWith(mon) && people.contains(lv.memberId())).toList());
         List<Holiday> hols = new ArrayList<>(calendar.findHolidays().values().stream().filter(h -> h.date().startsWith(mon)).toList());
         leaves.sort(Comparator.comparing(Leave::date).thenComparing(Leave::memberId));
         hols.sort(Comparator.comparing(Holiday::date));

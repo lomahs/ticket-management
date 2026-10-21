@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
@@ -30,12 +31,14 @@ public final class TrackerContext {
     public final WorkCalendar cal;
     /** The members of the scope's anken (from {@code anken_members}), distinct and sorted by id; {@link #members} holds everyone. */
     public final List<String> people;
+    /** Epic to the member ids of its anken, for the epics in scope. */
+    public final Map<String, Set<String>> ankenMembers;
     public final List<Function> functions = new ArrayList<>();
     public final Map<String, IssueFlags> flags = new LinkedHashMap<>();
     public final Map<String, String> owner = new LinkedHashMap<>();
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
-                   List<Leave> leaves, WorkCalendar cal, List<String> people) {
+                   List<Leave> leaves, WorkCalendar cal, List<String> people, Map<String, Set<String>> ankenMembers) {
         this.today = today;
         this.settings = settings;
         this.members = members;
@@ -44,6 +47,18 @@ public final class TrackerContext {
         this.leaves = leaves;
         this.cal = cal;
         this.people = people;
+        this.ankenMembers = ankenMembers;
+    }
+
+    /** Whether the member is in the anken of {@code epic}; false for an epic outside the scope. */
+    public boolean isMember(String epic, String memberId) {
+        return ankenMembers.getOrDefault(epic, Set.of()).contains(memberId);
+    }
+
+    /** "Name is not a member of Anken title", the error of a write that names someone outside the ticket's anken. */
+    public String notAMember(String epic, String memberId) {
+        Member m = members.get(memberId);
+        return (m != null ? m.name() : memberId) + " is not a member of " + anken(epic).map(Anken::title).orElse(epic);
     }
 
     public List<Issue> subtasks() {

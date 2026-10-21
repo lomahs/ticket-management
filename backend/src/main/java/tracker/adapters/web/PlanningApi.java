@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,16 +21,20 @@ import tracker.application.service.PlanningService.PlanChange;
 import tracker.application.service.PlanningService.PlanningPreview;
 import tracker.application.service.PlanningService.PlanningView;
 import tracker.application.service.PlanningService;
+import tracker.application.service.ScopeService;
 import tracker.domain.Feature;
 import tracker.domain.Level;
+import tracker.domain.Viewer;
 
 @RestController
 @RequestMapping("/api/v1/planning")
 public class PlanningApi {
     private final PlanningService planning;
+    private final ScopeService scopes;
 
-    public PlanningApi(PlanningService planning) {
+    public PlanningApi(PlanningService planning, ScopeService scopes) {
         this.planning = planning;
+        this.scopes = scopes;
     }
 
     public record PlanChangeIn(@NotNull String key,
@@ -50,19 +55,21 @@ public class PlanningApi {
     @Requires(feature = Feature.PLANNING, level = Level.READ)
     @GetMapping("")
     public PlanningView view(@RequestParam @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
-                             @RequestParam(defaultValue = "2") @Min(1) @Max(2) int weeks) {
-        return planning.view(start, weeks);
+                             @RequestParam(defaultValue = "2") @Min(1) @Max(2) int weeks,
+                             @RequestParam(required = false) @Nullable String anken, Viewer viewer) {
+        return planning.view(scopes.scope(viewer, anken), start, weeks);
     }
 
     @Requires(feature = Feature.PLANNING, level = Level.WRITE)
     @PostMapping("/preview")
-    public PlanningPreview preview(@RequestBody @Valid PlanningPreviewIn body) {
-        return planning.preview(body.start(), body.changes().stream().map(PlanChangeIn::change).toList());
+    public PlanningPreview preview(@RequestBody @Valid PlanningPreviewIn body, @RequestParam(required = false) @Nullable String anken,
+                                   Viewer viewer) {
+        return planning.preview(scopes.scope(viewer, anken), body.start(), body.changes().stream().map(PlanChangeIn::change).toList());
     }
 
     @Requires(feature = Feature.PLANNING, level = Level.WRITE)
     @PostMapping("/push")
-    public KeysOut push(@RequestBody @Valid PlanningPushIn body) {
-        return new KeysOut(planning.push(body.changes().stream().map(PlanChangeIn::change).toList()));
+    public KeysOut push(@RequestBody @Valid PlanningPushIn body, Viewer viewer) {
+        return new KeysOut(planning.push(scopes.scope(viewer, null), body.changes().stream().map(PlanChangeIn::change).toList()));
     }
 }

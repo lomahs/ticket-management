@@ -404,6 +404,9 @@ public class AnkenService {
             if (!ctx.members.containsKey(p[1])) {
                 throw new Invalid("Unknown member " + p[1], p[0]);
             }
+            if (!ctx.isMember(epic, p[1])) {
+                throw new Invalid(ctx.notAMember(epic, p[1]), p[0]);
+            }
         }
         if (!(draft.createHours() > 0)) {
             throw new Invalid("Effort for Create must be more than 0 hours", "create_hours");
@@ -435,16 +438,17 @@ public class AnkenService {
         return new FunctionPreview(parent.phase(), fid, steps, parent.prefix());
     }
 
-    public FunctionPreview previewFunction(String epic, FunctionDraft draft) {
-        TrackerContext ctx = context.load();
+    /** {@code epic} must be in the scope; BA, BAL and JM must be members of its anken. */
+    public FunctionPreview previewFunction(AnkenScope scope, String epic, FunctionDraft draft) {
+        TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         return plan(ctx, epic, draft, null);
     }
 
-    /** Creates the five step sub-tasks in Jira and reads them back. */
-    public List<String> createFunction(String epic, FunctionDraft draft, @Nullable String functionId) {
+    /** Creates the five step sub-tasks in Jira and reads them back; the rules of {@link #previewFunction} apply. */
+    public List<String> createFunction(AnkenScope scope, String epic, FunctionDraft draft, @Nullable String functionId) {
         JiraWriter jira = writer.orElseThrow(() -> new CapabilityDisabled("Writing to Jira is not available yet"));
-        TrackerContext ctx = context.load();
+        TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         if (draft.name().strip().isEmpty()) {
             throw new Invalid("Function name is required", "name");

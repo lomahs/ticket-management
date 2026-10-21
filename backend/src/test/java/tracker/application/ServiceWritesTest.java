@@ -23,7 +23,6 @@ import tracker.application.AppError.Forbidden;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.IssueRepository;
-import tracker.application.ports.MemberRepository;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService;
 import tracker.application.service.CalendarService;
@@ -85,14 +84,14 @@ class ServiceWritesTest {
     @Test
     void createFunctionWritesToJiraAndSyncsBack() {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
-        List<String> keys = anken.createFunction("PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ALL, "PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThat(m.nextFunctionId()).isEqualTo("F14");
-        assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
+        assertThatThrownBy(() -> anken.createFunction(ALL, "PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
     }
 
     /** The company's naming: Tasks recognised by name, sub-tasks named [prefix][function name]_Step without a function ID. */
@@ -108,16 +107,16 @@ class ServiceWritesTest {
         });
         sync.run(true);
         FunctionDraft d = draft("PAY-1102", "Login", 8);
-        AnkenService.FunctionPreview p = anken.previewFunction("PAY-1100", d);
+        AnkenService.FunctionPreview p = anken.previewFunction(ALL, "PAY-1100", d);
         assertThat(List.of(p.phase(), p.prefix(), p.functionId())).containsExactly("Implement_Coding", "UCI", "");
         assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
                 "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
-        List<String> keys = anken.createFunction("PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ALL, "PAY-1100", d, null);
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
-        assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
-        assertThatThrownBy(() -> anken.previewFunction("PAY-1100", draft("PAY-1101", "X", 8))).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> anken.createFunction(ALL, "PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
+        assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1101", "X", 8))).isInstanceOf(Invalid.class);
     }
 
     @Test
@@ -153,14 +152,13 @@ class ServiceWritesTest {
 
     /** Without a JiraWriter (the Jira profile in phase 1) nothing is written to Jira. */
     @Test
-    void writesNeedJiraWrite(@Autowired TrackerContextLoader context, @Autowired IssueRepository issues,
-                             @Autowired MemberRepository members, @Autowired SyncService sync) {
-        assertThatThrownBy(() -> new AnkenService(context, Optional.empty(), sync).createFunction("PAY-1100", draft("PAY-1102", "X", 8), null))
+    void writesNeedJiraWrite(@Autowired TrackerContextLoader context, @Autowired SyncService sync) {
+        assertThatThrownBy(() -> new AnkenService(context, Optional.empty(), sync).createFunction(ALL, "PAY-1100", draft("PAY-1102", "X", 8), null))
                 .isInstanceOf(CapabilityDisabled.class);
         assertThatThrownBy(() -> new PlanningService(context, Optional.empty(), sync)
-                .push(List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);
-        assertThatThrownBy(() -> new TicketService(context, issues, members, Optional.empty(), sync)
-                .patch("PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, null, null, null))).isInstanceOf(CapabilityDisabled.class);
+                .push(ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);
+        assertThatThrownBy(() -> new TicketService(context, Optional.empty(), sync)
+                .patch(ALL, "PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, null, null, null))).isInstanceOf(CapabilityDisabled.class);
     }
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
@@ -170,37 +168,37 @@ class ServiceWritesTest {
 
     @Test
     void leaveSaveEditDelete() {
-        int n = calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-08", "trip"), ADMIN);
+        int n = calendar.saveLeave(ALL, new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-08", "trip"), ADMIN);
         assertThat(n).isEqualTo(5);
         int id = leaveOn("2026-11-03").id();
-        calendar.saveLeave(new CalendarService.LeaveDraft(id, "an", LeaveType.HALF, "2026-11-03", "2026-11-03", "half"), ADMIN);
+        calendar.saveLeave(ALL, new CalendarService.LeaveDraft(id, "an", LeaveType.HALF, "2026-11-03", "2026-11-03", "half"), ADMIN);
         tracker.domain.Leave lv = leaveOn("2026-11-03");
         assertThat(lv.type()).isEqualTo(LeaveType.HALF);
-        calendar.deleteLeave(lv.id(), ADMIN);
-        assertThatThrownBy(() -> calendar.deleteLeave(lv.id(), ADMIN)).isInstanceOf(NotFound.class);
-        assertThatThrownBy(() -> calendar.saveLeave(
+        calendar.deleteLeave(ALL, lv.id(), ADMIN);
+        assertThatThrownBy(() -> calendar.deleteLeave(ALL, lv.id(), ADMIN)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> calendar.saveLeave(ALL, 
                 new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-08", "2026-11-02", ""), ADMIN)).isInstanceOf(Invalid.class);
     }
 
     @Test
     void withoutCalendarWriteOnlyOwnLeaveChanges() {
-        assertThat(calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-02", ""), BA_AN))
+        assertThat(calendar.saveLeave(ALL, new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02", "2026-11-02", ""), BA_AN))
                 .isEqualTo(1);
-        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(null, "binh", LeaveType.FULL, "2026-11-02",
+        assertThatThrownBy(() -> calendar.saveLeave(ALL, new CalendarService.LeaveDraft(null, "binh", LeaveType.FULL, "2026-11-02",
                 "2026-11-02", ""), BA_AN)).isInstanceOf(Forbidden.class).hasMessage("You can only change your own leave");
-        int binhs = calendar.month("2026-10").rows().stream().filter(r -> r.memberId().equals("binh"))
+        int binhs = calendar.month(ALL, "2026-10").rows().stream().filter(r -> r.memberId().equals("binh"))
                 .flatMap(r -> r.cells().stream()).filter(c -> c.date().equals("2026-10-20")).findFirst().orElseThrow().leave().id();
         // moving someone else's leave onto yourself is still a change of their leave
-        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(binhs, "an", LeaveType.FULL, "2026-11-04",
+        assertThatThrownBy(() -> calendar.saveLeave(ALL, new CalendarService.LeaveDraft(binhs, "an", LeaveType.FULL, "2026-11-04",
                 "2026-11-04", ""), BA_AN)).isInstanceOf(Forbidden.class);
-        assertThatThrownBy(() -> calendar.deleteLeave(binhs, BA_AN)).isInstanceOf(Forbidden.class);
+        assertThatThrownBy(() -> calendar.deleteLeave(ALL, binhs, BA_AN)).isInstanceOf(Forbidden.class);
         Viewer outsider = new Viewer("x@acme.vn", "X", null, null, false, AccessStatus.ACTIVE, Permissions.defaults(null));
-        assertThatThrownBy(() -> calendar.saveLeave(new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02",
+        assertThatThrownBy(() -> calendar.saveLeave(ALL, new CalendarService.LeaveDraft(null, "an", LeaveType.FULL, "2026-11-02",
                 "2026-11-02", ""), outsider)).isInstanceOf(Forbidden.class);
     }
 
     private tracker.domain.Leave leaveOn(String date) {
-        return calendar.month("2026-11").rows().stream().filter(r -> r.memberId().equals("an"))
+        return calendar.month(ALL, "2026-11").rows().stream().filter(r -> r.memberId().equals("an"))
                 .flatMap(r -> r.cells().stream()).filter(c -> c.date().equals(date)).findFirst().orElseThrow().leave();
     }
 
@@ -208,16 +206,16 @@ class ServiceWritesTest {
     void importPreviewAndConfirm() {
         List<List<String>> rows = List.of(List.of("Bình", "2026-11-10", "2026-11-10", "All day", ""),
                 List.of("Duc", "2026-11-13", "2026-11-13", "Half day", ""), List.of("Minh", "2026-11-18", "2026-11-20", "All day", ""));
-        CalendarService.ImportPreview p = calendar.importPreview(rows);
+        CalendarService.ImportPreview p = calendar.importPreview(ALL, rows);
         assertThat(p.rows()).extracting(r -> r.error()).containsExactly("", "Unknown member \"Duc\"", "");
         assertThat(p.workingDays()).isEqualTo(4);
-        assertThat(calendar.importConfirm(rows)).isEqualTo(new CalendarService.ImportResult(4, "2026-11"));
+        assertThat(calendar.importConfirm(ALL, rows)).isEqualTo(new CalendarService.ImportResult(4, "2026-11"));
     }
 
     @Test
     void pushWritesDatesAndAssigneeThenSyncs() {
-        planning.push(List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")));
-        TaskCard c = planning.view("2026-10-12", 1).rows().stream().filter(r -> r.memberId().equals("binh"))
+        planning.push(ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")));
+        TaskCard c = planning.view(ALL, "2026-10-12", 1).rows().stream().filter(r -> r.memberId().equals("binh"))
                 .flatMap(r -> r.items().stream()).map(PlanningService.PlanBlock::card).filter(x -> x.key().equals("PAY-1262"))
                 .findFirst().orElseThrow();
         assertThat(List.of(c.plannedStart(), c.plannedEnd(), c.assigneeId())).containsExactly("2026-10-12", "2026-10-12", "binh");
@@ -225,10 +223,10 @@ class ServiceWritesTest {
 
     @Test
     void patchTicketWritesAndSyncs() {
-        tickets.patch("PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, "minh", null, "2026-10-08"));
+        tickets.patch(ALL, "PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, "minh", null, "2026-10-08"));
         TaskCard c = tickets.detail(ALL, "PAY-1213").card();
         assertThat(List.of(c.status(), c.assigneeId(), c.plannedEnd(), c.late())).containsExactly("R", "minh", "2026-10-08", false);
-        assertThatThrownBy(() -> tickets.patch("PAY-1213", new TicketService.TicketPatch(null, null, "2026-10-20", null)))
+        assertThatThrownBy(() -> tickets.patch(ALL, "PAY-1213", new TicketService.TicketPatch(null, null, "2026-10-20", null)))
                 .isInstanceOf(Invalid.class);
     }
 

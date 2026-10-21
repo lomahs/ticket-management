@@ -2051,6 +2051,7 @@ export interface operations {
         parameters: {
             query: {
                 month: string;
+                anken?: string;
             };
             header?: never;
             path?: never;
@@ -2121,6 +2122,7 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                anken?: string;
             };
             header?: never;
             path?: never;
@@ -2141,7 +2143,9 @@ export interface operations {
     };
     day: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path: {
                 member: string;
@@ -2328,6 +2332,7 @@ export interface operations {
         parameters: {
             query: {
                 month: string;
+                anken?: string;
             };
             header?: never;
             path?: never;
@@ -2577,6 +2582,7 @@ export interface operations {
             query: {
                 start: string;
                 weeks?: number;
+                anken?: string;
             };
             header?: never;
             path?: never;
@@ -2597,7 +2603,9 @@ export interface operations {
     };
     preview: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

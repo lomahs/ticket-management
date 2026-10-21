@@ -65,8 +65,9 @@ public class TicketsApi {
 
     @Requires(feature = Feature.TICKET, level = Level.WRITE)
     @PatchMapping("/tickets/{key}")
-    public TicketDetail patch(@PathVariable("key") String key, @RequestBody @Valid TicketPatchIn body) {
-        return tickets.patch(key, new TicketPatch(body.status(), body.assigneeId(), body.plannedStart(), body.plannedEnd()));
+    public TicketDetail patch(@PathVariable("key") String key, @RequestBody @Valid TicketPatchIn body, Viewer viewer) {
+        return tickets.patch(scopes.scope(viewer, null), key,
+                new TicketPatch(body.status(), body.assigneeId(), body.plannedStart(), body.plannedEnd()));
     }
 
     @Requires(feature = Feature.QA, level = Level.READ)

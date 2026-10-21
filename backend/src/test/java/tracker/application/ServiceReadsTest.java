@@ -207,19 +207,19 @@ class ServiceReadsTest {
 
     @Test
     void functionPreviewSuggestsDatesAndSummaries() {
-        AnkenService.FunctionPreview p = anken.previewFunction("PAY-1100", draft("PAY-1102", "Installment", 8));
+        AnkenService.FunctionPreview p = anken.previewFunction(ALL, "PAY-1100", draft("PAY-1102", "Installment", 8));
         assertThat(p.phase()).isEqualTo("Implement_Coding");
         assertThat(p.functionId()).isEqualTo("F13");
         assertThat(p.steps()).extracting(s -> s.start() + "/" + s.end()).containsExactly("2026-10-08/2026-10-09",
                 "2026-10-10/2026-10-10", "2026-10-12/2026-10-12", "2026-10-13/2026-10-13", "2026-10-14/2026-10-14");
         assertThat(p.steps().get(0).summary()).isEqualTo("[Implement_Coding][F13] Installment – Create");
-        assertThatThrownBy(() -> anken.previewFunction("PAY-1100", draft("PAY-1102", "X", 0))).isInstanceOf(Invalid.class);
-        assertThatThrownBy(() -> anken.previewFunction("PAY-1100", draft("PAY-1300", "X", 8))).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1102", "X", 0))).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1300", "X", 8))).isInstanceOf(Invalid.class);
     }
 
     @Test
     void timesheetWeek() {
-        EffortService.TimesheetView v = effort.timesheet("2026-10-05", "2026-10-11");
+        EffortService.TimesheetView v = effort.timesheet(ALL, "2026-10-05", "2026-10-11");
         assertThat(v.days()).extracting(PlanningService.DayHead::date).containsExactly("2026-10-05", "2026-10-06", "2026-10-07",
                 "2026-10-08", "2026-10-09", "2026-10-10");
         var binh = v.rows().stream().filter(r -> r.memberId().equals("binh")).findFirst().orElseThrow();
@@ -229,12 +229,12 @@ class ServiceReadsTest {
         v.rows().stream().filter(r -> r.memberId().equals("chi")).findFirst().orElseThrow().cells().forEach(c -> chi.put(c.date(), c.state()));
         assertThat(chi.get("2026-10-09")).isEqualTo("off");
         assertThat(chi.get("2026-10-08")).isEqualTo("future");
-        assertThatThrownBy(() -> effort.timesheet("2026-01-01", "2026-12-31")).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> effort.timesheet(ALL, "2026-01-01", "2026-12-31")).isInstanceOf(Invalid.class);
     }
 
     @Test
     void dayDetailListsWorklogsAndPlannedIssuesWithSummaries() {
-        EffortService.DayDetailView d = effort.dayDetail("binh", "2026-10-06");
+        EffortService.DayDetailView d = effort.dayDetail(ALL, "binh", "2026-10-06");
         var e = d.entries().stream().filter(x -> x.key().equals("PAY-1213")).findFirst().orElseThrow();
         assertThat(e.summary()).endsWith("Fix comment BAL");
         assertThat(d.loggedH()).isEqualTo(Numbers.round(d.entries().stream().mapToDouble(EffortService.DayEntryView::loggedH).sum(), 2));
@@ -242,7 +242,7 @@ class ServiceReadsTest {
 
     @Test
     void effortAnalysisForTheMatrixAnken() {
-        EffortService.EffortAnalysis a = effort.analysis(null);
+        EffortService.EffortAnalysis a = effort.analysis(ALL, null);
         assertThat(a.epicKey()).isEqualTo("PAY-1100");
         assertThat(a.byStep()).extracting(b -> b.label()).containsExactly("Create", "BAL Review", "Fix comment BAL", "JM Review",
                 "Fix comment JM");
@@ -253,7 +253,7 @@ class ServiceReadsTest {
 
     @Test
     void burndownForTheMatrixAnkenFiltersByAnkenPhaseSubPhaseAndMember() {
-        EffortService.BurndownView all = effort.burndown(null, null, null, null);
+        EffortService.BurndownView all = effort.burndown(ALL, null, null, null, null);
         assertThat(all.epicKey()).isEqualTo("PAY-1100");
         assertThat(all.ankens()).extracting(EffortService.BurndownOption::key).contains("PAY-1100");
         assertThat(all.phases()).isNotEmpty();
@@ -264,22 +264,22 @@ class ServiceReadsTest {
         assertThat(b.days().get(b.days().size() - 1).planRemainingH()).isZero();
         assertThat(b.days()).allMatch(d -> d.date().compareTo(all.today()) <= 0 == (d.actualRemainingH() != null));
         String phase = all.phases().get(0);
-        EffortService.BurndownView inPhase = effort.burndown("PAY-1100", phase, null, null);
+        EffortService.BurndownView inPhase = effort.burndown(ALL, "PAY-1100", phase, null, null);
         assertThat(inPhase.tasks()).isNotEmpty();
-        EffortService.BurndownView sub = effort.burndown("PAY-1100", phase, inPhase.tasks().get(0).key(), null);
+        EffortService.BurndownView sub = effort.burndown(ALL, "PAY-1100", phase, inPhase.tasks().get(0).key(), null);
         assertThat(sub.task()).isEqualTo(inPhase.tasks().get(0).key());
         assertThat(sub.subtasks()).isPositive().isLessThanOrEqualTo(inPhase.subtasks());
-        EffortService.BurndownView one = effort.burndown("PAY-1100", phase, null, inPhase.members().get(0));
+        EffortService.BurndownView one = effort.burndown(ALL, "PAY-1100", phase, null, inPhase.members().get(0));
         assertThat(one.phase()).isEqualTo(phase);
         assertThat(one.subtasks()).isLessThan(all.subtasks());
         assertThat(one.burndown().estimateH()).isLessThan(b.estimateH());
         assertThat(one.burndown().start()).isEqualTo(inPhase.burndown().start()); // the phase's start, whoever is picked
-        assertThatThrownBy(() -> effort.burndown("NOPE-1", null, null, null)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> effort.burndown(ALL, "NOPE-1", null, null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test
     void calendarMonth() {
-        CalendarService.CalendarView v = calendar.month("2026-10");
+        CalendarService.CalendarView v = calendar.month(ALL, "2026-10");
         assertThat(v.days().get(0).date()).isEqualTo("2026-10-01");
         assertThat(v.days()).anyMatch(d -> d.date().equals("2026-10-10"));
         assertThat(v.rows().stream().filter(r -> r.memberId().equals("an")).findFirst().orElseThrow().daysOff()).isEqualTo(3);
@@ -291,14 +291,14 @@ class ServiceReadsTest {
 
     @Test
     void exportRows() {
-        List<CalendarService.ExportRow> e = calendar.export("2026-10");
+        List<CalendarService.ExportRow> e = calendar.export(ALL, "2026-10");
         assertThat(e.get(0)).isEqualTo(new CalendarService.ExportRow("Phạm Quốc Dũng", "2026-10-02", "Half day", ""));
         assertThat(e).contains(new CalendarService.ExportRow("JP", "2026-10-12", "Holiday", "Sports Day (JP)"));
     }
 
     @Test
     void planningWindowDaysAndMemberDayCells() {
-        PlanningService.PlanningView v = planning.view("2026-10-07", 2);
+        PlanningService.PlanningView v = planning.view(ALL, "2026-10-07", 2);
         assertThat(v.start()).isEqualTo("2026-10-05");
         assertThat(v.end()).isEqualTo("2026-10-18");
         assertThat(v.days()).hasSize(11);
@@ -313,7 +313,7 @@ class ServiceReadsTest {
 
     @Test
     void planningItemsOverlapTheWindowWithStepColourHints() {
-        PlanningService.PlanningView v = planning.view("2026-10-05", 2);
+        PlanningService.PlanningView v = planning.view(ALL, "2026-10-05", 2);
         Map<String, PlanningService.PlanBlock> binh = new HashMap<>();
         v.rows().stream().filter(r -> r.memberId().equals("binh")).findFirst().orElseThrow().items()
                 .forEach(b -> binh.put(b.card().key(), b));
@@ -328,19 +328,19 @@ class ServiceReadsTest {
 
     @Test
     void previewMovesItemsAndFlagsDaysOff() {
-        PlanningService.PlanningPreview p = planning.preview("2026-10-05", List.of(new PlanChange("PAY-1262", "2026-10-11", "binh")));
+        PlanningService.PlanningPreview p = planning.preview(ALL, "2026-10-05", List.of(new PlanChange("PAY-1262", "2026-10-11", "binh")));
         PlanningService.ChangePreview c = p.changes().get(0);
         assertThat(List.of(c.fromStart(), c.fromEnd(), c.fromMember(), c.toStart(), c.toEnd(), c.toMember()))
                 .containsExactly("2026-10-09", "2026-10-09", "an", "2026-10-11", "2026-10-11", "binh");
         assertThat(c.dayOff()).containsExactly(new DateReason("2026-10-11", "weekend"));
         Map<String, Double> base = new HashMap<>();
-        planning.view("2026-10-05", 1).capacity().forEach(x -> base.put(x.memberId(), x.weeks().get(0).plannedH()));
+        planning.view(ALL, "2026-10-05", 1).capacity().forEach(x -> base.put(x.memberId(), x.weeks().get(0).plannedH()));
         Map<String, Double> moved = new HashMap<>();
         p.capacity().forEach(x -> moved.put(x.memberId(), x.weeks().get(0).plannedH()));
         assertThat(moved.get("an")).isEqualTo(base.get("an") - 6);
         assertThat(moved.get("binh")).isEqualTo(base.get("binh") + 6);
-        assertThatThrownBy(() -> planning.preview("2026-10-05", List.of(new PlanChange("PAY-9", "2026-10-11", "binh"))))
-                .isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> planning.preview(ALL, "2026-10-05", List.of(new PlanChange("PAY-9", "2026-10-11", "binh"))))
+                .isInstanceOf(NotFound.class);
     }
 
     @Test

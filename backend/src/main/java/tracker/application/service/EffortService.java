@@ -21,6 +21,7 @@ import tracker.application.service.PlanningService.DayHead;
 import tracker.domain.Analysis.EffortBar;
 import tracker.domain.Analysis.Rework;
 import tracker.domain.Analysis;
+import tracker.domain.AnkenScope;
 import tracker.domain.Burndown;
 import tracker.domain.Capacity.PlanItem;
 import tracker.domain.Capacity;
@@ -73,11 +74,12 @@ public class EffortService {
         return Capacity.dailyPlan(items, ctx.cal);
     }
 
-    public TimesheetView timesheet(String start, String end) {
+    /** One row per person of the scope, from the worklogs of its issues. */
+    public TimesheetView timesheet(AnkenScope scope, String start, String end) {
         if (end.compareTo(start) < 0 || Dates.dayDiff(start, end) >= MAX_DAYS) {
             throw new Invalid("Choose a range of 1 to " + MAX_DAYS + " days", "to");
         }
-        TrackerContext ctx = context.load();
+        TrackerContext ctx = context.load(scope);
         List<String> days = Dates.daysBetween(start, end).stream().filter(ctx.cal::visible).toList();
         Map<String, List<Worklog>> logs = new HashMap<>();
         for (Issue i : ctx.issues) {
@@ -88,15 +90,16 @@ public class EffortService {
             }
         }
         WorkingHours wh = ctx.settings.workingHours;
-        List<TimesheetRow> rows = Timesheet.timesheet(new ArrayList<>(ctx.members.keySet()), days, logs, plan(ctx), ctx.cal,
+        List<TimesheetRow> rows = Timesheet.timesheet(ctx.people, days, logs, plan(ctx), ctx.cal,
                 ctx.today, wh.hoursPerDay(), wh.timesheetToleranceH());
         return new TimesheetView(start, end,
                 days.stream().map(x -> new DayHead(x, x.equals(ctx.today), ctx.cal.extraDays().get(x))).toList(), rows);
     }
 
-    public DayDetailView dayDetail(String memberId, String date) {
-        TrackerContext ctx = context.load();
-        if (!ctx.members.containsKey(memberId)) {
+    /** A person of the scope; only the worklogs on its issues. */
+    public DayDetailView dayDetail(AnkenScope scope, String memberId, String date) {
+        TrackerContext ctx = context.load(scope);
+        if (!ctx.people.contains(memberId)) {
             throw new NotFound("Member " + memberId + " was not found", "member");
         }
         Map<String, List<Worklog>> byKey = new LinkedHashMap<>();
@@ -161,9 +164,12 @@ public class EffortService {
         return byPhase;
     }
 
-    /** @param requested the anken to analyse; null: the first tracked one with functions */
-    public EffortAnalysis analysis(@Nullable String requested) {
-        TrackerContext ctx = context.load();
+    /**
+     * @param scope     the anken the viewer sees
+     * @param requested the anken to analyse, which must be in {@code scope}; null: the first tracked one with functions there
+     */
+    public EffortAnalysis analysis(AnkenScope scope, @Nullable String requested) {
+        TrackerContext ctx = context.load(scope);
         String epic = epicOf(ctx, requested);
         String title = titleOf(ctx, epic);
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList();
@@ -171,9 +177,8 @@ public class EffortService {
         Map<String, List<Issue>> byPhase = subtasksByPhase(ctx, epic);
         Map<String, Integer> rounds = new HashMap<>();
         ctx.flags.forEach((k, f) -> rounds.put(k, f.rounds()));
-        List<String> bas = ctx.members.entrySet().stream()
-                .filter(e -> e.getValue().role() == Role.BA && fns.stream().anyMatch(f -> Objects.equals(f.ownerId(), e.getKey())))
-                .map(Map.Entry::getKey).toList();
+        List<String> bas = ctx.people.stream().filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.BA
+                && fns.stream().anyMatch(f -> Objects.equals(f.ownerId(), id))).toList();
         List<Rework> rework = Analysis.reworkByMember(fns, bas, rounds);
         List<Issue> started = cells.stream().filter(c -> c.status() != Status.NYS).toList();
         List<Issue> fixes = cells.stream().filter(c -> Steps.isFixStep(c) && rounds.getOrDefault(c.key(), 0) > 0).toList();
@@ -200,10 +205,10 @@ public class EffortService {
     }
 
     /**
-     * @param ankens     every tracked anken, in Settings order
+     * @param ankens     every anken in scope, in Settings order
      * @param phases     phase groups of the anken's planned sub-tasks, in Settings → Structure order
      * @param tasks      Tasks (sub-phases) of {@code phase} with planned sub-tasks, by planned start; empty without a phase
-     * @param members    workers of the planned sub-tasks of the picked anken, phase and sub-phase
+     * @param members    workers of the planned sub-tasks of the picked anken, phase and sub-phase who are people of the scope
      * @param subtasks   sub-tasks in the chart: Planned Start, Planned End and an estimate, after every filter
      */
     public record BurndownView(@Nullable String epicKey, String title, List<BurndownOption> ankens, List<String> phases,
@@ -215,13 +220,18 @@ public class EffortService {
      * The chart opens on the day before the start of the scope (anken, phase or sub-phase): the earliest Planned Start of its
      * sub-tasks, whoever works on them.
      *
-     * @param requested the anken; null: the first tracked one with functions
+     * @param scope     the anken the viewer sees
+     * @param requested the anken, which must be in {@code scope}; null: the first tracked one with functions there
      * @param phase     a phase group; null: every phase
      * @param task      a Task (sub-phase) of the epic; null: every Task
-     * @param member    the worker; null: everyone
+     * @param member    the worker, a person of the scope; null: everyone
      */
-    public BurndownView burndown(@Nullable String requested, @Nullable String phase, @Nullable String task, @Nullable String member) {
-        TrackerContext ctx = context.load();
+    public BurndownView burndown(AnkenScope scope, @Nullable String requested, @Nullable String phase, @Nullable String task,
+                                 @Nullable String member) {
+        TrackerContext ctx = context.load(scope);
+        if (Text.hasText(member) && !ctx.people.contains(member)) {
+            throw new NotFound("Member " + member + " was not found", "member");
+        }
         String epic = epicOf(ctx, requested);
         Map<String, Integer> order = new HashMap<>();
         for (int n = 0; n < ctx.settings.jira.epics.size(); n++) {
@@ -248,24 +258,24 @@ public class EffortService {
                 .filter(p -> ph.equals(groups.get(p.key())) && start.containsKey(p.key()))
                 .sorted(Comparator.comparing((Issue p) -> start.get(p.key())).thenComparing(Issue::key))
                 .map(p -> new BurndownOption(p.key(), PhaseGroups.taskName(p.summary()))).toList();
-        List<Issue> scope = new ArrayList<>();
+        List<Issue> chart = new ArrayList<>();
         byPhase.forEach((p, issues) -> issues.forEach(i -> {
             if ((ph == null || ph.equals(p)) && (tk == null || tk.equals(i.parentKey()))) {
-                scope.add(i);
+                chart.add(i);
             }
         }));
         Set<String> workers = new HashSet<>();
-        scope.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
-        List<String> members = ctx.members.keySet().stream().filter(workers::contains).toList();
+        chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
+        List<String> members = ctx.people.stream().filter(workers::contains).toList();
         String who = Text.hasText(member) ? member : null;
         List<Burndown.Item> items = new ArrayList<>();
-        for (Issue i : scope) {
+        for (Issue i : chart) {
             String w = Objects.requireNonNullElse(ctx.worker(i), "");
             if (who == null || who.equals(w)) {
                 items.add(new Burndown.Item(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH(), i.worklogs()));
             }
         }
-        String from = scope.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
+        String from = chart.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
         return new BurndownView(epic, titleOf(ctx, epic), ankens, phases, ph, tasks, tk, members, who, items.size(), ctx.today,
                 Burndown.compute(items, ctx.cal, ctx.today, from));
     }

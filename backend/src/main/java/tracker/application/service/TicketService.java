@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -16,9 +15,7 @@ import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
-import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraWriter;
-import tracker.application.ports.MemberRepository;
 import tracker.domain.AnkenScope;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
@@ -36,16 +33,11 @@ import tracker.domain.Worklog;
 @Service
 public class TicketService {
     private final TrackerContextLoader context;
-    private final IssueRepository issues;
-    private final MemberRepository members;
     private final Optional<JiraWriter> writer;
     private final SyncService sync;
 
-    public TicketService(TrackerContextLoader context, IssueRepository issues, MemberRepository members,
-                         Optional<JiraWriter> writer, SyncService sync) {
+    public TicketService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync) {
         this.context = context;
-        this.issues = issues;
-        this.members = members;
         this.writer = writer;
         this.sync = sync;
     }
@@ -90,14 +82,23 @@ public class TicketService {
                               @Nullable String plannedEnd) {
     }
 
-    /** Writes the changes to Jira, then re-reads the ticket from it. */
-    public TicketDetail patch(String key, TicketPatch p) {
+    /**
+     * Writes the changes to Jira, then re-reads the ticket from it. A ticket outside the scope is not found; a new assignee must be
+     * a member of the ticket's anken.
+     */
+    public TicketDetail patch(AnkenScope scope, String key, TicketPatch p) {
         JiraWriter jira = writer.orElseThrow(() -> new CapabilityDisabled("Writing to Jira is not available yet"));
-        Issue issue = issues.findByKey(key).orElseThrow(() -> new NotFound("Ticket " + key + " was not found", "key"));
+        TrackerContext ctx = context.load(scope);
+        Issue issue = ctx.issue(key).orElseThrow(() -> new NotFound("Ticket " + key + " was not found", "key"));
         Member member = null;
         if (Text.hasText(p.assigneeId())) {
-            member = members.findById(p.assigneeId())
-                    .orElseThrow(() -> new Invalid("Unknown member " + p.assigneeId(), "assignee_id"));
+            member = ctx.members.get(p.assigneeId());
+            if (member == null) {
+                throw new Invalid("Unknown member " + p.assigneeId(), "assignee_id");
+            }
+            if (!p.assigneeId().equals(issue.assigneeId()) && !ctx.isMember(issue.epicKey(), member.id())) {
+                throw new Invalid(ctx.notAMember(issue.epicKey(), member.id()), "assignee_id");
+            }
             if (!Text.hasText(member.jiraAccountId())) {
                 throw new Invalid(member.name() + " has no Jira account", "assignee_id");
             }
@@ -114,7 +115,7 @@ public class TicketService {
             jira.updateIssue(key, p.plannedStart(), p.plannedEnd(), member != null ? member.jiraAccountId() : null);
         }
         sync.refresh(List.of(key));
-        return detail(new AnkenScope(Set.of(issue.epicKey())), key);
+        return detail(scope, key);
     }
 
     /** Answers from the anken in scope only. */

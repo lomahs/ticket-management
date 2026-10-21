@@ -14,12 +14,14 @@ import org.springframework.stereotype.Service;
 
 import tracker.application.AppError.CapabilityDisabled;
 import tracker.application.AppError.Invalid;
+import tracker.application.AppError.NotFound;
 import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.JiraWriter;
 import tracker.domain.Anken;
+import tracker.domain.AnkenScope;
 import tracker.domain.Capacity.PlanItem;
 import tracker.domain.Capacity.WeekLoad;
 import tracker.domain.Capacity;
@@ -115,17 +117,18 @@ public class PlanningService {
             }
         }
         WorkingHours wh = ctx.settings.workingHours;
-        List<String> memberIds = new ArrayList<>(ctx.members.keySet());
+        List<String> memberIds = ctx.people;
         Map<String, List<WeekLoad>> loads = Capacity.weeklyCapacity(items, ctx.cal, memberIds, Dates.mondayOf(start),
                 wh.hoursPerDay(), ctx.settings.thresholds.capacityPct(), CAPACITY_WEEKS);
         return memberIds.stream().map(m -> new MemberCapacity(m, loads.get(m))).toList();
     }
 
-    public PlanningView view(String start, int weeks) {
+    /** Lanes and capacity rows are the people of the scope. */
+    public PlanningView view(AnkenScope scope, String start, int weeks) {
         if (weeks != 1 && weeks != 2) {
             throw new Invalid("weeks must be 1 or 2", "weeks");
         }
-        TrackerContext ctx = context.load();
+        TrackerContext ctx = context.load(scope);
         String first = Dates.mondayOf(start);
         String last = Dates.addDays(first, weeks * 7L - 1);
         List<String> days = new ArrayList<>();
@@ -136,7 +139,7 @@ public class PlanningService {
             }
         }
         List<MemberLane> rows = new ArrayList<>();
-        for (String mid : ctx.members.keySet()) {
+        for (String mid : ctx.people) {
             List<Issue> items = new ArrayList<>(planned(ctx).stream().filter(i -> Objects.equals(ctx.worker(i), mid)
                     && i.plannedEnd().compareTo(first) >= 0 && i.plannedStart().compareTo(last) <= 0).toList());
             items.sort(Comparator.comparing(Issue::plannedStart).thenComparing(Issue::plannedEnd).thenComparing(Issue::key));
@@ -151,15 +154,20 @@ public class PlanningService {
         return new PlanningView(first, last, heads, projects, rows, capacity(ctx, first, Map.of()));
     }
 
+    /** Every key must be in the scope (else not found); a new worker must be a member of the ticket's anken. */
     private static List<ChangePreview> previews(TrackerContext ctx, List<PlanChange> changes) {
         List<ChangePreview> out = new ArrayList<>();
-        for (PlanChange ch : changes) {
-            Issue i = ctx.issue(ch.key()).orElse(null);
-            if (i == null || !Text.hasText(i.plannedStart()) || !Text.hasText(i.plannedEnd())) {
+        for (int n = 0; n < changes.size(); n++) {
+            PlanChange ch = changes.get(n);
+            Issue i = ctx.issue(ch.key()).orElseThrow(() -> new NotFound("Ticket " + ch.key() + " was not found", "key"));
+            if (!Text.hasText(i.plannedStart()) || !Text.hasText(i.plannedEnd())) {
                 throw new Invalid(ch.key() + " has no plan to move", "key");
             }
             if (!ctx.members.containsKey(ch.memberId())) {
                 throw new Invalid("Unknown member " + ch.memberId(), "member_id");
+            }
+            if (!Objects.equals(ch.memberId(), ctx.worker(i)) && !ctx.isMember(i.epicKey(), ch.memberId())) {
+                throw new Invalid(ctx.notAMember(i.epicKey(), ch.memberId()), "changes." + n + ".member_id");
             }
             String[] to = Scheduling.shiftPlan(i.plannedStart(), i.plannedEnd(), ch.start());
             List<DateReason> offs = Scheduling.daysOff(ctx.cal, ch.memberId(), to[0], to[1]);
@@ -168,8 +176,8 @@ public class PlanningService {
         return out;
     }
 
-    public PlanningPreview preview(String start, List<PlanChange> changes) {
-        TrackerContext ctx = context.load();
+    public PlanningPreview preview(AnkenScope scope, String start, List<PlanChange> changes) {
+        TrackerContext ctx = context.load(scope);
         List<ChangePreview> pv = previews(ctx, changes);
         Map<String, ChangePreview> moved = new HashMap<>();
         pv.forEach(c -> moved.put(c.key(), c));
@@ -177,9 +185,9 @@ public class PlanningService {
     }
 
     /** Writes the moves to Jira and reads the moved issues back. */
-    public List<String> push(List<PlanChange> changes) {
+    public List<String> push(AnkenScope scope, List<PlanChange> changes) {
         JiraWriter jira = writer.orElseThrow(() -> new CapabilityDisabled("Writing to Jira is not available yet"));
-        TrackerContext ctx = context.load();
+        TrackerContext ctx = context.load(scope);
         List<ChangePreview> pv = previews(ctx, changes);
         for (ChangePreview c : pv) {
             boolean reassigned = !Objects.equals(c.toMember(), c.fromMember());

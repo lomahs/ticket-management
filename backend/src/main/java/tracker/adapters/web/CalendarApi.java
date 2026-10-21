@@ -39,6 +39,7 @@ import tracker.application.service.CalendarService.ImportPreview;
 import tracker.application.service.CalendarService.ImportResult;
 import tracker.application.service.CalendarService.LeaveDraft;
 import tracker.application.service.CalendarService;
+import tracker.application.service.ScopeService;
 import tracker.domain.Feature;
 import tracker.domain.LeaveImport.ImportRow;
 import tracker.domain.LeaveType;
@@ -49,9 +50,11 @@ import tracker.domain.Viewer;
 @RequestMapping("/api/v1")
 public class CalendarApi {
     private final CalendarService calendar;
+    private final ScopeService scopes;
 
-    public CalendarApi(CalendarService calendar) {
+    public CalendarApi(CalendarService calendar, ScopeService scopes) {
         this.calendar = calendar;
+        this.scopes = scopes;
     }
 
     public record DaysOut(int days) {
@@ -76,28 +79,29 @@ public class CalendarApi {
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @GetMapping("/calendar")
-    public CalendarView month(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month) {
-        return calendar.month(month);
+    public CalendarView month(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month,
+                              @RequestParam(required = false) @Nullable String anken, Viewer viewer) {
+        return calendar.month(scopes.scope(viewer, anken), month);
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @PostMapping("/leaves")
     @ResponseStatus(HttpStatus.CREATED)
     public DaysOut addLeave(@RequestBody @Valid LeaveIn body, Viewer viewer) {
-        return new DaysOut(calendar.saveLeave(body.draft(null), viewer));
+        return new DaysOut(calendar.saveLeave(scopes.scope(viewer, null), body.draft(null), viewer));
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @PutMapping("/leaves/{leave_id}")
     public DaysOut editLeave(@PathVariable("leave_id") int leaveId, @RequestBody @Valid LeaveIn body, Viewer viewer) {
-        return new DaysOut(calendar.saveLeave(body.draft(leaveId), viewer));
+        return new DaysOut(calendar.saveLeave(scopes.scope(viewer, null), body.draft(leaveId), viewer));
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)
     @DeleteMapping("/leaves/{leave_id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteLeave(@PathVariable("leave_id") int leaveId, Viewer viewer) {
-        calendar.deleteLeave(leaveId, viewer);
+        calendar.deleteLeave(scopes.scope(viewer, null), leaveId, viewer);
     }
 
     /** The multipart body of an import preview. */
@@ -113,7 +117,7 @@ public class CalendarApi {
             schema = @Schema(implementation = ImportUpload.class), encoding = @Encoding(name = "file")))
     @PostMapping(value = "/leaves/import/preview", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
     public ImportPreviewOut importPreview(@RequestParam(defaultValue = "false") boolean sample,
-                                          @RequestPart(name = "file", required = false) @Nullable MultipartFile file)
+                                          @RequestPart(name = "file", required = false) @Nullable MultipartFile file, Viewer viewer)
             throws IOException {
         String name;
         List<List<String>> rows;
@@ -126,14 +130,14 @@ public class CalendarApi {
         } else {
             throw new Invalid("Choose a .xlsx or .csv file", "file");
         }
-        ImportPreview p = calendar.importPreview(rows);
+        ImportPreview p = calendar.importPreview(scopes.scope(viewer, null), rows);
         return new ImportPreviewOut(name, p.rows(), p.workingDays());
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.WRITE)
     @PostMapping("/leaves/import")
-    public ImportResult importConfirm(@RequestBody @Valid ImportIn body) {
-        return calendar.importConfirm(body.rows());
+    public ImportResult importConfirm(@RequestBody @Valid ImportIn body, Viewer viewer) {
+        return calendar.importConfirm(scopes.scope(viewer, null), body.rows());
     }
 
     @Requires(feature = Feature.CALENDAR, level = Level.READ)
@@ -150,10 +154,11 @@ public class CalendarApi {
     @GetMapping("/leaves/export")
     @ApiResponse(responseCode = "200",
             content = @Content(mediaType = "application/vnd.ms-excel", schema = @Schema(type = "string", format = "binary")))
-    public ResponseEntity<byte[]> export(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month) {
+    public ResponseEntity<byte[]> export(@RequestParam @Pattern(regexp = Formats.MONTH, message = Formats.MONTH_MESSAGE) String month,
+                                         @RequestParam(required = false) @Nullable String anken, Viewer viewer) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"team-calendar-" + month + ".xls\"")
-                .body(LeaveFiles.exportXls(calendar.export(month)).getBytes(StandardCharsets.UTF_8));
+                .body(LeaveFiles.exportXls(calendar.export(scopes.scope(viewer, anken), month)).getBytes(StandardCharsets.UTF_8));
     }
 }

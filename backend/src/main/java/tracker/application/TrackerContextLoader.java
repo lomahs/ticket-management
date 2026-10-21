@@ -59,9 +59,26 @@ public class TrackerContextLoader {
         return new WorkCalendar(s.workingHours.days(), calendar.findExtraDays(), calendar.findHolidays(), team, leaves);
     }
 
-    /** Every tracked epic. Temporary: the screens that still load everything move to {@link #load(AnkenScope)}. */
-    public TrackerContext load() {
-        return load(new AnkenScope(Set.copyOf(settings.load().jira.epics)));
+    /** The tracked epics in {@code scope}, in tracked order. */
+    private static List<String> epicsOf(TrackerSettings s, AnkenScope scope) {
+        return s.jira.epics.stream().filter(scope::contains).toList();
+    }
+
+    /** Epic to member ids, for the tracked epics in {@code scope}. */
+    private Map<String, Set<String>> membersOf(List<String> epics) {
+        Map<String, Set<String>> all = ankenMembers.findAll();
+        Map<String, Set<String>> out = new LinkedHashMap<>();
+        epics.forEach(e -> out.put(e, Set.copyOf(all.getOrDefault(e, Set.of()))));
+        return out;
+    }
+
+    private static List<String> people(Map<String, Set<String>> membersOf) {
+        return membersOf.values().stream().flatMap(Set::stream).distinct().sorted().toList();
+    }
+
+    /** The members of the tracked epics in {@code scope}, distinct and sorted by id, without loading any issue. */
+    public List<String> people(AnkenScope scope) {
+        return people(membersOf(epicsOf(settings.load(), scope)));
     }
 
     /**
@@ -72,12 +89,11 @@ public class TrackerContextLoader {
         TrackerSettings s = settings.load();
         Map<String, Member> team = membersById();
         List<Leave> leaves = calendar.findLeaves();
-        List<String> epics = s.jira.epics.stream().filter(scope::contains).toList();
+        List<String> epics = epicsOf(s, scope);
         List<Anken> tracking = anken.findAll().stream().filter(a -> epics.contains(a.key())).toList();
-        Map<String, Set<String>> byEpic = ankenMembers.findAll();
-        List<String> people = epics.stream().flatMap(e -> byEpic.getOrDefault(e, Set.of()).stream()).distinct().sorted().toList();
+        Map<String, Set<String>> membersOf = membersOf(epics);
         TrackerContext ctx = new TrackerContext(today(), s, team, tracking, issues.findByEpics(epics), leaves,
-                calendar(s, team, leaves), people);
+                calendar(s, team, leaves), people(membersOf), membersOf);
         ctx.deriveFlags();
         return ctx;
     }
