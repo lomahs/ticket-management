@@ -285,6 +285,27 @@ class SyncTest {
     }
 
     @Test
+    void workflowSwitchIsPerEpic() {
+        TrackerSettings.AnkenSettings e1 = TrackerSettings.AnkenSettings.copyOf(settings.load().structure, settings.load().nameRules);
+        e1.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        e1.structure = new WorkStructure(List.of("ITA"), List.of(new TaskTemplate("ITA *", "ITA", "ITA", false)));
+        TrackerSettings s = settings.load();
+        s.jira.epics = new ArrayList<>(List.of("PAY-1100", "PAY-2000"));
+        s.anken.put("PAY-1100", e1);
+        TrackerSettings.AnkenSettings e2 = TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules);
+        e2.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        e2.structure = new WorkStructure(List.of("ITA"), List.of(new TaskTemplate("ITA *", "ITA", "ITA", true)));
+        s.anken.put("PAY-2000", e2);
+        settings.save(s);
+        run(new StubReader(List.of(snap("PAY-1110", "ITA Prepare", "PAY-1100"), snap("PAY-2110", "ITA Prepare", "PAY-2000"),
+                snap("PAY-1201", "[ITA][Login]_Create", "PAY-1110"), snap("PAY-2201", "[ITA][Login]_Create", "PAY-2110")),
+                twoEpics(), null), true);
+        Map<String, Issue> got = issues();
+        assertThat(got.get("PAY-1201").functionId()).isNull();
+        assertThat(got.get("PAY-2201").functionId()).isEqualTo("Login");
+    }
+
+    @Test
     void taskWithoutATemplateKeepsTheBracketPhase() {
         configure("[{prefix}][{function_name}]_{step}");
         run(new StubReader(List.of(PARENT, WR_TASK)), true);
