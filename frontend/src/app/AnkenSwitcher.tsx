@@ -1,4 +1,4 @@
-import { getRouteApi, useNavigate, useParams } from '@tanstack/react-router';
+import { getRouteApi, useMatch, useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { useVisibleAnken } from '../shared/api/queries';
 import { Select } from '../shared/ds';
@@ -9,7 +9,8 @@ const ALL = '';
 
 /**
  * The global anken switcher: one anken, or "All my anken". Mounted once in the shell, it also keeps this browser's
- * stored anken in step with the URL: an explicit `?anken=` is stored, and opening an anken (`/anken/$epic/...`) selects it.
+ * stored anken in step with the URL: an explicit `?anken=` is stored, and opening an anken's screen (`/anken/$epic/matrix...`)
+ * selects it. The Overview's detail (`/anken/$epic`) does not: it shows one anken among the others and leaves the switcher alone.
  */
 export function AnkenSwitcher({ compact = false }: { compact?: boolean }) {
   const { anken, setAnken } = useAnkenScope();
@@ -29,9 +30,10 @@ export function AnkenSwitcher({ compact = false }: { compact?: boolean }) {
 function useFollowUrl(anken: string | null, visible: { key: string }[]) {
   const explicit = root.useSearch({ select: (s) => s.anken });
   const epic = useParams({ strict: false, select: (p) => (p as { epic?: string }).epic });
+  const detail = useMatch({ from: '/app/anken/$epic', shouldThrow: false });
   const navigate = useNavigate();
   // Only an anken the viewer may see is followed: a hidden one answers 404 and must not become the stored one.
-  const opened = epic && visible.some((a) => a.key === epic) ? epic : undefined;
+  const opened = epic && !detail && visible.some((a) => a.key === epic) ? epic : undefined;
   // These react to the URL only, not to the stored value, so resetting a hidden anken is not undone while the URL catches up.
   useEffect(() => { if (explicit) storeAnken(explicit); }, [explicit]);
   useEffect(() => {

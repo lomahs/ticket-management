@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
-import { useCan, useMemberMap } from '../../../shared/api/queries';
+import { useCan, useMe, useMemberMap } from '../../../shared/api/queries';
 import { Icon, type IconName } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
@@ -26,6 +26,11 @@ export function OverviewPage() {
   const q = useQuery(overviewQuery(useAnkenScope().anken));
   const projects = [...new Set((q.data ?? []).map((a) => a.project))].join(', ');
   const selected = params.epic ?? q.data?.[0]?.key;
+  // Whoever sees every anken sees none only when none is tracked (only the admin can add them); anyone else is in none yet.
+  const me = useMe().data;
+  const empty = me?.admin
+    ? <>No epics are tracked yet. Add them in <Link to="/settings/$tab" params={{ tab: 'jira' }}>Settings → Jira</Link>.</>
+    : me?.all_anken ? 'No epics are tracked yet.' : 'You are not a member of any anken yet.';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%' }}>
       <div>
@@ -33,7 +38,7 @@ export function OverviewPage() {
         <h1 className="h1" style={{ marginTop: 2 }}>Anken Overview</h1>
       </div>
       {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : !q.data.length ? (
-        <div className="card" style={{ padding: 24, color: 'var(--text-muted)' }}>No epics are tracked yet. Add them in <Link to="/settings/$tab" params={{ tab: 'jira' }}>Settings → Jira</Link>.</div>
+        <div className="card" style={{ padding: 24, color: 'var(--text-muted)' }}>{empty}</div>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(290px,1fr))', gap: 14 }}>

@@ -79,6 +79,48 @@ describe('global anken switcher', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/anken/PAY-1100/matrix'));
   });
 
+  it('opening an anken\'s detail keeps All my anken', async () => {
+    const asked: (string | null)[] = [];
+    server.use(
+      http.get('*/api/v1/anken', ({ request }) => {
+        const anken = new URL(request.url).searchParams.get('anken');
+        asked.push(anken);
+        return HttpResponse.json(anken ? two.filter((a) => a.key === anken) : two);
+      }),
+      http.get('*/api/v1/anken/PAY-1300', () => HttpResponse.json({ card: { ...two[1], phases: [] }, attention: [], tasks: [], not_members: [] })),
+      http.get('*/api/v1/anken/PAY-1300/members', () => HttpResponse.json({ epic_key: 'PAY-1300', members: [], not_members: [], candidates: [] })),
+    );
+    renderApp('/anken/PAY-1300');
+    expect(await screen.findByRole('region', { name: 'PAY-1300 details' })).toBeTruthy();
+    const s = await switcher();
+    await waitFor(() => expect(s.options.length).toBe(3));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(selectedText(s)).toBe('All my anken');
+    expect(localStorage.getItem('tt.anken')).toBeNull();
+    // The overview still lists every anken, with the opened one picked.
+    expect(asked).toContain(null);
+    expect(asked).not.toContain('PAY-1300');
+    expect(screen.getAllByRole('button', { pressed: true }).map((b) => b.textContent)).toEqual([expect.stringContaining('e-KYC integration')]);
+  });
+
+  it('the overview of a viewer in no anken says so', async () => {
+    server.use(
+      http.get('*/api/v1/me', () => HttpResponse.json({ ...meBa, anken: [] })),
+      http.get('*/api/v1/anken', () => HttpResponse.json([])),
+    );
+    renderApp('/anken');
+    expect(await screen.findByText('You are not a member of any anken yet.')).toBeTruthy();
+    expect(screen.queryByText(/No epics are tracked yet/)).toBeNull();
+  });
+
+  it('the admin\'s empty overview points to Settings', async () => {
+    server.use(http.get('*/api/v1/anken', () => HttpResponse.json([])));
+    renderApp('/anken');
+    expect(await screen.findByText(/No epics are tracked yet/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Settings → Jira' })).toBeTruthy();
+    expect(screen.queryByText('You are not a member of any anken yet.')).toBeNull();
+  });
+
   it('a hidden stored anken resets to All', async () => {
     localStorage.setItem('tt.anken', 'CRM-400');
     server.use(http.get('*/api/v1/anken', ({ request }) => {
