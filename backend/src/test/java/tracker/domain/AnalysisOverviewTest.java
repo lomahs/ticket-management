@@ -100,6 +100,23 @@ class AnalysisOverviewTest {
     }
 
     @Test
+    void earlyNeedsNoLateLabelAtAll() {
+        Issue early = issue().key("A").status(Status.WIP).ps("2026-10-07").pe("2026-10-09").events(statusTo("2026-10-06", "W")).build();
+        Issue lateFinish = issue().key("B").status(Status.CLOSED).ps("2026-10-05").pe("2026-10-06").events(statusTo("2026-10-05", "W"),
+                statusTo("2026-10-08", "C")).build();
+        Overview.ScheduleRollup a = roll(early, lateFinish);
+        assertThat(a.earlyStart()).isEqualTo(1);
+        assertThat(a.lateFinish()).isEqualTo(1);
+        assertThat(a.state()).isEqualTo(Overview.Schedule.ON_TRACK);
+        Issue startedLate = issue().key("C").status(Status.WIP).ps("2026-10-05").pe("2026-10-16").events(statusTo("2026-10-06", "W")).build();
+        Overview.ScheduleRollup b = roll(early, startedLate);
+        assertThat(b.earlyStart()).isEqualTo(1);
+        assertThat(b.lateStart()).isEqualTo(1);
+        assertThat(b.state()).isEqualTo(Overview.Schedule.ON_TRACK);
+        assertThat(roll(early).state()).isEqualTo(Overview.Schedule.EARLY);
+    }
+
+    @Test
     void aStartedLateStartDoesNotMakeThePhaseLate() {
         Issue lateButStarted = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-16").est(8)
                 .events(statusTo("2026-10-06", "W")).build();

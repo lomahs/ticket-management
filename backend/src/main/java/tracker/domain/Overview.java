@@ -97,7 +97,7 @@ public final class Overview {
             state = Schedule.LATE;
         } else if (!anyStarted) {
             state = Schedule.NOT_STARTED;
-        } else if (earlyStart + earlyFinish > 0) {
+        } else if (overdue == 0 && lateStart == 0 && lateFinish == 0 && earlyStart + earlyFinish > 0) {
             state = Schedule.EARLY;
         } else {
             state = Schedule.ON_TRACK;
