@@ -1,12 +1,16 @@
 package tracker.config;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import tracker.adapters.fake.Dataset;
@@ -14,6 +18,8 @@ import tracker.adapters.fake.FakeJira;
 import tracker.adapters.web.auth.DemoLogins;
 import tracker.application.SyncService;
 import tracker.application.ports.AccessRepository;
+import tracker.application.ports.AnkenMemberRepository;
+import tracker.application.ports.SeedRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.MemberRepository;
@@ -76,5 +82,24 @@ public class DemoConfig {
             });
             sync.run(true);
         };
+    }
+
+    /**
+     * Every demo member works on PAY-1100, so the seeded memberships would not show any separation: after the seed, an
+     * belongs to PAY-1100 and PAY-1300 only. Runs once, like the seed itself.
+     */
+    @Bean
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public ApplicationRunner demoAnkenScope(AnkenMemberRepository ankenMembers, SeedRepository seeds, Clock clock, TransactionTemplate tx) {
+        return args -> tx.executeWithoutResult(status -> {
+            if (seeds.done("demo_an_anken")) {
+                return;
+            }
+            String now = Instant.now(clock).toString();
+            List<String> keep = List.of("PAY-1100", "PAY-1300");
+            ankenMembers.findEpicsOf("an").stream().filter(e -> !keep.contains(e)).forEach(e -> ankenMembers.remove(e, "an"));
+            keep.forEach(e -> ankenMembers.add(e, "an", "seed", now));
+            seeds.markDone("demo_an_anken", now);
+        });
     }
 }

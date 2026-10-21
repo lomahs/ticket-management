@@ -98,13 +98,23 @@ Make the break-glass hash with `htpasswd -bnBC 12 "" 'the-password' | tr -d ':\n
 `TRACKER_BREAKGLASS_PASSWORD_HASH` (quote it: it contains `$`). The server does not start when the value is set but is
 not a bcrypt hash.
 
+**Anken access:** an anken (a Jira epic) is visible to the people who are its members. Memberships are filled once, at
+the first start, from who already worked on each epic's sub-tasks; after that the PM, PIM or an admin manages them in
+the **Members** panel of the anken detail page, which also lists people working there who are not members, with *Add to
+anken*. Each user has an **Anken scope** (admins set it in **Users**; an admin always sees every anken): *default* (PM and PIM see every tracked
+anken, others see the ones they belong to), *all*, or *members* (only the ones they belong to). Every screen and API
+call is limited to the visible anken, and an anken that is hidden answers 404 like one that is not tracked. The
+sidebar switcher ("All my anken" or one anken) narrows every screen and is remembered per browser; `?anken=` in the
+URL wins. Everyone always sees their own My Work and their own leave. **Users → Merge…** joins a duplicate member into
+another one.
+
 **HTTPS or a reverse proxy:** set `server.servlet.session.cookie.secure=true` (`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`)
 and `server.forward-headers-strategy=native` (or `framework`; `SERVER_FORWARD_HEADERS_STRATEGY`). The login throttle (5
 failures for one username within 15 minutes lock it for 15 minutes) counts per username and client address; behind a
 proxy without forwarded headers every client shares the proxy's address.
 
 **Demo profile:** an embedded LDAP server with `minh` (BAL, admin), `an`, `binh`, `chi` and `dung` (BA, active:
-read-only on every feature except Members), `lan` (no access yet: use her to try the request flow) and `khach` (a
+read-only on every feature except Members; `an` belongs to PAY-1100 and PAY-1300 only, to show the separation), `lan` (no access yet: use her to try the request flow) and `khach` (a
 visitor without access). The password is `demo` for all of them.
 
 **Upgrading an existing install:** set `TRACKER_ADMINS` before you deploy this version, so someone can approve the

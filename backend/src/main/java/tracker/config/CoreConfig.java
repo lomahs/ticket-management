@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 import tracker.adapters.crypto.CryptoSecretBox;
 import tracker.application.ports.SecretBox;
@@ -47,6 +48,7 @@ public class CoreConfig {
 
     /** Fills the anken memberships from Jira activity on the first start (in the demo, after the demo data is synced). */
     @Bean
+    @Order(0)
     public ApplicationRunner ankenMemberSeed(AnkenMemberSeeder seeder) {
         return args -> seeder.seedOnce();
     }

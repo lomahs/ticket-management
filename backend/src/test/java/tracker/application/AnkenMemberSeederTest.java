@@ -39,4 +39,9 @@ class AnkenMemberSeederTest {
         assertThat(seeder.seedOnce()).isZero();
         assertThat(ankenMembers.isEmpty()).isTrue();
     }
+
+    @Test
+    void demoPutsAnInPay1100AndPay1300Only() {
+        assertThat(ankenMembers.findEpicsOf("an")).containsExactlyInAnyOrder("PAY-1100", "PAY-1300");
+    }
 }

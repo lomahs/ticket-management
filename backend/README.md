@@ -97,6 +97,8 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
   (`-Dopenapi.write=true` rewrites it);
 - `AuthApiTest` (login, logout, throttle, CSRF, access request), `AccessGateTest` (every `/api` handler declares its access),
   `ApiAdminTest` (users and access requests), `AccessServiceTest` (roles, overrides, admins);
+- anken separation: `AnkenMemberSeederTest` (memberships seeded once), `AnkenMembersServiceTest` (members panel, not-members),
+  `ScopeServiceTest` (anken scope per user), `AnkenScopeApiTest` (hidden anken answer 404) and `ApiAnkenMembersTest`;
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:
