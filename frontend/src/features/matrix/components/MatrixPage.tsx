@@ -193,7 +193,7 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px 14px', flexWrap: 'wrap' }}>
           <ToneSwatch tone="nys" label="NYS" />
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px 3px 8px', borderRadius: 999, border: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>WIP</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-heading)' }} title="Late start and Delay also apply to a step not started yet, drawn with a dashed outline">WIP / NYS</span>
             {(['ontime', 'early', 'latestart', 'delay'] as const).map((k) => <ToneSwatch key={k} tone={k} label={TONE[k]} />)}
           </span>
           <ToneSwatch tone="res" label="Resolved" />
@@ -336,10 +336,10 @@ function ToneSwatch({ tone, label }: { tone: string; label: string }) {
   );
 }
 
-/** NYS reads as not started: no fill, a dashed outline. Every other tone is a filled box with a solid outline. */
-function toneFill(tone: string) {
-  return tone === 'nys'
-    ? { background: 'transparent', border: '1px dashed var(--tn-nys)' }
+/** A step not started yet has a dashed outline, whatever its tone; NYS on schedule has no fill, a late one keeps its tone's fill. */
+function toneFill(tone: string, notStarted = tone === 'nys') {
+  return notStarted
+    ? { background: tone === 'nys' ? 'transparent' : `var(--tn-${tone}-bg)`, border: `1px dashed var(--tn-${tone})` }
     : { background: `var(--tn-${tone}-bg)`, border: `1px solid var(--tn-${tone})` };
 }
 
@@ -404,7 +404,7 @@ function Cell({ c }: { c: TaskCard }) {
   return (
     <button className="hv-dim" onClick={() => open(c.key)} aria-label={`${c.key} ${statusOf(c.status).label}`} style={{
       position: 'relative', display: 'flex', flexDirection: 'column', gap: 5, padding: '8px 10px', minHeight: 68, margin: 3, boxSizing: 'border-box', borderRadius: 10,
-      ...(tone === 'nys' ? toneFill(tone) : { border: 0, background: `var(--tn-${tone}-bg)` }), boxShadow: active ? 'inset 0 0 0 2px var(--border-focus)' : 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+      ...(c.status === 'N' ? toneFill(tone, true) : { border: 0, background: `var(--tn-${tone}-bg)` }), boxShadow: active ? 'inset 0 0 0 2px var(--border-focus)' : 'none', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {c.status === 'C' ? <ClosedBadge /> : <Dot c={`var(--tn-${tone})`} />}
@@ -425,7 +425,7 @@ function Cell({ c }: { c: TaskCard }) {
         <span style={{ font: '600 10px/1 var(--font-text)', color: 'var(--text-muted)' }}>Plan</span>
         <span title="Planned Start – Planned End" style={{ color: c.late ? 'var(--hl-red-fg)' : 'var(--text-muted)' }}>{dm(c.planned_start)} – {dm(c.planned_end)}</span>
         <span style={{ font: '600 10px/1 var(--font-text)', color: 'var(--text-muted)' }}>Act</span>
-        <span title="Actual Start – Actual End" style={{ color: !c.actual_end ? 'var(--text-muted)' : c.planned_end && c.actual_end > c.planned_end && closed ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{act}</span>
+        <span title="Actual Start – Actual End" style={{ color: !c.actual_end ? 'var(--text-muted)' : c.schedule.finish === 'late_finish' ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{act}</span>
       </div>
       {((fix && c.rounds > 0) || showHold) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-body)' }}>

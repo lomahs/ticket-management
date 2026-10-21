@@ -90,6 +90,20 @@ describe('screens render API data at their URLs', () => {
       .toBe('https://acme-pay.atlassian.net/browse/PAY-1213');
   });
 
+  it('keeps the not-started outline on a NYS cell whose tone is late, and reds the dates of a late finish', async () => {
+    const m = JSON.parse(JSON.stringify(fixtures.matrix));
+    const cells = m.functions[0].cells.filter(Boolean);
+    Object.assign(cells[0], { status: 'N', tone: 'delay' });
+    Object.assign(cells[1], { status: 'R', tone: 'res', actual_end: '2026-09-16', schedule: { ...cells[1].schedule, finish: 'late_finish' } });
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json(m)));
+    renderApp('/anken/PAY-1100/matrix');
+    const nys = await screen.findByRole('button', { name: `${cells[0].key} NYS` });
+    expect(nys.style.border).toContain('dashed');
+    expect(nys.style.border).toContain('--tn-delay');
+    const res = screen.getByRole('button', { name: `${cells[1].key} Resolved` });
+    expect(within(res).getByTitle('Actual Start – Actual End').style.color).toBe('var(--hl-red-fg)');
+  });
+
   it('opens the ticket panel over the matrix when a cell is clicked', async () => {
     const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
     fireEvent.click(await screen.findByRole('button', { name: /^PAY-1213 / }));
