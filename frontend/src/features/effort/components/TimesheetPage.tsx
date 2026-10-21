@@ -15,9 +15,12 @@ import { EffortHeader } from './EffortHeader';
 
 const route = getRouteApi('/app/effort/timesheet');
 const PER_SCREEN = 10;
+const STATE_LABEL: Record<string, string> = { ok: 'On allocation', under: 'Under allocation', over: 'Over allocation', no_allocation: 'No allocation' };
 interface Pop { member: string; date: string; top: number; left: number; pinned: boolean }
 
 const CELL: Record<string, { bg: string; fg: string }> = {
+  under: { bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)' },
+  no_allocation: { bg: hatch('var(--border-subtle)') + ',var(--surface-hover)', fg: 'var(--text-muted)' },
   weekend: { bg: 'var(--surface-hover)', fg: 'var(--text-disabled)' },
   off: { bg: hatch('var(--border-subtle)') + ',var(--surface-hover)', fg: 'var(--text-disabled)' },
   over: { bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)' },
@@ -52,7 +55,10 @@ export function TimesheetPage() {
           <IconButton icon="chevron-right" label="Next" appearance="secondary" size="sm" onClick={() => step(1)} />
           <span className="spacer" />
           <div className="legend">
-            <Legend items={[{ label: 'Actual ≤ plan', bg: 'var(--hl-ok)' }, { label: 'Actual > plan', bg: 'var(--hl-red)' }, { label: 'Day off', bg: 'var(--surface-hover)' }]} />
+            <Legend items={[
+              { label: 'On allocation', bg: 'var(--hl-ok)' }, { label: 'Under allocation', bg: 'var(--hl-amber)' }, { label: 'Over allocation', bg: 'var(--hl-red)' },
+              { label: 'No allocation', bg: CELL.no_allocation.bg }, { label: 'Day off', bg: 'var(--surface-hover)' },
+            ]} />
             <span>Hover a cell for worklogs · click to pin</span>
           </div>
         </div>
@@ -98,9 +104,11 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
                   <Avatar a={av(m, r.member_id)} size={22} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{m?.name ?? r.member_id}</div>
-                    <div style={{ fontSize: 10, color: r.over_days ? 'var(--hl-red-fg)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {m?.role ?? '—'}{r.over_days ? ` · ${r.over_days} days over plan` : ''}
-                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {m?.role ?? '—'}</div>
+                    {(r.over_days > 0 || r.under_days > 0) && (
+                      <div style={{ fontSize: 10, color: r.over_days ? 'var(--hl-red-fg)' : 'var(--hl-amber-fg)', whiteSpace: 'nowrap' }}>{r.over_days} days over · {r.under_days} days under</div>
+                    )}
                   </div>
                 </div>
                 {r.cells.map((c) => {
@@ -109,8 +117,8 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
                   const value = c.state === 'off' ? 'off' : c.state === 'future' || c.state === 'weekend' || !c.logged_h ? '' : hrs(c.logged_h);
                   const planned = c.planned_h ? `plan ${hrs(c.planned_h)}` : c.state === 'weekend' || c.state === 'off' ? '' : 'plan –';
                   return (
-                    <button key={c.date} className="hv-dim2"
-                      title={`${m?.name ?? r.member_id} · ${WDN[dow(c.date)]} ${dm(c.date)} · ${hrs(c.logged_h)} logged${c.off_reason ? ' · ' + c.off_reason : ''}`}
+                    <button key={c.date} className="hv-dim2" aria-label={STATE_LABEL[c.state]}
+                      title={`${m?.name ?? r.member_id} · ${WDN[dow(c.date)]} ${dm(c.date)} · ${hrs(c.logged_h)} logged${c.target_h > 0 ? ` · target ${hrs(c.target_h)}` : ''}${c.unallocated_h > 0 ? ` · +${hrs(c.unallocated_h)} on anken without allocation` : ''}${c.off_reason ? ' · ' + c.off_reason : ''}`}
                       onClick={(e) => clickable && setPin(pos(e, r.member_id, c.date, true))}
                       onMouseEnter={(e) => clickable && !pin && setHover(pos(e, r.member_id, c.date, false))}
                       onMouseLeave={() => setHover(null)}
@@ -125,7 +133,7 @@ function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
                   );
                 })}
                 <div style={{ width: 110, flex: 'none', boxSizing: 'border-box', padding: '6px 12px', borderLeft: '1px solid var(--border-subtle)', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontWeight: 700, color: r.logged_h < r.target_h ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{hrs(r.logged_h)}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{hrs(r.logged_h)}</span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>of {hrs(r.target_h)}</span>
                 </div>
               </div>

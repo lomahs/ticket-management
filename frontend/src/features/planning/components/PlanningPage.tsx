@@ -353,6 +353,13 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
                     const over = w.level === 'over';
                     const bg = { over: 'var(--hl-red)', near: 'var(--hl-amber)', ok: 'var(--hl-ok)', idle: 'var(--surface-hover)' }[w.level] ?? 'var(--surface-hover)';
                     const sub = `${f1(w.planned_h)} / ${f1(w.available_h)}h`;
+                    if (w.level === 'no_allocation') {
+                      return (
+                        <div key={w.week_start} title={`${f1(w.planned_h)}h planned, no allocation`} style={{ padding: '7px 10px', borderRadius: 8, display: 'flex', alignItems: 'baseline', gap: 6, background: hatch('var(--border-subtle)') + ',var(--surface-hover)' }}>
+                          <span style={{ font: '600 12px/1 var(--font-text)', color: 'var(--text-muted)' }}>No allocation</span>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={w.week_start} title={sub} style={{ padding: '7px 10px', borderRadius: 8, display: 'flex', alignItems: 'baseline', gap: 6, background: bg }}>
                         <span style={{ font: `${over ? 700 : 600} 14px/1 var(--font-display)`, color: over ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{w.pct == null ? '–' : w.pct + '%'}</span>
