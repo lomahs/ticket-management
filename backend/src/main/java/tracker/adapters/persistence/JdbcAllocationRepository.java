@@ -28,6 +28,12 @@ class JdbcAllocationRepository implements AllocationRepository {
     }
 
     @Override
+    public List<StampedAllocation> findStampedByMember(String memberId) {
+        return jdbc.sql("SELECT * FROM allocations WHERE member_id = :id ORDER BY effective_from, epic_key").param("id", memberId)
+                .query((r, row) -> new StampedAllocation(map(r, row), r.getString("set_by"), r.getString("set_at"))).list();
+    }
+
+    @Override
     public void save(Allocation a, String setBy, String setAt) {
         jdbc.sql("""
                 INSERT INTO allocations (member_id, epic_key, effective_from, hours_per_day, set_by, set_at)

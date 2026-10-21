@@ -612,6 +612,22 @@ export interface paths {
         patch: operations["setRole"];
         trace?: never;
     };
+    "/api/v1/people/{memberId}/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["timeline"];
+        put: operations["set"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning": {
         parameters: {
             query?: never;
@@ -998,6 +1014,27 @@ export interface components {
             review_rounds: number;
             /** Format: double */
             soon_days: number;
+        };
+        AllocationIn: {
+            from: string;
+            hours: {
+                [key: string]: number;
+            };
+        };
+        AllocationStep: {
+            from: string;
+            hours: {
+                [key: string]: number;
+            };
+            set_at: string;
+            set_by: string;
+        };
+        AllocationTimeline: {
+            epics: string[];
+            /** Format: double */
+            hours_per_day: number;
+            member_id: string;
+            steps: components["schemas"]["AllocationStep"][];
         };
         AnkenCard: {
             /** Format: double */
@@ -2878,6 +2915,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Member"];
+                };
+            };
+        };
+    };
+    timeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationTimeline"];
+                };
+            };
+        };
+    };
+    set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllocationIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationTimeline"];
                 };
             };
         };
