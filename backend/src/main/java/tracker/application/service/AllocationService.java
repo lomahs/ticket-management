@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -26,6 +27,7 @@ import tracker.domain.Allocation;
 import tracker.domain.Allocations;
 import tracker.domain.AnkenScope;
 import tracker.domain.Member;
+import tracker.domain.Numbers;
 import tracker.domain.Viewer;
 
 /** Hours per day each member gives each anken, from an effective date. */
@@ -154,9 +156,9 @@ public class AllocationService {
         TreeSet<String> dates = new TreeSet<>(after.datesOf(memberId).stream().filter(d -> d.compareTo(c.from()) >= 0).toList());
         dates.add(c.from());
         for (String date : dates) {
-            double total = after.totalOn(memberId, date);
+            double total = Numbers.round(after.totalOn(memberId, date), 2);
             if (total > day) {
-                throw new Invalid("Total " + total + "h is more than " + day + "h a day", "hours");
+                throw overTheDay(after, counted, visible, memberId, date, total, day);
             }
         }
         String now = Instant.now(clock).toString();
@@ -164,5 +166,16 @@ public class AllocationService {
             allocations.save(new Allocation(memberId, e.getKey(), c.from(), e.getValue()), v.email(), now);
         }
         return build(v, memberId);
+    }
+
+    /** Names the hours only when every anken that adds to the total is one the viewer sees. */
+    private static Invalid overTheDay(Allocations after, List<Allocation> counted, Set<String> visible, String memberId, String date,
+                                      double total, double day) {
+        boolean hidden = counted.stream().map(Allocation::epicKey).filter(e -> !visible.contains(e)).distinct()
+                .anyMatch(e -> Objects.requireNonNullElse(after.hoursOn(memberId, e, date), 0.0) > 0);
+        if (hidden) {
+            return new Invalid("Over " + Numbers.format(day) + "h a day on " + date + " together with hours on other anken", "hours");
+        }
+        return new Invalid("Total " + Numbers.format(total) + "h is more than " + Numbers.format(day) + "h a day on " + date, "hours");
     }
 }

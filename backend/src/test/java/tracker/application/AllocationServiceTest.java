@@ -85,8 +85,29 @@ class AllocationServiceTest {
         bothMember();
         service.set(pm, M, new AllocationChange("2026-11-01", Map.of(X, 5.0)));
         assertThatThrownBy(() -> service.set(pm, M, new AllocationChange("2026-10-01", Map.of(Y, 4.0))))
-                .isInstanceOf(Invalid.class).hasMessage("Total 9.0h is more than 8.0h a day").extracting("field").isEqualTo("hours");
+                .isInstanceOf(Invalid.class).hasMessage("Total 9h is more than 8h a day on 2026-11-01").extracting("field").isEqualTo("hours");
         assertThat(allocations.findByMember(M)).extracting(Allocation::epicKey).containsExactly(X);
+    }
+
+    @Test
+    void theMessageNamesTheDateWithoutFloatNoise() {
+        bothMember();
+        service.set(pm, M, new AllocationChange("2026-10-01", Map.of(X, 5.1)));
+        assertThatThrownBy(() -> service.set(pm, M, new AllocationChange("2026-10-01", Map.of(Y, 3.2))))
+                .isInstanceOf(Invalid.class).hasMessage("Total 8.3h is more than 8h a day on 2026-10-01");
+    }
+
+    /** A PIM who sees PAY-1100 only must not learn the hours on PAY-1300 from the refusal. */
+    @Test
+    void hoursOnHiddenAnkenAreNotNamed() {
+        bothMember();
+        Viewer pim = new Viewer("pia@acme.vn", "pia", "pia", Role.PIM, false, AccessStatus.ACTIVE, Permissions.defaults(Role.PIM), false,
+                Set.of(X));
+        service.set(pm, M, new AllocationChange("2026-10-01", Map.of(Y, 3.0)));
+        assertThatThrownBy(() -> service.set(pim, M, new AllocationChange("2026-10-07", Map.of(X, 6.0))))
+                .isInstanceOf(Invalid.class).hasMessage("Over 8h a day on 2026-10-07 together with hours on other anken")
+                .extracting("field").isEqualTo("hours");
+        assertThat(allocations.findByMember(M)).extracting(Allocation::epicKey).containsExactly(Y);
     }
 
     /** Rows of an anken the member left stay as history but no longer count towards the working day. */

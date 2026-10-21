@@ -207,11 +207,11 @@ describe('anken members', () => {
 
     it('shows the backend refusal in a toast', async () => {
       server.use(http.put('*/api/v1/people/an/allocations', () => HttpResponse.json(
-        { title: 'Invalid', detail: 'Total above the working day on 2026-10-20', errors: [{ field: 'hours', code: 'invalid' }] }, { status: 422 })));
+        { title: 'Invalid', detail: 'Total 9h is more than 8h a day on 2026-10-20', errors: [{ field: 'hours', code: 'invalid' }] }, { status: 422 })));
       const dialog = await open();
       await dialog.findByLabelText('X');
       fireEvent.click(dialog.getByRole('button', { name: 'Save' }));
-      expect(await screen.findByText(/Total above the working day/)).toBeTruthy();
+      expect(await screen.findByText(/Total 9h is more than 8h a day on 2026-10-20/)).toBeTruthy();
     });
 
     it('read-only for members read', async () => {
