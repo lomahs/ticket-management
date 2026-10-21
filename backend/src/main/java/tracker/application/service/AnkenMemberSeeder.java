@@ -12,7 +12,9 @@ import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.SeedRepository;
+import tracker.application.settings.SettingsStore;
 import tracker.domain.Anken;
+import tracker.domain.AnkenScope;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Worklog;
@@ -23,12 +25,15 @@ public class AnkenMemberSeeder {
     static final String SEED = "anken_members_seed";
 
     private final TrackerContextLoader loader;
+    private final SettingsStore settings;
     private final AnkenMemberRepository ankenMembers;
     private final SeedRepository seeds;
     private final Clock clock;
 
-    public AnkenMemberSeeder(TrackerContextLoader loader, AnkenMemberRepository ankenMembers, SeedRepository seeds, Clock clock) {
+    public AnkenMemberSeeder(TrackerContextLoader loader, SettingsStore settings, AnkenMemberRepository ankenMembers,
+                             SeedRepository seeds, Clock clock) {
         this.loader = loader;
+        this.settings = settings;
         this.ankenMembers = ankenMembers;
         this.seeds = seeds;
         this.clock = clock;
@@ -41,7 +46,7 @@ public class AnkenMemberSeeder {
             return 0;
         }
         String now = Instant.now(clock).toString();
-        TrackerContext ctx = loader.load();
+        TrackerContext ctx = loader.load(new AnkenScope(Set.copyOf(settings.load().jira.epics)));
         int added = 0;
         for (Anken a : ctx.anken) {
             for (String memberId : activeMembers(ctx, a.key())) {

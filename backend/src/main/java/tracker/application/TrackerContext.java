@@ -19,7 +19,7 @@ import tracker.domain.Numbers;
 import tracker.domain.Status;
 import tracker.domain.WorkCalendar;
 
-/** The loaded team context: members, calendar, the tracked issues and the flags derived from them. */
+/** The loaded team context: members, calendar, the issues of the anken in scope and the flags derived from them. */
 public final class TrackerContext {
     public final String today;
     public final TrackerSettings settings;
@@ -28,12 +28,14 @@ public final class TrackerContext {
     public final List<Issue> issues;
     public final List<Leave> leaves;
     public final WorkCalendar cal;
+    /** The members of the scope's anken (from {@code anken_members}), distinct and sorted by id; {@link #members} holds everyone. */
+    public final List<String> people;
     public final List<Function> functions = new ArrayList<>();
     public final Map<String, IssueFlags> flags = new LinkedHashMap<>();
     public final Map<String, String> owner = new LinkedHashMap<>();
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
-                   List<Leave> leaves, WorkCalendar cal) {
+                   List<Leave> leaves, WorkCalendar cal, List<String> people) {
         this.today = today;
         this.settings = settings;
         this.members = members;
@@ -41,6 +43,7 @@ public final class TrackerContext {
         this.issues = issues;
         this.leaves = leaves;
         this.cal = cal;
+        this.people = people;
     }
 
     public List<Issue> subtasks() {

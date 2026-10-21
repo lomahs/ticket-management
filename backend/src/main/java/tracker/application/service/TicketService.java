@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraWriter;
 import tracker.application.ports.MemberRepository;
+import tracker.domain.AnkenScope;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
@@ -60,8 +62,9 @@ public class TicketService {
                                List<Worklog> worklogs, @Nullable String jiraUrl) {
     }
 
-    public TicketDetail detail(String key) {
-        TrackerContext ctx = context.load();
+    /** A ticket outside the scope is not found. */
+    public TicketDetail detail(AnkenScope scope, String key) {
+        TrackerContext ctx = context.load(scope);
         Issue i = ctx.issue(key).orElseThrow(() -> new NotFound("Ticket " + key + " was not found", "key"));
         TaskCard c = ctx.card(i);
         List<TicketWarning> warns = new ArrayList<>();
@@ -111,14 +114,15 @@ public class TicketService {
             jira.updateIssue(key, p.plannedStart(), p.plannedEnd(), member != null ? member.jiraAccountId() : null);
         }
         sync.refresh(List.of(key));
-        return detail(key);
+        return detail(new AnkenScope(Set.of(issue.epicKey())), key);
     }
 
-    public Qa.Answer ask(String question) {
+    /** Answers from the anken in scope only. */
+    public Qa.Answer ask(AnkenScope scope, String question) {
         if (question.isBlank()) {
             throw new Invalid("Ask a question", "q");
         }
-        TrackerContext ctx = context.load();
+        TrackerContext ctx = context.load(scope);
         WorkingHours wh = ctx.settings.workingHours;
         List<Worklog> logs = ctx.issues.stream().flatMap(i -> i.worklogs().stream()).toList();
         return Qa.answer(new Qa.QaContext(ctx.functions, ctx.flags, ctx.members, logs, ctx.today, wh.hoursPerDay(), wh.days()),

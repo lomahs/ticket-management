@@ -9,12 +9,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 
 import tracker.DemoTest;
+import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.CapabilityDisabled;
 import tracker.application.AppError.Conflict;
 import tracker.application.AppError.Forbidden;
@@ -35,6 +37,7 @@ import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScope;
 import tracker.domain.Issue;
 import tracker.domain.IssueKind;
 import tracker.domain.LeaveType;
@@ -53,6 +56,9 @@ import tracker.domain.WorkStructure;
 @DemoTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ServiceWritesTest {
+    /** Every tracked epic of the demo: the scope of a viewer who sees all anken. */
+    static final AnkenScope ALL = new AnkenScope(Set.copyOf(Dataset.TRACKED_EPICS));
+
     @Autowired
     AnkenService anken;
     @Autowired
@@ -81,7 +87,7 @@ class ServiceWritesTest {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
         List<String> keys = anken.createFunction("PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
@@ -107,7 +113,7 @@ class ServiceWritesTest {
         assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
                 "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
         List<String> keys = anken.createFunction("PAY-1100", d, null);
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThatThrownBy(() -> anken.createFunction("PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
@@ -118,7 +124,7 @@ class ServiceWritesTest {
     void saveStructureResyncsPhases() {
         jiraSettings.saveStructure(new WorkStructure(List.of("Coding", "Prepare"),
                 List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
-        AnkenService.AnkenCard card = anken.overview().stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
+        AnkenService.AnkenCard card = anken.overview(ALL).stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
         assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
     }
 
@@ -137,7 +143,7 @@ class ServiceWritesTest {
         List.of(task("CRM-901", "[Hub][LocalTask] ITA Prepare"), task("CRM-902", "[Hub[LocalTask] ITA Execute"),
                 task("CRM-903", "[Hub][LocalTask] WorkRequest"), sub("CRM-911", "CRM-901", Status.CLOSED, 3, 0),
                 sub("CRM-912", "CRM-902", Status.WIP, 1, 4)).forEach(issues::save);
-        List<AnkenService.AnkenCard> cards = anken.overview().stream().filter(c -> c.key().equals("CRM-400")).toList();
+        List<AnkenService.AnkenCard> cards = anken.overview(ALL).stream().filter(c -> c.key().equals("CRM-400")).toList();
         var phases = cards.get(0).phases();
         assertThat(phases).extracting(p -> p.name()).containsExactly("Implement_Coding", "ITA", "Other");
         assertThat(List.of(phases.get(1).pct(), phases.get(1).closed(), phases.get(1).total())).containsExactly(50, 1, 2);
@@ -220,7 +226,7 @@ class ServiceWritesTest {
     @Test
     void patchTicketWritesAndSyncs() {
         tickets.patch("PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, "minh", null, "2026-10-08"));
-        TaskCard c = tickets.detail("PAY-1213").card();
+        TaskCard c = tickets.detail(ALL, "PAY-1213").card();
         assertThat(List.of(c.status(), c.assigneeId(), c.plannedEnd(), c.late())).containsExactly("R", "minh", "2026-10-08", false);
         assertThatThrownBy(() -> tickets.patch("PAY-1213", new TicketService.TicketPatch(null, null, "2026-10-20", null)))
                 .isInstanceOf(Invalid.class);

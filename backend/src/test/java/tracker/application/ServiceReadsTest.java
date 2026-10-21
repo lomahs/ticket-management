@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import tracker.DemoTest;
+import tracker.adapters.fake.Dataset;
 import tracker.adapters.fake.FakeJira;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
@@ -41,6 +42,7 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
+import tracker.domain.AnkenScope;
 import tracker.domain.Burndown;
 import tracker.domain.DateReason;
 import tracker.domain.Issue;
@@ -53,6 +55,9 @@ import tracker.domain.WorkStructure;
 /** The services on the demo data, synced through the real pipeline; read-only checks share one context. */
 @DemoTest
 class ServiceReadsTest {
+    /** Every tracked epic of the demo: the scope of a viewer who sees all anken. */
+    static final AnkenScope ALL = new AnkenScope(Set.copyOf(Dataset.TRACKED_EPICS));
+
     @Autowired
     AnkenService anken;
     @Autowired
@@ -79,7 +84,7 @@ class ServiceReadsTest {
     @Test
     void overviewCards() {
         Map<String, AnkenService.AnkenCard> cards = new java.util.LinkedHashMap<>();
-        anken.overview().forEach(c -> cards.put(c.key(), c));
+        anken.overview(ALL).forEach(c -> cards.put(c.key(), c));
         assertThat(cards.keySet()).containsExactly("PAY-1100", "PAY-1300", "PAY-1420", "PAY-0980", "CRM-400", "OPS-200");
         AnkenService.AnkenCard p = cards.get("PAY-1100");
         assertThat(List.of(p.plan(), p.forecast(), p.slipDays(), p.lateFunctions(), p.hasFunctions()))
@@ -94,7 +99,7 @@ class ServiceReadsTest {
 
     @Test
     void matrixPhaseShowsEveryTaskOfThePhaseAndKeepsAllTasksAsOptions() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Implement_Coding", null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, "Implement_Coding", null);
         assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1102", "PAY-1103");
         assertThat(m.taskKeys()).containsExactly("PAY-1102");
         assertThat(m.phase()).isEqualTo("Implement_Coding");
@@ -103,14 +108,14 @@ class ServiceReadsTest {
 
     @Test
     void matrixPhaseWithoutFunctionsIsEmptyNotMissing() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, "Prepare", null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, "Prepare", null);
         assertThat(List.of(m.taskKeys(), m.phase())).containsExactly(List.of("PAY-1101"), "Prepare");
         assertThat(m.functions()).isEmpty();
     }
 
     @Test
     void matrixShowsTheChosenTasksOfSeveralPhases() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", List.of("PAY-1103", "PAY-1102"), "Prepare", null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", List.of("PAY-1103", "PAY-1102"), "Prepare", null);
         assertThat(m.taskKeys()).containsExactly("PAY-1102", "PAY-1103"); // in Task order; the phase is ignored
         assertThat(m.phase()).isEqualTo("Implement_Coding, Function Unit Test");
         assertThat(m.stats().functionsTotal()).isEqualTo(m.functions().size());
@@ -118,32 +123,32 @@ class ServiceReadsTest {
 
     @Test
     void matrixShowsTheViewersOwnTasksSkippingOnesThatAreGone() {
-        assertThat(anken.matrix("PAY-1100", null, null, List.of("PAY-1103", "PAY-1101", "PAY-9999")).taskKeys())
+        assertThat(anken.matrix(ALL, "PAY-1100", null, null, List.of("PAY-1103", "PAY-1101", "PAY-9999")).taskKeys())
                 .containsExactly("PAY-1101", "PAY-1103");
-        assertThat(anken.matrix("PAY-1100", null, null, List.of("PAY-9999")).taskKeys()).containsExactly("PAY-1102"); // none left: the default
-        assertThat(anken.matrix("PAY-1100", null, "Prepare", List.of("PAY-1103")).taskKeys()).containsExactly("PAY-1101"); // a link wins
+        assertThat(anken.matrix(ALL, "PAY-1100", null, null, List.of("PAY-9999")).taskKeys()).containsExactly("PAY-1102"); // none left: the default
+        assertThat(anken.matrix(ALL, "PAY-1100", null, "Prepare", List.of("PAY-1103")).taskKeys()).containsExactly("PAY-1101"); // a link wins
     }
 
     @Test
     void matrixPhaseAndTasksMustExist() {
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", null, "Nope", null)).isInstanceOf(NotFound.class);
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", List.of("PAY-1102", "PAY-1301"), null, null)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.matrix(ALL, "PAY-1100", null, "Nope", null)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.matrix(ALL, "PAY-1100", List.of("PAY-1102", "PAY-1301"), null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test
     void ankenDetailAttentionGroups() {
         Map<String, List<String>> g = new HashMap<>();
-        anken.detail("PAY-1100").attention().forEach(a -> g.put(a.kind(), a.items().stream().map(TaskCard::key).toList()));
+        anken.detail(ALL, "PAY-1100").attention().forEach(a -> g.put(a.kind(), a.items().stream().map(TaskCard::key).toList()));
         assertThat(g.get("overdue").subList(0, 3)).containsExactlyInAnyOrder("PAY-1186", "PAY-1219", "PAY-1235");
         assertThat(g.get("stuck_resolved")).containsExactly("PAY-1248");
         assertThat(g.get("many_rounds")).containsExactly("PAY-1213", "PAY-1235");
         assertThat(g.get("waiting_client")).containsExactly("PAY-1219", "PAY-1235");
-        assertThatThrownBy(() -> anken.detail("PAY-404")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> anken.detail(ALL, "PAY-404")).isInstanceOf(NotFound.class);
     }
 
     @Test
     void ankenDetailListsTasksUnderTheirPhase() {
-        AnkenService.AnkenDetail d = anken.detail("PAY-1100");
+        AnkenService.AnkenDetail d = anken.detail(ALL, "PAY-1100");
         assertThat(d.tasks()).extracting(t -> t.key() + "/" + t.phase())
                 .containsExactlyInAnyOrder("PAY-1101/Prepare", "PAY-1102/Implement_Coding", "PAY-1103/Function Unit Test");
         for (var p : d.card().phases()) {
@@ -155,7 +160,7 @@ class ServiceReadsTest {
 
     @Test
     void matrixRowsStatsAndParents() {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         assertThat(m.functions()).extracting(AnkenService.FunctionRow::id)
                 .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
         AnkenService.MatrixStats s = m.stats();
@@ -176,18 +181,18 @@ class ServiceReadsTest {
 
     @Test
     void functionOfASubtaskHasItsFiveSteps() {
-        AnkenService.FunctionRow row = anken.matrix("PAY-1100", null, null, null).functions().get(2);
-        AnkenService.FunctionSteps f = anken.functionOf(row.cells().get(2).key());
+        AnkenService.FunctionRow row = anken.matrix(ALL, "PAY-1100", null, null, null).functions().get(2);
+        AnkenService.FunctionSteps f = anken.functionOf(ALL, row.cells().get(2).key());
         assertThat(List.of(f.epicKey(), f.taskKey(), f.phase(), f.functionId(), f.name()))
                 .containsExactly("PAY-1100", row.taskKey(), "Implement_Coding", "F03", row.name());
         assertThat(f.steps()).extracting(c -> c == null ? null : c.key())
                 .containsExactlyElementsOf(row.cells().stream().map(c -> c == null ? null : c.key()).toList());
-        assertThatThrownBy(() -> anken.functionOf("PAY-1101")).isInstanceOf(NotFound.class); // a Task, not a step
+        assertThatThrownBy(() -> anken.functionOf(ALL, "PAY-1101")).isInstanceOf(NotFound.class); // a Task, not a step
     }
 
     @Test
     void matrixDefaultsToTheFirstPhaseWithFunctions(@Autowired IssueRepository issues) {
-        AnkenService.MatrixView m = anken.matrix("PAY-1100", null, null, null);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         assertThat(m.taskKeys()).containsExactly("PAY-1102");
         assertThat(m.parents()).extracting(p -> p.key() + "/" + p.group() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
                 .containsExactly("PAY-1101/Prepare/0/Prepare/true", "PAY-1102/Implement_Coding/12/Implement_Coding/true",
@@ -196,8 +201,8 @@ class ServiceReadsTest {
         List<Issue> subs = issues.findAll().stream().filter(i -> "PAY-1102".equals(i.parentKey())).toList();
         assertThat(coding.start()).isEqualTo(subs.stream().map(Issue::plannedStart).filter(Objects::nonNull).min(String::compareTo).orElseThrow());
         assertThat(coding.end()).isEqualTo(subs.stream().map(Issue::plannedEnd).filter(Objects::nonNull).max(String::compareTo).orElseThrow());
-        assertThat(anken.matrix("PAY-1100", List.of("PAY-1101"), null, null).functions()).isEmpty();
-        assertThatThrownBy(() -> anken.matrix("PAY-1100", List.of("PAY-1301"), null, null)).isInstanceOf(NotFound.class); // a Task of another epic
+        assertThat(anken.matrix(ALL, "PAY-1100", List.of("PAY-1101"), null, null).functions()).isEmpty();
+        assertThatThrownBy(() -> anken.matrix(ALL, "PAY-1100", List.of("PAY-1301"), null, null)).isInstanceOf(NotFound.class); // a Task of another epic
     }
 
     @Test
@@ -340,19 +345,19 @@ class ServiceReadsTest {
 
     @Test
     void ticketDetailWithWarningsHistoryAndWorklogs() {
-        TicketService.TicketDetail t = tickets.detail("PAY-1213");
+        TicketService.TicketDetail t = tickets.detail(ALL, "PAY-1213");
         assertThat(t.card().functionId()).isEqualTo("F03");
         assertThat(t.ownerId()).isEqualTo("binh");
         assertThat(t.warnings()).containsExactly(new TicketService.TicketWarning("late", 1),
                 new TicketService.TicketWarning("over", 3.5), new TicketService.TicketWarning("rounds", 3));
         assertThat(t.history().get(t.history().size() - 1)).extracting(h -> h.fromId() + ">" + h.toId()).isEqualTo("minh>binh");
         assertThat(t.worklogs().stream().mapToDouble(w -> w.hours()).sum()).isEqualTo(7.5);
-        assertThatThrownBy(() -> tickets.detail("PAY-9")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> tickets.detail(ALL, "PAY-9")).isInstanceOf(NotFound.class);
     }
 
     @Test
     void qaAnswersFromSyncedData() {
-        var a = tickets.ask("Which functions are late?");
+        var a = tickets.ask(ALL, "Which functions are late?");
         assertThat(a.text()).startsWith("12 sub-tasks are past their plan, across 12 functions");
         assertThat(a.chips()).hasSize(12).contains("PAY-1213", "PAY-1219", "PAY-1222", "PAY-1226", "PAY-1235", "PAY-1252");
     }
@@ -482,12 +487,12 @@ class ServiceReadsTest {
 
     @Test
     void metaMembersAndMyWork() {
-        SystemService.Meta m = system.meta();
+        SystemService.Meta m = system.meta(ALL);
         assertThat(List.of(m.mode(), m.today(), m.capabilities().jiraWrite(), m.sync().status())).containsExactly("demo", "2026-10-07", true, "ok");
         assertThat(m.projects()).containsExactly("CRM", "OPS", "PAY");
-        assertThat(system.members()).extracting(x -> x.id()).startsWith("an", "binh");
+        assertThat(system.members(ALL)).extracting(x -> x.id()).startsWith("an", "binh");
 
-        WorkService.MyWork w = work.myWork("binh", "week");
+        WorkService.MyWork w = work.myWork(ALL, "binh", "week");
         assertThat(w.nextDay()).isEqualTo("2026-10-08");
         assertThat(w.delay()).extracting(TaskCard::key).containsExactly("PAY-1012", "PAY-1186", "PAY-1184", "PAY-1185", "PAY-1213");
         assertThat(w.dueToday()).extracting(TaskCard::key).containsExactlyInAnyOrder("PAY-1183", "PAY-1187", "PAY-1188", "PAY-1265");
@@ -498,12 +503,12 @@ class ServiceReadsTest {
         assertThat(weeks.get(0).current()).isTrue();
         assertThat(w.openCount()).isEqualTo(w.backlog().stream().mapToInt(g -> g.items().size()).sum());
 
-        WorkService.MyWork month = work.myWork("binh", "month");
+        WorkService.MyWork month = work.myWork(ALL, "binh", "month");
         assertThat(month.backlog()).extracting(WorkService.BacklogGroup::kind).startsWith("overdue", "month");
         assertThat(month.backlog().get(1).start()).isEqualTo("2026-10");
-        WorkService.MyWork minh = work.myWork("minh", "week");
+        WorkService.MyWork minh = work.myWork(ALL, "minh", "week");
         assertThat(minh.relatedScope()).isEqualTo("reviewer");
         assertThat(minh.related()).allMatch(c -> !"balr".equals(c.step()));
-        assertThatThrownBy(() -> work.myWork("nobody", "week")).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> work.myWork(ALL, "nobody", "week")).isInstanceOf(NotFound.class);
     }
 }

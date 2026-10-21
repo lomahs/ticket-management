@@ -27,6 +27,7 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.dto.NewSubtask;
 import tracker.application.ports.JiraWriter;
 import tracker.domain.Anken;
+import tracker.domain.AnkenScope;
 import tracker.domain.DateReason;
 import tracker.domain.Dates;
 import tracker.domain.Flags;
@@ -125,8 +126,9 @@ public class AnkenService {
                 phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty());
     }
 
-    public List<AnkenCard> overview() {
-        TrackerContext ctx = context.load();
+    /** The cards of the anken in scope, in tracked order. */
+    public List<AnkenCard> overview(AnkenScope scope) {
+        TrackerContext ctx = context.load(scope);
         Map<String, Integer> order = new HashMap<>();
         for (int n = 0; n < ctx.settings.jira.epics.size(); n++) {
             order.put(ctx.settings.jira.epics.get(n), n);
@@ -140,8 +142,8 @@ public class AnkenService {
         anken(ctx, epic);
     }
 
-    public AnkenDetail detail(String epic) {
-        TrackerContext ctx = context.load();
+    public AnkenDetail detail(AnkenScope scope, String epic) {
+        TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         List<Issue> subs = epicSubtasks(ctx, epic);
         List<AttentionView> attention = Overview.attentionGroups(subs, ctx.flags, ctx.members, ctx.settings.thresholds).stream()
@@ -282,8 +284,9 @@ public class AnkenService {
      * @param phase used when no Tasks are given
      * @param shown the Tasks the viewer's own layout shows; keys that are no longer Tasks of the epic are skipped
      */
-    public MatrixView matrix(String epic, @Nullable List<String> tasks, @Nullable String phase, @Nullable List<String> shown) {
-        TrackerContext ctx = context.load();
+    public MatrixView matrix(AnkenScope scope, String epic, @Nullable List<String> tasks, @Nullable String phase,
+                             @Nullable List<String> shown) {
+        TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         List<ParentOption> parents = parentOptions(ctx, epic);
         List<ParentOption> picked;
@@ -351,9 +354,10 @@ public class AnkenService {
                                 List<@Nullable TaskCard> steps) {
     }
 
-    /** The function (epic, Task, function id) that the sub-task {@code key} is a step of. */
-    public FunctionSteps functionOf(String key) {
-        TrackerContext ctx = context.load();
+    /** The function (epic, Task, function id) that the sub-task {@code key} is a step of; a ticket outside the scope is not found. */
+    public FunctionSteps functionOf(AnkenScope scope, String key) {
+        TrackerContext ctx = context.load(scope);
+        ctx.issue(key).orElseThrow(() -> new NotFound("Ticket " + key + " was not found", "key"));
         Function f = ctx.functions.stream().filter(fn -> fn.issues().stream().anyMatch(i -> i.key().equals(key))).findFirst()
                 .orElseThrow(() -> new NotFound(key + " is not a step of a function", "key"));
         String phase = groupOfTask(ctx, f.epicKey()).getOrDefault(f.parentKey(), PhaseGroups.OTHER);

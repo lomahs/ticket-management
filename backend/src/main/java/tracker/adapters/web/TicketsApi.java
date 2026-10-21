@@ -12,11 +12,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import tracker.adapters.web.auth.Requires;
 import tracker.application.service.AnkenService.FunctionSteps;
 import tracker.application.service.AnkenService;
+import tracker.application.service.ScopeService;
 import tracker.application.service.TicketService.TicketDetail;
 import tracker.application.service.TicketService.TicketPatch;
 import tracker.application.service.TicketService;
@@ -24,16 +26,19 @@ import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.Qa;
 import tracker.domain.Status;
+import tracker.domain.Viewer;
 
 @RestController
 @RequestMapping("/api/v1")
 public class TicketsApi {
     private final TicketService tickets;
     private final AnkenService anken;
+    private final ScopeService scopes;
 
-    public TicketsApi(TicketService tickets, AnkenService anken) {
+    public TicketsApi(TicketService tickets, AnkenService anken, ScopeService scopes) {
         this.tickets = tickets;
         this.anken = anken;
+        this.scopes = scopes;
     }
 
     /** Fields left out (or null) are not changed. */
@@ -47,15 +52,15 @@ public class TicketsApi {
 
     @Requires(feature = Feature.TICKET, level = Level.READ)
     @GetMapping("/tickets/{key}")
-    public TicketDetail detail(@PathVariable("key") String key) {
-        return tickets.detail(key);
+    public TicketDetail detail(@PathVariable("key") String key, Viewer viewer) {
+        return tickets.detail(scopes.scope(viewer, null), key);
     }
 
     /** The five steps of the function the sub-task belongs to; Planning shows them when a block is clicked. */
     @Requires(feature = Feature.TICKET, level = Level.READ)
     @GetMapping("/tickets/{key}/function")
-    public FunctionSteps function(@PathVariable("key") String key) {
-        return anken.functionOf(key);
+    public FunctionSteps function(@PathVariable("key") String key, Viewer viewer) {
+        return anken.functionOf(scopes.scope(viewer, null), key);
     }
 
     @Requires(feature = Feature.TICKET, level = Level.WRITE)
@@ -66,7 +71,8 @@ public class TicketsApi {
 
     @Requires(feature = Feature.QA, level = Level.READ)
     @PostMapping("/qa")
-    public Qa.Answer ask(@RequestBody @Valid QuestionIn body) {
-        return tickets.ask(body.q());
+    public Qa.Answer ask(@RequestBody @Valid QuestionIn body, @RequestParam(required = false) @Nullable String anken,
+                         Viewer viewer) {
+        return tickets.ask(scopes.scope(viewer, anken), body.q());
     }
 }

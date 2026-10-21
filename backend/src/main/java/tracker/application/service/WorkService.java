@@ -14,6 +14,7 @@ import tracker.application.AppError.NotFound;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
+import tracker.domain.AnkenScope;
 import tracker.domain.Dates;
 import tracker.domain.Function;
 import tracker.domain.Issue;
@@ -68,11 +69,12 @@ public class WorkService {
         return Numbers.round(items.stream().mapToDouble(i -> ctx.card(i).remainingH()).sum(), 2);
     }
 
-    public MyWork myWork(String memberId, String backlog) {
-        TrackerContext ctx = context.load();
+    /** The member must be one of the people of the scope; only the sub-tasks of the anken in scope are listed. */
+    public MyWork myWork(AnkenScope scope, String memberId, String backlog) {
+        TrackerContext ctx = context.load(scope);
         String today = ctx.today;
         Member me = ctx.members.get(memberId);
-        if (me == null) {
+        if (me == null || !ctx.people.contains(memberId)) {
             throw new NotFound("Member " + memberId + " was not found", "member");
         }
         List<Issue> mine = new ArrayList<>(ctx.subtasks().stream()
@@ -109,7 +111,7 @@ public class WorkService {
         }).toList();
 
         List<Issue> related = new ArrayList<>();
-        String scope;
+        String relatedScope;
         if (me.role() == Role.BAL) {
             for (Function f : ctx.functions) {
                 if (Objects.equals(f.reviewerId(), memberId)) {
@@ -121,14 +123,14 @@ public class WorkService {
                     }
                 }
             }
-            scope = "reviewer";
+            relatedScope = "reviewer";
         } else {
             for (Function f : ctx.functions) {
                 if (Objects.equals(f.ownerId(), memberId)) {
                     f.cells().subList(1, f.cells().size()).stream().filter(Objects::nonNull).forEach(related::add);
                 }
             }
-            scope = "owner";
+            relatedScope = "owner";
         }
         related = new ArrayList<>(related.stream().filter(c -> c.status() != Status.CLOSED).toList());
         related.sort(BY_END);
@@ -138,7 +140,7 @@ public class WorkService {
                 tasks.stream().filter(i -> Text.hasText(i.plannedEnd()) && i.plannedEnd().compareTo(today) < 0).map(ctx::card).toList(),
                 tasks.stream().filter(i -> today.equals(i.plannedEnd())).map(ctx::card).toList(),
                 tasks.stream().filter(i -> nextDay.equals(i.plannedEnd())).map(ctx::card).toList(),
-                backlogGroups, related.stream().map(ctx::card).toList(), scope,
+                backlogGroups, related.stream().map(ctx::card).toList(), relatedScope,
                 mine.size(), remaining(ctx, mine));
     }
 }

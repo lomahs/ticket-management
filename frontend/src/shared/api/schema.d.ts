@@ -1865,7 +1865,9 @@ export interface operations {
     };
     overview: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2506,7 +2508,9 @@ export interface operations {
     };
     members: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2549,6 +2553,7 @@ export interface operations {
             query: {
                 member: string;
                 backlog?: "week" | "month";
+                anken?: string;
             };
             header?: never;
             path?: never;
@@ -2640,7 +2645,9 @@ export interface operations {
     };
     ask: {
         parameters: {
-            query?: never;
+            query?: {
+                anken?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

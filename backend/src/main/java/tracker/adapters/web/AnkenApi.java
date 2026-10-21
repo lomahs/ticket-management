@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -32,16 +33,27 @@ import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService.FunctionPreview;
 import tracker.application.service.AnkenService.MatrixView;
 import tracker.application.service.AnkenService;
+import tracker.application.service.ScopeService;
+import tracker.domain.AnkenScope;
 import tracker.domain.Feature;
 import tracker.domain.Level;
+import tracker.domain.Viewer;
 
 @RestController
 @RequestMapping("/api/v1/anken")
 public class AnkenApi {
     private final AnkenService anken;
+    private final ScopeService scopes;
 
-    public AnkenApi(AnkenService anken) {
+    public AnkenApi(AnkenService anken, ScopeService scopes) {
         this.anken = anken;
+        this.scopes = scopes;
+    }
+
+    /** Only this epic, which the viewer must see. */
+    private AnkenScope epicScope(Viewer viewer, String epic) {
+        scopes.requireVisible(viewer, epic);
+        return new AnkenScope(Set.of(epic));
     }
 
     /** Planned dates that replace the scheduled ones for one step. */
@@ -70,14 +82,14 @@ public class AnkenApi {
 
     @Requires(feature = Feature.OVERVIEW, level = Level.READ)
     @GetMapping("")
-    public List<AnkenCard> overview() {
-        return anken.overview();
+    public List<AnkenCard> overview(@RequestParam(required = false) @Nullable String anken, Viewer viewer) {
+        return this.anken.overview(scopes.scope(viewer, anken));
     }
 
     @Requires(feature = Feature.OVERVIEW, level = Level.READ)
     @GetMapping("/{epic}")
-    public AnkenDetail detail(@PathVariable("epic") String epic) {
-        return anken.detail(epic);
+    public AnkenDetail detail(@PathVariable("epic") String epic, Viewer viewer) {
+        return anken.detail(epicScope(viewer, epic), epic);
     }
 
     /**
@@ -91,8 +103,8 @@ public class AnkenApi {
     @GetMapping("/{epic}/matrix")
     public MatrixView matrix(@PathVariable("epic") String epic, @RequestParam(required = false) @Nullable List<String> tasks,
                              @RequestParam(required = false) @Nullable String phase,
-                             @RequestParam(required = false) @Nullable List<String> shown) {
-        return anken.matrix(epic, tasks, phase, shown);
+                             @RequestParam(required = false) @Nullable List<String> shown, Viewer viewer) {
+        return anken.matrix(epicScope(viewer, epic), epic, tasks, phase, shown);
     }
 
     private static FunctionDraft draft(FunctionDraftIn in) {
