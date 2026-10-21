@@ -1643,6 +1643,21 @@ export interface components {
             /** Format: double */
             rate: number;
         };
+        ScopeMember: {
+            color: string;
+            country: string;
+            email: string;
+            external: boolean;
+            full_name: string;
+            id: string;
+            jira_account_id: string | null;
+            name: string;
+            people: boolean;
+            /** @enum {string} */
+            permission: "admin" | "user";
+            /** @enum {string|null} */
+            role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
         SeenTask: {
             epic_key: string;
             key: string;
@@ -2745,7 +2760,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Member"][];
+                    "application/json": components["schemas"]["ScopeMember"][];
                 };
             };
         };

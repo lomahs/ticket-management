@@ -24,6 +24,8 @@ import tracker.domain.EventField;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Member;
+import tracker.domain.Permission;
+import tracker.domain.Role;
 
 /** App-wide reads (mode, capabilities, members, sync status) and running a sync. */
 @Service
@@ -42,6 +44,19 @@ public class SystemService {
     }
 
     public record Meta(String mode, String today, Capabilities capabilities, SyncStatus sync, List<String> projects) {
+    }
+
+    /**
+     * A member as /members lists them. {@code people}: one of the people of the scope, whom the screens may pick (assign,
+     * plan, give leave); the others are only named because an issue in scope refers to them.
+     */
+    public record ScopeMember(String id, String name, String fullName, @Nullable Role role, String country, String color,
+                              String email, Permission permission, boolean external, @Nullable String jiraAccountId,
+                              boolean people) {
+        static ScopeMember of(Member m, boolean people) {
+            return new ScopeMember(m.id(), m.name(), m.fullName(), m.role(), m.country(), m.color(), m.email(), m.permission(),
+                    m.external(), m.jiraAccountId(), people);
+        }
     }
 
     private final Mode mode;
@@ -77,11 +92,13 @@ public class SystemService {
 
     /**
      * The people of the scope plus every member an issue in scope refers to (assignee, worker, function owner and reviewer,
-     * worklog author, either side of an assignee change), ordered by id. The screens use it to show names.
+     * worklog author, either side of an assignee change), ordered by id. The screens use it to show names, and pick only
+     * the people.
      */
-    public List<Member> members(AnkenScope scope) {
+    public List<ScopeMember> members(AnkenScope scope) {
         TrackerContext ctx = context.load(scope);
-        Set<String> ids = new HashSet<>(ctx.people);
+        Set<String> people = new HashSet<>(ctx.people);
+        Set<String> ids = new HashSet<>(people);
         for (Issue i : ctx.issues) {
             ids.add(i.assigneeId());
             ids.add(ctx.worker(i));
@@ -95,7 +112,8 @@ public class SystemService {
             ids.add(f.ownerId());
             ids.add(f.reviewerId());
         }
-        return ctx.members.values().stream().filter(m -> ids.contains(m.id())).sorted(Comparator.comparing(Member::id)).toList();
+        return ctx.members.values().stream().filter(m -> ids.contains(m.id())).sorted(Comparator.comparing(Member::id))
+                .map(m -> ScopeMember.of(m, people.contains(m.id()))).toList();
     }
 
     public SyncStatus runSync(boolean full) {

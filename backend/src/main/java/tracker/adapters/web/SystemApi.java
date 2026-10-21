@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Open;
 import tracker.application.service.SystemService.Meta;
+import tracker.application.service.SystemService.ScopeMember;
 import tracker.application.service.SystemService.SyncStatus;
 import tracker.application.service.ScopeService;
 import tracker.application.service.SystemService;
-import tracker.domain.Member;
 import tracker.domain.Viewer;
 
 @RestController
@@ -39,7 +39,7 @@ public class SystemApi {
     /** The people of the viewer's anken (or of {@code anken}) and every member their issues refer to. */
     @Open(Rule.ACTIVE)
     @GetMapping("/members")
-    public List<Member> members(@RequestParam(required = false) @Nullable String anken, Viewer viewer) {
+    public List<ScopeMember> members(@RequestParam(required = false) @Nullable String anken, Viewer viewer) {
         return system.members(scopes.scope(viewer, anken));
     }
 

@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { useCan, useMe, useMemberMap, useMeta, VIEW_ONLY } from '../../../shared/api/queries';
+import { useCan, useMe, useMemberMap, useMeta, usePickableMembers, VIEW_ONLY } from '../../../shared/api/queries';
 import type { LeaveTypeKey } from '../../../shared/api/types';
 import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { LEAVE, LEAVE_KEYS } from '../../../shared/format/labels';
@@ -36,7 +36,8 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
   const del = useDeleteLeave();
   const canAll = useCan('calendar', 'write');
   const myId = useMe().data?.member_id ?? '';
-  const firstMember = Object.keys(members)[0] ?? '';
+  const pickable = usePickableMembers();
+  const firstMember = pickable[0]?.id ?? '';
   const [f, setF] = useState({
     member: existing?.member_id ?? defaults.member, type: (existing?.type ?? 'full') as LeaveTypeKey,
     from: existing?.date ?? defaults.date, to: existing?.date ?? defaults.date, note: existing?.note ?? '',
@@ -54,6 +55,9 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
   });
   const remove = () => existing && del.mutate(existing.id, { onSuccess: () => { toast('Leave removed'); close(); }, onError: (e) => toast(errorMessage(e), true) });
   const set = (k: keyof typeof f) => (v: string) => { setErr(null); setF((x) => ({ ...x, [k]: v })); };
+  // Leave is given to the people of the anken; an existing leave keeps showing its own member.
+  const shown = pickable.some((m) => m.id === member) || !members[member] ? pickable : [...pickable, members[member]];
+  const memberOpts = shown.map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));
 
   return (
     <div className="scrim" onClick={close}>
@@ -65,7 +69,7 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
         {missingId ? <div role="alert" style={{ color: 'var(--hl-red-fg)', fontWeight: 600 }}>Leave {missingId} is not in this month.</div> : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Select label="Member" options={Object.values(members).map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }))} value={member} disabled={!canAll} onChange={set('member')} />
+              <Select label="Member" options={memberOpts} value={member} disabled={!canAll} onChange={set('member')} />
               <Select label="Type" disabled={readOnly} options={LEAVE_KEYS.map((k) => ({ value: k, label: LEAVE[k].label }))} value={f.type} onChange={set('type')} />
               <TextField label="From" type="date" disabled={readOnly} value={f.from} onChange={set('from')} />
               <div>

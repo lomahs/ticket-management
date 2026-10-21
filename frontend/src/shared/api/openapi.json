@@ -1130,7 +1130,7 @@
                 "schema" : {
                   "type" : "array",
                   "items" : {
-                    "$ref" : "#/components/schemas/Member"
+                    "$ref" : "#/components/schemas/ScopeMember"
                   }
                 }
               }
@@ -4158,6 +4158,47 @@
           }
         },
         "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate" ]
+      },
+      "ScopeMember" : {
+        "type" : "object",
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "country" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "external" : {
+            "type" : "boolean"
+          },
+          "full_name" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "jira_account_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "people" : {
+            "type" : "boolean"
+          },
+          "permission" : {
+            "type" : "string",
+            "enum" : [ "admin", "user" ]
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+          }
+        },
+        "required" : [ "color", "country", "email", "external", "full_name", "id", "jira_account_id", "name", "people", "permission", "role" ]
       },
       "SeenTask" : {
         "type" : "object",

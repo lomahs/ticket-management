@@ -202,7 +202,20 @@ class AnkenScopeApiTest extends ApiTestSupport {
 
         assertThat(call(get("/api/v1/tickets/" + review.key()).with(as(AN))).json().get("history").toString())
                 .contains("\"from_id\":\"yuki\"");
-        assertThat(ids(call(get("/api/v1/members").with(as(AN))).json())).contains("yuki");
+        JsonNode named = call(get("/api/v1/members").with(as(AN))).json();
+        assertThat(ids(named)).contains("yuki");
+        // Only the people of the scope may be picked (assigned, planned, given leave); yuki is only named.
+        assertThat(entry(named, "yuki").get("people").asBoolean()).isFalse();
+        assertThat(entry(named, "an").get("people").asBoolean()).isTrue();
+    }
+
+    private static JsonNode entry(JsonNode list, String id) {
+        for (JsonNode n : list) {
+            if (n.get("id").asText().equals(id)) {
+                return n;
+            }
+        }
+        throw new AssertionError("no " + id);
     }
 
     @Test

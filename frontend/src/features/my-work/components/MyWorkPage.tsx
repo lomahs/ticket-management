@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
-import { useMe, useMemberMap } from '../../../shared/api/queries';
+import { useMe, useMemberMap, usePickableMembers } from '../../../shared/api/queries';
 import { useAnkenScope } from '../../../shared/state/anken';
 import type { TaskCard } from '../../../shared/api/types';
 import { Icon, Select, type IconName } from '../../../shared/ds';
@@ -23,9 +23,9 @@ export function MyWorkPage() {
   const backlog = search.backlog ?? 'week';
   const { anken } = useAnkenScope();
   const q = useQuery({ ...myWorkQuery(member, backlog, anken), enabled: !!member });
-  const members = useMemberMap();
+  const pickable = usePickableMembers();
   const pick = (id: string) => { navigate({ search: (p) => ({ ...p, member: id }) }); };
-  const opts = Object.values(members).filter((m) => m.role !== 'JM').map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));
+  const opts = pickable.filter((m) => m.role !== 'JM').map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));
   if (!member) opts.unshift({ value: '', label: 'Select a member' });
 
   return (

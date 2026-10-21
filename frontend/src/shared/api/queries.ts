@@ -69,6 +69,15 @@ export function useVisibleAnken(): { key: string; title: string }[] {
   return listable ? cards ?? [] : (me?.anken ?? []).map((key) => ({ key, title: '' }));
 }
 
+/**
+ * The members a screen may pick (view as, give leave): the people of the switcher's anken and the signed-in user. The
+ * others in /members are only named because an issue refers to them; the server rejects them. Names use {@link useMemberMap}.
+ */
+export function usePickableMembers(): Member[] {
+  const me = useMe().data;
+  return (useMembers().data ?? []).filter((m) => m.people || m.id === me?.member_id);
+}
+
 /** Members by id; empty until loaded. */
 export function useMemberMap(): Record<string, Member> {
   const { data } = useMembers();

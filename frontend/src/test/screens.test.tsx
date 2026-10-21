@@ -401,6 +401,31 @@ describe('screens render API data at their URLs', () => {
     await waitFor(() => expect(body).toMatchObject({ member_id: 'an', date_from: '2026-10-07', date_to: '2026-10-07' }));
   });
 
+  describe('member pickers offer only the people of the anken', () => {
+    // yuki is named (an earlier assignee of an issue in scope) but is not one of the people: the server rejects her.
+    const yuki = { ...fixtures.members[0], id: 'yuki', name: 'Yuki', people: false };
+    const withYuki = () => server.use(http.get('*/api/v1/members', () => HttpResponse.json([...fixtures.members, yuki])));
+    const day = (d: string) => ({ date: d, is_today: false, weekend: false });
+
+    it('in My Work', async () => {
+      withYuki();
+      renderApp('/my-work?member=binh');
+      const pick = await screen.findByLabelText('View as') as HTMLSelectElement;
+      await waitFor(() => expect([...pick.options].map((o) => o.value)).toContain('an'));
+      expect([...pick.options].map((o) => o.value)).not.toContain('yuki');
+    });
+
+    it('in the leave dialog', async () => {
+      withYuki();
+      server.use(http.get('*/api/v1/calendar', () => HttpResponse.json({ month: '2026-10', days: [day('2026-10-07')], rows: [] })));
+      renderApp('/calendar/leave/new');
+      const dialog = await screen.findByRole('dialog', { name: 'Add leave' });
+      const pick = within(dialog).getByLabelText('Member') as HTMLSelectElement;
+      await waitFor(() => expect([...pick.options].map((o) => o.value)).toContain('an'));
+      expect([...pick.options].map((o) => o.value)).not.toContain('yuki');
+    });
+  });
+
   describe('calendar without calendar write', () => {
     const cal = (leaveMember: string) => ({
       month: '2026-10',
