@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
-import { useJiraWrite, useMemberMap } from '../../../shared/api/queries';
-import type { Status } from '../../../shared/api/types';
-import { Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
+import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
+import type { Schemas, Status } from '../../../shared/api/types';
+import { Button, Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
-import { days, SCHEDULE_LABEL, STATUS, statusOf, signedH } from '../../../shared/format/labels';
+import { days, SCHEDULE_LABEL, STATUS, signedH } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket, useTicketBack, useTicketKey, type TicketBack } from '../../../shared/state/ticket';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { ticketQuery, usePatchTicket } from '../api';
+import { ticketQuery, useApplyTicket, usePreviewTicket } from '../api';
+import { ReviewDialog } from './ReviewDialog';
 
 /** "Late start · 2 working days"; a missing plan reads "No planned dates". */
 function dateLine(label: string, n: number) {
@@ -23,6 +25,12 @@ const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (v: 
   rounds: { icon: 'refresh-cw', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (v) => `${v} round` },
 };
 
+/** Members to pick, with the current value kept even when it is not a member (a Jira account id). */
+function people(members: Record<string, Schemas['Member']>, current: string) {
+  const opts = Object.values(members).map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }));
+  return current && !members[current] ? [{ value: current, label: current }, ...opts] : current ? opts : [{ value: '', label: '–' }, ...opts];
+}
+
 export function TicketPanel() {
   const key = useTicketKey();
   const open = useOpenTicket();
@@ -33,17 +41,25 @@ export function TicketPanel() {
       position: 'fixed', top: 8, bottom: 8, right: 8, width: 440, maxWidth: 'calc(100vw - 16px)', zIndex: 30, borderRadius: 16, overflow: 'hidden',
       background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-overlay)', display: 'flex', flexDirection: 'column',
     }}>
-      <TicketBody ticketKey={key} back={back} close={back ? back.close : () => open(null)} />
+      <TicketBody key={key} ticketKey={key} back={back} close={back ? back.close : () => open(null)} />
     </aside>
   );
 }
 
+/** The fields the panel edits, as the API names them; values are kept as the inputs hold them. */
+type DraftField = 'status' | 'assignee_id' | 'reporter_id' | 'planned_start' | 'planned_end' | 'estimate_h';
+type Draft = Partial<Record<DraftField, string>>;
+
 function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: TicketBack | null; close: () => void }) {
   const q = useQuery(ticketQuery(ticketKey));
   const members = useMemberMap();
-  const { ok: canWrite, off } = useJiraWrite('ticket');
-  const patch = usePatchTicket(ticketKey);
+  const { ok: canWrite, off } = useAdminJiraWrite();
+  const preview = usePreviewTicket(ticketKey);
+  const apply = useApplyTicket(ticketKey);
   const toast = useToast();
+  // Edits stay here until they are reviewed and applied; nothing reaches Jira before.
+  const [draft, setDraft] = useState<Draft>({});
+  const [review, setReview] = useState<Schemas['TicketChangePreview'] | null>(null);
 
   const header = (phase: string) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: back ? '10px 12px 10px 10px' : '10px 12px 10px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -60,14 +76,47 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const t = q.data;
   const c = t.card;
   const name = (id?: string | null) => (id ? members[id]?.name ?? id : '–');
-  const write = (field: 'status' | 'assignee_id' | 'planned_start' | 'planned_end', label: string, value: string, fmt: (x: string) => string) => {
-    const old = { status: c.status, assignee_id: c.assignee_id, planned_start: c.planned_start, planned_end: c.planned_end }[field] ?? '';
-    if (!value || value === old) return;
-    patch.mutate({ [field]: value }, {
-      onSuccess: () => toast(`Written to Jira · ${c.key} ${label}: ${fmt(old)} → ${fmt(value)}`),
-      onError: (e) => toast(errorMessage(e), true),
-    });
+  const saved: Record<DraftField, string> = {
+    status: c.status, assignee_id: c.assignee_id ?? '', reporter_id: t.reporter_id ?? '', planned_start: c.planned_start ?? '',
+    planned_end: c.planned_end ?? '', estimate_h: String(c.estimate_h),
   };
+  const value = (f: DraftField) => draft[f] ?? saved[f];
+  const edit = (f: DraftField) => (v: string) => setDraft((d) => {
+    const next = { ...d };
+    if (v === saved[f] || v === '') delete next[f];
+    else next[f] = v;
+    return next;
+  });
+  const edited = Object.keys(draft) as DraftField[];
+  const FIELD_LABEL: Record<DraftField, string> = {
+    status: 'Status', assignee_id: 'Assignee', reporter_id: 'Reporter', planned_start: 'Planned Start', planned_end: 'Planned End',
+    estimate_h: 'Original estimate',
+  };
+  const openReview = () => preview.mutate({
+    status: draft.status as Status | undefined, assignee_id: draft.assignee_id, reporter_id: draft.reporter_id,
+    planned_start: draft.planned_start, planned_end: draft.planned_end, estimate_h: draft.estimate_h != null ? Number(draft.estimate_h) : undefined,
+  }, {
+    onSuccess: (r) => {
+      if (r.changes.length) setReview(r);
+      else {
+        setDraft({});
+        toast('Jira already has these values; nothing to apply');
+      }
+    },
+    onError: (e) => toast(errorMessage(e), true),
+  });
+  const applyReview = () => review && apply.mutate(review.changes, {
+    onSuccess: () => {
+      toast(`Written to Jira · ${c.key} · ${review.changes.length} field${review.changes.length === 1 ? '' : 's'}`);
+      setDraft({});
+      setReview(null);
+    },
+    onError: (e) => {
+      // A 409 means Jira changed after the review and nothing was written; the draft stays for a new review.
+      toast(errorMessage(e), true);
+      setReview(null);
+    },
+  });
   const tot = Math.max(c.estimate_h, c.logged_h) || 1;
   const inn = Math.min(c.logged_h, c.estimate_h);
   const ov = Math.max(0, c.logged_h - c.estimate_h);
@@ -75,7 +124,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
     : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f1(sc.plan_to_date_h)}h · actual ${f1(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
-  const disabled = !canWrite || patch.isPending;
+  const disabled = !canWrite || preview.isPending || apply.isPending;
 
   return (
     <>
@@ -105,14 +154,31 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
         </div>
         <div title={offTitle} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Select label="Status" disabled={disabled} options={(Object.keys(STATUS) as Status[]).map((k) => ({ value: k, label: STATUS[k].label }))}
-            value={c.status} onChange={(v) => write('status', 'status', v, (x) => statusOf(x).label)} />
-          <Select label="Assignee" disabled={disabled}
-            options={Object.values(members).map((m) => ({ value: m.id, label: `${m.name}${m.role ? ` (${m.role})` : ''}` }))}
-            value={c.assignee_id ?? ''} onChange={(v) => write('assignee_id', 'assignee', v, name)} />
-          <TextField label="Planned Start" type="date" disabled={disabled} value={c.planned_start ?? ''} onChange={(v) => write('planned_start', 'Planned Start', v, dm)} />
-          <TextField label="Planned End" type="date" disabled={disabled} value={c.planned_end ?? ''} onChange={(v) => write('planned_end', 'Planned End', v, dm)} />
+            value={value('status')} onChange={edit('status')} />
+          <Select label="Assignee" disabled={disabled} options={people(members, saved.assignee_id)}
+            value={value('assignee_id')} onChange={edit('assignee_id')} />
+          <TextField label="Planned Start" type="date" disabled={disabled} value={value('planned_start')} onChange={edit('planned_start')} />
+          <TextField label="Planned End" type="date" disabled={disabled} value={value('planned_end')} onChange={edit('planned_end')} />
+          <Select label="Reporter" disabled={disabled} options={people(members, saved.reporter_id)}
+            value={value('reporter_id')} onChange={edit('reporter_id')} />
+          <TextField label="Original estimate (h)" type="number" disabled={disabled} value={value('estimate_h')} onChange={edit('estimate_h')} />
         </div>
-        {!canWrite && <div className="eyebrow">{off}. Edit this ticket in Jira; it syncs back here.</div>}
+        {!canWrite && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, background: 'var(--surface-hover)', fontSize: 12 }}>
+            <Icon name="lock" size={14} style={{ flex: 'none', marginTop: 1 }} />
+            <span>{off}. Change it in Jira; it syncs back here.</span>
+          </div>
+        )}
+        {edited.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8, background: 'var(--surface-tint)' }}>
+            <span style={{ flex: 1, minWidth: 160, fontSize: 12, fontWeight: 600, color: 'var(--text-heading)' }}>
+              {edited.length} change{edited.length === 1 ? '' : 's'} not sent · {edited.map((f) => FIELD_LABEL[f]).join(', ')}
+            </span>
+            <Button appearance="subtle" size="sm" disabled={preview.isPending} onClick={() => setDraft({})}>Discard</Button>
+            <Button size="sm" iconBefore="eye" disabled={preview.isPending} onClick={openReview}>{preview.isPending ? 'Reading Jira…' : 'Review & apply'}</Button>
+          </div>
+        )}
+        {review && <ReviewDialog review={review} name={name} applying={apply.isPending} apply={applyReview} close={() => setReview(null)} />}
         <div>
           <div className="title" style={{ marginBottom: 8 }}>Schedule</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-body)' }}>

@@ -26,6 +26,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import tracker.adapters.web.auth.Open;
+import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Requires;
 import tracker.application.TaskCard;
 import tracker.application.service.AnkenService.AnkenCard;
@@ -146,10 +148,11 @@ public class AnkenApi {
         return anken.previewFunction(epicScope(viewer, epic), epic, draft(body));
     }
 
-    @Requires(feature = Feature.MATRIX, level = Level.WRITE)
+    /** Writes five sub-tasks to Jira: admins only. */
+    @Open(Rule.ADMIN)
     @PostMapping("/{epic}/functions")
     @ResponseStatus(HttpStatus.CREATED)
     public KeysOut createFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionCreateIn body, Viewer viewer) {
-        return new KeysOut(anken.createFunction(epicScope(viewer, epic), epic, draft(body.draft()), body.functionId()));
+        return new KeysOut(anken.createFunction(viewer, epicScope(viewer, epic), epic, draft(body.draft()), body.functionId()));
     }
 }

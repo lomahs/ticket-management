@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,16 +15,23 @@ import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
-import tracker.application.AppError.CapabilityDisabled;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import tracker.application.AppError.Conflict;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
+import tracker.application.JiraCalls;
+import tracker.application.JiraRequests;
 import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
-import tracker.application.dto.NewSubtask;
-import tracker.application.ports.JiraWriter;
+import tracker.application.dto.JiraIssueType;
+import tracker.application.dto.JiraRequest;
+import tracker.application.dto.JiraResponse;
+import tracker.application.ports.JiraError;
+import tracker.application.ports.JiraReader;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.DateReason;
@@ -50,18 +56,21 @@ import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
+import tracker.domain.Viewer;
 import tracker.domain.WorkStructure;
 
 /** Anken (tracked epics): overview cards, detail with attention groups, the function matrix, and new functions. */
 @Service
 public class AnkenService {
     private final TrackerContextLoader context;
-    private final Optional<JiraWriter> writer;
+    private final JiraCalls calls;
+    private final JiraReader reader;
     private final SyncService sync;
 
-    public AnkenService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync) {
+    public AnkenService(TrackerContextLoader context, JiraCalls calls, JiraReader reader, SyncService sync) {
         this.context = context;
-        this.writer = writer;
+        this.calls = calls;
+        this.reader = reader;
         this.sync = sync;
     }
 
@@ -546,9 +555,12 @@ public class AnkenService {
         return plan(ctx, epic, draft, null);
     }
 
-    /** Creates the five step sub-tasks in Jira and reads them back; the rules of {@link #previewFunction} apply. */
-    public List<String> createFunction(AnkenScope scope, String epic, FunctionDraft draft, @Nullable String functionId) {
-        JiraWriter jira = writer.orElseThrow(() -> new CapabilityDisabled("Writing to Jira is not available yet"));
+    /**
+     * Creates the five step sub-tasks in Jira, one logged request each, and reads them back; the rules of
+     * {@link #previewFunction} apply.
+     */
+    public List<String> createFunction(Viewer actor, AnkenScope scope, String epic, FunctionDraft draft, @Nullable String functionId) {
+        calls.requireEnabled();
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         if (draft.name().strip().isEmpty()) {
@@ -564,16 +576,38 @@ public class AnkenService {
             throw new Conflict("Function " + name + " already exists in " + draft.parentKey(), "name");
         }
         FunctionPreview p = plan(ctx, epic, draft, functionId);
-        List<NewSubtask> subs = new ArrayList<>();
+        String project = draft.parentKey().split("-", -1)[0];
         for (PreviewStep s : p.steps()) {
-            String acc = ctx.members.get(s.assigneeId()).jiraAccountId();
-            if (!Text.hasText(acc)) {
+            if (!Text.hasText(ctx.members.get(s.assigneeId()).jiraAccountId())) {
                 throw new Invalid(ctx.members.get(s.assigneeId()).name() + " has no Jira account", "assignee");
             }
-            subs.add(new NewSubtask(s.summary(), acc, s.start(), s.end(), s.estimateH()));
         }
-        List<String> keys = jira.createSubtasks(draft.parentKey(), subs);
-        sync.refresh(keys);
+        String type = reader.issueTypes(project).stream().filter(JiraIssueType::subtask).map(JiraIssueType::id).findFirst()
+                .orElseThrow(() -> new Invalid("Project " + project + " has no sub-task issue type", "parent"));
+        List<String> keys = new ArrayList<>();
+        try {
+            for (PreviewStep s : p.steps()) {
+                String acc = ctx.members.get(s.assigneeId()).jiraAccountId();
+                JiraRequest r = JiraRequests.createSubtask(project, type, draft.parentKey(), s.summary(), acc, s.start(), s.end(), s.estimateH(),
+                        ctx.settings.fieldMapping);
+                keys.add(createdKey(calls.send(actor, JiraCalls.ADD_FUNCTION, draft.parentKey(), r)));
+            }
+        } finally {
+            if (!keys.isEmpty()) {
+                sync.refresh(keys);
+            }
+        }
         return keys;
+    }
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** The key in Jira's answer to a create. */
+    private static String createdKey(JiraResponse r) {
+        try {
+            return JSON.readTree(r.body()).path("key").asText();
+        } catch (JsonProcessingException e) {
+            throw new JiraError("Jira returned invalid JSON for a created issue: " + e.getMessage(), e);
+        }
     }
 }

@@ -1,8 +1,12 @@
 package tracker.adapters.web;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
@@ -19,13 +23,16 @@ import tracker.adapters.web.auth.Requires;
 import tracker.application.service.AnkenService.FunctionSteps;
 import tracker.application.service.AnkenService;
 import tracker.application.service.ScopeService;
+import tracker.application.service.TicketService.TicketChangePreview;
+import tracker.application.service.TicketService.ExpectedChange;
+import tracker.application.service.TicketService.TicketChanges;
 import tracker.application.service.TicketService.TicketDetail;
-import tracker.application.service.TicketService.TicketPatch;
 import tracker.application.service.TicketService;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.Qa;
 import tracker.domain.Status;
+import tracker.domain.TicketField;
 import tracker.domain.Viewer;
 
 @RestController
@@ -41,10 +48,19 @@ public class TicketsApi {
         this.scopes = scopes;
     }
 
-    /** Fields left out (or null) are not changed. */
-    public record TicketPatchIn(@Nullable Status status, @Nullable String assigneeId,
-                                @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
-                                @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd) {
+    /** The wanted values; fields left out (or null) are not changed. */
+    public record TicketChangesIn(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
+                                  @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
+                                  @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
+                                  @Nullable @PositiveOrZero Double estimateH) {
+    }
+
+    /** One change as the review showed it. */
+    public record ChangeIn(@NotNull TicketField field, @Nullable String before, @NotNull String after) {
+    }
+
+    /** The changes of a review, sent back unchanged. */
+    public record ApplyIn(@NotEmpty @Size(max = 6) List<@Valid ChangeIn> changes) {
     }
 
     public record QuestionIn(@NotNull @Size(min = 1, max = 500) String q) {
@@ -63,11 +79,20 @@ public class TicketsApi {
         return anken.functionOf(scopes.scope(viewer, null), key);
     }
 
+    /** Reads the ticket from Jira and shows what would change and the requests that would be sent. Ticket write: admins. */
+    @Requires(feature = Feature.TICKET, level = Level.WRITE)
+    @PostMapping("/tickets/{key}/changes/preview")
+    public TicketChangePreview previewChanges(@PathVariable("key") String key, @RequestBody @Valid TicketChangesIn body, Viewer viewer) {
+        return tickets.preview(scopes.scope(viewer, null), key, new TicketChanges(body.status(), body.assigneeId(), body.reporterId(),
+                body.plannedStart(), body.plannedEnd(), body.estimateH()));
+    }
+
+    /** Applies a review's changes; 409 when Jira changed since the review (nothing is written). Ticket write: admins. */
     @Requires(feature = Feature.TICKET, level = Level.WRITE)
     @PatchMapping("/tickets/{key}")
-    public TicketDetail patch(@PathVariable("key") String key, @RequestBody @Valid TicketPatchIn body, Viewer viewer) {
-        return tickets.patch(scopes.scope(viewer, null), key,
-                new TicketPatch(body.status(), body.assigneeId(), body.plannedStart(), body.plannedEnd()));
+    public TicketDetail apply(@PathVariable("key") String key, @RequestBody @Valid ApplyIn body, Viewer viewer) {
+        return tickets.apply(viewer, scopes.scope(viewer, null), key,
+                body.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList());
     }
 
     @Requires(feature = Feature.QA, level = Level.READ)

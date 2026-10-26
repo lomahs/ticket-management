@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import tracker.adapters.jira.JiraCloudReader;
+import tracker.adapters.jira.JiraCloudWriter;
 import tracker.adapters.jira.JiraConfig;
 import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.SecretBox;
@@ -18,8 +19,8 @@ import tracker.application.settings.TrackerSettings;
 import tracker.domain.Text;
 
 /**
- * Without the {@code demo} profile: the team's Jira Cloud site, configured in Settings → Jira. Phase 1 only reads Jira
- * (there is no JiraWriter bean, so the UI disables Jira edits). The periodic sync runs on the interval set there.
+ * Without the {@code demo} profile: the team's Jira Cloud site, configured in Settings → Jira. Admins write to it through
+ * reviewed changes; the periodic sync runs on the interval set there.
  */
 @Configuration(proxyBeanMethods = false)
 @Profile("!demo")
@@ -32,15 +33,22 @@ public class JiraSiteConfig {
     }
 
     /** Reads the connection from the settings on every call, so saved changes apply at once. */
+    private static JiraConfig connection(SettingsRepository settings, SecretBox secrets) {
+        TrackerSettings s = settings.load();
+        TrackerSettings.FieldMapping fm = s.fieldMapping;
+        List<String> fields = Stream.of(fm.plannedStart, fm.plannedEnd, fm.effort, fm.remaining).filter(Text::hasText).distinct().toList();
+        String token = Text.hasText(s.jira.tokenEncrypted) ? secrets.decrypt(s.jira.tokenEncrypted) : "";
+        return new JiraConfig(s.jira.url, s.jira.email, token, fields);
+    }
+
     @Bean
     public JiraCloudReader jiraReader(SettingsRepository settings, SecretBox secrets) {
-        return new JiraCloudReader(() -> {
-            TrackerSettings s = settings.load();
-            TrackerSettings.FieldMapping fm = s.fieldMapping;
-            List<String> fields = Stream.of(fm.plannedStart, fm.plannedEnd, fm.effort, fm.remaining).filter(Text::hasText).distinct().toList();
-            String token = Text.hasText(s.jira.tokenEncrypted) ? secrets.decrypt(s.jira.tokenEncrypted) : "";
-            return new JiraConfig(s.jira.url, s.jira.email, token, fields);
-        });
+        return new JiraCloudReader(() -> connection(settings, secrets));
+    }
+
+    @Bean
+    public JiraCloudWriter jiraWriter(SettingsRepository settings, SecretBox secrets) {
+        return new JiraCloudWriter(() -> connection(settings, secrets));
     }
 
     @Bean

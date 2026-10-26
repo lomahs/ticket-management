@@ -99,6 +99,47 @@
         "tags" : [ "admin-api" ]
       }
     },
+    "/api/v1/admin/jira-log" : {
+      "get" : {
+        "operationId" : "jiraLog",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "failed",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 200,
+            "maximum" : 1000,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/JiraLogEntry"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-api" ]
+      }
+    },
     "/api/v1/admin/members/merge" : {
       "post" : {
         "operationId" : "merge",
@@ -2316,7 +2357,7 @@
         "tags" : [ "tickets-api" ]
       },
       "patch" : {
-        "operationId" : "patch",
+        "operationId" : "apply",
         "parameters" : [ {
           "in" : "path",
           "name" : "key",
@@ -2329,7 +2370,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/TicketPatchIn"
+                "$ref" : "#/components/schemas/ApplyIn"
               }
             }
           },
@@ -2341,6 +2382,42 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TicketDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tickets-api" ]
+      }
+    },
+    "/api/v1/tickets/{key}/changes/preview" : {
+      "post" : {
+        "operationId" : "previewChanges",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TicketChangesIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TicketChangePreview"
                 }
               }
             },
@@ -2729,6 +2806,20 @@
         },
         "required" : [ "expects", "field_id", "key", "label", "mappable", "types", "used_for" ]
       },
+      "ApplyIn" : {
+        "type" : "object",
+        "properties" : {
+          "changes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChangeIn"
+            },
+            "maxItems" : 6,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "changes" ]
+      },
       "ApproveIn" : {
         "type" : "object",
         "properties" : {
@@ -2996,9 +3087,28 @@
         "properties" : {
           "jira_write" : {
             "type" : "boolean"
+          },
+          "planning_push" : {
+            "type" : "boolean"
           }
         },
-        "required" : [ "jira_write" ]
+        "required" : [ "jira_write", "planning_push" ]
+      },
+      "ChangeIn" : {
+        "type" : "object",
+        "properties" : {
+          "after" : {
+            "type" : "string"
+          },
+          "before" : {
+            "type" : [ "string", "null" ]
+          },
+          "field" : {
+            "type" : "string",
+            "enum" : [ "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+          }
+        },
+        "required" : [ "after", "field" ]
       },
       "ChangePreview" : {
         "type" : "object",
@@ -3613,6 +3723,25 @@
         },
         "required" : [ "date" ]
       },
+      "FieldChange" : {
+        "type" : "object",
+        "properties" : {
+          "after" : {
+            "type" : "string"
+          },
+          "before" : {
+            "type" : [ "string", "null" ]
+          },
+          "field" : {
+            "type" : "string",
+            "enum" : [ "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+          },
+          "jira_field" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "after", "before", "field", "jira_field" ]
+      },
       "FieldCheck" : {
         "type" : "object",
         "properties" : {
@@ -4117,6 +4246,66 @@
           }
         },
         "required" : [ "email", "interval", "url" ]
+      },
+      "JiraLogEntry" : {
+        "type" : "object",
+        "properties" : {
+          "actor_email" : {
+            "type" : "string"
+          },
+          "actor_name" : {
+            "type" : "string"
+          },
+          "at" : {
+            "type" : "string"
+          },
+          "body" : {
+            "type" : [ "string", "null" ]
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "error" : {
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "path" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "actor_email", "actor_name", "at", "body", "duration_ms", "error", "id", "key", "method", "path", "source", "status" ]
+      },
+      "JiraRequest" : {
+        "type" : "object",
+        "properties" : {
+          "body" : {
+            "type" : [ "string", "null" ]
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "path" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "body", "method", "path" ]
       },
       "JiraSettingsView" : {
         "type" : "object",
@@ -5444,6 +5633,66 @@
         },
         "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
+      "TicketChangePreview" : {
+        "type" : "object",
+        "properties" : {
+          "changes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FieldChange"
+            }
+          },
+          "estimate_tracking" : {
+            "type" : "boolean"
+          },
+          "jira_status" : {
+            "type" : [ "string", "null" ]
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "requests" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JiraRequest"
+            }
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "transition" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "changes", "estimate_tracking", "jira_status", "key", "requests", "summary", "transition" ]
+      },
+      "TicketChangesIn" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "estimate_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "N", "W", "R", "C" ]
+          }
+        }
+      },
       "TicketCheckView" : {
         "type" : "object",
         "properties" : {
@@ -5484,6 +5733,9 @@
           "owner_id" : {
             "type" : [ "string", "null" ]
           },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
           "warnings" : {
             "type" : "array",
             "items" : {
@@ -5497,27 +5749,7 @@
             }
           }
         },
-        "required" : [ "card", "history", "jira_url", "owner_id", "warnings", "worklogs" ]
-      },
-      "TicketPatchIn" : {
-        "type" : "object",
-        "properties" : {
-          "assignee_id" : {
-            "type" : [ "string", "null" ]
-          },
-          "planned_end" : {
-            "type" : [ "string", "null" ],
-            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
-          },
-          "planned_start" : {
-            "type" : [ "string", "null" ],
-            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
-          },
-          "status" : {
-            "type" : [ "string", "null" ],
-            "enum" : [ "N", "W", "R", "C" ]
-          }
-        }
+        "required" : [ "card", "history", "jira_url", "owner_id", "reporter_id", "warnings", "worklogs" ]
       },
       "TicketWarning" : {
         "type" : "object",

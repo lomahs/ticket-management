@@ -2,8 +2,11 @@ import { useId, useState, type ChangeEvent, type CSSProperties } from 'react';
 import { Icon } from './Icon';
 import { FieldLabel } from './TextField';
 
-/** @param group options with a group are listed under it, after the ungrouped ones, in the order groups first appear */
-export interface Option { value: string; label: string; group?: string }
+/**
+ * @param group    options with a group are listed under it, after the ungrouped ones, in the order groups first appear
+ * @param disabled shown but not selectable
+ */
+export interface Option { value: string; label: string; group?: string; disabled?: boolean }
 
 export interface SelectProps {
   label?: string;
@@ -47,10 +50,10 @@ export function Select({ label, options, value, onChange, disabled = false, id, 
             cursor: disabled ? 'not-allowed' : 'pointer',
           }}
         >
-          {options.filter((o) => !o.group).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {options.filter((o) => !o.group).map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
           {[...new Set(options.flatMap((o) => (o.group ? [o.group] : [])))].map((g) => (
             <optgroup key={g} label={g}>
-              {options.filter((o) => o.group === g).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {options.filter((o) => o.group === g).map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
             </optgroup>
           ))}
         </select>

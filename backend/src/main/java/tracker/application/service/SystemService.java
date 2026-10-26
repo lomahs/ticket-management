@@ -11,11 +11,11 @@ import java.util.TreeSet;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
+import tracker.application.JiraCalls;
 import tracker.application.SyncService;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.AnkenRepository;
-import tracker.application.ports.JiraWriter;
 import tracker.application.ports.SyncRunRepository.SyncRun;
 import tracker.application.ports.SyncRunRepository;
 import tracker.domain.Anken;
@@ -31,11 +31,18 @@ import tracker.domain.Role;
 @Service
 public class SystemService {
 
-    /** demo: a simulated Jira site with writes; jira: the team's site, read-only in phase 1. */
+    /** demo: a simulated Jira site; jira: the team's site, which admins write to through reviewed changes. */
     public record Mode(String name) {
+        public boolean demo() {
+            return "demo".equals(name);
+        }
     }
 
-    public record Capabilities(boolean jiraWrite) {
+    /**
+     * @param jiraWrite    admins can change tickets in Jira (reviewed and logged)
+     * @param planningPush Planning can push its moves to Jira (the demo site only, for now)
+     */
+    public record Capabilities(boolean jiraWrite, boolean planningPush) {
     }
 
     /** @param status running | ok | failed | null (never synced) */
@@ -60,16 +67,16 @@ public class SystemService {
     }
 
     private final Mode mode;
-    private final Optional<JiraWriter> writer;
+    private final JiraCalls calls;
     private final AnkenRepository anken;
     private final SyncRunRepository runs;
     private final SyncService sync;
     private final TrackerContextLoader context;
 
-    public SystemService(Mode mode, Optional<JiraWriter> writer, AnkenRepository anken, SyncRunRepository runs, SyncService sync,
+    public SystemService(Mode mode, JiraCalls calls, AnkenRepository anken, SyncRunRepository runs, SyncService sync,
                          TrackerContextLoader context) {
         this.mode = mode;
-        this.writer = writer;
+        this.calls = calls;
         this.anken = anken;
         this.runs = runs;
         this.sync = sync;
@@ -87,7 +94,7 @@ public class SystemService {
     public Meta meta(AnkenScope scope) {
         List<String> projects = List.copyOf(new TreeSet<>(anken.findAll().stream().filter(a -> scope.contains(a.key()))
                 .map(Anken::project).toList()));
-        return new Meta(mode.name(), context.today(), new Capabilities(writer.isPresent()), syncStatus(), projects);
+        return new Meta(mode.name(), context.today(), new Capabilities(calls.enabled(), calls.enabled() && mode.demo()), syncStatus(), projects);
     }
 
     /**

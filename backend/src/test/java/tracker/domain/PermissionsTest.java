@@ -9,9 +9,16 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class PermissionsTest {
-    @Test void pmAndPimWriteEverything() {
+    @Test void pmAndPimWriteEverythingButTickets() {
         for (Role r : List.of(Role.PM, Role.PIM))
-            assertThat(Permissions.defaults(r)).allSatisfy((f, l) -> assertThat(l).isEqualTo(Level.WRITE));
+            assertThat(Permissions.defaults(r)).allSatisfy((f, l) -> assertThat(l).isEqualTo(f == Feature.TICKET ? Level.READ : Level.WRITE));
+    }
+    /** Editing a ticket writes to Jira: only admins do it, whatever the role or an override says. */
+    @Test void ticketIsReadAtMostForNonAdmins() {
+        assertThat(Permissions.effective(Role.PIM, Map.of(Feature.TICKET, Level.WRITE)).get(Feature.TICKET)).isEqualTo(Level.READ);
+        assertThat(Permissions.effective(Role.BA, Map.of(Feature.TICKET, Level.NONE)).get(Feature.TICKET)).isEqualTo(Level.NONE);
+        Viewer admin = new Viewer("m@x", "M", null, null, true, AccessStatus.ACTIVE, Permissions.defaults(Role.BA));
+        assertThat(admin.can(Feature.TICKET, Level.WRITE)).isTrue();
     }
     @Test void baBalAndNoRoleReadEverythingButMembers() {
         for (Role r : Arrays.asList(Role.BA, Role.BAL, null)) {

@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jira-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["jiraLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/members/merge": {
         parameters: {
             query?: never;
@@ -1057,7 +1073,23 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["patch"];
+        patch: operations["apply"];
+        trace?: never;
+    };
+    "/api/v1/tickets/{key}/changes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewChanges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tickets/{key}/function": {
@@ -1192,6 +1224,9 @@ export interface components {
             types: string[];
             used_for: string;
         };
+        ApplyIn: {
+            changes: components["schemas"]["ChangeIn"][];
+        };
         ApproveIn: {
             member_id?: string | null;
             name?: string | null;
@@ -1277,6 +1312,13 @@ export interface components {
         };
         Capabilities: {
             jira_write: boolean;
+            planning_push: boolean;
+        };
+        ChangeIn: {
+            after: string;
+            before?: string | null;
+            /** @enum {string} */
+            field: "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
         };
         ChangePreview: {
             day_off: components["schemas"]["DateReason"][];
@@ -1483,6 +1525,13 @@ export interface components {
             date: string;
             note?: string | null;
         };
+        FieldChange: {
+            after: string;
+            before: string | null;
+            /** @enum {string} */
+            field: "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
+            jira_field: string;
+        };
         FieldCheck: {
             field_id: string;
             status: string;
@@ -1640,6 +1689,28 @@ export interface components {
             interval: "5" | "15" | "60" | "manual";
             token?: string | null;
             url: string;
+        };
+        JiraLogEntry: {
+            actor_email: string;
+            actor_name: string;
+            at: string;
+            body: string | null;
+            /** Format: int64 */
+            duration_ms: number;
+            error: string | null;
+            /** Format: int32 */
+            id: number;
+            key: string;
+            method: string;
+            path: string;
+            source: string;
+            /** Format: int32 */
+            status: number;
+        };
+        JiraRequest: {
+            body: string | null;
+            method: string;
+            path: string;
         };
         JiraSettingsView: {
             email: string;
@@ -2098,6 +2169,25 @@ export interface components {
             /** Format: double */
             soon_days: number;
         };
+        TicketChangePreview: {
+            changes: components["schemas"]["FieldChange"][];
+            estimate_tracking: boolean;
+            jira_status: string | null;
+            key: string;
+            requests: components["schemas"]["JiraRequest"][];
+            summary: string;
+            transition: string | null;
+        };
+        TicketChangesIn: {
+            assignee_id?: string | null;
+            /** Format: double */
+            estimate_h?: number | null;
+            planned_end?: string | null;
+            planned_start?: string | null;
+            reporter_id?: string | null;
+            /** @enum {string|null} */
+            status?: "N" | "W" | "R" | "C" | null;
+        };
         TicketCheckView: {
             /** Format: int32 */
             checked: number;
@@ -2109,15 +2199,9 @@ export interface components {
             history: components["schemas"]["Handover"][];
             jira_url: string | null;
             owner_id: string | null;
+            reporter_id: string | null;
             warnings: components["schemas"]["TicketWarning"][];
             worklogs: components["schemas"]["Worklog"][];
-        };
-        TicketPatchIn: {
-            assignee_id?: string | null;
-            planned_end?: string | null;
-            planned_start?: string | null;
-            /** @enum {string|null} */
-            status?: "N" | "W" | "R" | "C" | null;
         };
         TicketWarning: {
             kind: string;
@@ -2296,6 +2380,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccessRequest"];
+                };
+            };
+        };
+    };
+    jiraLog: {
+        parameters: {
+            query?: {
+                failed?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraLogEntry"][];
                 };
             };
         };
@@ -4069,7 +4176,7 @@ export interface operations {
             };
         };
     };
-    patch: {
+    apply: {
         parameters: {
             query?: never;
             header?: never;
@@ -4080,7 +4187,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TicketPatchIn"];
+                "application/json": components["schemas"]["ApplyIn"];
             };
         };
         responses: {
@@ -4091,6 +4198,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketDetail"];
+                };
+            };
+        };
+    };
+    previewChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketChangesIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketChangePreview"];
                 };
             };
         };

@@ -16,6 +16,8 @@ const FEATURES: [Feature, string][] = [
   ['effort', 'Effort'], ['qa', 'Q&A'], ['calendar', 'Calendar'], ['members', 'Members'],
 ];
 const LEVELS = [{ value: 'none', label: 'None' }, { value: 'read', label: 'Read' }, { value: 'write', label: 'Write' }];
+/** Editing a ticket writes to Jira, which only admins do: Write is shown but cannot be picked. */
+const TICKET_LEVELS = [{ value: 'none', label: 'None' }, { value: 'read', label: 'Read' }, { value: 'write', label: 'Write · admins only', disabled: true }];
 const ROLES = [...['PM', 'PIM', 'BAL', 'BA', 'JM'].map((r) => ({ value: r, label: r })), { value: '', label: 'No role' }];
 const ACCESS = [{ value: 'active', label: 'Active' }, { value: 'disabled', label: 'Disabled' }];
 const COUNTRIES = [{ value: 'VN', label: 'Vietnam' }, { value: 'JP', label: 'Japan' }];
@@ -89,7 +91,8 @@ function UserLine({ u, users, update }: { u: Schemas['UserRow']; users: Schemas[
         const over = u.overrides[f] !== undefined;
         return (
           <span key={f} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Select aria-label={aria} value={u.effective[f] ?? 'none'} options={LEVELS} style={{ flex: 1, minWidth: 0 }}
+            <Select aria-label={aria} value={u.effective[f] ?? 'none'} options={f === 'ticket' ? TICKET_LEVELS : LEVELS} style={{ flex: 1, minWidth: 0 }}
+              title={f === 'ticket' ? 'Only admins write tickets to Jira' : undefined}
               onChange={(v) => update(id, { overrides: { [f]: v as 'read' } })} />
             {over && (
               <>

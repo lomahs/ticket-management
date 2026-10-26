@@ -36,6 +36,7 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import tracker.application.AppError;
 import tracker.application.ports.JiraAuthError;
 import tracker.application.ports.JiraError;
+import tracker.application.ports.JiraRejected;
 
 /**
  * Errors as RFC 9457 problem details. Besides the standard members every problem has {@code code} (a stable name the UI
@@ -94,6 +95,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(JiraAuthError.class)
     ResponseEntity<ProblemDetail> jiraAuth(JiraAuthError e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problem(HttpStatus.BAD_GATEWAY, "jira_auth", e.getMessage(), List.of()));
+    }
+
+    /** Jira refused a write: the request does not suit the site (a field not on the screen, a workflow rule…). */
+    @ExceptionHandler(JiraRejected.class)
+    ResponseEntity<ProblemDetail> jiraRejected(JiraRejected e) {
+        return ResponseEntity.unprocessableEntity()
+                .body(problem(HttpStatus.UNPROCESSABLE_ENTITY, "jira_rejected", e.getMessage(), List.of()));
     }
 
     @ExceptionHandler(JiraError.class)

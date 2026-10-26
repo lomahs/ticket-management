@@ -31,6 +31,8 @@ import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
+import tracker.application.dto.JiraIssueType;
+import tracker.application.dto.JiraTransition;
 import tracker.application.dto.UserSnapshot;
 import tracker.application.dto.WorklogSnapshot;
 import tracker.application.ports.JiraAuthError;
@@ -269,6 +271,36 @@ public final class JiraCloudReader implements JiraReader {
             for (JsonNode f : data) {
                 String id = f.path("id").asText();
                 out.add(new JiraField(id, text(f, "name", id), text(obj(f.get("schema")), "type", "")));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public List<JiraTransition> transitions(String key) {
+        Client client = client();
+        JsonNode data = call(client, "GET", "/rest/api/3/issue/" + key + "/transitions", Map.of(), null);
+        List<JiraTransition> out = new ArrayList<>();
+        if (data != null) {
+            for (JsonNode t : data.path("transitions")) {
+                JsonNode to = obj(t.get("to"));
+                out.add(new JiraTransition(t.path("id").asText(), text(t, "name", ""), text(to, "name", ""),
+                        text(obj(to.get("statusCategory")), "key", "")));
+            }
+        }
+        return out;
+    }
+
+    /** The project's create metadata; Jira has named the list both {@code issueTypes} and {@code values}. */
+    @Override
+    public List<JiraIssueType> issueTypes(String project) {
+        Client client = client();
+        JsonNode data = call(client, "GET", "/rest/api/3/issue/createmeta/" + project + "/issuetypes", Map.of("maxResults", 200), null);
+        List<JiraIssueType> out = new ArrayList<>();
+        if (data != null) {
+            JsonNode list = data.has("issueTypes") ? data.get("issueTypes") : data.path("values");
+            for (JsonNode t : list) {
+                out.add(new JiraIssueType(t.path("id").asText(), text(t, "name", ""), t.path("subtask").asBoolean(false)));
             }
         }
         return out;

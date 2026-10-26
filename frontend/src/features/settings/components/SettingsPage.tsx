@@ -3,13 +3,14 @@ import type { ComponentType } from 'react';
 import { isSettingsTab, SETTINGS_TABS, type SettingsTab } from '../search';
 import { AlertsTab, ExtraDaysTab, HolidaysTab, HoursTab } from './CalendarTabs';
 import { FieldMappingTab, StatusMappingTab } from './MappingTabs';
+import { JiraLogTab } from './JiraLogTab';
 import { JiraTab } from './JiraTab';
 import { NameRulesTab } from './NameRulesTab';
 import { StructureTab } from './StructureTab';
 
 const PANELS: Record<SettingsTab, ComponentType> = {
   jira: JiraTab, 'field-mapping': FieldMappingTab, 'status-mapping': StatusMappingTab, structure: StructureTab, 'name-rules': NameRulesTab,
-  holidays: HolidaysTab, hours: HoursTab, 'extra-days': ExtraDaysTab, alerts: AlertsTab,
+  holidays: HolidaysTab, hours: HoursTab, 'extra-days': ExtraDaysTab, alerts: AlertsTab, 'jira-log': JiraLogTab,
 };
 
 export function SettingsPage() {

@@ -342,7 +342,8 @@ class AnkenScopeApiTest extends ApiTestSupport {
 
     @Test
     void cannotAssignANonMember() throws Exception {
-        JsonNode e = problem(call(json(patch("/api/v1/tickets/" + PAY_1100_SUBTASK), Map.of("assignee_id", OUTSIDER))), 422, "invalid");
+        JsonNode e = problem(call(json(post("/api/v1/tickets/" + PAY_1100_SUBTASK + "/changes/preview"), Map.of("assignee_id", OUTSIDER))), 422,
+                "invalid");
         assertThat(e.get("errors").get(0).get("field").asText()).isEqualTo("assignee_id");
         assertThat(e.get("detail").asText()).isEqualTo("Zoe is not a member of " + titleOf("PAY-1100"));
     }
@@ -362,7 +363,9 @@ class AnkenScopeApiTest extends ApiTestSupport {
     @Test
     void writesToAHiddenTicketAre404() throws Exception {
         pimOfPay1100Only();
-        problem(call(json(patch("/api/v1/tickets/" + PAY_1300_SUBTASK), Map.of("status", "R")).with(as(PIM))), 404, "not_found");
+        // ticket edits write to Jira, which only admins do (and admins see every anken)
+        problem(call(json(post("/api/v1/tickets/" + PAY_1300_SUBTASK + "/changes/preview"), Map.of("status", "R")).with(as(PIM))), 403,
+                "forbidden");
         problem(call(json(post("/api/v1/planning/preview"), Map.of("start", "2026-10-05",
                 "changes", List.of(Map.of("key", PAY_1300_SUBTASK, "start", "2026-10-11", "member_id", "chi")))).with(as(PIM))),
                 404, "not_found");

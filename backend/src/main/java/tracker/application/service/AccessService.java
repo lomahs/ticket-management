@@ -317,6 +317,9 @@ public class AccessService {
         if (p.access() != null && p.access() != AccessStatus.ACTIVE && p.access() != AccessStatus.DISABLED) {
             throw new Invalid("Access can only be set to active or disabled", "access");
         }
+        if (p.overrides().get(Feature.TICKET) == Level.WRITE) {
+            throw new Invalid("Only admins write tickets to Jira", "overrides");
+        }
         if (p.anken() != null) {
             Set<String> tracked = new HashSet<>(settings.load().jira.epics);
             for (String epic : p.anken()) {

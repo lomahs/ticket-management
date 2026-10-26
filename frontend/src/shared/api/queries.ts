@@ -84,18 +84,27 @@ export function useMemberMap(): Record<string, Member> {
   return Object.fromEntries((data ?? []).map((m) => [m.id, m]));
 }
 
-/** Whether the backend can write to Jira (phase 1 Jira mode cannot). */
-export function useCapability(name: 'jiraWrite'): boolean {
+/** Whether the backend can write to Jira at all, and whether Planning may push to it (the demo site only, for now). */
+export function useCapability(name: 'jiraWrite' | 'planningPush'): boolean {
   const { data } = useMeta();
-  return name === 'jiraWrite' ? !!data?.capabilities.jira_write : false;
+  return name === 'jiraWrite' ? !!data?.capabilities.jira_write : !!data?.capabilities.planning_push;
 }
 
-export const JIRA_WRITE_OFF = 'Updating Jira arrives in phase 2';
+export const JIRA_WRITE_OFF = 'Writing to Jira is not available';
+export const PLANNING_PUSH_OFF = 'Pushing a plan to Jira is not available yet';
 export const VIEW_ONLY = 'You have view-only access';
+export const ADMIN_ONLY = 'Only admins update Jira';
 
 /** A control that writes to Jira is on only when Jira can be written AND the user has write on `feature`; `off` says why it is not (permission first). */
-export function useJiraWrite(feature: Feature): { ok: boolean; off: string | undefined } {
-  const jira = useCapability('jiraWrite');
+export function useJiraWrite(feature: Feature, capability: 'jiraWrite' | 'planningPush' = 'jiraWrite'): { ok: boolean; off: string | undefined } {
+  const jira = useCapability(capability);
   const perm = useCan(feature, 'write');
-  return { ok: jira && perm, off: !perm ? VIEW_ONLY : !jira ? JIRA_WRITE_OFF : undefined };
+  return { ok: jira && perm, off: !perm ? VIEW_ONLY : !jira ? (capability === 'planningPush' ? PLANNING_PUSH_OFF : JIRA_WRITE_OFF) : undefined };
+}
+
+/** Changing tickets in Jira (ticket panel, new functions): admins only. */
+export function useAdminJiraWrite(): { ok: boolean; off: string | undefined } {
+  const jira = useCapability('jiraWrite');
+  const admin = !!useMe().data?.admin;
+  return { ok: jira && admin, off: !admin ? ADMIN_ONLY : !jira ? JIRA_WRITE_OFF : undefined };
 }

@@ -5,6 +5,8 @@ import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import tracker.adapters.web.auth.Open;
 import tracker.adapters.web.auth.Open.Rule;
+import tracker.application.ports.JiraWriteLog;
 import tracker.application.service.AccessService;
 import tracker.application.service.AccessService.Approval;
 import tracker.application.service.AccessService.UserPatch;
@@ -34,14 +37,17 @@ import tracker.domain.RequestStatus;
 import tracker.domain.Role;
 import tracker.domain.Viewer;
 
-/** Users, permission overrides and access requests. Admins only. */
+/** Users, permission overrides, access requests and the Jira write log. Admins only. */
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminApi {
     private final AccessService access;
 
-    public AdminApi(AccessService access) {
+    private final JiraWriteLog jiraLog;
+
+    public AdminApi(AccessService access, JiraWriteLog jiraLog) {
         this.access = access;
+        this.jiraLog = jiraLog;
     }
 
     public record UserPatchIn(@Nullable String name, @Nullable @Email String email, @Nullable Role role,
@@ -86,6 +92,14 @@ public class AdminApi {
     @PostMapping("/access-requests/{id}/reject")
     public AccessRequest reject(Viewer actor, @PathVariable int id) {
         return access.reject(actor, id);
+    }
+
+    /** Requests the app sent to change Jira, newest first; {@code failed}: only those Jira refused or that were not sent. */
+    @Open(Rule.ADMIN)
+    @GetMapping("/jira-log")
+    public List<JiraWriteLog.JiraLogEntry> jiraLog(@RequestParam(defaultValue = "false") boolean failed,
+                                           @RequestParam(defaultValue = "200") @Min(1) @Max(1000) int limit) {
+        return jiraLog.recent(limit, failed);
     }
 
     @Open(Rule.ADMIN)

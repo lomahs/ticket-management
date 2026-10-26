@@ -123,6 +123,17 @@ class SyncTest {
         public boolean testConnection() {
             return fail == null;
         }
+
+        @Override
+        public List<tracker.application.dto.JiraTransition> transitions(String key) {
+            return List.of();
+        }
+
+        @Override
+        public List<tracker.application.dto.JiraIssueType> issueTypes(String project) {
+            return List.of();
+        }
+
     }
 
     @Autowired

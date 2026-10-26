@@ -28,9 +28,18 @@ import tracker.DemoTest;
 class ApiWritesTest extends ApiTestSupport {
 
     @Test
-    void ticketPatchAndPlanningPush() throws Exception {
-        assertThat(call(json(patch("/api/v1/tickets/PAY-1213"), Map.of("status", "R"))).json().get("card").get("status").asText())
+    void ticketReviewApplyAndPlanningPush() throws Exception {
+        JsonNode pv = call(json(post("/api/v1/tickets/PAY-1213/changes/preview"), Map.of("status", "R", "estimate_h", 6))).json();
+        assertThat(pv.get("changes").toString()).contains("\"field\":\"status\"", "\"after\":\"R\"", "\"field\":\"estimate\"",
+                "\"jira_field\":\"timetracking.originalEstimate\"");
+        assertThat(pv.get("requests").get(1).get("path").asText()).isEqualTo("/rest/api/3/issue/PAY-1213/transitions");
+        assertThat(call(json(patch("/api/v1/tickets/PAY-1213"), Map.of("changes", pv.get("changes")))).json().get("card").get("status").asText())
                 .isEqualTo("R");
+        problem(call(json(patch("/api/v1/tickets/PAY-1213"), Map.of("changes", pv.get("changes")))), 409, "conflict"); // already applied
+        JsonNode log = call(get("/api/v1/admin/jira-log")).json();
+        assertThat(log.get(0).get("source").asText()).isEqualTo("ticket_panel");
+        assertThat(log.get(0).get("key").asText()).as(log.get(0).toString()).isEqualTo("PAY-1213");
+        assertThat(call(get("/api/v1/admin/jira-log").param("failed", "true")).json().get(0).get("error").asText()).startsWith("Not sent");
         Res r = call(json(post("/api/v1/planning/push"),
                 Map.of("changes", List.of(Map.of("key", "PAY-1262", "start", "2026-10-12", "member_id", "binh")))));
         assertThat(r.text()).isEqualTo("{\"keys\":[\"PAY-1262\"]}");

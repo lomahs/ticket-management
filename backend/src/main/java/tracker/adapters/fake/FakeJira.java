@@ -14,20 +14,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jspecify.annotations.Nullable;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
-import tracker.application.dto.NewSubtask;
+import tracker.application.dto.JiraIssueType;
+import tracker.application.dto.JiraRequest;
+import tracker.application.dto.JiraResponse;
+import tracker.application.dto.JiraTransition;
 import tracker.application.dto.UserSnapshot;
 import tracker.application.dto.WorklogSnapshot;
 import tracker.application.ports.JiraReader;
+import tracker.application.ports.JiraRejected;
 import tracker.application.ports.JiraWriter;
 import tracker.application.settings.TrackerSettings;
-import tracker.domain.Status;
 
 /** A simulated Jira site serving the demo dataset through the JiraReader / JiraWriter ports. */
 public final class FakeJira implements JiraReader, JiraWriter {
@@ -134,6 +143,30 @@ public final class FakeJira implements JiraReader, JiraWriter {
         return true;
     }
 
+    /** Transition id → tracker status: every status can be reached from every other one. */
+    private static final Map<String, String> TRANSITIONS = Map.of("11", "N", "21", "W", "31", "R", "41", "C");
+    private static final Map<String, String> TRANSITION_NAMES = Map.of("N", "Reopen", "W", "Start progress", "R", "Resolve", "C", "Close");
+    static final String TASK_TYPE = "10001";
+    static final String SUBTASK_TYPE = "10003";
+
+    @Override
+    public synchronized List<JiraTransition> transitions(String key) {
+        FakeIssue i = issues.get(key);
+        if (i == null) {
+            return List.of();
+        }
+        return TRANSITIONS.entrySet().stream().filter(e -> !e.getValue().equals(i.status)).sorted(Map.Entry.comparingByKey())
+                .map(e -> {
+                    String[] to = Dataset.STATUS_NAMES.get(e.getValue());
+                    return new JiraTransition(e.getKey(), TRANSITION_NAMES.get(e.getValue()), to[0], to[1]);
+                }).toList();
+    }
+
+    @Override
+    public List<JiraIssueType> issueTypes(String project) {
+        return List.of(new JiraIssueType(TASK_TYPE, "Task", false), new JiraIssueType(SUBTASK_TYPE, "Sub-task", true));
+    }
+
     // --- JiraWriter -------------------------------------------------------------------------------------------------
 
     private void touch(FakeIssue i) {
@@ -144,55 +177,109 @@ public final class FakeJira implements JiraReader, JiraWriter {
         return account.startsWith("acc-") ? account.substring(4) : account;
     }
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Pattern ISSUE = Pattern.compile("/rest/api/3/issue/([A-Z][A-Z0-9_]*-\\d+)");
+    private static final Pattern TRANSITION = Pattern.compile("/rest/api/3/issue/([A-Z][A-Z0-9_]*-\\d+)/transitions");
+
+    /** Applies the requests the app builds, like the REST API does: unknown fields and ids are refused with a 400. */
     @Override
-    public synchronized void updateIssue(String key, String plannedStart, String plannedEnd, String assigneeAccountId) {
+    public synchronized JiraResponse send(JiraRequest request) {
+        JsonNode body;
+        try {
+            body = request.body() == null ? JSON.createObjectNode() : JSON.readTree(request.body());
+        } catch (JsonProcessingException e) {
+            throw new JiraRejected(400, "Unexpected character in the request body");
+        }
+        Matcher m;
+        if (request.method().equals("PUT") && (m = ISSUE.matcher(request.path())).matches()) {
+            update(issue(m.group(1)), body.path("fields"));
+            return new JiraResponse(204, "");
+        }
+        if (request.method().equals("POST") && (m = TRANSITION.matcher(request.path())).matches()) {
+            transition(issue(m.group(1)), body.path("transition").path("id").asText());
+            return new JiraResponse(204, "");
+        }
+        if (request.method().equals("POST") && request.path().equals("/rest/api/3/issue")) {
+            String key = create(body.path("fields"));
+            return new JiraResponse(201, "{\"id\":\"" + key.split("-", -1)[1] + "\",\"key\":\"" + key + "\"}");
+        }
+        throw new JiraRejected(404, "No such resource: " + request.method() + " " + request.path());
+    }
+
+    private FakeIssue issue(String key) {
         FakeIssue i = issues.get(key);
         if (i == null) {
-            throw new IllegalArgumentException("KeyError: '" + key + "'");
+            throw new JiraRejected(404, "Issue does not exist or you do not have permission to see it.");
         }
-        if (plannedStart != null && !plannedStart.isEmpty()) {
-            i.ps = plannedStart;
-        }
-        if (plannedEnd != null && !plannedEnd.isEmpty()) {
-            i.pe = plannedEnd;
-        }
-        if (assigneeAccountId != null && !assigneeAccountId.isEmpty()) {
-            String to = removeAccPrefix(assigneeAccountId);
-            if (!to.equals(i.assignee)) {
-                i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "assignee", i.assignee, to));
-                i.assignee = to;
+        return i;
+    }
+
+    private void update(FakeIssue i, JsonNode fields) {
+        for (var it = fields.fields(); it.hasNext(); ) {
+            var e = it.next();
+            JsonNode v = e.getValue();
+            switch (e.getKey()) {
+                case "assignee" -> {
+                    String to = v.isNull() ? null : removeAccPrefix(v.path("accountId").asText());
+                    if (!java.util.Objects.equals(to, i.assignee)) {
+                        i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "assignee", i.assignee, to));
+                        i.assignee = to;
+                    }
+                }
+                case "reporter" -> i.reporter = v.isNull() ? null : removeAccPrefix(v.path("accountId").asText());
+                case "timetracking" -> i.estH = minutes(v.path("originalEstimate")) / 60.0;
+                default -> {
+                    if (e.getKey().equals(FIELDS.plannedStart)) {
+                        i.ps = v.isNull() ? null : v.asText();
+                    } else if (e.getKey().equals(FIELDS.plannedEnd)) {
+                        i.pe = v.isNull() ? null : v.asText();
+                    } else {
+                        throw new JiraRejected(400, "Field '" + e.getKey() + "' cannot be set. It is not on the appropriate screen, or unknown.");
+                    }
+                }
             }
         }
         touch(i);
     }
 
-    @Override
-    public synchronized void transition(String key, Status status) {
-        FakeIssue i = issues.get(key);
-        if (i == null) {
-            throw new IllegalArgumentException("KeyError: '" + key + "'");
+    /** "90m" → 90; null → 0. */
+    private static double minutes(JsonNode v) {
+        if (v.isNull() || v.isMissingNode()) {
+            return 0;
         }
-        if (!status.value().equals(i.status)) {
-            i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "status", i.status, status.value()));
-            i.status = status.value();
+        String t = v.asText();
+        if (!t.endsWith("m")) {
+            throw new JiraRejected(400, "The original estimate specified is not valid.");
         }
+        return Double.parseDouble(t.substring(0, t.length() - 1));
+    }
+
+    private void transition(FakeIssue i, String id) {
+        String to = TRANSITIONS.get(id);
+        if (to == null || to.equals(i.status)) {
+            throw new JiraRejected(400, "Transition id '" + id + "' is not valid for this issue.");
+        }
+        i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "status", i.status, to));
+        i.status = to;
         touch(i);
     }
 
-    @Override
-    public synchronized List<String> createSubtasks(String parentKey, List<NewSubtask> subtasks) {
-        List<String> keys = new ArrayList<>();
-        String project = parentKey.split("-", -1)[0];
-        for (NewSubtask s : subtasks) {
-            String key = project + "-" + nextKey;
-            nextKey++;
-            String assignee = s.assigneeAccountId() == null ? "" : removeAccPrefix(s.assigneeAccountId());
-            FakeIssue issue = new FakeIssue(key, s.summary(), parentKey, "N", assignee.isEmpty() ? null : assignee,
-                    s.plannedStart(), s.plannedEnd(), s.estimateH(), LocalDate.now(clock).toString());
-            issues.put(key, issue);
-            touch(issue);
-            keys.add(key);
+    private String create(JsonNode f) {
+        String parentKey = f.path("parent").path("key").asText();
+        FakeIssue parent = issue(parentKey);
+        if (!SUBTASK_TYPE.equals(f.path("issuetype").path("id").asText())) {
+            throw new JiraRejected(400, "Only sub-tasks can be created in the demo site");
         }
-        return keys;
+        String key = parent.project() + "-" + nextKey;
+        nextKey++;
+        String assignee = f.path("assignee").isObject() ? removeAccPrefix(f.path("assignee").path("accountId").asText()) : null;
+        FakeIssue issue = new FakeIssue(key, f.path("summary").asText(), parentKey, "N", assignee,
+                f.hasNonNull(FIELDS.plannedStart) ? f.get(FIELDS.plannedStart).asText() : null,
+                f.hasNonNull(FIELDS.plannedEnd) ? f.get(FIELDS.plannedEnd).asText() : null,
+                minutes(f.path("timetracking").path("originalEstimate")) / 60.0, LocalDate.now(clock).toString());
+        issue.reporter = f.path("reporter").isObject() ? removeAccPrefix(f.path("reporter").path("accountId").asText()) : "minh";
+        issues.put(key, issue);
+        touch(issue);
+        return key;
     }
 }

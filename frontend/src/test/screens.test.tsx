@@ -80,14 +80,44 @@ describe('screens render API data at their URLs', () => {
   });
 
   it('opens the ticket panel from ?ticket= and disables Jira edits without a writer', async () => {
-    server.use(http.get('*/api/v1/meta', () => HttpResponse.json({ ...fixtures.meta, mode: 'jira', capabilities: { jira_write: false } })));
+    server.use(http.get('*/api/v1/meta', () => HttpResponse.json({ ...fixtures.meta, mode: 'jira', capabilities: { jira_write: false, planning_push: false } })));
     renderApp('/my-work?member=binh&ticket=PAY-1213');
     const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
     await within(panel).findByText(/Domestic card payment – Fix comment BAL/);
     await waitFor(() => expect((within(panel).getByLabelText('Status') as HTMLSelectElement).disabled).toBe(true));
-    expect(within(panel).getByText(/Updating Jira arrives in phase 2/)).toBeTruthy();
+    expect(within(panel).getByText(/Writing to Jira is not available/)).toBeTruthy();
     expect(within(panel).getByRole('link', { name: /Domestic card payment – Fix comment BAL/ }).getAttribute('href'))
       .toBe('https://acme-pay.atlassian.net/browse/PAY-1213');
+  });
+
+  it('keeps ticket edits as a draft, reviews them against Jira and applies exactly the reviewed changes', async () => {
+    let previewed: unknown;
+    let applied: unknown;
+    const change = { field: 'planned_end', jira_field: 'customfield_10016', before: '2026-10-08', after: '2026-10-09' };
+    server.use(
+      http.post('*/api/v1/tickets/PAY-1213/changes/preview', async ({ request }) => {
+        previewed = await request.json();
+        return HttpResponse.json({ key: 'PAY-1213', summary: 'Fix comment BAL', changes: [change], transition: null, jira_status: null,
+          estimate_tracking: false, requests: [{ method: 'PUT', path: '/rest/api/3/issue/PAY-1213', body: '{"fields":{"customfield_10016":"2026-10-09"}}' }] });
+      }),
+      http.patch('*/api/v1/tickets/PAY-1213', async ({ request }) => {
+        applied = await request.json();
+        return HttpResponse.json(fixtures.ticket);
+      }),
+    );
+    renderApp('/my-work?member=binh&ticket=PAY-1213');
+    const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
+    await within(panel).findByText(/Domestic card payment – Fix comment BAL/);
+    fireEvent.change(within(panel).getByLabelText('Planned End'), { target: { value: '2026-10-09' } });
+    expect(within(panel).getByText(/1 change not sent · Planned End/)).toBeTruthy();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Review & apply' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Apply to Jira' });
+    expect(previewed).toEqual({ planned_end: '2026-10-09' });
+    expect(within(dialog).getByText('customfield_10016')).toBeTruthy();
+    expect(within(dialog).getByText('PUT /rest/api/3/issue/PAY-1213')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 1 change' }));
+    await waitFor(() => expect(applied).toEqual({ changes: [{ field: 'planned_end', before: '2026-10-08', after: '2026-10-09' }] }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Apply to Jira' })).toBeNull());
   });
 
   it('keeps the not-started outline on a NYS cell whose tone is late, and reds the dates of a late finish', async () => {
@@ -526,8 +556,8 @@ describe('screens render API data at their URLs', () => {
     const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
     await within(panel).findByText(/Domestic card payment – Fix comment BAL/);
     await waitFor(() => expect((within(panel).getByLabelText('Status') as HTMLSelectElement).disabled).toBe(true));
-    expect(within(panel).getByText(/You have view-only access/)).toBeTruthy();
-    expect(within(panel).queryByText(/Updating Jira arrives in phase 2/)).toBeNull();
+    expect(within(panel).getByText(/Only admins update Jira/)).toBeTruthy();
+    expect((within(panel).getByLabelText('Reporter') as HTMLSelectElement).disabled).toBe(true);
   });
 
   describe('a feature set to none', () => {

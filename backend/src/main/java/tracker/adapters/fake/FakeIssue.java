@@ -21,7 +21,7 @@ public final class FakeIssue {
     String reporter;
     String ps;
     String pe;
-    final double estH;
+    double estH;
     final String created;
     String updated = Dataset.UPDATED;
     final List<Log> worklogs;

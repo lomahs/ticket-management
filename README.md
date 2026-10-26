@@ -34,8 +34,8 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1           # -E2E for 
 
 | Spring profile | Jira | Writes | "Today" | Database |
 |---|---|---|---|---|
-| `demo` | simulated site with the design's data | enabled (to the simulated site) | 2026-10-07 | `.tmp/demo/tracker.db`, recreated on start |
-| none (default) | your Jira Cloud site, read-only in phase 1 | disabled; the UI says so | real date (Asia/Ho_Chi_Minh) | `backend/data/tracker.db` |
+| `demo` | simulated site with the design's data | admins, reviewed and logged; Planning push too | 2026-10-07 | `.tmp/demo/tracker.db`, recreated on start |
+| none (default) | your Jira Cloud site | admins, reviewed and logged (ticket panel, new functions); Planning push stays off | real date (Asia/Ho_Chi_Minh) | `backend/data/tracker.db` |
 
 Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRACKER_TODAY` (pin the date),
 `TRACKER_SECRET_KEY` (key that encrypts the stored Jira token; otherwise `backend/data/secret.key` is created),

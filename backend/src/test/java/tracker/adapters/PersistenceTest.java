@@ -97,7 +97,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     @Test

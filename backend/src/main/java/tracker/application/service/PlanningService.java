@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.TreeSet;
 
 import org.jspecify.annotations.Nullable;
@@ -15,11 +14,13 @@ import org.springframework.stereotype.Service;
 import tracker.application.AppError.CapabilityDisabled;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
+import tracker.application.JiraCalls;
+import tracker.application.JiraRequests;
 import tracker.application.SyncService;
 import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
-import tracker.application.ports.JiraWriter;
+import tracker.application.service.SystemService.Mode;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.Capacity.PlanItem;
@@ -36,21 +37,29 @@ import tracker.domain.Scheduling;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.Text;
+import tracker.domain.TicketField;
+import tracker.domain.Viewer;
 
 /** Planning: the Gantt by member, previews of pending moves (dates, reassignment, capacity) and pushing them to Jira. */
 @Service
 public class PlanningService {
     private final TrackerContextLoader context;
-    private final Optional<JiraWriter> writer;
+    private final JiraCalls calls;
+    private final Mode mode;
     private final SyncService sync;
     private final AllocationService allocations;
 
-    public PlanningService(TrackerContextLoader context, Optional<JiraWriter> writer, SyncService sync,
-                           AllocationService allocations) {
+    public PlanningService(TrackerContextLoader context, JiraCalls calls, Mode mode, SyncService sync, AllocationService allocations) {
         this.allocations = allocations;
         this.context = context;
-        this.writer = writer;
+        this.calls = calls;
+        this.mode = mode;
         this.sync = sync;
+    }
+
+    /** Pushing a plan writes to Jira without a review per field, so it is kept to the demo site for now. */
+    public boolean canPush() {
+        return calls.enabled() && mode.demo();
     }
 
     public static final int CAPACITY_WEEKS = 5;
@@ -186,21 +195,43 @@ public class PlanningService {
         return new PlanningPreview(pv, capacity(ctx, scope, start, moved));
     }
 
-    /** Writes the moves to Jira and reads the moved issues back. */
-    public List<String> push(AnkenScope scope, List<PlanChange> changes) {
-        JiraWriter jira = writer.orElseThrow(() -> new CapabilityDisabled("Writing to Jira is not available yet"));
+    /** Writes the moves to Jira (only the fields that move, one logged request per issue) and reads the moved issues back. */
+    public List<String> push(Viewer actor, AnkenScope scope, List<PlanChange> changes) {
+        if (!canPush()) {
+            throw new CapabilityDisabled("Pushing a plan to Jira is not available yet");
+        }
         TrackerContext ctx = context.load(scope);
         List<ChangePreview> pv = previews(ctx, changes);
         for (ChangePreview c : pv) {
             boolean reassigned = !Objects.equals(c.toMember(), c.fromMember());
-            String account = reassigned ? ctx.members.get(c.toMember()).jiraAccountId() : null;
-            if (reassigned && !Text.hasText(account)) {
+            if (reassigned && !Text.hasText(ctx.members.get(c.toMember()).jiraAccountId())) {
                 throw new Invalid(ctx.members.get(c.toMember()).name() + " has no Jira account", "member_id");
             }
-            jira.updateIssue(c.key(), c.toStart(), c.toEnd(), account);
         }
-        List<String> keys = pv.stream().map(ChangePreview::key).toList();
-        sync.refresh(keys);
+        List<String> keys = new ArrayList<>();
+        try {
+            for (ChangePreview c : pv) {
+                Map<TicketField, Object> values = new java.util.EnumMap<>(TicketField.class);
+                if (!Objects.equals(c.toStart(), c.fromStart())) {
+                    values.put(TicketField.PLANNED_START, c.toStart());
+                }
+                if (!Objects.equals(c.toEnd(), c.fromEnd())) {
+                    values.put(TicketField.PLANNED_END, c.toEnd());
+                }
+                if (!Objects.equals(c.toMember(), c.fromMember())) {
+                    values.put(TicketField.ASSIGNEE, ctx.members.get(c.toMember()).jiraAccountId());
+                }
+                var request = JiraRequests.update(c.key(), new HashMap<>(values), ctx.settings.fieldMapping);
+                if (request.isPresent()) {
+                    calls.send(actor, JiraCalls.PLANNING, c.key(), request.get());
+                    keys.add(c.key());
+                }
+            }
+        } finally {
+            if (!keys.isEmpty()) {
+                sync.refresh(keys);
+            }
+        }
         return keys;
     }
 }

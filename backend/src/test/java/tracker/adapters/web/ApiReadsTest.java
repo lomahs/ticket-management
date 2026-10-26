@@ -30,7 +30,7 @@ class ApiReadsTest extends ApiTestSupport {
         JsonNode m = call(get("/api/v1/meta")).json();
         assertThat(m.get("mode").asText()).isEqualTo("demo");
         assertThat(m.get("today").asText()).isEqualTo("2026-10-07");
-        assertThat(m.get("capabilities").toString()).isEqualTo("{\"jira_write\":true}");
+        assertThat(m.get("capabilities").toString()).isEqualTo("{\"jira_write\":true,\"planning_push\":true}");
         assertThat(m.get("sync").get("status").asText()).isEqualTo("ok");
         assertThat(m.get("sync").get("started_at").asText()).matches("2026-10-0[67]T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z");
         JsonNode members = call(get("/api/v1/members")).json();

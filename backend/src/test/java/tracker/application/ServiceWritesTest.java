@@ -23,6 +23,9 @@ import tracker.application.AppError.Forbidden;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.IssueRepository;
+import tracker.application.ports.JiraReader;
+import tracker.application.ports.JiraRejected;
+import tracker.application.ports.JiraWriteLog;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService;
 import tracker.application.service.CalendarService;
@@ -33,6 +36,9 @@ import tracker.application.service.PlanningService;
 import tracker.application.service.SystemService;
 import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
+import tracker.application.service.TicketService.TicketChangePreview;
+import tracker.application.service.TicketService.ExpectedChange;
+import tracker.application.service.TicketService.TicketChanges;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
 import tracker.application.settings.TrackerSettings;
@@ -85,14 +91,14 @@ class ServiceWritesTest {
     @Test
     void createFunctionWritesToJiraAndSyncsBack() {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
-        List<String> keys = anken.createFunction(ALL, "PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
         assertThat(last.id()).isEqualTo("F13");
         assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         assertThat(m.nextFunctionId()).isEqualTo("F14");
-        assertThatThrownBy(() -> anken.createFunction(ALL, "PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
+        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
     }
 
     /** The company's naming: Tasks recognised by name, sub-tasks named [prefix][function name]_Step without a function ID. */
@@ -113,11 +119,11 @@ class ServiceWritesTest {
         assertThat(List.of(p.phase(), p.prefix(), p.functionId())).containsExactly("Implement_Coding", "UCI", "");
         assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
                 "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
-        List<String> keys = anken.createFunction(ALL, "PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
-        assertThatThrownBy(() -> anken.createFunction(ALL, "PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
+        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
         assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1101", "X", 8))).isInstanceOf(Invalid.class);
     }
 
@@ -152,16 +158,21 @@ class ServiceWritesTest {
         assertThat(List.of(phases.get(2).pct(), phases.get(2).total())).containsExactly(0, 0);
     }
 
-    /** Without a JiraWriter (the Jira profile in phase 1) nothing is written to Jira. */
+    /** Without a JiraWriter nothing is written to Jira; Planning pushes to the demo site only. */
     @Test
-    void writesNeedJiraWrite(@Autowired TrackerContextLoader context, @Autowired SyncService sync,
-                                @Autowired tracker.application.service.AllocationService allocations) {
-        assertThatThrownBy(() -> new AnkenService(context, Optional.empty(), sync).createFunction(ALL, "PAY-1100", draft("PAY-1102", "X", 8), null))
+    void writesNeedJiraWrite(@Autowired TrackerContextLoader context, @Autowired SyncService sync, @Autowired JiraReader reader,
+                             @Autowired JiraWriteLog log, @Autowired java.time.Clock clock,
+                             @Autowired tracker.application.service.AllocationService allocations) {
+        JiraCalls none = new JiraCalls(Optional.empty(), log, clock);
+        assertThatThrownBy(() -> new AnkenService(context, none, reader, sync).createFunction(ADMIN, ALL, "PAY-1100", draft("PAY-1102", "X", 8), null))
                 .isInstanceOf(CapabilityDisabled.class);
-        assertThatThrownBy(() -> new PlanningService(context, Optional.empty(), sync, allocations)
-                .push(ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);
-        assertThatThrownBy(() -> new TicketService(context, Optional.empty(), sync)
-                .patch(ALL, "PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, null, null, null))).isInstanceOf(CapabilityDisabled.class);
+        assertThatThrownBy(() -> new PlanningService(context, none, new SystemService.Mode("demo"), sync, allocations)
+                .push(ADMIN, ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);
+        assertThatThrownBy(() -> new TicketService(context, none, reader, sync)
+                .preview(ALL, "PAY-1213", new TicketChanges(Status.RESOLVED, null, null, null, null, null))).isInstanceOf(CapabilityDisabled.class);
+        JiraCalls site = new JiraCalls(Optional.of(r -> new tracker.application.dto.JiraResponse(204, "")), log, clock);
+        assertThatThrownBy(() -> new PlanningService(context, site, new SystemService.Mode("jira"), sync, allocations)
+                .push(ADMIN, ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);
     }
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
@@ -217,20 +228,74 @@ class ServiceWritesTest {
 
     @Test
     void pushWritesDatesAndAssigneeThenSyncs() {
-        planning.push(ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")));
+        planning.push(ADMIN, ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")));
         TaskCard c = planning.view(ALL, "2026-10-12", 1).rows().stream().filter(r -> r.memberId().equals("binh"))
                 .flatMap(r -> r.items().stream()).map(PlanningService.PlanBlock::card).filter(x -> x.key().equals("PAY-1262"))
                 .findFirst().orElseThrow();
         assertThat(List.of(c.plannedStart(), c.plannedEnd(), c.assigneeId())).containsExactly("2026-10-12", "2026-10-12", "binh");
     }
 
+    static TicketChanges want(Status status, String assignee, String reporter, String start, String end, Double estimate) {
+        return new TicketChanges(status, assignee, reporter, start, end, estimate);
+    }
+
+    static List<ExpectedChange> expected(TicketChangePreview p) {
+        return p.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList();
+    }
+
+    /** The review drops fields that would not change and shows the exact requests: one PUT of the changed fields, one transition. */
     @Test
-    void patchTicketWritesAndSyncs() {
-        tickets.patch(ALL, "PAY-1213", new TicketService.TicketPatch(Status.RESOLVED, "minh", null, "2026-10-08"));
+    void previewShowsOnlyWhatChanges() {
         TaskCard c = tickets.detail(ALL, "PAY-1213").card();
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(Status.RESOLVED, "minh", null, c.plannedStart(), "2026-10-08", null));
+        assertThat(p.changes()).extracting(ch -> ch.field() + ":" + ch.jiraField() + ":" + ch.after())
+                .containsExactly("status:status:R", "assignee:assignee:minh", "planned_end:customfield_10016:2026-10-08");
+        assertThat(p.changes().get(0).before()).isEqualTo(c.status());
+        assertThat(p.requests()).extracting(r -> r.method() + " " + r.path() + " " + r.body()).containsExactly(
+                "PUT /rest/api/3/issue/PAY-1213 {\"fields\":{\"assignee\":{\"accountId\":\"acc-minh\"},\"customfield_10016\":\"2026-10-08\"}}",
+                "POST /rest/api/3/issue/PAY-1213/transitions {\"transition\":{\"id\":\"31\"}}");
+        assertThat(List.of(p.transition(), p.jiraStatus())).containsExactly("Resolve", "Resolved");
+        assertThatThrownBy(() -> tickets.preview(ALL, "PAY-1213", want(null, null, null, "2026-10-20", null, null))).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void reporterAndEstimateGoThroughTheirOwnFields() {
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(null, null, "chi", null, null, 6.5));
+        assertThat(p.changes()).extracting(ch -> ch.field() + ":" + ch.after()).containsExactly("reporter:chi", "estimate:6.5");
+        assertThat(p.requests()).extracting(r -> r.body()).containsExactly(
+                "{\"fields\":{\"reporter\":{\"accountId\":\"acc-chi\"},\"timetracking\":{\"originalEstimate\":\"390m\"}}}");
+        assertThat(p.estimateTracking()).isTrue();
+        tickets.apply(ADMIN, ALL, "PAY-1213", expected(p));
+        assertThat(tickets.detail(ALL, "PAY-1213").card().estimateH()).isEqualTo(6.5);
+    }
+
+    @Test
+    void applyWritesLogsAndSyncs(@Autowired JiraWriteLog log) {
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(Status.RESOLVED, "minh", null, null, "2026-10-08", null));
+        TaskCard c = tickets.apply(ADMIN, ALL, "PAY-1213", expected(p)).card();
         assertThat(List.of(c.status(), c.assigneeId(), c.plannedEnd(), c.late())).containsExactly("R", "minh", "2026-10-08", false);
-        assertThatThrownBy(() -> tickets.patch(ALL, "PAY-1213", new TicketService.TicketPatch(null, null, "2026-10-20", null)))
-                .isInstanceOf(Invalid.class);
+        assertThat(log.recent(10, false)).extracting(e -> e.source() + " " + e.actorEmail() + " " + e.method() + " " + e.status())
+                .containsExactly("ticket_panel minh.hoang@acme.vn POST 204", "ticket_panel minh.hoang@acme.vn PUT 204");
+    }
+
+    /** Jira changed after the review: nothing is written, the requests are logged as not sent. */
+    @Test
+    void applyRefusesWhenJiraChangedSinceTheReview(@Autowired JiraWriteLog log, @Autowired tracker.adapters.fake.FakeJira jira) {
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(null, "minh", null, null, "2026-10-08", null));
+        jira.send(new tracker.application.dto.JiraRequest("PUT", "/rest/api/3/issue/PAY-1213", "{\"fields\":{\"customfield_10016\":\"2026-10-15\"}}"));
+        assertThatThrownBy(() -> tickets.apply(ADMIN, ALL, "PAY-1213", expected(p))).isInstanceOf(Conflict.class)
+                .hasMessageContaining("planned_end changed in Jira after the review");
+        assertThat(jira.findIssue("PAY-1213").orElseThrow().assignee().accountId()).isNotEqualTo("acc-minh");
+        assertThat(log.recent(10, true)).extracting(e -> e.status() + " " + e.error()).containsExactly(
+                "0 Not sent: planned_end changed in Jira after the review");
+    }
+
+    @Test
+    void jiraRefusalIsLoggedAndReported(@Autowired JiraWriteLog log, @Autowired SettingsStore settings) {
+        settings.update(s -> s.fieldMapping.plannedEnd = "customfield_99999");
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(null, null, null, null, "2026-10-08", null));
+        assertThatThrownBy(() -> tickets.apply(ADMIN, ALL, "PAY-1213", expected(p))).isInstanceOf(JiraRejected.class);
+        assertThat(log.recent(10, true)).extracting(JiraWriteLog.JiraLogEntry::status).containsExactly(400);
     }
 
     @Test

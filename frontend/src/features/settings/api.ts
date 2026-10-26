@@ -15,6 +15,11 @@ export const nameRulesQuery = (anken: string | null) => ({
 export const holidaysQuery = { queryKey: ['settings', 'holidays'] as const, queryFn: () => unwrap(http.GET('/api/v1/holidays')) };
 export const extraDaysQuery = { queryKey: ['settings', 'extra-days'] as const, queryFn: () => unwrap(http.GET('/api/v1/extra-days')) };
 export const hoursQuery = { queryKey: ['settings', 'hours'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/working-hours')) };
+/** `failed`: only the requests Jira refused or that were not sent. */
+export const jiraLogQuery = (failed: boolean) => ({
+  queryKey: ['admin', 'jira-log', failed] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/admin/jira-log', { params: { query: { failed } } })),
+});
 export const alertsQuery = { queryKey: ['settings', 'alerts'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/alerts')) };
 export const structureQuery = (anken: string | null) => ({
   queryKey: ['settings', 'structure', anken] as const,

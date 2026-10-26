@@ -1,18 +1,13 @@
 package tracker.application.ports;
 
-import java.util.List;
+import tracker.application.dto.JiraRequest;
+import tracker.application.dto.JiraResponse;
 
-import org.jspecify.annotations.Nullable;
-
-import tracker.application.dto.NewSubtask;
-import tracker.domain.Status;
-
-/** Writes to a Jira site (the demo site only, in phase 1). */
+/**
+ * Writes to a Jira site. It only sends requests the application built ({@link tracker.application.JiraRequests}), so
+ * what a review shows is what is sent.
+ */
 public interface JiraWriter {
-    /** Null arguments leave the field as it is. */
-    void updateIssue(String key, @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable String assigneeAccountId);
-
-    void transition(String key, Status status);
-
-    List<String> createSubtasks(String parentKey, List<NewSubtask> subtasks);
+    /** @throws JiraRejected when Jira refuses the request; {@link JiraError} when it cannot be reached */
+    JiraResponse send(JiraRequest request);
 }

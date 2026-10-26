@@ -9,6 +9,8 @@ import org.jspecify.annotations.Nullable;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
+import tracker.application.dto.JiraIssueType;
+import tracker.application.dto.JiraTransition;
 
 /** Reads a Jira site. Failures to reach it raise {@link JiraError}. */
 public interface JiraReader {
@@ -23,4 +25,10 @@ public interface JiraReader {
     List<JiraField> listFields();
 
     boolean testConnection();
+
+    /** The transitions Jira offers from the issue's current status. */
+    List<JiraTransition> transitions(String key);
+
+    /** The issue types the project can create. */
+    List<JiraIssueType> issueTypes(String project);
 }

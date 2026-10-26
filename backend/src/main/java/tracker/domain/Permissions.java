@@ -9,7 +9,10 @@ public final class Permissions {
     private Permissions() {
     }
 
-    /** The role's level for every feature: PM/PIM write all, JM nothing, BA/BAL/no role read all but members. */
+    /**
+     * The role's level for every feature: PM/PIM write all, JM nothing, BA/BAL/no role read all but members. Ticket is read at
+     * most: editing a ticket writes to Jira, which only admins do.
+     */
     public static Map<Feature, Level> defaults(@Nullable Role role) {
         Map<Feature, Level> levels = new EnumMap<>(Feature.class);
         for (Feature f : Feature.values()) {
@@ -18,10 +21,13 @@ public final class Permissions {
         return levels;
     }
 
-    /** The role defaults with each override applied. */
+    /** The role defaults with each override applied, Ticket capped at read (see {@link #defaults}). */
     public static Map<Feature, Level> effective(@Nullable Role role, Map<Feature, Level> overrides) {
         Map<Feature, Level> levels = defaults(role);
         levels.putAll(overrides);
+        if (levels.get(Feature.TICKET) == Level.WRITE) {
+            levels.put(Feature.TICKET, Level.READ);
+        }
         return levels;
     }
 
@@ -36,7 +42,7 @@ public final class Permissions {
 
     private static Level defaultLevel(@Nullable Role role, Feature f) {
         if (role == Role.PM || role == Role.PIM) {
-            return Level.WRITE;
+            return f == Feature.TICKET ? Level.READ : Level.WRITE;
         }
         if (role == Role.JM) {
             return Level.NONE;

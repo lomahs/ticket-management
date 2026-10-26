@@ -58,7 +58,7 @@ Needs a JDK 25 (`java -version`). Maven comes with the wrapper (`./mvnw`). From 
 
 | Setting (environment variable) | Meaning | Default |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `demo`: simulated Jira with writes and demo data recreated on every start; none: your Jira site, read-only in phase 1 | none |
+| `SPRING_PROFILES_ACTIVE` | `demo`: simulated Jira with writes and demo data recreated on every start; none: your Jira site, which admins write to through reviewed, logged changes | none |
 | `SPRING_DATASOURCE_URL` | JDBC URL of the database | `jdbc:sqlite:data/tracker.db?…` (demo: `../.tmp/demo/tracker.db`) |
 | `TRACKER_TODAY` | pin "today" (YYYY-MM-DD) | demo: `2026-10-07`; otherwise the real date |
 | `TRACKER_TIME_ZONE` | the team's time zone | `Asia/Ho_Chi_Minh` |
@@ -92,7 +92,7 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
   (`@DemoTest`: the demo profile on its own SQLite file; write tests get a fresh context);
 - `GoldenTest`: the demo data reproduces the figures of the UI mock (`golden.json`);
 - `SyncTest`, `PersistenceTest`, `SyncSchedulerTest` (`@TrackerTest`: an empty database per test), the Jira reader
-  against recorded REST v3 responses, the simulated Jira site;
+  against recorded REST v3 responses, the Jira writer against canned answers (`JiraWriterTest`), the simulated Jira site;
 - `ApiReadsTest` / `ApiWritesTest` / `ApiJiraModeTest`: the HTTP API through MockMvc, validation and problem details;
 - `BootTest`: the application on a random port: SPA serving, upload limits, and the OpenAPI contract
   (`-Dopenapi.write=true` rewrites it);

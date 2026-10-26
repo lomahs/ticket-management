@@ -13,12 +13,14 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import tracker.adapters.fake.Dataset;
 import tracker.adapters.fake.FakeJira;
 import tracker.application.dto.IssueSnapshot;
 import tracker.application.dto.JiraField;
-import tracker.application.dto.NewSubtask;
-import tracker.domain.Status;
+import tracker.application.dto.JiraRequest;
+import tracker.application.ports.JiraRejected;
 
 class FakeJiraTest {
     static FakeJira jira() {
@@ -49,8 +51,9 @@ class FakeJiraTest {
     @Test
     void writesUpdateIssueAndMarkItUpdated() {
         FakeJira j = jira();
-        j.updateIssue("PAY-1214", "2026-10-12", "2026-10-13", "acc-an");
-        j.transition("PAY-1214", Status.WIP);
+        j.send(new JiraRequest("PUT", "/rest/api/3/issue/PAY-1214",
+                "{\"fields\":{\"customfield_10020\":\"2026-10-12\",\"customfield_10016\":\"2026-10-13\",\"assignee\":{\"accountId\":\"acc-an\"}}}"));
+        j.send(new JiraRequest("POST", "/rest/api/3/issue/PAY-1214/transitions", "{\"transition\":{\"id\":\"21\"}}"));
         IssueSnapshot s = j.findIssue("PAY-1214").orElseThrow();
         assertThat(List.of(s.fields().get("customfield_10020"), s.fields().get("customfield_10016"), s.assignee().accountId(), s.statusName()))
                 .containsExactly("2026-10-12", "2026-10-13", "acc-an", "In Progress");
@@ -60,12 +63,24 @@ class FakeJiraTest {
     }
 
     @Test
-    void createSubtasksAllocatesNewKeys() {
+    void createAllocatesNewKeys() {
         FakeJira j = jira();
-        List<String> keys = j.createSubtasks("PAY-1102", List.of(new NewSubtask("[Implement_Coding][F13] X – Create", "acc-an",
-                "2026-10-08", "2026-10-09", 8)));
-        assertThat(keys).containsExactly("PAY-1501");
+        String body = j.send(new JiraRequest("POST", "/rest/api/3/issue", "{\"fields\":{\"project\":{\"key\":\"PAY\"},"
+                + "\"issuetype\":{\"id\":\"10003\"},\"parent\":{\"key\":\"PAY-1102\"},\"summary\":\"[Implement_Coding][F13] X – Create\","
+                + "\"assignee\":{\"accountId\":\"acc-an\"},\"customfield_10020\":\"2026-10-08\",\"timetracking\":{\"originalEstimate\":\"480m\"}}}")).body();
+        assertThat(body).contains("\"key\":\"PAY-1501\"");
         assertThat(((Number) j.findIssue("PAY-1501").orElseThrow().fields().get("timeoriginalestimate")).longValue()).isEqualTo(8 * 3600);
+    }
+
+    /** Like Jira, the demo site refuses fields it does not know and transitions it does not offer. */
+    @Test
+    void unknownFieldsAndTransitionsAreRefused() {
+        FakeJira j = jira();
+        assertThatThrownBy(() -> j.send(new JiraRequest("PUT", "/rest/api/3/issue/PAY-1214", "{\"fields\":{\"customfield_99999\":1}}")))
+                .isInstanceOf(JiraRejected.class).hasMessageContaining("customfield_99999");
+        assertThatThrownBy(() -> j.send(new JiraRequest("POST", "/rest/api/3/issue/PAY-1214/transitions", "{\"transition\":{\"id\":\"99\"}}")))
+                .isInstanceOf(JiraRejected.class);
+        assertThat(j.transitions("PAY-1214")).extracting(t -> t.toName()).doesNotContain(j.findIssue("PAY-1214").orElseThrow().statusName());
     }
 
     @Test

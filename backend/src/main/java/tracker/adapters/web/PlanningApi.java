@@ -70,6 +70,6 @@ public class PlanningApi {
     @Requires(feature = Feature.PLANNING, level = Level.WRITE)
     @PostMapping("/push")
     public KeysOut push(@RequestBody @Valid PlanningPushIn body, Viewer viewer) {
-        return new KeysOut(planning.push(scopes.scope(viewer, null), body.changes().stream().map(PlanChangeIn::change).toList()));
+        return new KeysOut(planning.push(viewer, scopes.scope(viewer, null), body.changes().stream().map(PlanChangeIn::change).toList()));
     }
 }

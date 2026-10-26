@@ -3,7 +3,7 @@ import { getRouteApi } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { useJiraWrite, useMemberMap } from '../../../shared/api/queries';
+import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import { Button, Icon, Select, TextField } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
@@ -41,7 +41,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
   const members = useMemberMap();
   const navigate = route.useNavigate();
   const toast = useToast();
-  const { ok: canWrite, off } = useJiraWrite('matrix');
+  const { ok: canWrite, off } = useAdminJiraWrite();
   const create = useCreateFunction(epic);
   const byRole = (r: string) => Object.values(members).filter((x) => x.role === r && m.member_ids.includes(x.id)).map((x) => ({ value: x.id, label: x.name }));
   const baOpts = byRole('BA'), balOpts = byRole('BAL'), jmOpts = byRole('JM');

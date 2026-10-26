@@ -83,7 +83,7 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
   const members = useMemberMap();
   const open = useOpenTicket();
   const toast = useToast();
-  const { ok: canWrite, off } = useJiraWrite('planning');
+  const { ok: canWrite, off } = useJiraWrite('planning', 'planningPush');
   const { moves, set, revert, clear } = usePendingMoves();
   const { anken } = useAnkenScope();
   const preview = useQuery(planningPreviewQuery(v.start, moves, anken));
