@@ -36,7 +36,7 @@ class FakeJiraTest {
     void everyIssueBelongsToATrackedEpicAndKeysAreUnique() {
         List<IssueSnapshot> snaps = new ArrayList<>();
         jira().search(Dataset.TRACKED_EPICS, null).forEach(snaps::add);
-        assertThat(snaps).hasSize(297);
+        assertThat(snaps).hasSize(311);
         assertThat(snaps.stream().map(IssueSnapshot::key).distinct().count()).isEqualTo(snaps.size());
     }
 

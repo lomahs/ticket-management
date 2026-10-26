@@ -35,6 +35,35 @@ class NamingTest {
         assertThat(p.step()).isEqualTo(StepKind.CREATE);
     }
 
+    static final Naming.CompiledRule OPTIONAL = Naming.compileRule("[{phase_name}][{function_id}] {function_name} – {step?}",
+            Naming.DEFAULT_ALIASES);
+
+    @Test
+    void anOptionalStepMayBeMissingTogetherWithTheTextBeforeIt() {
+        Naming.Parsed step = Naming.parseSummary(OPTIONAL, "[Implement_Coding][F04] E-wallet payment – Create");
+        assertThat(List.of(step.values().get("function_name"), step.step())).containsExactly("E-wallet payment", StepKind.CREATE);
+        Naming.Parsed single = Naming.parseSummary(OPTIONAL, "[Prepare][ST] Requirement study");
+        assertThat(single.step()).isNull();
+        assertThat(single.values()).containsExactly(Map.entry("phase_name", "Prepare"), Map.entry("function_id", "ST"),
+                Map.entry("function_name", "Requirement study"));
+        assertThat(Naming.itemName(single, "[Prepare][ST] Requirement study")).isEqualTo("Requirement study");
+        // a dash that is no step separator stays in the name
+        assertThat(Naming.parseSummary(OPTIONAL, "[Prepare][ST] Study – payment flow").values().get("function_name"))
+                .isEqualTo("Study – payment flow");
+        assertThat(Naming.parseSummary(OPTIONAL, "Kick-off with JM")).isNull();
+        assertThat(Naming.coverage(OPTIONAL, List.of("[Prepare][ST] Requirement study", "[A][F1] X – JM Review", "Other"))).isEqualTo(2);
+    }
+
+    @Test
+    void onlyTheStepCanBeOptional() {
+        assertThatThrownBy(() -> Naming.compileRule("[{phase_name?}] {function_name} – {step}", Naming.DEFAULT_ALIASES))
+                .isInstanceOf(RuleError.class).hasMessageContaining("Only {step}");
+        assertThatThrownBy(() -> Naming.compileRule("{function_name} – {step?} {step}", Naming.DEFAULT_ALIASES))
+                .isInstanceOf(RuleError.class).hasMessageContaining("used twice");
+        assertThat(Naming.renderSummary("[{phase_name}] {function_name} – {step?}", Map.of("phase_name", "P", "function_name", "F", "step", "Create")))
+                .isEqualTo("[P] F – Create");
+    }
+
     @Test
     void stepTextThatIsNoAliasDoesNotMatch() {
         assertThat(Naming.parseSummary(RULE, "[Implement_Coding][F04] Payment – Deploy")).isNull();

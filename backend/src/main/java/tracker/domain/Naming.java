@@ -13,7 +13,10 @@ import java.util.regex.Pattern;
 
 import org.jspecify.annotations.Nullable;
 
-/** Sub-task Summary naming rule: placeholders are read as values, everything else must match literally. */
+/**
+ * Sub-task Summary naming rule: placeholders are read as values, everything else must match literally. {@code {step?}} makes the
+ * step optional, together with the literal text right before it: a Summary without a step is a single ticket, not a function step.
+ */
 public final class Naming {
     private Naming() {
     }
@@ -22,7 +25,7 @@ public final class Naming {
     public static final String DEFAULT_RULE = "[{phase_name}][{function_id}] {function_name} – {step}";
     public static final Map<StepKind, String> DEFAULT_ALIASES = defaultAliases();
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{[a-z_]+\\}");
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{[a-z_]+\\??\\}");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
     private static final Pattern PHASE = Pattern.compile("^\\s*\\[([^\\]]+)\\]", Pattern.UNICODE_CHARACTER_CLASS);
 
@@ -55,7 +58,8 @@ public final class Naming {
     public record CompiledRule(Pattern regex, List<String> tokens, Map<String, StepKind> steps) {
     }
 
-    public record Parsed(Map<String, String> values, StepKind step) {
+    /** @param step null when the rule's step is optional and the Summary has none */
+    public record Parsed(Map<String, String> values, @Nullable StepKind step) {
     }
 
     private static boolean isSpace(int ch) {
@@ -128,18 +132,32 @@ public final class Naming {
                 : "(?iu:" + String.join("|", names.stream().map(Naming::literals).toList()) + ")";
         List<String> seen = new ArrayList<>();
         StringBuilder src = new StringBuilder();
+        int literalAt = 0; // where the last literal text starts in src
         for (String part : split(rule)) {
             if (PLACEHOLDER.matcher(part).matches()) {
-                String name = part.substring(1, part.length() - 1);
+                boolean optional = part.endsWith("?}");
+                String name = part.substring(1, part.length() - (optional ? 2 : 1));
                 if (!TOKENS.containsKey(name)) {
                     throw new RuleError("Unknown placeholder {" + name + "}");
+                }
+                if (optional && !name.equals("step")) {
+                    throw new RuleError("Only {step} can be optional");
                 }
                 if (seen.contains(name)) {
                     throw new RuleError("{" + name + "} is used twice");
                 }
                 seen.add(name);
-                src.append(name.equals("step") ? "(?<" + group(name) + ">" + stepSrc + ")" : "(?<" + group(name) + ">.+?)");
+                if (!name.equals("step")) {
+                    src.append("(?<").append(group(name)).append(">.+?)");
+                } else if (optional) {
+                    String before = src.substring(literalAt);
+                    src.setLength(literalAt);
+                    src.append("(?:").append(before).append("(?<").append(group(name)).append(">").append(stepSrc).append("))?");
+                } else {
+                    src.append("(?<").append(group(name)).append(">").append(stepSrc).append(")");
+                }
             } else {
+                literalAt = src.length();
                 src.append(literals(part));
             }
         }
@@ -162,9 +180,13 @@ public final class Naming {
                 values.put(token, v);
             }
         }
-        StepKind step = rule.steps().get(norm(values.get("step")));
+        String raw = values.get("step");
+        if (raw == null) {
+            return new Parsed(values, null);
+        }
+        StepKind step = rule.steps().get(norm(raw));
         if (step == null) {
-            throw new IllegalStateException("KeyError: " + norm(values.get("step")));
+            throw new IllegalStateException("KeyError: " + norm(raw));
         }
         return new Parsed(values, step);
     }
@@ -174,6 +196,15 @@ public final class Naming {
         String id = p.values().get("function_id");
         String key = Text.hasText(id) ? id : p.values().get("function_name");
         return Text.hasText(key) ? key.strip() : null;
+    }
+
+    /** The name a single ticket shows: its function name, else its function ID, else the whole Summary. */
+    public static String itemName(Parsed p, String summary) {
+        String name = p.values().get("function_name");
+        if (!Text.hasText(name)) {
+            name = p.values().get("function_id");
+        }
+        return Text.hasText(name) ? name.strip() : summary.strip();
     }
 
     /** Sub-tasks can only be grouped into functions when the rule names the function. */
@@ -203,6 +234,6 @@ public final class Naming {
     /** Fills a rule with values; unknown or missing placeholders become empty. */
     public static String renderSummary(String rule, Map<String, String> values) {
         return PLACEHOLDER.matcher(rule).replaceAll(m -> Matcher.quoteReplacement(
-                values.getOrDefault(m.group().substring(1, m.group().length() - 1), "")));
+                values.getOrDefault(m.group().replaceAll("[{}?]", ""), "")));
     }
 }

@@ -4,6 +4,8 @@ import { z } from 'zod';
 // Search schemas and the tab list are imported directly so each screen's code can load lazily.
 import { LoginPage, NoAccessPage } from '../features/auth';
 import { calendarSearch, newLeaveSearch } from '../features/calendar/search';
+import { dailySearch } from '../features/daily/search';
+import { ticketCheckSearch } from '../features/ticket-check/search';
 import { burndownSearch, timesheetSearch } from '../features/effort/search';
 import { SCHEDULE_FILTERS } from '../features/overview/search';
 import { matrixSearch } from '../features/matrix/search';
@@ -125,6 +127,23 @@ const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matri
 const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
 const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
 
+const daily = createRoute({
+  getParentRoute: () => app,
+  path: 'daily',
+  ...needs('overview'),
+  validateSearch: dailySearch,
+  search: { middlewares: [dropOnAnkenChange('date', 'phase')] },
+  component: lazyRouteComponent(() => import('../features/daily'), 'DailyPage'),
+});
+
+const ticketCheck = createRoute({
+  getParentRoute: () => app,
+  path: 'ticket-check',
+  ...needs('overview'),
+  validateSearch: ticketCheckSearch,
+  component: lazyRouteComponent(() => import('../features/ticket-check'), 'TicketCheckPage'),
+});
+
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
@@ -179,7 +198,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, planning, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

@@ -41,6 +41,8 @@ final class Fixtures {
         String epic = "PAY-1100";
         String summary;
         String reporter;
+        String single;
+        List<String> labels = List.of("PAY");
 
         I key(String v) { key = v; return this; }
         I status(Status v) { status = v; return this; }
@@ -58,12 +60,15 @@ final class Fixtures {
         I events(IssueEvent... v) { events = List.of(v); return this; }
         I summary(String v) { summary = v; return this; }
         I reporter(String v) { reporter = v; return this; }
+        I single(String name) { single = name; return this; }
+        I labels(String... v) { labels = List.of(v); return this; }
 
         Issue build() {
             List<Worklog> logs = logged != 0
                     ? List.of(new Worklog(logDate != null ? logDate : ps != null ? ps : TODAY, assignee, logged)) : List.of();
             return new Issue(key, key.split("-")[0], epic, null, IssueKind.SUBTASK, summary != null ? summary : key, phase, status,
-                    assignee, ps, pe, est, remaining != null ? remaining : est, created, "", fid, fid != null ? fname : null, step, logs, events, reporter);
+                    assignee, ps, pe, est, remaining != null ? remaining : est, created, "", fid, fid != null ? fname : single, step, logs, events, reporter,
+                    labels);
         }
     }
 

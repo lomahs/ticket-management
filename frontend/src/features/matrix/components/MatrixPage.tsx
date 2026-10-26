@@ -12,7 +12,7 @@ import { Avatar, av, Dot } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { matrixQuery } from '../api';
 import {
-  anyFilter, applyFilter, fromSearch, matchesText, pendingAtStep, stepRange, summaryCounts, toSearch, type MatrixFilter,
+  anyFilter, applyFilter, filterTickets, fromSearch, matchesText, pendingAtStep, stepRange, summaryCounts, toSearch, type MatrixFilter,
 } from '../model/filters';
 import { applyLayout, useMatrixLayout, type MatrixLayout } from '../model/layout';
 import { MatrixHeader } from './MatrixHeader';
@@ -54,6 +54,7 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
   const [rangeOpen, setRangeOpen] = useState<{ i: number; top: number; left: number } | null>(null);
 
   const rows = applyFilter(m.functions, f);
+  const tickets = filterTickets(m.tickets, f);
   const pool = m.functions.filter((r) => matchesText(r, f.q));
   const ids = Object.keys(members);
   const bas = ids.filter((id) => members[id].role === 'BA' && pool.some((r) => r.owner_id === id));
@@ -91,7 +92,7 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
     </div>
   );
 
-  if (!m.functions.length) {
+  if (!m.functions.length && !m.tickets.length) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {picker}
@@ -208,10 +209,11 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
         const keys = new Set(tasks.map((t) => t.key));
         return (
           <PhaseMatrix key={g} phase={g} tasks={tasks} rows={rows.filter((r) => keys.has(r.task_key))}
-            all={m.functions.filter((r) => keys.has(r.task_key))} f={f} setF={setF} openRange={openRange} />
+            all={m.functions.filter((r) => keys.has(r.task_key))} tickets={tickets.filter((t) => keys.has(t.task_key))}
+            allTickets={m.tickets.filter((t) => keys.has(t.task_key))} f={f} setF={setF} openRange={openRange} />
         );
       })}
-      {!rows.length && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No functions match the filters.</div>}
+      {!rows.length && !tickets.length && <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No functions match the filters.</div>}
 
       {rangeOpen && (
         <>
@@ -237,8 +239,9 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
 }
 
 /** The matrix of one phase: one header, then a section per Task (sub-phase), then the pending counts of the phase. */
-function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
+function PhaseMatrix({ phase, tasks, rows, all, tickets, allTickets, f, setF, openRange }: {
   phase: string; tasks: Schemas['ParentOption'][]; rows: Schemas['FunctionRow'][]; all: Schemas['FunctionRow'][];
+  tickets: Schemas['MatrixTicket'][]; allTickets: Schemas['MatrixTicket'][];
   f: MatrixFilter; setF: (patch: Partial<MatrixFilter>) => void; openRange: (i: number, e: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const pending = pendingAtStep(rows);
@@ -246,7 +249,9 @@ function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
     <section className="card" aria-label={`${phase} matrix`} style={{ overflowX: 'auto' }}>
       <div style={{ minWidth: 1010, display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
         <span className="title">{phase}</span>
-        <span className="eyebrow">{rows.length}/{all.length} function · {tasks.length} sub-phase{tasks.length === 1 ? '' : 's'}</span>
+        <span className="eyebrow">
+          {rows.length}/{all.length} function{allTickets.length ? ` · ${tickets.length}/${allTickets.length} single ticket` : ''} · {tasks.length} sub-phase{tasks.length === 1 ? '' : 's'}
+        </span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-hover)' }}>
         <div style={{ padding: '8px 12px 8px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -288,6 +293,8 @@ function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
       {tasks.map((t) => {
         const own = rows.filter((r) => r.task_key === t.key);
         const total = all.filter((r) => r.task_key === t.key).length;
+        const ones = tickets.filter((x) => x.task_key === t.key);
+        const onesTotal = allTickets.filter((x) => x.task_key === t.key).length;
         return (
           <div key={t.key} role="rowgroup" aria-label={t.name || t.summary}>
             <div title={t.summary} style={{ minWidth: 1010, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderBottom: '1px solid var(--border-subtle)', background: 'color-mix(in oklch, var(--surface-tint) 55%, var(--surface-card))' }}>
@@ -297,12 +304,13 @@ function PhaseMatrix({ phase, tasks, rows, all, f, setF, openRange }: {
               <span title="Earliest Planned Start – latest Planned End of the sub-phase's sub-tasks" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, font: '500 11px/1 var(--font-mono)', color: 'var(--text-heading)' }}>
                 <Icon name="calendar" size={12} />{t.start || t.end ? `${t.start ? dm(t.start) : '…'} – ${t.end ? dm(t.end) : '…'}` : 'No dates'}
               </span>
-              <span className="eyebrow">{own.length}/{total} function</span>
+              <span className="eyebrow">{own.length}/{total} function{onesTotal ? ` · ${ones.length}/${onesTotal} single ticket` : ''}</span>
             </div>
             {own.map((r) => <FnRow key={r.task_key + '/' + r.id} r={r} />)}
-            {!own.length && (
+            {ones.map((x) => <TicketRow key={x.card.key} t={x} />)}
+            {!own.length && !ones.length && (
               <div style={{ minWidth: 1010, padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-                {total ? 'No functions match the filters.' : 'No functions under this Task yet.'}
+                {total || onesTotal ? 'No functions match the filters.' : 'No functions under this Task yet.'}
               </div>
             )}
           </div>
@@ -387,6 +395,28 @@ function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
         </div>
       </div>
       {r.cells.map((c, i) => (c ? <Cell key={c.key} c={c} /> : <div key={i} style={{ margin: 3, borderRadius: 10, border: '1px dashed var(--border-subtle)' }} title="Sub-task not in Jira" />))}
+    </div>
+  );
+}
+
+/**
+ * A single ticket: a sub-task outside the 5-step workflow (study, QnA…), one row of its own even when others share its
+ * name; its card sits in the first step column.
+ */
+function TicketRow({ t }: { t: Schemas['MatrixTicket'] }) {
+  const members = useMemberMap();
+  const a = av(members[t.card.assignee_id ?? ''], t.card.assignee_id ?? '–');
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)' }}>
+      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, minWidth: 0 }}>
+        <span className="ellipsis" title={t.card.summary} style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{t.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+          <Avatar a={a} size={18} fs={10} /><span className="heading">{a.name}</span>
+          <span style={{ marginLeft: 4, font: '600 10px/16px var(--font-text)', padding: '0 6px', borderRadius: 999, background: 'var(--surface-hover)' }}>Single ticket</span>
+        </div>
+      </div>
+      <Cell c={t.card} />
+      <div style={{ gridColumn: '3 / span 4', display: 'flex', alignItems: 'center', padding: '0 14px', fontSize: 11, color: 'var(--text-muted)' }}>No review steps</div>
     </div>
   );
 }

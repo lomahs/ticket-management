@@ -62,6 +62,12 @@ public record WorkStructure(List<String> phases, List<TaskTemplate> tasks) {
         return t == null || t.workflow();
     }
 
+    /** The type of the matching template ({@link TaskTemplate#TYPES}); "" without one. */
+    public String typeOfTask(String summary) {
+        TaskTemplate t = taskTemplate(summary);
+        return t != null ? t.type() : "";
+    }
+
     /** Configured phases first, in their order, then any other phase found on tickets, alphabetically. */
     public List<String> orderedPhases(Iterable<String> names) {
         Set<String> all = new LinkedHashSet<>();

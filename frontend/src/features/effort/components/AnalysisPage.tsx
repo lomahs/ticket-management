@@ -7,7 +7,7 @@ import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { analysisQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
-import { PickAnken } from './PickAnken';
+import { PickAnken } from '../../../shared/ui/PickAnken';
 
 const RW_GRID = 'minmax(150px,1.2fr) 80px 90px 110px minmax(180px,2fr) 90px 90px';
 const pct = (x: number | null | undefined) => (x == null ? '–' : Math.round(x * 100) + '%');

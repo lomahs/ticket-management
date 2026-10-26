@@ -592,6 +592,102 @@
         "tags" : [ "calendar-api" ]
       }
     },
+    "/api/v1/daily" : {
+      "get" : {
+        "operationId" : "view_2",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "date",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DailyView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "daily-api" ]
+      }
+    },
+    "/api/v1/daily/notes/{key}" : {
+      "put" : {
+        "operationId" : "note",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NoteIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NoteOut"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "daily-api" ]
+      }
+    },
+    "/api/v1/daily/snapshots" : {
+      "post" : {
+        "operationId" : "capture",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DailyView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "daily-api" ]
+      }
+    },
     "/api/v1/effort/analysis" : {
       "get" : {
         "operationId" : "analysis",
@@ -1371,7 +1467,7 @@
     },
     "/api/v1/planning" : {
       "get" : {
-        "operationId" : "view",
+        "operationId" : "view_1",
         "parameters" : [ {
           "in" : "query",
           "name" : "start",
@@ -1585,6 +1681,50 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AnkenSettingsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      }
+    },
+    "/api/v1/settings/daily-capture" : {
+      "get" : {
+        "operationId" : "dailyCapture",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DailyCaptureView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      },
+      "put" : {
+        "operationId" : "saveDailyCapture",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DailyCaptureIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DailyCaptureView"
                 }
               }
             },
@@ -2122,6 +2262,32 @@
           }
         },
         "tags" : [ "system-api" ]
+      }
+    },
+    "/api/v1/ticket-check" : {
+      "get" : {
+        "operationId" : "view",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TicketCheckView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ticket-check-api" ]
       }
     },
     "/api/v1/tickets/{key}" : {
@@ -2867,6 +3033,43 @@
         },
         "required" : [ "day_off", "from_end", "from_member", "from_start", "key", "to_end", "to_member", "to_start" ]
       },
+      "CheckCount" : {
+        "type" : "object",
+        "properties" : {
+          "check" : {
+            "type" : "string"
+          },
+          "count" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "check", "count" ]
+      },
+      "CheckRow" : {
+        "type" : "object",
+        "properties" : {
+          "card" : {
+            "$ref" : "#/components/schemas/TaskCard"
+          },
+          "epic_key" : {
+            "type" : "string"
+          },
+          "problems" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "task_key" : {
+            "type" : "string"
+          },
+          "task_name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "card", "epic_key", "problems", "task_key", "task_name" ]
+      },
       "CopyIn" : {
         "type" : "object",
         "properties" : {
@@ -2876,6 +3079,309 @@
           }
         },
         "required" : [ "from" ]
+      },
+      "DailyBurndown" : {
+        "type" : "object",
+        "properties" : {
+          "chart" : {
+            "$ref" : "#/components/schemas/BurndownChart"
+          },
+          "phase" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "chart", "phase" ]
+      },
+      "DailyCaptureIn" : {
+        "type" : "object",
+        "properties" : {
+          "time" : {
+            "type" : "string",
+            "pattern" : "off|([01]\\d|2[0-3]):[0-5]\\d"
+          }
+        },
+        "required" : [ "time" ]
+      },
+      "DailyCaptureView" : {
+        "type" : "object",
+        "properties" : {
+          "time" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "time" ]
+      },
+      "DailyContent" : {
+        "type" : "object",
+        "properties" : {
+          "actual_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "burndowns" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailyBurndown"
+            }
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "epic" : {
+            "type" : "string"
+          },
+          "groups" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailyGroup"
+            }
+          },
+          "pct" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "plan_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "typed" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailyTyped"
+            }
+          }
+        },
+        "required" : [ "actual_to_date_h", "burndowns", "date", "diff_h", "epic", "groups", "pct", "plan_to_date_h", "title", "typed" ]
+      },
+      "DailyFunction" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "owner_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "steps" : {
+            "type" : "array",
+            "items" : {
+              "anyOf" : [ {
+                "$ref" : "#/components/schemas/DailyStep"
+              }, {
+                "type" : "null"
+              } ]
+            }
+          }
+        },
+        "required" : [ "id", "name", "owner_id", "steps" ]
+      },
+      "DailyGroup" : {
+        "type" : "object",
+        "properties" : {
+          "closed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "late" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "pct" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "state" : {
+            "type" : "string"
+          },
+          "sub_phases" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailySubPhase"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "closed", "late", "name", "pct", "state", "sub_phases", "total" ]
+      },
+      "DailyStep" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "late" : {
+            "type" : "boolean"
+          },
+          "late_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ]
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ]
+          },
+          "rounds" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "step" : {
+            "type" : "string"
+          },
+          "with_jm" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "assignee_id", "key", "late", "late_days", "planned_end", "planned_start", "rounds", "status", "step", "with_jm" ]
+      },
+      "DailySubPhase" : {
+        "type" : "object",
+        "properties" : {
+          "functions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailyFunction"
+            }
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "tickets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DailyTicket"
+            }
+          },
+          "unmatched" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "functions", "key", "name", "tickets", "unmatched" ]
+      },
+      "DailyTicket" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "late" : {
+            "type" : "boolean"
+          },
+          "late_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ]
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "assignee_id", "key", "late", "late_days", "name", "planned_end", "planned_start", "status" ]
+      },
+      "DailyTyped" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "closed_on" : {
+            "type" : [ "string", "null" ]
+          },
+          "created" : {
+            "type" : "string"
+          },
+          "held_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "with_jm" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "assignee_id", "closed_on", "created", "held_days", "key", "note", "status", "summary", "type", "with_jm" ]
+      },
+      "DailyView" : {
+        "type" : "object",
+        "properties" : {
+          "auto_capture" : {
+            "type" : "string"
+          },
+          "captured_at" : {
+            "type" : [ "string", "null" ]
+          },
+          "captured_by" : {
+            "type" : [ "string", "null" ]
+          },
+          "content" : {
+            "$ref" : "#/components/schemas/DailyContent"
+          },
+          "live" : {
+            "type" : "boolean"
+          },
+          "snapshots" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SnapshotOption"
+            }
+          },
+          "today" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "auto_capture", "captured_at", "captured_by", "content", "live", "snapshots", "today" ]
       },
       "DateReason" : {
         "type" : "object",
@@ -3781,6 +4287,21 @@
         },
         "required" : [ "estimate_h", "functions_done", "functions_total", "late_functions", "late_subtasks", "logged_h", "over_subtasks", "progress_pct" ]
       },
+      "MatrixTicket" : {
+        "type" : "object",
+        "properties" : {
+          "card" : {
+            "$ref" : "#/components/schemas/TaskCard"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "task_key" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "card", "name", "task_key" ]
+      },
       "MatrixView" : {
         "type" : "object",
         "properties" : {
@@ -3820,11 +4341,17 @@
               "type" : "string"
             }
           },
+          "tickets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MatrixTicket"
+            }
+          },
           "title" : {
             "type" : "string"
           }
         },
-        "required" : [ "epic_key", "functions", "member_ids", "next_function_id", "parents", "phase", "stats", "task_keys", "title" ]
+        "required" : [ "epic_key", "functions", "member_ids", "next_function_id", "parents", "phase", "stats", "task_keys", "tickets", "title" ]
       },
       "Me" : {
         "type" : "object",
@@ -4167,6 +4694,29 @@
           }
         },
         "required" : [ "logged_h", "member_id", "open_subtasks" ]
+      },
+      "NoteIn" : {
+        "type" : "object",
+        "properties" : {
+          "note" : {
+            "type" : "string",
+            "maxLength" : 2000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "note" ]
+      },
+      "NoteOut" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "key", "note" ]
       },
       "ParentOption" : {
         "type" : "object",
@@ -4591,6 +5141,21 @@
         },
         "required" : [ "epic_key", "key", "phase", "summary", "template" ]
       },
+      "SnapshotOption" : {
+        "type" : "object",
+        "properties" : {
+          "captured_at" : {
+            "type" : "string"
+          },
+          "captured_by" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "captured_at", "captured_by", "date" ]
+      },
       "StatusMappingIn" : {
         "type" : "object",
         "properties" : {
@@ -4817,11 +5382,14 @@
           "prefix" : {
             "type" : "string"
           },
+          "type" : {
+            "type" : "string"
+          },
           "workflow" : {
             "type" : "boolean"
           }
         },
-        "required" : [ "match", "phase", "prefix", "workflow" ]
+        "required" : [ "match", "phase", "prefix", "type", "workflow" ]
       },
       "TaskTemplateIn" : {
         "type" : "object",
@@ -4834,6 +5402,11 @@
           },
           "prefix" : {
             "type" : [ "string", "null" ]
+          },
+          "type" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "", "qna", "bug", "work_request" ],
+            "pattern" : "|qna|bug|work_request"
           },
           "workflow" : {
             "type" : [ "boolean", "null" ]
@@ -4870,6 +5443,28 @@
           }
         },
         "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
+      },
+      "TicketCheckView" : {
+        "type" : "object",
+        "properties" : {
+          "checked" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "counts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CheckCount"
+            }
+          },
+          "rows" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CheckRow"
+            }
+          }
+        },
+        "required" : [ "checked", "counts", "rows" ]
       },
       "TicketDetail" : {
         "type" : "object",

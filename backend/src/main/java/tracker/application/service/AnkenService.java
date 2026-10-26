@@ -290,10 +290,15 @@ public class AnkenService {
      * @param parents   every Task of the epic, by phase group, then planned start
      * @param taskKeys  the shown Tasks, in the order of {@code parents}; empty when the epic has no Tasks
      * @param memberIds the anken's members, by id
+     * @param tickets   the single tickets of the shown Tasks (sub-tasks outside the 5-step workflow), Task by Task
      */
     public record MatrixView(String epicKey, String title, String phase, MatrixStats stats, List<FunctionRow> functions,
                              List<ParentOption> parents, String nextFunctionId, List<String> taskKeys,
-                             List<String> memberIds) {
+                             List<String> memberIds, List<MatrixTicket> tickets) {
+    }
+
+    /** A single ticket on the matrix: one row of its own, identified by its key (several may share a name). */
+    public record MatrixTicket(String taskKey, String name, TaskCard card) {
     }
 
     private static final Pattern FUNCTION_ID = Pattern.compile("([A-Za-z]+)(\\d+)");
@@ -428,9 +433,15 @@ public class AnkenService {
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
                 Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
                 Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
+        List<MatrixTicket> tickets = new ArrayList<>();
+        for (String t : taskKeys) {
+            ctx.subtasks().stream().filter(i -> t.equals(i.parentKey()) && i.single())
+                    .sorted(Comparator.comparing((Issue i) -> Text.orElse(i.plannedStart(), "9999")).thenComparing(Issue::key))
+                    .forEach(i -> tickets.add(new MatrixTicket(t, i.functionName(), ctx.card(i))));
+        }
         String shownPhase = String.join(", ", picked.stream().map(ParentOption::group).distinct().toList());
         return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), taskKeys,
-                ctx.ankenMembers.getOrDefault(epic, Set.of()).stream().sorted().toList());
+                ctx.ankenMembers.getOrDefault(epic, Set.of()).stream().sorted().toList(), tickets);
     }
 
     // --- one function -------------------------------------------------------------------------------------------------

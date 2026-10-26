@@ -353,7 +353,7 @@ public class JiraSettingsService {
             throw new Invalid("Phase names must be unique", "phases");
         }
         List<TaskTemplate> tasks = ws.tasks().stream()
-                .map(t -> new TaskTemplate(t.match().strip(), t.phase().strip(), t.prefix().strip(), t.workflow())).toList();
+                .map(t -> new TaskTemplate(t.match().strip(), t.phase().strip(), t.prefix().strip(), t.workflow(), t.type().strip())).toList();
         Set<String> names = new HashSet<>();
         for (TaskTemplate t : tasks) {
             if (t.match().isEmpty()) {
@@ -362,6 +362,9 @@ public class JiraSettingsService {
             if (!phases.contains(t.phase())) {
                 throw new Invalid(t.match() + ": phase " + (t.phase().isEmpty() ? "(empty)" : t.phase()) + " is not in the phase list",
                         "tasks");
+            }
+            if (!TaskTemplate.TYPES.contains(t.type())) {
+                throw new Invalid(t.match() + ": type " + t.type() + " is not qna, bug or work_request", "tasks");
             }
             if (!names.add(WorkStructure.normalise(t.match()))) {
                 throw new Invalid("Each Task name may appear only once: " + t.match(), "tasks");
@@ -482,7 +485,7 @@ public class JiraSettingsService {
             return new NameRulePreview(e.getMessage(), List.of(), Map.of(), null, false, 0, summaries.size());
         }
         Naming.Parsed p = Naming.parseSummary(compiled, sample);
-        return new NameRulePreview(null, compiled.tokens(), p != null ? p.values() : Map.of(), p != null ? p.step().value() : null,
+        return new NameRulePreview(null, compiled.tokens(), p != null ? p.values() : Map.of(), p != null && p.step() != null ? p.step().value() : null,
                 p != null, Naming.coverage(compiled, summaries), summaries.size());
     }
 

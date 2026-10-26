@@ -361,11 +361,62 @@ public final class Dataset {
                 k++;
             }
         }
+        out.addAll(pay1100Daily());
         for (Extra x : PAY1100_EXTRAS) {
             out.add(new FakeIssue(x.key(), x.title(), x.parent(), x.st(), x.who(), x.ps(), x.pe(), x.est(), "2026-09-28",
                     x.logged() != 0 ? List.of(new FakeIssue.Log("2026-10-06", x.who(), x.logged(), "Work on task")) : List.of(),
                     List.of()));
         }
+        return out;
+    }
+
+    // --- PAY-1100: what the Daily Overview lists besides functions ------------------------------------------------------
+
+    /** Demo notes on the QnA and WorkRequest tickets: key → note. */
+    public static final Map<String, String> NOTES = Map.of(
+            "PAY-1171", "JM checking with the card team. Answer needed before F03 Fix comment BAL can close.",
+            "PAY-1173", "Draft answer ready, An to send to JM after BAL check.",
+            "PAY-1177", "Sent 12 messages for review. Tanaka expects to reply by 10/09.");
+
+    private static FakeIssue.Change assigned(String at, String from, String to) {
+        return new FakeIssue.Change(at, "assignee", from, to);
+    }
+
+    private static FakeIssue.Change moved(String at, String from, String to) {
+        return new FakeIssue.Change(at, "status", from, to);
+    }
+
+    /**
+     * Study tickets that share one name (one per BA, single tickets by the name rule's optional step), and the QnA and
+     * WorkRequest Tasks, which the demo structure types.
+     */
+    static List<FakeIssue> pay1100Daily() {
+        List<FakeIssue> out = new ArrayList<>(List.of(
+                new FakeIssue("PAY-1160", "[Prepare] Requirement study", "PAY-1100", "C", "minh", "2026-09-03", "2026-09-04"),
+                new FakeIssue("PAY-1165", "[Prepare] QnA management", "PAY-1100", "W", "minh", "2026-09-24", "2026-10-30"),
+                new FakeIssue("PAY-1166", "[Prepare] Work requests", "PAY-1100", "W", "minh", "2026-10-05", "2026-10-30")));
+        List<String> bas = List.of("an", "binh", "chi", "dung");
+        for (int i = 0; i < bas.size(); i++) {
+            out.add(new FakeIssue("PAY-116" + (i + 1), "[Prepare][ST] Requirement study", "PAY-1160", "C", bas.get(i), "2026-09-03",
+                    "2026-09-04", 8, "2026-08-28", splitLogs(bas.get(i), 8, "2026-09-04", "Work on task"), List.of()));
+        }
+        out.add(new FakeIssue("PAY-1168", "Q10 · Timeout message wording", "PAY-1165", "C", "an", "2026-09-24", "2026-09-30", 1, "2026-09-24",
+                List.of(new FakeIssue.Log("2026-09-30", "an", 1, "Answer QnA")),
+                List.of(moved("2026-09-25", "N", "W"), moved("2026-10-05", "W", "C"))));
+        out.add(new FakeIssue("PAY-1170", "Q11 · Fee rounding rule", "PAY-1165", "R", "tanaka", "2026-09-29", "2026-10-01", 1, "2026-09-29",
+                List.of(new FakeIssue.Log("2026-10-01", "binh", 1, "Answer QnA")),
+                List.of(moved("2026-09-30", "N", "W"), moved("2026-10-01", "W", "R"), assigned("2026-10-01", "binh", "tanaka"))));
+        out.add(new FakeIssue("PAY-1171", "Q12 · Card limit per transaction", "PAY-1165", "W", "tanaka", "2026-10-01", "2026-10-08", 1, "2026-10-01",
+                List.of(new FakeIssue.Log("2026-10-02", "binh", 0.5, "Ask JM")),
+                List.of(moved("2026-10-02", "N", "W"), assigned("2026-10-02", "binh", "tanaka"))));
+        out.add(new FakeIssue("PAY-1172", "Q13 · Refund window for e-wallet payments", "PAY-1165", "N", "tanaka", "2026-10-05", "2026-10-09", 1,
+                "2026-10-05", List.of(), List.of(assigned("2026-10-05", "chi", "tanaka"))));
+        out.add(new FakeIssue("PAY-1173", "Q14 · OTP resend limit and lock time", "PAY-1165", "W", "an", "2026-10-06", "2026-10-09", 1, "2026-10-06",
+                List.of(new FakeIssue.Log("2026-10-06", "an", 0.5, "Draft answer")), List.of(moved("2026-10-06", "N", "W"))));
+        out.add(new FakeIssue("PAY-1176", "Add refund reason codes to the spec", "PAY-1166", "W", "chi", "2026-10-05", "2026-10-09", 3, "2026-10-05",
+                List.of(new FakeIssue.Log("2026-10-06", "chi", 1, "Work on task")), List.of(moved("2026-10-05", "N", "W"))));
+        out.add(new FakeIssue("PAY-1177", "Confirm JP wording for error messages", "PAY-1166", "W", "tanaka", "2026-10-06", "2026-10-09", 2,
+                "2026-10-06", List.of(), List.of(moved("2026-10-06", "N", "W"), assigned("2026-10-06", "dung", "tanaka"))));
         return out;
     }
 
@@ -624,6 +675,10 @@ public final class Dataset {
         issues.addAll(otherAnken(cal, reserved));
         issues.addAll(crmOps());
         fillMeetings(issues, cal);
+        issues.stream().filter(i -> NO_LABEL.contains(i.key)).forEach(i -> i.labels = List.of());
         return issues;
     }
+
+    /** Sub-tasks someone forgot to label, for the Ticket Check page. */
+    static final Set<String> NO_LABEL = Set.of("PAY-1173", "PAY-1188", "PAY-1265");
 }

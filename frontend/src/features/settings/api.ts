@@ -4,6 +4,7 @@ import type { Schemas } from '../../shared/api/types';
 import { ankenParam } from '../../shared/state/anken';
 
 export const jiraQuery = { queryKey: ['settings', 'jira'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/jira')) };
+export const dailyCaptureQuery = { queryKey: ['settings', 'daily-capture'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/daily-capture')) };
 export const fieldMappingQuery = { queryKey: ['settings', 'field-mapping'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/field-mapping')) };
 export const statusMappingQuery = { queryKey: ['settings', 'status-mapping'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/status-mapping')) };
 /** `anken` null: the default (the template for new anken). */
@@ -39,6 +40,7 @@ function useSettingsWrite<T, R>(fn: (v: T) => Promise<R>) {
 }
 
 export const useSaveJira = () => useSettingsWrite((b: Schemas['JiraIn']) => unwrap(http.PUT('/api/v1/settings/jira', { body: b })));
+export const useSaveDailyCapture = () => useSettingsWrite((time: string) => unwrap(http.PUT('/api/v1/settings/daily-capture', { body: { time } })));
 export const useTestJira = () => useMutation({ mutationFn: (b: Schemas['JiraTestIn']) => unwrap(http.POST('/api/v1/settings/jira/test', { body: b })) });
 export const useAddEpic = () => useSettingsWrite((key: string) => unwrap(http.POST('/api/v1/settings/epics', { body: { key } })));
 export const useRemoveEpic = () => useSettingsWrite((key: string) => unwrap(http.DELETE('/api/v1/settings/epics/{key}', { params: { path: { key } } })));

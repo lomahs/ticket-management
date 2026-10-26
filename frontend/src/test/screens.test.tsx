@@ -233,7 +233,7 @@ describe('screens render API data at their URLs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
     fireEvent.change(screen.getByLabelText('Phase 3'), { target: { value: 'ITA' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks }));
+    await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks.map((t) => ({ ...t, type: '' })) }));
   });
 
   describe('per-anken settings', () => {

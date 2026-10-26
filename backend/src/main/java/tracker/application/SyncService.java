@@ -266,14 +266,18 @@ public class SyncService {
             String functionId = null;
             String functionName = null;
             StepKind step = null;
-            // Sub-tasks of a Task whose template turns the workflow off are never function steps.
-            if (!isParent && (parent == null || s.structureOf(epic).hasWorkflow(parent.summary()))) {
+            // A function step has a step under a workflow Task; a single ticket (no function id, a name) matches the rule
+            // without one, or sits under a Task whose template turns the workflow off. A Summary matching nothing is neither.
+            if (!isParent) {
+                boolean workflow = parent == null || s.structureOf(epic).hasWorkflow(parent.summary());
                 Naming.Parsed p = Naming.parseSummary(ruleOf(epic), snap.summary());
                 String key = p != null ? Naming.functionKey(p) : null;
-                if (key != null) {
+                if (workflow && key != null && p.step() != null) {
                     functionId = key;
                     functionName = p.values().get("function_name");
                     step = p.step();
+                } else if (p != null || !workflow) {
+                    functionName = p != null ? Naming.itemName(p, snap.summary()) : snap.summary().strip();
                 }
             }
             String assigneeId = member(snap.assignee());
@@ -301,7 +305,8 @@ public class SyncService {
                     status(s, snap.statusName(), snap.statusCategory()), assigneeId,
                     JiraValues.date(snap.fields().get(fm.plannedStart)), JiraValues.date(snap.fields().get(fm.plannedEnd)),
                     hours != null ? hours : 0,
-                    remaining != null ? remaining : hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events, reporterId);
+                    remaining != null ? remaining : hours != null ? hours : 0, snap.created(), snap.statusName(), functionId, functionName, step, worklogs, events, reporterId,
+                    snap.labels());
         }
     }
 }

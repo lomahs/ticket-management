@@ -45,7 +45,7 @@ import tracker.application.ports.JiraReader;
  * truncated; those are completed from the per-issue endpoints.
  */
 public final class JiraCloudReader implements JiraReader {
-    static final List<String> BASE_FIELDS = List.of("summary", "status", "assignee", "reporter", "parent", "project", "created", "updated", "worklog");
+    static final List<String> BASE_FIELDS = List.of("summary", "status", "assignee", "reporter", "parent", "project", "created", "updated", "worklog", "labels");
     static final int MAX_ATTEMPTS = 5;
     static final int PARENT_CHUNK = 50;
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -368,6 +368,14 @@ public final class JiraCloudReader implements JiraReader {
         return JSON.convertValue(v, Object.class);
     }
 
+    private static List<String> labels(JsonNode node) {
+        List<String> out = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            node.forEach(l -> out.add(l.asText()));
+        }
+        return out;
+    }
+
     private IssueSnapshot snapshot(Client client, JsonNode issue) {
         String key = issue.path("key").asText();
         JsonNode f = issue.path("fields");
@@ -403,6 +411,6 @@ public final class JiraCloudReader implements JiraReader {
                 key, text(obj(f.get("project")), "key", key.split("-", -1)[0]), text(f, "summary", ""),
                 text(status, "name", ""), text(obj(status.get("statusCategory")), "key", "indeterminate"),
                 user(f.get("assignee")), textOrNull(obj(f.get("parent")), "key"),
-                prefix(text(f, "created", ""), 10), updated, fields, logs, changes, user(f.get("reporter")));
+                prefix(text(f, "created", ""), 10), updated, fields, logs, changes, user(f.get("reporter")), labels(f.get("labels")));
     }
 }

@@ -6,16 +6,39 @@ import { Button, IconButton, Select, TextField } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { jiraQuery, useAddEpic, useRemoveEpic, useSaveJira, useTestJira } from '../api';
+import { dailyCaptureQuery, jiraQuery, useAddEpic, useRemoveEpic, useSaveDailyCapture, useSaveJira, useTestJira } from '../api';
 import { Busy, ErrText, Section } from './common';
 
 const INTERVALS = [['5', 'Every 5 minutes'], ['15', 'Every 15 minutes'], ['60', 'Every hour'], ['manual', 'Manual only']] as const;
+const CAPTURE_TIMES = ['off', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '20:00'];
 
 export function JiraTab() {
   const q = useQuery(jiraQuery);
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
-  return <JiraForm j={q.data} />;
+  return (
+    <>
+      <JiraForm j={q.data} />
+      <DailyCapture />
+    </>
+  );
+}
+
+/** When the Daily Overview of every tracked anken is captured on working days (after a sync); "Capture" works any time. */
+function DailyCapture() {
+  const q = useQuery(dailyCaptureQuery);
+  const save = useSaveDailyCapture();
+  const toast = useToast();
+  if (q.isPending) return <Loading />;
+  if (q.isError) return <QueryError error={q.error} />;
+  const times = CAPTURE_TIMES.includes(q.data.time) ? CAPTURE_TIMES : [...CAPTURE_TIMES, q.data.time];
+  return (
+    <Section title="Daily Overview snapshot" sub="Each working day at this time (team time zone) the tracker syncs, then captures the Daily Overview of every tracked anken that has no capture yet that day. Capture on the Daily Overview takes one by hand.">
+      <Select label="Capture daily at" style={{ width: 240 }} value={q.data.time} disabled={save.isPending}
+        options={times.map((t) => ({ value: t, label: t === 'off' ? 'Off · by hand only' : t }))}
+        onChange={(t) => save.mutate(t, { onSuccess: () => toast(t === 'off' ? 'Daily capture turned off' : `Daily capture at ${t}`), onError: (e) => toast(errorMessage(e), true) })} />
+    </Section>
+  );
 }
 
 function JiraForm({ j }: { j: Schemas['JiraSettingsView'] }) {

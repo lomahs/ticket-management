@@ -92,12 +92,12 @@ class PersistenceTest {
     static Issue issue(List<Worklog> logs) {
         return new Issue("PAY-1201", "PAY", "PAY-1100", "PAY-1102", IssueKind.SUBTASK, "[Implement_Coding][F01] X – Create",
                 "Implement_Coding", Status.WIP, "an", "2026-09-14", "2026-09-15", 10, 4, "2026-09-01", "In Progress", "F01", "X",
-                StepKind.CREATE, logs, List.of(new IssueEvent("2026-09-14", EventField.ASSIGNEE, null, "an")), "minh");
+                StepKind.CREATE, logs, List.of(new IssueEvent("2026-09-14", EventField.ASSIGNEE, null, "an")), "minh", List.of("PAY", "urgent"));
     }
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
     }
 
     @Test

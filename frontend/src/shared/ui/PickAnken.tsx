@@ -1,8 +1,8 @@
-import { useVisibleAnken } from '../../../shared/api/queries';
-import { Select } from '../../../shared/ds';
-import { ankenLabel, useAnkenScope } from '../../../shared/state/anken';
+import { useVisibleAnken } from '../api/queries';
+import { Select } from '../ds';
+import { ankenLabel, useAnkenScope } from '../state/anken';
 
-/** Analysis and Burndown are per anken: under "All my anken" they ask for one, which then becomes the switcher's. */
+/** A per-anken screen (Analysis, Burndown, Daily Overview): under "All my anken" it asks for one, which then becomes the switcher's. */
 export function PickAnken() {
   const { setAnken } = useAnkenScope();
   const visible = useVisibleAnken();

@@ -34,6 +34,17 @@ public class TeamSettingsService {
         this.calendar = calendar;
     }
 
+    // --- daily capture ----------------------------------------------------------------------------------------------
+
+    /** "HH:mm" or "off". */
+    public String dailyCapture() {
+        return settings.load().dailyCapture;
+    }
+
+    public String saveDailyCapture(String time) {
+        return settings.update(s -> s.dailyCapture = time).dailyCapture;
+    }
+
     // --- calendar ---------------------------------------------------------------------------------------------------
 
     public List<Holiday> holidays() {

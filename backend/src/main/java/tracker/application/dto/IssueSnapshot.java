@@ -11,14 +11,16 @@ import java.util.Map;
  * @param updated        ISO datetime
  * @param fields         raw values of mapped fields (JSON values: String, Number, Boolean, Map, List or null), by Jira field id
  * @param reporter       the current reporter
+ * @param labels         the Jira labels
  */
 public record IssueSnapshot(String key, String project, String summary, String statusName, String statusCategory,
                             UserSnapshot assignee, String parentKey, String created, String updated,
                             Map<String, Object> fields, List<WorklogSnapshot> worklogs, List<ChangeSnapshot> changes,
-                            UserSnapshot reporter) {
+                            UserSnapshot reporter, List<String> labels) {
 
     public IssueSnapshot {
         fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
+        labels = labels == null ? List.of() : List.copyOf(labels);
         worklogs = List.copyOf(worklogs);
         changes = List.copyOf(changes);
     }
@@ -27,5 +29,12 @@ public record IssueSnapshot(String key, String project, String summary, String s
                          String parentKey, String created, String updated, Map<String, Object> fields, List<WorklogSnapshot> worklogs,
                          List<ChangeSnapshot> changes) {
         this(key, project, summary, statusName, statusCategory, assignee, parentKey, created, updated, fields, worklogs, changes, null);
+    }
+
+    public IssueSnapshot(String key, String project, String summary, String statusName, String statusCategory, UserSnapshot assignee,
+                         String parentKey, String created, String updated, Map<String, Object> fields, List<WorklogSnapshot> worklogs,
+                         List<ChangeSnapshot> changes, UserSnapshot reporter) {
+        this(key, project, summary, statusName, statusCategory, assignee, parentKey, created, updated, fields, worklogs, changes, reporter,
+                List.of());
     }
 }

@@ -46,6 +46,17 @@ export const anyFilter = (f: MatrixFilter) => !!(f.q || f.members.length || f.st
 
 export const matchesText = (r: Row, q: string) => !q || `${r.id} ${r.name}`.toLowerCase().includes(q.trim().toLowerCase());
 
+/**
+ * The single tickets the filters keep: text and member filters apply to them; status, progress and date filters are about
+ * the 5 steps, so while one is on no single ticket is shown.
+ */
+export function filterTickets(tickets: Schemas['MatrixTicket'][], f: MatrixFilter): Schemas['MatrixTicket'][] {
+  if (f.status.length || f.prog.length || Object.keys(f.ranges).length) return [];
+  const q = f.q.trim().toLowerCase();
+  return tickets.filter((t) => (!q || `${t.card.key} ${t.name}`.toLowerCase().includes(q))
+    && (!f.members.length || f.members.includes(t.card.assignee_id ?? '')));
+}
+
 export function applyFilter(rows: Row[], f: MatrixFilter): Row[] {
   let out = rows.filter((r) =>
     matchesText(r, f.q)

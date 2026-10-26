@@ -75,6 +75,24 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void dailyCaptureNoteAndCaptureTime() throws Exception {
+        Res r = call(post("/api/v1/daily/snapshots").param("anken", "PAY-1100"));
+        assertThat(r.json().get("snapshots").get(0).get("date").asText()).isEqualTo("2026-10-07");
+        assertThat(call(get("/api/v1/daily").param("anken", "PAY-1100").param("date", "2026-10-07")).json().get("live").asBoolean()).isTrue();
+        problem(call(get("/api/v1/daily").param("anken", "PAY-1100").param("date", "2026-10-01")), 404, "not_found");
+        assertThat(call(json(put("/api/v1/daily/notes/PAY-1172"), Map.of("note", " Ask on Friday "))).text())
+                .isEqualTo("{\"key\":\"PAY-1172\",\"note\":\"Ask on Friday\"}");
+        assertThat(call(json(put("/api/v1/settings/daily-capture"), Map.of("time", "17:30"))).text()).isEqualTo("{\"time\":\"17:30\"}");
+        problem(call(json(put("/api/v1/settings/daily-capture"), Map.of("time", "25:00"))), 400, "invalid");
+        assertThat(call(get("/api/v1/daily").param("anken", "PAY-1100")).json().get("auto_capture").asText()).isEqualTo("17:30");
+        // a BA reads the Daily Overview but does not capture or write notes
+        String ba = "an.nguyen@acme.vn";
+        assertThat(call(get("/api/v1/daily").param("anken", "PAY-1100").with(as(ba))).status()).isEqualTo(200);
+        problem(call(post("/api/v1/daily/snapshots").param("anken", "PAY-1100").with(as(ba))), 403, "forbidden");
+        problem(call(json(put("/api/v1/daily/notes/PAY-1172"), Map.of("note", "x")).with(as(ba))), 403, "forbidden");
+    }
+
+    @Test
     void settingsWrites() throws Exception {
         assertThat(call(json(post("/api/v1/settings/jira/test"), Map.of("url", "https://acme-pay.atlassian.net", "email", "a@b")))
                 .text()).isEqualTo("{\"status\":\"ok\"}");

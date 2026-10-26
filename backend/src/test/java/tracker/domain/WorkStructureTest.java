@@ -60,4 +60,12 @@ class WorkStructureTest {
         assertThat(WS.orderedPhases(List.of("FUT", "Zeta", "Study", "Alpha"))).containsExactly("Study", "FUT", "Alpha", "Zeta");
         assertThat(WorkStructure.empty().orderedPhases(List.of("b", "a", "b"))).containsExactly("a", "b");
     }
+
+    @Test
+    void theTypeComesFromTheMatchingTemplate() {
+        WorkStructure ws = new WorkStructure(List.of("Prepare"), List.of(new TaskTemplate("*QnA management*", "Prepare", "", false, TaskTemplate.QNA)));
+        assertThat(ws.typeOfTask("[BookUI][LocalTask] QnA management")).isEqualTo("qna");
+        assertThat(ws.typeOfTask("[BookUI][LocalTask] ITA Prepare")).isEmpty();
+        assertThat(new TaskTemplate("X", "Prepare", "").type()).isEmpty();
+    }
 }

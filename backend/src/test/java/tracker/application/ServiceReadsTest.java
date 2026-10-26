@@ -124,7 +124,7 @@ class ServiceReadsTest {
     @Test
     void matrixPhaseShowsEveryTaskOfThePhaseAndKeepsAllTasksAsOptions() {
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, "Implement_Coding", null);
-        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1102", "PAY-1103");
+        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166", "PAY-1102", "PAY-1103");
         assertThat(m.taskKeys()).containsExactly("PAY-1102");
         assertThat(m.phase()).isEqualTo("Implement_Coding");
         assertThat(m.functions()).isNotEmpty().allMatch(r -> r.taskKey().equals("PAY-1102"));
@@ -133,7 +133,7 @@ class ServiceReadsTest {
     @Test
     void matrixPhaseWithoutFunctionsIsEmptyNotMissing() {
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, "Prepare", null);
-        assertThat(List.of(m.taskKeys(), m.phase())).containsExactly(List.of("PAY-1101"), "Prepare");
+        assertThat(List.of(m.taskKeys(), m.phase())).containsExactly(List.of("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166"), "Prepare");
         assertThat(m.functions()).isEmpty();
     }
 
@@ -150,7 +150,8 @@ class ServiceReadsTest {
         assertThat(anken.matrix(ALL, "PAY-1100", null, null, List.of("PAY-1103", "PAY-1101", "PAY-9999")).taskKeys())
                 .containsExactly("PAY-1101", "PAY-1103");
         assertThat(anken.matrix(ALL, "PAY-1100", null, null, List.of("PAY-9999")).taskKeys()).containsExactly("PAY-1102"); // none left: the default
-        assertThat(anken.matrix(ALL, "PAY-1100", null, "Prepare", List.of("PAY-1103")).taskKeys()).containsExactly("PAY-1101"); // a link wins
+        assertThat(anken.matrix(ALL, "PAY-1100", null, "Prepare", List.of("PAY-1103")).taskKeys())
+                .containsExactly("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166"); // a link wins
     }
 
     @Test
@@ -164,9 +165,9 @@ class ServiceReadsTest {
         Map<String, List<String>> g = new HashMap<>();
         anken.detail(ALL, "PAY-1100").attention().forEach(a -> g.put(a.kind(), a.items().stream().map(TaskCard::key).toList()));
         assertThat(g.get("overdue").subList(0, 3)).containsExactlyInAnyOrder("PAY-1186", "PAY-1219", "PAY-1235");
-        assertThat(g.get("stuck_resolved")).containsExactly("PAY-1248");
+        assertThat(g.get("stuck_resolved")).containsExactly("PAY-1170", "PAY-1248");
         assertThat(g.get("many_rounds")).containsExactly("PAY-1213", "PAY-1235");
-        assertThat(g.get("waiting_client")).containsExactly("PAY-1219", "PAY-1235");
+        assertThat(g.get("waiting_client")).containsExactly("PAY-1170", "PAY-1171", "PAY-1219", "PAY-1235"); // two QnA with JM
         assertThatThrownBy(() -> anken.detail(ALL, "PAY-404")).isInstanceOf(NotFound.class);
     }
 
@@ -174,7 +175,8 @@ class ServiceReadsTest {
     void ankenDetailListsTasksUnderTheirPhase() {
         AnkenService.AnkenDetail d = anken.detail(ALL, "PAY-1100");
         assertThat(d.tasks()).extracting(t -> t.key() + "/" + t.phase())
-                .containsExactlyInAnyOrder("PAY-1101/Prepare", "PAY-1102/Implement_Coding", "PAY-1103/Function Unit Test");
+                .containsExactlyInAnyOrder("PAY-1101/Prepare", "PAY-1160/Prepare", "PAY-1165/Prepare", "PAY-1166/Prepare",
+                        "PAY-1102/Implement_Coding", "PAY-1103/Function Unit Test");
         for (var p : d.card().phases()) {
             var tasks = d.tasks().stream().filter(t -> t.phase().equals(p.name())).toList();
             assertThat(tasks.stream().mapToInt(AnkenService.PhaseTask::total).sum()).as(p.name()).isEqualTo(p.total());
@@ -200,7 +202,7 @@ class ServiceReadsTest {
         assertThat(f03.cells().get(2).late()).isTrue();
         assertThat(m.phase()).isEqualTo("Implement_Coding");
         assertThat(m.nextFunctionId()).isEqualTo("F13");
-        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1102", "PAY-1103");
+        assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166", "PAY-1102", "PAY-1103");
     }
 
     @Test
@@ -219,9 +221,10 @@ class ServiceReadsTest {
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         assertThat(m.taskKeys()).containsExactly("PAY-1102");
         assertThat(m.parents()).extracting(p -> p.key() + "/" + p.group() + "/" + p.functions() + "/" + p.prefix() + "/" + p.workflow())
-                .containsExactly("PAY-1101/Prepare/0/Prepare/true", "PAY-1102/Implement_Coding/12/Implement_Coding/true",
+                .containsExactly("PAY-1101/Prepare/0/Prepare/true", "PAY-1160/Prepare/0/Prepare/true", "PAY-1165/Prepare/0//false",
+                        "PAY-1166/Prepare/0//false", "PAY-1102/Implement_Coding/12/Implement_Coding/true",
                         "PAY-1103/Function Unit Test/0/Function Unit Test/true");
-        AnkenService.ParentOption coding = m.parents().get(1);
+        AnkenService.ParentOption coding = m.parents().get(4);
         List<Issue> subs = issues.findAll().stream().filter(i -> "PAY-1102".equals(i.parentKey())).toList();
         assertThat(coding.start()).isEqualTo(subs.stream().map(Issue::plannedStart).filter(Objects::nonNull).min(String::compareTo).orElseThrow());
         assertThat(coding.end()).isEqualTo(subs.stream().map(Issue::plannedEnd).filter(Objects::nonNull).max(String::compareTo).orElseThrow());
@@ -548,15 +551,16 @@ class ServiceReadsTest {
     void structureListsJiraTasksWithTheirTemplate() {
         JiraSettingsService.StructureView v = jiraSettings.structure(null);
         assertThat(v.phases()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
-        assertThat(v.tasks()).isEmpty();
+        assertThat(v.tasks()).extracting(TaskTemplate::type).containsExactly("qna", "work_request");
         assertThat(v.seen().stream().filter(t -> t.epicKey().equals("PAY-1100")))
                 .extracting(t -> t.key() + "/" + t.phase() + "/" + t.template())
-                .containsExactly("PAY-1101/Prepare/null", "PAY-1102/Implement_Coding/null", "PAY-1103/Function Unit Test/null");
+                .containsExactly("PAY-1101/Prepare/null", "PAY-1102/Implement_Coding/null", "PAY-1103/Function Unit Test/null",
+                        "PAY-1160/Prepare/null", "PAY-1165/Prepare/0", "PAY-1166/Prepare/1");
         WorkStructure draft = new WorkStructure(List.of("Coding"), List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI")));
         JiraSettingsService.SeenTask t = jiraSettings.previewStructure(null, draft).seen().stream()
                 .filter(x -> x.key().equals("PAY-1102")).findFirst().orElseThrow();
         assertThat(List.of(t.phase(), t.template())).containsExactly("Coding", 0);
-        assertThat(jiraSettings.structure(null).tasks()).isEmpty(); // a preview does not save
+        assertThat(jiraSettings.structure(null).tasks()).hasSize(2); // a preview does not save
     }
 
     @Test

@@ -106,6 +106,13 @@
   --hl-red: #fbe0dc; --hl-red-fg: #b3261e;
   --hl-amber: #fbefd0; --hl-amber-fg: #8a5a00;
   --hl-ok: #e4f1e8; --hl-ok-fg: #1e6b3a;
+  /* Daily Overview (do): status chips read across a shared screen, and where a ticket is (with JM or with the team) */
+  --do-nys: #4f555d; --do-nys-bg: #eceef1;
+  --do-wip: #1858b8; --do-wip-bg: #e2ecfc;
+  --do-res: #8a5a00; --do-res-bg: #fbefd0;
+  --do-clo: #1f6b3a; --do-clo-bg: #dff1e5;
+  --do-jm: #5b3fc9; --do-jm-fg: #ffffff;
+  --do-team: #1c2b42; --do-team-bg: #e3ebf7;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -134,4 +141,7 @@
   --tn-clo: #d0d4da; --tn-clo-bg: #454a52;
   --hl-red: #45211f; --hl-red-fg: #ff9b92; --hl-amber: #3f3214; --hl-amber-fg: #f2c66b; --hl-ok: #1b2d21; --hl-ok-fg: #7fd69a;
   --shadow-overlay: 0 0 0 1px rgba(233, 235, 238, .1), 0 8px 24px rgba(0, 0, 0, .5);
+  --do-nys: #c3c8cf; --do-nys-bg: #2a2e34; --do-wip: #8db8ff; --do-wip-bg: #1c2c46;
+  --do-res: #f2c66b; --do-res-bg: #3f3214; --do-clo: #7fd69a; --do-clo-bg: #1b3324;
+  --do-jm: #7a62e6; --do-jm-fg: #ffffff; --do-team: #d6e2f5; --do-team-bg: #24324a;
 }

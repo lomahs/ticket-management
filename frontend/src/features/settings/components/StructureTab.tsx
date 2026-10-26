@@ -9,8 +9,12 @@ import { structurePreviewQuery, structureQuery, useSaveStructure } from '../api'
 import { AnkenPicker, useSettingsTarget } from './AnkenPicker';
 import { Section, useDebounced } from './common';
 
-type Template = Schemas['TaskTemplate'];
-const GRID = 'minmax(220px,2fr) minmax(140px,1fr) minmax(120px,1fr) 110px 40px';
+type TaskType = NonNullable<Schemas['TaskTemplateIn']['type']>;
+type Template = Omit<Schemas['TaskTemplate'], 'type'> & { type: TaskType };
+const TYPES: { value: TaskType; label: string }[] = [
+  { value: '', label: '—' }, { value: 'qna', label: 'QnA' }, { value: 'bug', label: 'Bug' }, { value: 'work_request', label: 'WorkRequest' },
+];
+const GRID = 'minmax(220px,2fr) minmax(140px,1fr) minmax(120px,1fr) 140px 110px 40px';
 const SEEN_GRID = '110px minmax(220px,2fr) minmax(120px,1fr) minmax(160px,1.4fr)';
 const HEAD = { display: 'grid', gap: 12, padding: '8px 20px', background: 'var(--surface-hover)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' } as const;
 const ROW = { display: 'grid', gap: 12, alignItems: 'center', padding: '8px 20px', borderTop: '1px solid var(--border-subtle)' } as const;
@@ -40,7 +44,7 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
   const toast = useToast();
   const save = useSaveStructure(anken);
   const [phases, setPhases] = useState<string[]>(v.phases);
-  const [tasks, setTasks] = useState<Template[]>(v.tasks);
+  const [tasks, setTasks] = useState<Template[]>(v.tasks.map((t) => ({ ...t, type: (TYPES.find((x) => x.value === t.type)?.value ?? '') })));
   const body = useDebounced({ phases, tasks }, 250);
   const seen = useQuery(structurePreviewQuery(anken, body)).data?.seen ?? v.seen;
   const setTask = (i: number, patch: Partial<Template>) => setTasks((ts) => ts.map((t, j) => (j === i ? { ...t, ...patch } : t)));
@@ -59,15 +63,16 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
         ))}
         <div><Button appearance="secondary" iconBefore="plus" onClick={() => setPhases((ps) => [...ps, ''])}>Add phase</Button></div>
       </Section>
-      <Section pad={false} title="Tasks" sub={<>The fixed set of Tasks under every Epic. The Task name is matched against the whole Jira Task Summary, ignoring case; <code>*</code> matches any text. Prefix is what <code>{'{prefix}'}</code> stands for in that Task's sub-task names. Turn the workflow off for Tasks whose sub-tasks are not functions (Q&amp;A, WR, CR…).</>}>
+      <Section pad={false} title="Tasks" sub={<>The fixed set of Tasks under every Epic. The Task name is matched against the whole Jira Task Summary, ignoring case; <code>*</code> matches any text. Prefix is what <code>{'{prefix}'}</code> stands for in that Task's sub-task names. Turn the workflow off for Tasks whose sub-tasks are not functions (Q&amp;A, WR, CR…). Type marks the Tasks whose sub-tasks the Daily Overview lists as QnA, Bug or WorkRequest.</>}>
         <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 760 }}>
-            <div style={{ ...HEAD, gridTemplateColumns: GRID }}><span>Task name</span><span>Phase</span><span>Prefix</span><span>Workflow</span><span /></div>
+          <div style={{ minWidth: 900 }}>
+            <div style={{ ...HEAD, gridTemplateColumns: GRID }}><span>Task name</span><span>Phase</span><span>Prefix</span><span>Type</span><span>Workflow</span><span /></div>
             {tasks.map((t, i) => (
               <div key={i} style={{ ...ROW, gridTemplateColumns: GRID }}>
                 <TextField aria-label={`Task ${i + 1} name`} placeholder="e.g. FUT create test case" value={t.match} onChange={(val) => setTask(i, { match: val })} />
                 <Select aria-label={`Task ${i + 1} phase`} value={t.phase} options={phaseOpts} onChange={(val) => setTask(i, { phase: val })} />
                 <TextField mono aria-label={`Task ${i + 1} prefix`} value={t.prefix} onChange={(val) => setTask(i, { prefix: val })} />
+                <Select aria-label={`Task ${i + 1} type`} value={t.type} options={TYPES} onChange={(val) => setTask(i, { type: val as TaskType })} />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                   <input type="checkbox" checked={t.workflow} onChange={(e) => setTask(i, { workflow: e.target.checked })} /> 5 steps
                 </label>
@@ -75,7 +80,7 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
               </div>
             ))}
             <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border-subtle)' }}>
-              <Button appearance="secondary" iconBefore="plus" onClick={() => setTasks((ts) => [...ts, { match: '', phase: '', prefix: '', workflow: true }])}>Add task</Button>
+              <Button appearance="secondary" iconBefore="plus" onClick={() => setTasks((ts) => [...ts, { match: '', phase: '', prefix: '', workflow: true, type: '' }])}>Add task</Button>
             </div>
           </div>
         </div>

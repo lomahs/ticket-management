@@ -31,6 +31,7 @@ import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.MemberRepository;
 import tracker.application.ports.SecretBox;
 import tracker.application.ports.SettingsRepository;
+import tracker.application.ports.TicketNoteRepository;
 import tracker.application.service.SystemService.Mode;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessStatus;
@@ -40,6 +41,7 @@ import tracker.domain.IssueKind;
 import tracker.domain.Member;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.TaskTemplate;
 import tracker.domain.WorkStructure;
 
 /**
@@ -77,7 +79,8 @@ public class DemoConfig {
 
     @Bean
     public SmartInitializingSingleton demoData(MemberRepository members, CalendarRepository calendar, SettingsRepository settings,
-                                               AccessRepository access, SecretBox secrets, SyncService sync, TransactionTemplate tx) {
+                                               AccessRepository access, SecretBox secrets, SyncService sync, TransactionTemplate tx,
+                                               TicketNoteRepository notes) {
         return () -> {
             tx.executeWithoutResult(status -> {
                 Dataset.demoMembers().forEach(members::save);
@@ -89,8 +92,14 @@ public class DemoConfig {
                 s.jira = new TrackerSettings.JiraConnection("https://acme-pay.atlassian.net", "tracker-bot@acme.vn",
                         secrets.encrypt("ATATT3xFfGF0-demo-token"), "15", Dataset.TRACKED_EPICS, "ok");
                 s.statusMapping = new TrackerSettings.StatusMapping(Dataset.STATUS_BY_NAME);
-                s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"), List.of());
+                // The QnA and WorkRequest Tasks are typed for the Daily Overview; "– {step?}" makes a sub-task without a step a
+                // single ticket (the study tickets).
+                s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"), List.of(
+                        new TaskTemplate("[Prepare] QnA management", "Prepare", "", false, TaskTemplate.QNA),
+                        new TaskTemplate("[Prepare] Work requests", "Prepare", "", false, TaskTemplate.WORK_REQUEST)));
+                s.nameRules.rule = "[{phase_name}][{function_id}] {function_name} – {step?}";
                 settings.save(s);
+                Dataset.NOTES.forEach((key, note) -> notes.save(key, note, "minh", "2026-10-06T10:00:00+07:00"));
             });
             sync.run(true);
         };

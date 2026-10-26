@@ -26,6 +26,8 @@ public final class FakeIssue {
     String updated = Dataset.UPDATED;
     final List<Log> worklogs;
     final List<Change> changes;
+    /** The project key as the one label, like the team's rule; the demo leaves a few without one. */
+    List<String> labels;
 
     FakeIssue(String key, String summary, String parent, String status, String assignee, String ps, String pe, double estH,
               String created, List<Log> worklogs, List<Change> changes) {
@@ -40,6 +42,7 @@ public final class FakeIssue {
         this.created = created;
         this.worklogs = new ArrayList<>(worklogs);
         this.changes = new ArrayList<>(changes);
+        this.labels = List.of(key.split("-", -1)[0]);
     }
 
     FakeIssue(String key, String summary, String parent, String status, String assignee, String ps, String pe) {

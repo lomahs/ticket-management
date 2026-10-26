@@ -292,6 +292,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["view_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily/notes/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["note"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["capture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/effort/analysis": {
         parameters: {
             query?: never;
@@ -651,7 +699,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["view"];
+        get: operations["view_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -734,6 +782,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["copySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/daily-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["dailyCapture"];
+        put: operations["saveDailyCapture"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -956,6 +1020,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["latestSync"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ticket-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["view"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1208,8 +1288,120 @@ export interface components {
             to_member: string;
             to_start: string;
         };
+        CheckCount: {
+            check: string;
+            /** Format: int32 */
+            count: number;
+        };
+        CheckRow: {
+            card: components["schemas"]["TaskCard"];
+            epic_key: string;
+            problems: string[];
+            task_key: string;
+            task_name: string;
+        };
         CopyIn: {
             from: string;
+        };
+        DailyBurndown: {
+            chart: components["schemas"]["BurndownChart"];
+            phase: string | null;
+        };
+        DailyCaptureIn: {
+            time: string;
+        };
+        DailyCaptureView: {
+            time: string;
+        };
+        DailyContent: {
+            /** Format: double */
+            actual_to_date_h: number;
+            burndowns: components["schemas"]["DailyBurndown"][];
+            date: string;
+            /** Format: double */
+            diff_h: number;
+            epic: string;
+            groups: components["schemas"]["DailyGroup"][];
+            /** Format: int32 */
+            pct: number;
+            /** Format: double */
+            plan_to_date_h: number;
+            title: string;
+            typed: components["schemas"]["DailyTyped"][];
+        };
+        DailyFunction: {
+            id: string;
+            name: string;
+            owner_id: string | null;
+            steps: (components["schemas"]["DailyStep"] | null)[];
+        };
+        DailyGroup: {
+            /** Format: int32 */
+            closed: number;
+            /** Format: int32 */
+            late: number;
+            name: string;
+            /** Format: int32 */
+            pct: number;
+            state: string;
+            sub_phases: components["schemas"]["DailySubPhase"][];
+            /** Format: int32 */
+            total: number;
+        };
+        DailyStep: {
+            assignee_id: string | null;
+            key: string;
+            late: boolean;
+            /** Format: int32 */
+            late_days: number;
+            planned_end: string | null;
+            planned_start: string | null;
+            /** Format: int32 */
+            rounds: number;
+            status: string;
+            step: string;
+            with_jm: boolean;
+        };
+        DailySubPhase: {
+            functions: components["schemas"]["DailyFunction"][];
+            key: string;
+            name: string;
+            tickets: components["schemas"]["DailyTicket"][];
+            /** Format: int32 */
+            unmatched: number;
+        };
+        DailyTicket: {
+            assignee_id: string | null;
+            key: string;
+            late: boolean;
+            /** Format: int32 */
+            late_days: number;
+            name: string;
+            planned_end: string | null;
+            planned_start: string | null;
+            status: string;
+        };
+        DailyTyped: {
+            assignee_id: string | null;
+            closed_on: string | null;
+            created: string;
+            /** Format: int32 */
+            held_days: number;
+            key: string;
+            note: string;
+            status: string;
+            summary: string;
+            type: string;
+            with_jm: boolean;
+        };
+        DailyView: {
+            auto_capture: string;
+            captured_at: string | null;
+            captured_by: string | null;
+            content: components["schemas"]["DailyContent"];
+            live: boolean;
+            snapshots: components["schemas"]["SnapshotOption"][];
+            today: string;
         };
         DateReason: {
             date: string;
@@ -1510,6 +1702,11 @@ export interface components {
             /** Format: int32 */
             progress_pct: number;
         };
+        MatrixTicket: {
+            card: components["schemas"]["TaskCard"];
+            name: string;
+            task_key: string;
+        };
         MatrixView: {
             epic_key: string;
             functions: components["schemas"]["FunctionRow"][];
@@ -1519,6 +1716,7 @@ export interface components {
             phase: string;
             stats: components["schemas"]["MatrixStats"];
             task_keys: string[];
+            tickets: components["schemas"]["MatrixTicket"][];
             title: string;
         };
         Me: {
@@ -1634,6 +1832,13 @@ export interface components {
             member_id: string;
             /** Format: int32 */
             open_subtasks: number;
+        };
+        NoteIn: {
+            note: string;
+        };
+        NoteOut: {
+            key: string;
+            note: string;
         };
         ParentOption: {
             end: string | null;
@@ -1786,6 +1991,11 @@ export interface components {
             /** Format: int32 */
             template: number | null;
         };
+        SnapshotOption: {
+            captured_at: string;
+            captured_by: string;
+            date: string;
+        };
         StatusMappingIn: {
             mapping: {
                 [key: string]: "N" | "W" | "R" | "C" | null;
@@ -1863,12 +2073,15 @@ export interface components {
             match: string;
             phase: string;
             prefix: string;
+            type: string;
             workflow: boolean;
         };
         TaskTemplateIn: {
             match: string;
             phase: string;
             prefix?: string | null;
+            /** @enum {string|null} */
+            type?: "" | "qna" | "bug" | "work_request" | null;
             workflow?: boolean | null;
         };
         Thresholds: {
@@ -1884,6 +2097,12 @@ export interface components {
             review_rounds: number;
             /** Format: double */
             soon_days: number;
+        };
+        TicketCheckView: {
+            /** Format: int32 */
+            checked: number;
+            counts: components["schemas"]["CheckCount"][];
+            rows: components["schemas"]["CheckRow"][];
         };
         TicketDetail: {
             card: components["schemas"]["TaskCard"];
@@ -2450,6 +2669,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarView"];
+                };
+            };
+        };
+    };
+    view_2: {
+        parameters: {
+            query: {
+                anken: string;
+                date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyView"];
+                };
+            };
+        };
+    };
+    note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+        };
+    };
+    capture: {
+        parameters: {
+            query: {
+                anken: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyView"];
                 };
             };
         };
@@ -3059,7 +3349,7 @@ export interface operations {
             };
         };
     };
-    view: {
+    view_1: {
         parameters: {
             query: {
                 start: string;
@@ -3225,6 +3515,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnkenSettingsView"];
+                };
+            };
+        };
+    };
+    dailyCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyCaptureView"];
+                };
+            };
+        };
+    };
+    saveDailyCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyCaptureIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyCaptureView"];
                 };
             };
         };
@@ -3687,6 +4021,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncStatus"];
+                };
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query?: {
+                anken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketCheckView"];
                 };
             };
         };

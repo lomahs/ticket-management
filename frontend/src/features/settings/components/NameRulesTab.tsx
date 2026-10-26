@@ -39,7 +39,7 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
   const parsedStepIndex = STEPS.findIndex((s) => s.k === p?.step);
   const used = p?.tokens ?? [];
   return (
-    <Section title="Ticket name rules" sub="Describe how sub-task Summaries are written. Placeholders are read as values; everything else must match literally. {step} must be one of the aliases below.">
+    <Section title="Ticket name rules" sub="Describe how sub-task Summaries are written. Placeholders are read as values; everything else must match literally. {step} must be one of the aliases below. Write {step?} when a sub-task may have no step: it may then be missing together with the text right before it, and such a sub-task is a single ticket (study, QnA…), not a function step.">
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
         <TextField mono label="Pattern" placeholder="[{anken_name}][{os_task}]_{phase_name}_{step}" value={rule} onChange={setRule} style={{ flex: 1 }} />
         <Button appearance="subtle" onClick={() => setRule(DEFAULT_RULE)}>Reset</Button>
@@ -57,7 +57,8 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
       <TextField label="Test with a Summary" value={sample} onChange={setSample} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
         {TOKENS.filter(([k]) => used.includes(k)).map(([k, label]) => {
-          const val = k === 'step' && p?.step ? `Step ${parsedStepIndex + 1} · ${p.values.step}` : p?.values[k];
+          const val = k === 'step' && p?.step ? `Step ${parsedStepIndex + 1} · ${p.values.step}`
+            : k === 'step' && p?.sample_matches ? 'None · single ticket' : p?.values[k];
           return (
             <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-hover)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>

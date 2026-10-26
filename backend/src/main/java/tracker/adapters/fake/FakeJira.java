@@ -84,7 +84,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
         List<WorklogSnapshot> logs = i.worklogs.stream()
                 .map(w -> new WorklogSnapshot(USERS.get(w.member()), w.date(), w.hours(), w.comment())).toList();
         return new IssueSnapshot(i.key, i.project(), i.summary, status[0], status[1], user(i.assignee), i.parent, i.created,
-                i.updated, fields, logs, changes, user(i.reporter));
+                i.updated, fields, logs, changes, user(i.reporter), i.labels);
     }
 
     /** An update time as the demo data writes it: ISO-8601 in UTC with a "+00:00" offset. */

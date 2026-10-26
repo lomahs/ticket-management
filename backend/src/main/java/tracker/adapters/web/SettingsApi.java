@@ -86,6 +86,26 @@ public class SettingsApi {
         return jiraSettings.saveJira(body.url(), body.email(), body.token(), body.interval());
     }
 
+    /** @param time "HH:mm" in the team's time zone, or "off" */
+    public record DailyCaptureIn(@NotNull @Pattern(regexp = "off|([01]\\d|2[0-3]):[0-5]\\d", message = "must be HH:mm or off") String time) {
+    }
+
+    public record DailyCaptureView(String time) {
+    }
+
+    /** When the Daily Overview of every tracked anken is captured on working days. */
+    @Open(Rule.ADMIN)
+    @GetMapping("/settings/daily-capture")
+    public DailyCaptureView dailyCapture() {
+        return new DailyCaptureView(teamSettings.dailyCapture());
+    }
+
+    @Open(Rule.ADMIN)
+    @PutMapping("/settings/daily-capture")
+    public DailyCaptureView saveDailyCapture(@RequestBody @Valid DailyCaptureIn body) {
+        return new DailyCaptureView(teamSettings.saveDailyCapture(body.time()));
+    }
+
     @Open(Rule.ADMIN)
     @PostMapping("/settings/jira/test")
     public JiraTestOut testJira(@RequestBody @Valid JiraTestIn body) {
@@ -176,10 +196,13 @@ public class SettingsApi {
      * @param match    the Jira Task Summary to recognise; case-insensitive, {@code *} matches any text
      * @param prefix   the value of {prefix} in this Task's sub-task names; default ""
      * @param workflow whether the sub-tasks follow the 5-step review workflow; default true
+     * @param type     qna | bug | work_request: what the sub-tasks are on the Daily Overview; default "" (none)
      */
-    public record TaskTemplateIn(@NotNull String match, @NotNull String phase, @Nullable String prefix, @Nullable Boolean workflow) {
+    public record TaskTemplateIn(@NotNull String match, @NotNull String phase, @Nullable String prefix, @Nullable Boolean workflow,
+                                 @Nullable @Pattern(regexp = "|qna|bug|work_request", message = "must be qna, bug or work_request")
+                                 @Schema(allowableValues = {"", "qna", "bug", "work_request"}) String type) {
         TaskTemplate domain() {
-            return new TaskTemplate(match, phase, prefix == null ? "" : prefix, workflow == null || workflow);
+            return new TaskTemplate(match, phase, prefix == null ? "" : prefix, workflow == null || workflow, type == null ? "" : type);
         }
     }
 
