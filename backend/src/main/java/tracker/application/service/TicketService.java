@@ -29,6 +29,7 @@ import tracker.application.dto.UserSnapshot;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraRejected;
 import tracker.application.settings.TrackerSettings.FieldMapping;
+import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
@@ -41,6 +42,7 @@ import tracker.domain.Steps;
 import tracker.domain.Text;
 import tracker.domain.TicketField;
 import tracker.domain.Viewer;
+import tracker.domain.WorkStructure;
 import tracker.domain.WorkingHours;
 import tracker.domain.Worklog;
 
@@ -272,30 +274,9 @@ public class TicketService {
         }
         TrackerContext ctx = context.load(scope);
         Issue issue = ticket(ctx, key);
-        Map<TicketField, String> after = new LinkedHashMap<>();
-        for (ExpectedChange e : expected) {
-            if (after.put(e.field(), e.after()) != null) {
-                throw new Invalid(e.field() + " is listed twice", "changes");
-            }
-        }
-        TicketChanges want;
-        try {
-            String est = after.get(TicketField.ESTIMATE);
-            want = new TicketChanges(after.containsKey(TicketField.STATUS) ? Status.of(after.get(TicketField.STATUS)) : null,
-                    after.get(TicketField.ASSIGNEE), after.get(TicketField.REPORTER), after.get(TicketField.PLANNED_START),
-                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est));
-        } catch (IllegalArgumentException e) {
-            throw new Invalid(e.getMessage(), "changes");
-        }
-        TicketChangePreview p = plan(ctx, issue, want);
-        List<String> moved = new ArrayList<>();
-        for (ExpectedChange e : expected) {
-            FieldChange now = p.changes().stream().filter(c -> c.field() == e.field()).findFirst().orElse(null);
-            if (now == null || !same(e.field(), now.before(), e.before())) {
-                moved.add(e.field().value());
-            }
-        }
-        if (moved.size() > 0 || p.changes().size() != expected.size()) {
+        TicketChangePreview p = plan(ctx, issue, wanted(expected));
+        List<String> moved = moved(p, expected);
+        if (!moved.isEmpty()) {
             String reason = String.join(", ", moved) + " changed in Jira after the review";
             List<JiraRequest> unsent = p.requests().isEmpty() ? List.of(new JiraRequest("PUT", JiraRequests.ISSUE + "/" + key, null)) : p.requests();
             unsent.forEach(r -> calls.notSent(actor, JiraCalls.TICKET_PANEL, key, r, reason));
@@ -316,6 +297,292 @@ public class TicketService {
             }
         }
         return detail(scope, key);
+    }
+
+    // --- Tickets screen: the Tasks and sub-tasks of an anken, edited and created in one reviewed batch -----------------
+
+    /** @param reporterId the reporter as last synced (the first one, when it was changed in Jira) */
+    public record BoardRow(String key, String summary, String status, @Nullable String assigneeId, @Nullable String reporterId,
+                           @Nullable String plannedStart, @Nullable String plannedEnd, double estimateH, @Nullable String step) {
+    }
+
+    /** @param workflow whether its sub-tasks follow the 5-step review workflow (new ones are then created as functions) */
+    public record BoardTask(BoardRow task, String phase, boolean workflow, List<BoardRow> subtasks) {
+    }
+
+    /** A Task of the anken's fixed set (Settings › Phases & tasks); {@code exists} when a Task of the epic matches it. */
+    public record BoardTemplate(String match, String phase, boolean workflow, boolean exists) {
+    }
+
+    /** @param site the Jira site, for links and the JQL hand-off; null when none is set */
+    public record TicketBoard(String epic, String title, String project, @Nullable String site, List<BoardTask> tasks,
+                              List<BoardTemplate> templates) {
+    }
+
+    private static BoardRow row(Issue i) {
+        return new BoardRow(i.key(), i.summary(), i.status().value(), i.assigneeId(), i.reporterId(), i.plannedStart(), i.plannedEnd(),
+                i.estimateH(), i.step() != null ? i.step().value() : null);
+    }
+
+    private static Anken epicOf(TrackerContext ctx, String epic) {
+        return ctx.anken(epic).orElseThrow(() -> new NotFound("Anken " + epic + " is not tracked", "anken"));
+    }
+
+    /** The Tasks of the epic in phase order (configured phases first), each with its sub-tasks by planned start. */
+    public TicketBoard board(AnkenScope scope, String epic) {
+        TrackerContext ctx = context.load(scope);
+        Anken a = epicOf(ctx, epic);
+        WorkStructure st = ctx.settings.structureOf(epic);
+        List<Issue> tasks = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
+        List<String> phases = st.orderedPhases(tasks.stream().map(Issue::phase).filter(Text::hasText).toList());
+        List<BoardTask> out = tasks.stream()
+                .sorted(Comparator.comparingInt((Issue t) -> phases.indexOf(t.phase()) < 0 ? Integer.MAX_VALUE : phases.indexOf(t.phase()))
+                        .thenComparing(Issue::key))
+                .map(t -> new BoardTask(row(t), t.phase(), st.hasWorkflow(t.summary()), ctx.subtasks().stream()
+                        .filter(c -> t.key().equals(c.parentKey()))
+                        .sorted(Comparator.comparing((Issue c) -> Text.orElse(c.plannedStart(), "9999")).thenComparing(Issue::key))
+                        .map(TicketService::row).toList()))
+                .toList();
+        List<BoardTemplate> templates = st.tasks().stream().map(tt -> new BoardTemplate(tt.match(), tt.phase(), tt.workflow(),
+                tasks.stream().anyMatch(t -> tt.equals(st.taskTemplate(t.summary()))))).toList();
+        String site = ctx.settings.jira.url.strip().replaceAll("/+$", "");
+        return new TicketBoard(epic, a.title(), a.project(), Text.hasText(site) ? site : null, out, templates);
+    }
+
+    /**
+     * A Task (under the epic) or a sub-task to create.
+     *
+     * @param ref       the client's id for it, so a sub-task can name a new Task as {@code parentRef}
+     * @param parentKey the Task of a new sub-task, when it exists already
+     */
+    public record NewTicket(String ref, boolean subtask, @Nullable String parentKey, @Nullable String parentRef, String summary,
+                            String assigneeId, @Nullable String reporterId, @Nullable String plannedStart, @Nullable String plannedEnd,
+                            @Nullable Double estimateH) {
+    }
+
+    /** @param parent the Task (or epic) key, or {@code <new:ref>} for a Task created in the same batch */
+    public record NewTicketPreview(String ref, boolean subtask, String parent, String summary, JiraRequest request) {
+    }
+
+    public record TicketUpdate(String key, TicketChanges changes) {
+    }
+
+    /** The review of a batch: the tickets that change (with their requests) and the requests that create new ones. */
+    public record BatchPreview(List<TicketChangePreview> updates, List<NewTicketPreview> creates) {
+    }
+
+    public record ExpectedUpdate(String key, List<ExpectedChange> changes) {
+    }
+
+    /** @param created the client's ref of each new ticket → its Jira key */
+    public record BatchResult(List<String> updated, Map<String, String> created) {
+    }
+
+    private static String placeholder(String ref) {
+        return "<new:" + ref + ">";
+    }
+
+    /** Checks the new tickets and builds their requests; a sub-task under a new Task names it by {@link #placeholder}. */
+    private List<NewTicketPreview> creates(TrackerContext ctx, String epic, List<NewTicket> creates) {
+        if (creates.isEmpty()) {
+            return List.of();
+        }
+        Anken a = epicOf(ctx, epic);
+        FieldMapping fm = ctx.settings.fieldMapping;
+        List<tracker.application.dto.JiraIssueType> types = reader.issueTypes(a.project());
+        String taskType = types.stream().filter(t -> !t.subtask() && t.name().equalsIgnoreCase("Task")).map(tracker.application.dto.JiraIssueType::id)
+                .findFirst().orElse(null);
+        String subtaskType = types.stream().filter(tracker.application.dto.JiraIssueType::subtask).map(tracker.application.dto.JiraIssueType::id)
+                .findFirst().orElse(null);
+        Map<String, NewTicket> newTasks = new LinkedHashMap<>();
+        List<NewTicketPreview> out = new ArrayList<>();
+        for (int n = 0; n < creates.size(); n++) {
+            NewTicket c = creates.get(n);
+            String at = "creates." + n + ".";
+            if (!Text.hasText(c.summary())) {
+                throw new Invalid("Summary is required", at + "summary");
+            }
+            String parent;
+            if (c.subtask()) {
+                if (Text.hasText(c.parentRef())) {
+                    if (!newTasks.containsKey(c.parentRef())) {
+                        throw new Invalid("The new Task of a sub-task must come before it", at + "parent_ref");
+                    }
+                    parent = placeholder(c.parentRef());
+                } else {
+                    Issue p = ctx.issue(Text.orElse(c.parentKey(), "")).filter(i -> i.kind() == tracker.domain.IssueKind.PARENT && epic.equals(i.epicKey()))
+                            .orElseThrow(() -> new Invalid(c.parentKey() + " is not a Task of " + epic, at + "parent_key"));
+                    parent = p.key();
+                }
+                if (subtaskType == null) {
+                    throw new Invalid("Project " + a.project() + " has no sub-task issue type", at + "subtask");
+                }
+            } else {
+                parent = epic;
+                if (taskType == null) {
+                    throw new Invalid("Project " + a.project() + " has no issue type named Task", at + "subtask");
+                }
+                newTasks.put(c.ref(), c);
+            }
+            Member assignee = member(ctx, c.assigneeId(), at + "assignee_id");
+            if (!ctx.isMember(epic, assignee.id())) {
+                throw new Invalid(ctx.notAMember(epic, assignee.id()), at + "assignee_id");
+            }
+            Map<TicketField, @Nullable Object> values = new EnumMap<>(TicketField.class);
+            values.put(TicketField.ASSIGNEE, account(assignee, at + "assignee_id").jiraAccountId());
+            if (Text.hasText(c.reporterId())) {
+                values.put(TicketField.REPORTER, account(member(ctx, c.reporterId(), at + "reporter_id"), at + "reporter_id").jiraAccountId());
+            }
+            if (Text.hasText(c.plannedStart()) && Text.hasText(c.plannedEnd()) && c.plannedEnd().compareTo(c.plannedStart()) < 0) {
+                throw new Invalid("Planned End is before Planned Start", at + "planned_end");
+            }
+            if (Text.hasText(c.plannedStart())) {
+                values.put(TicketField.PLANNED_START, c.plannedStart());
+            }
+            if (Text.hasText(c.plannedEnd())) {
+                values.put(TicketField.PLANNED_END, c.plannedEnd());
+            }
+            if (c.estimateH() != null) {
+                if (!(c.estimateH() >= 0)) {
+                    throw new Invalid("Estimate must be 0 hours or more", at + "estimate_h");
+                }
+                values.put(TicketField.ESTIMATE, c.estimateH());
+            }
+            out.add(new NewTicketPreview(c.ref(), c.subtask(), parent, c.summary().strip(),
+                    JiraRequests.createIssue(a.project(), c.subtask() ? subtaskType : taskType, parent, c.summary().strip(), values, fm)));
+        }
+        return out;
+    }
+
+    private Issue epicTicket(TrackerContext ctx, String epic, String key) {
+        Issue i = ticket(ctx, key);
+        if (!epic.equals(i.epicKey())) {
+            throw new Invalid(key + " is not a ticket of " + epic, "updates");
+        }
+        return i;
+    }
+
+    /** Reads every changed ticket from Jira and shows what would change and be created, with the requests. */
+    public BatchPreview previewBatch(AnkenScope scope, String epic, List<TicketUpdate> updates, List<NewTicket> newTickets) {
+        calls.requireEnabled();
+        TrackerContext ctx = context.load(scope);
+        epicOf(ctx, epic);
+        List<TicketChangePreview> changed = new ArrayList<>();
+        for (TicketUpdate u : updates) {
+            TicketChangePreview p = plan(ctx, epicTicket(ctx, epic, u.key()), u.changes());
+            if (!p.changes().isEmpty()) {
+                changed.add(p);
+            }
+        }
+        return new BatchPreview(changed, creates(ctx, epic, newTickets));
+    }
+
+    private static TicketChanges wanted(List<ExpectedChange> expected) {
+        Map<TicketField, String> after = new LinkedHashMap<>();
+        for (ExpectedChange e : expected) {
+            if (after.put(e.field(), e.after()) != null) {
+                throw new Invalid(e.field() + " is listed twice", "changes");
+            }
+        }
+        try {
+            String est = after.get(TicketField.ESTIMATE);
+            return new TicketChanges(after.containsKey(TicketField.STATUS) ? Status.of(after.get(TicketField.STATUS)) : null,
+                    after.get(TicketField.ASSIGNEE), after.get(TicketField.REPORTER), after.get(TicketField.PLANNED_START),
+                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est));
+        } catch (IllegalArgumentException e) {
+            throw new Invalid(e.getMessage(), "changes");
+        }
+    }
+
+    /** The fields whose {@code before} Jira no longer has, or that no longer change. */
+    private static List<String> moved(TicketChangePreview p, List<ExpectedChange> expected) {
+        List<String> moved = new ArrayList<>();
+        for (ExpectedChange e : expected) {
+            FieldChange now = p.changes().stream().filter(c -> c.field() == e.field()).findFirst().orElse(null);
+            if (now == null || !same(e.field(), now.before(), e.before())) {
+                moved.add(e.field().value());
+            }
+        }
+        if (moved.isEmpty() && p.changes().size() != expected.size()) {
+            p.changes().stream().filter(c -> expected.stream().noneMatch(e -> e.field() == c.field())).forEach(c -> moved.add(c.field().value()));
+        }
+        return moved;
+    }
+
+    /**
+     * Applies a reviewed batch: every updated ticket is read again first and, if any changed in Jira since the review, nothing
+     * at all is sent. Then the updates, the new Tasks and the new sub-tasks (under the keys their Tasks got), one logged request
+     * each. Everything touched is re-read from Jira, also when Jira refuses a request half-way.
+     */
+    public BatchResult applyBatch(Viewer actor, AnkenScope scope, String epic, List<ExpectedUpdate> updates, List<NewTicket> newTickets) {
+        calls.requireEnabled();
+        if (updates.isEmpty() && newTickets.isEmpty()) {
+            throw new Invalid("There is nothing to apply", "updates");
+        }
+        TrackerContext ctx = context.load(scope);
+        epicOf(ctx, epic);
+        List<TicketChangePreview> plans = new ArrayList<>();
+        List<String> conflicts = new ArrayList<>();
+        for (ExpectedUpdate u : updates) {
+            TicketChangePreview p = plan(ctx, epicTicket(ctx, epic, u.key()), wanted(u.changes()));
+            List<String> moved = moved(p, u.changes());
+            if (!moved.isEmpty()) {
+                conflicts.add(u.key() + " (" + String.join(", ", moved) + ")");
+            }
+            plans.add(p);
+        }
+        List<NewTicketPreview> creates = creates(ctx, epic, newTickets);
+        if (!conflicts.isEmpty()) {
+            String reason = "changed in Jira after the review: " + String.join(", ", conflicts);
+            plans.forEach(p -> p.requests().forEach(r -> calls.notSent(actor, JiraCalls.TICKETS, p.key(), r, reason)));
+            creates.forEach(c -> calls.notSent(actor, JiraCalls.TICKETS, c.parent(), c.request(), reason));
+            throw new Conflict(reason.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + reason.substring(1) + ". Review the batch again.", null);
+        }
+        int total = plans.stream().mapToInt(p -> p.requests().size()).sum() + creates.size();
+        List<String> touched = new ArrayList<>();
+        Map<String, String> created = new LinkedHashMap<>();
+        int sent = 0;
+        try {
+            for (TicketChangePreview p : plans) {
+                for (JiraRequest r : p.requests()) {
+                    calls.send(actor, JiraCalls.TICKETS, p.key(), r);
+                    sent++;
+                }
+                touched.add(p.key());
+            }
+            for (NewTicketPreview c : creates) {
+                JiraRequest r = c.request();
+                String parent = c.parent();
+                if (parent.startsWith("<new:")) {
+                    String key = created.get(parent.substring(5, parent.length() - 1));
+                    r = new JiraRequest(r.method(), r.path(), r.body().replace("\"" + parent + "\"", "\"" + key + "\""));
+                    parent = key;
+                }
+                String key = createdKey(calls.send(actor, JiraCalls.TICKETS, parent, r));
+                sent++;
+                created.put(c.ref(), key);
+                touched.add(key);
+            }
+        } catch (JiraRejected e) {
+            throw sent == 0 ? e : new JiraRejected(e.status(), "Jira applied " + sent + " of " + total + " requests, then refused the next: "
+                    + e.getMessage());
+        } finally {
+            if (!touched.isEmpty()) {
+                sync.refresh(touched);
+            }
+        }
+        return new BatchResult(plans.stream().map(TicketChangePreview::key).toList(), created);
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** The key in Jira's answer to a create. */
+    private static String createdKey(tracker.application.dto.JiraResponse r) {
+        try {
+            return JSON.readTree(r.body()).path("key").asText();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new tracker.application.ports.JiraError("Jira returned invalid JSON for a created issue: " + e.getMessage(), e);
+        }
     }
 
     /** Answers from the anken in scope only. */

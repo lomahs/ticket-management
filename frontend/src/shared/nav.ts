@@ -8,6 +8,7 @@ export interface NavItem { to: string; label: string; icon: IconName; feature?: 
 export const NAV: NavItem[] = [
   { to: '/my-work', label: 'My Work', icon: 'list-todo', feature: 'my_work', active: (p) => p.startsWith('/my-work') },
   { to: '/matrix', label: 'Function Matrix', icon: 'grid-3x3', feature: 'matrix', active: (p) => /^\/anken\/[^/]+\/matrix/.test(p) },
+  { to: '/tickets', label: 'Tickets', icon: 'list-todo', feature: 'ticket', active: (p) => p.startsWith('/tickets') },
   { to: '/anken', label: 'Anken Overview', icon: 'layout-dashboard', feature: 'overview', active: (p) => p.startsWith('/anken') && !/\/matrix/.test(p) },
   { to: '/daily', label: 'Daily Overview', icon: 'camera', feature: 'overview', active: (p) => p.startsWith('/daily') },
   { to: '/ticket-check', label: 'Ticket Check', icon: 'scan-search', feature: 'overview', active: (p) => p.startsWith('/ticket-check') },

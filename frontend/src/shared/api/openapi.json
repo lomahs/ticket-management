@@ -2331,6 +2331,88 @@
         "tags" : [ "ticket-check-api" ]
       }
     },
+    "/api/v1/tickets/batch/apply" : {
+      "post" : {
+        "operationId" : "applyBatch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BatchApplyIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tickets-api" ]
+      }
+    },
+    "/api/v1/tickets/batch/preview" : {
+      "post" : {
+        "operationId" : "previewBatch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BatchIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tickets-api" ]
+      }
+    },
+    "/api/v1/tickets/board" : {
+      "get" : {
+        "operationId" : "board",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TicketBoard"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tickets-api" ]
+      }
+    },
     "/api/v1/tickets/{key}" : {
       "get" : {
         "operationId" : "detail",
@@ -2897,6 +2979,165 @@
           }
         },
         "required" : [ "current", "items", "kind", "remaining_h", "start" ]
+      },
+      "BatchApplyIn" : {
+        "type" : "object",
+        "properties" : {
+          "creates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NewTicketIn"
+            },
+            "maxItems" : 300,
+            "minItems" : 0
+          },
+          "epic" : {
+            "type" : "string"
+          },
+          "updates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ExpectedUpdateIn"
+            },
+            "maxItems" : 300,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "creates", "epic", "updates" ]
+      },
+      "BatchIn" : {
+        "type" : "object",
+        "properties" : {
+          "creates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NewTicketIn"
+            },
+            "maxItems" : 300,
+            "minItems" : 0
+          },
+          "epic" : {
+            "type" : "string"
+          },
+          "updates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/UpdateIn"
+            },
+            "maxItems" : 300,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "creates", "epic", "updates" ]
+      },
+      "BatchPreview" : {
+        "type" : "object",
+        "properties" : {
+          "creates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NewTicketPreview"
+            }
+          },
+          "updates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TicketChangePreview"
+            }
+          }
+        },
+        "required" : [ "creates", "updates" ]
+      },
+      "BatchResult" : {
+        "type" : "object",
+        "properties" : {
+          "created" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "updated" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        },
+        "required" : [ "created", "updated" ]
+      },
+      "BoardRow" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "estimate_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ]
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ]
+          },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "assignee_id", "estimate_h", "key", "planned_end", "planned_start", "reporter_id", "status", "step", "summary" ]
+      },
+      "BoardTask" : {
+        "type" : "object",
+        "properties" : {
+          "phase" : {
+            "type" : "string"
+          },
+          "subtasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BoardRow"
+            }
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/BoardRow"
+          },
+          "workflow" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "phase", "subtasks", "task", "workflow" ]
+      },
+      "BoardTemplate" : {
+        "type" : "object",
+        "properties" : {
+          "exists" : {
+            "type" : "boolean"
+          },
+          "match" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "workflow" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "exists", "match", "phase", "workflow" ]
       },
       "BurndownChart" : {
         "type" : "object",
@@ -3709,6 +3950,23 @@
           }
         },
         "required" : [ "key", "project", "title" ]
+      },
+      "ExpectedUpdateIn" : {
+        "type" : "object",
+        "properties" : {
+          "changes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChangeIn"
+            },
+            "maxItems" : 6,
+            "minItems" : 0
+          },
+          "key" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "changes", "key" ]
       },
       "ExtraDayIn" : {
         "type" : "object",
@@ -4867,6 +5125,70 @@
         },
         "required" : [ "email", "epics", "name" ]
       },
+      "NewTicketIn" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : "string"
+          },
+          "estimate_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "parent_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "parent_ref" : {
+            "type" : [ "string", "null" ]
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "ref" : {
+            "type" : "string",
+            "maxLength" : 40,
+            "minLength" : 1
+          },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "subtask" : {
+            "type" : "boolean"
+          },
+          "summary" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "assignee_id", "ref", "summary" ]
+      },
+      "NewTicketPreview" : {
+        "type" : "object",
+        "properties" : {
+          "parent" : {
+            "type" : "string"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "request" : {
+            "$ref" : "#/components/schemas/JiraRequest"
+          },
+          "subtask" : {
+            "type" : "boolean"
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "parent", "ref", "request", "subtask", "summary" ]
+      },
       "NotMember" : {
         "type" : "object",
         "properties" : {
@@ -5633,6 +5955,36 @@
         },
         "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
+      "TicketBoard" : {
+        "type" : "object",
+        "properties" : {
+          "epic" : {
+            "type" : "string"
+          },
+          "project" : {
+            "type" : "string"
+          },
+          "site" : {
+            "type" : [ "string", "null" ]
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BoardTask"
+            }
+          },
+          "templates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BoardTemplate"
+            }
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "epic", "project", "site", "tasks", "templates", "title" ]
+      },
       "TicketChangePreview" : {
         "type" : "object",
         "properties" : {
@@ -5849,6 +6201,37 @@
           }
         },
         "required" : [ "days", "end", "rows", "start" ]
+      },
+      "UpdateIn" : {
+        "type" : "object",
+        "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "estimate_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "N", "W", "R", "C" ]
+          }
+        },
+        "required" : [ "key" ]
       },
       "UserPatchIn" : {
         "type" : "object",

@@ -1060,6 +1060,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tickets/batch/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/batch/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tickets/{key}": {
         parameters: {
             query?: never;
@@ -1251,6 +1299,50 @@ export interface components {
             /** Format: double */
             remaining_h: number;
             start: string | null;
+        };
+        BatchApplyIn: {
+            creates: components["schemas"]["NewTicketIn"][];
+            epic: string;
+            updates: components["schemas"]["ExpectedUpdateIn"][];
+        };
+        BatchIn: {
+            creates: components["schemas"]["NewTicketIn"][];
+            epic: string;
+            updates: components["schemas"]["UpdateIn"][];
+        };
+        BatchPreview: {
+            creates: components["schemas"]["NewTicketPreview"][];
+            updates: components["schemas"]["TicketChangePreview"][];
+        };
+        BatchResult: {
+            created: {
+                [key: string]: string;
+            };
+            updated: string[];
+        };
+        BoardRow: {
+            assignee_id: string | null;
+            /** Format: double */
+            estimate_h: number;
+            key: string;
+            planned_end: string | null;
+            planned_start: string | null;
+            reporter_id: string | null;
+            status: string;
+            step: string | null;
+            summary: string;
+        };
+        BoardTask: {
+            phase: string;
+            subtasks: components["schemas"]["BoardRow"][];
+            task: components["schemas"]["BoardRow"];
+            workflow: boolean;
+        };
+        BoardTemplate: {
+            exists: boolean;
+            match: string;
+            phase: string;
+            workflow: boolean;
         };
         BurndownChart: {
             /** Format: double */
@@ -1520,6 +1612,10 @@ export interface components {
             key: string;
             project: string;
             title: string;
+        };
+        ExpectedUpdateIn: {
+            changes: components["schemas"]["ChangeIn"][];
+            key: string;
         };
         ExtraDayIn: {
             date: string;
@@ -1897,6 +1993,26 @@ export interface components {
             /** @enum {string|null} */
             role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
+        NewTicketIn: {
+            assignee_id: string;
+            /** Format: double */
+            estimate_h?: number | null;
+            parent_key?: string | null;
+            parent_ref?: string | null;
+            planned_end?: string | null;
+            planned_start?: string | null;
+            ref: string;
+            reporter_id?: string | null;
+            subtask?: boolean;
+            summary: string;
+        };
+        NewTicketPreview: {
+            parent: string;
+            ref: string;
+            request: components["schemas"]["JiraRequest"];
+            subtask: boolean;
+            summary: string;
+        };
         NotMember: {
             /** Format: double */
             logged_h: number;
@@ -2169,6 +2285,14 @@ export interface components {
             /** Format: double */
             soon_days: number;
         };
+        TicketBoard: {
+            epic: string;
+            project: string;
+            site: string | null;
+            tasks: components["schemas"]["BoardTask"][];
+            templates: components["schemas"]["BoardTemplate"][];
+            title: string;
+        };
         TicketChangePreview: {
             changes: components["schemas"]["FieldChange"][];
             estimate_tracking: boolean;
@@ -2238,6 +2362,17 @@ export interface components {
             end: string;
             rows: components["schemas"]["TimesheetRow"][];
             start: string;
+        };
+        UpdateIn: {
+            assignee_id?: string | null;
+            /** Format: double */
+            estimate_h?: number | null;
+            key: string;
+            planned_end?: string | null;
+            planned_start?: string | null;
+            reporter_id?: string | null;
+            /** @enum {string|null} */
+            status?: "N" | "W" | "R" | "C" | null;
         };
         UserPatchIn: {
             /** @enum {string|null} */
@@ -4150,6 +4285,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketCheckView"];
+                };
+            };
+        };
+    };
+    applyBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchApplyIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+        };
+    };
+    previewBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
+                };
+            };
+        };
+    };
+    board: {
+        parameters: {
+            query: {
+                anken: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketBoard"];
                 };
             };
         };

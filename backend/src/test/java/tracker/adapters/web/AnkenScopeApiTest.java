@@ -260,6 +260,7 @@ class AnkenScopeApiTest extends ApiTestSupport {
                 Arguments.of("/api/v1/meta", List.of("/api/v1/meta"), "/api/v1/meta"),
                 Arguments.of("/api/v1/sync/runs/latest", List.of("/api/v1/sync/runs/latest"), "/api/v1/sync/runs/latest"),
                 Arguments.of("/api/v1/tickets/{key}", List.of("/api/v1/tickets/" + PAY_1300_SUBTASK), "/api/v1/tickets/" + PAY_1100_SUBTASK),
+                Arguments.of("/api/v1/tickets/board", List.of("/api/v1/tickets/board?anken=PAY-1300"), "/api/v1/tickets/board?anken=PAY-1100"),
                 Arguments.of("/api/v1/tickets/{key}/function", List.of("/api/v1/tickets/" + PAY_1300_SUBTASK + "/function"),
                         "/api/v1/tickets/" + PAY_1100_SUBTASK + "/function"),
                 Arguments.of("/api/v1/planning", List.of("/api/v1/planning?start=2026-10-05&" + other), "/api/v1/planning?start=2026-10-05"),

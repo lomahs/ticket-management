@@ -114,6 +114,20 @@ const matrixEntry = createRoute({
     throw first ? redirect({ to: '/anken/$epic/matrix', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });
+/** "Tickets" in the sidebar: the switcher's anken, else the first visible one. */
+const ticketsEntry = createRoute({
+  getParentRoute: () => app,
+  path: 'tickets',
+  ...needs('ticket'),
+  beforeLoad: async ({ context, search }) => {
+    if (!can(await context.queryClient.ensureQueryData(meQuery), 'ticket')) return;
+    const anken = await context.queryClient.ensureQueryData(visibleAnkenQuery);
+    const scope = (search as { anken?: string }).anken || storedAnken();
+    const first = anken.find((a) => a.key === scope) ?? anken[0];
+    throw first ? redirect({ to: '/tickets/$epic', params: { epic: first.key } }) : redirect({ to: '/anken' });
+  },
+});
+const tickets = createRoute({ getParentRoute: () => app, path: 'tickets/$epic', ...needs('ticket'), component: lazyRouteComponent(() => import('../features/tickets'), 'TicketsPage') });
 const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ticketList = createRoute({
@@ -198,7 +212,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

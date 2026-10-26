@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 /** Every request the app sends to change Jira, kept for the admins. */
 public interface JiraWriteLog {
     /**
-     * @param source ticket_panel | add_function | planning
+     * @param source ticket_panel | tickets | add_function | planning
      * @param status Jira's HTTP status; 0 when the request was not sent or Jira could not be reached
      */
     record JiraLogEntry(int id, String at, String actorEmail, String actorName, String source, String key, String method,

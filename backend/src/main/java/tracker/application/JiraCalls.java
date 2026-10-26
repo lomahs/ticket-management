@@ -21,6 +21,7 @@ public class JiraCalls {
     public static final String TICKET_PANEL = "ticket_panel";
     public static final String ADD_FUNCTION = "add_function";
     public static final String PLANNING = "planning";
+    public static final String TICKETS = "tickets";
 
     private final Optional<JiraWriter> writer;
     private final JiraWriteLog log;
@@ -43,7 +44,7 @@ public class JiraCalls {
         }
     }
 
-    /** @param source where the change was made: {@link #TICKET_PANEL}, {@link #ADD_FUNCTION} or {@link #PLANNING} */
+    /** @param source where the change was made: {@link #TICKET_PANEL}, {@link #TICKETS}, {@link #ADD_FUNCTION} or {@link #PLANNING} */
     public JiraResponse send(Viewer actor, String source, String issueKey, JiraRequest request) {
         requireEnabled();
         long started = System.nanoTime();

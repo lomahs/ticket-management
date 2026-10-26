@@ -65,11 +65,6 @@ public final class JiraRequests {
     /** A new sub-task under {@code parentKey}: summary, assignee, reporter left to Jira, dates and estimate when given. */
     public static JiraRequest createSubtask(String project, String issueTypeId, String parentKey, String summary, String assigneeAccountId,
                                             @Nullable String plannedStart, @Nullable String plannedEnd, double estimateH, FieldMapping fm) {
-        ObjectNode fields = JSON.createObjectNode();
-        fields.putObject("project").put("key", project);
-        fields.putObject("issuetype").put("id", issueTypeId);
-        fields.putObject("parent").put("key", parentKey);
-        fields.put("summary", summary);
         Map<TicketField, @Nullable Object> values = new EnumMap<>(TicketField.class);
         values.put(TicketField.ASSIGNEE, assigneeAccountId);
         if (plannedStart != null) {
@@ -81,7 +76,23 @@ public final class JiraRequests {
         if (estimateH > 0) {
             values.put(TicketField.ESTIMATE, estimateH);
         }
-        values.forEach((f, v) -> put(fields, f, v, fm));
+        return createIssue(project, issueTypeId, parentKey, summary, values, fm);
+    }
+
+    /**
+     * A new issue of the project with the given parent (an epic for a Task, a Task for a sub-task) and summary, plus exactly
+     * {@code values} (as for {@link #update}; a status cannot be set on a new issue).
+     */
+    public static JiraRequest createIssue(String project, String issueTypeId, String parentKey, String summary,
+                                          Map<TicketField, @Nullable Object> values, FieldMapping fm) {
+        ObjectNode fields = JSON.createObjectNode();
+        fields.putObject("project").put("key", project);
+        fields.putObject("issuetype").put("id", issueTypeId);
+        fields.putObject("parent").put("key", parentKey);
+        fields.put("summary", summary);
+        Map<TicketField, @Nullable Object> ordered = new EnumMap<>(TicketField.class);
+        ordered.putAll(values);
+        ordered.forEach((f, v) -> put(fields, f, v, fm));
         ObjectNode body = JSON.createObjectNode();
         body.set("fields", fields);
         return new JiraRequest("POST", ISSUE, body.toString());

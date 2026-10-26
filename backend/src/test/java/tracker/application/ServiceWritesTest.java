@@ -38,6 +38,7 @@ import tracker.application.service.TeamSettingsService;
 import tracker.application.service.TicketService;
 import tracker.application.service.TicketService.TicketChangePreview;
 import tracker.application.service.TicketService.ExpectedChange;
+import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.TicketChanges;
 import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
@@ -288,6 +289,60 @@ class ServiceWritesTest {
         assertThat(jira.findIssue("PAY-1213").orElseThrow().assignee().accountId()).isNotEqualTo("acc-minh");
         assertThat(log.recent(10, true)).extracting(e -> e.status() + " " + e.error()).containsExactly(
                 "0 Not sent: planned_end changed in Jira after the review");
+    }
+
+    @Test
+    void boardListsTheTasksOfTheAnkenWithTheirSubtasks() {
+        TicketService.TicketBoard b = tickets.board(ALL, "PAY-1100");
+        assertThat(b.tasks()).extracting(t -> t.task().key()).contains("PAY-1101", "PAY-1102", "PAY-1103");
+        TicketService.BoardTask coding = b.tasks().stream().filter(t -> t.task().key().equals("PAY-1102")).findFirst().orElseThrow();
+        assertThat(coding.workflow()).isTrue();
+        assertThat(coding.subtasks()).extracting(TicketService.BoardRow::key).contains("PAY-1213");
+        assertThat(b.templates()).hasSize(2);
+        assertThat(b.site()).isEqualTo("https://acme-pay.atlassian.net");
+    }
+
+    static TicketService.NewTicket newTask(String ref, String summary) {
+        return new TicketService.NewTicket(ref, false, null, null, summary, "an", "minh", "2026-10-12", "2026-10-23", null);
+    }
+
+    static TicketService.NewTicket newSub(String ref, String parentKey, String parentRef, String summary) {
+        return new TicketService.NewTicket(ref, true, parentKey, parentRef, summary, "an", null, "2026-10-12", "2026-10-13", 4.0);
+    }
+
+    /** One review for updates and new tickets; a sub-task under a new Task gets the key its Task was given. */
+    @Test
+    void batchUpdatesAndCreatesTasksWithSubtasks(@Autowired JiraWriteLog log) {
+        List<TicketService.TicketUpdate> updates = List.of(new TicketService.TicketUpdate("PAY-1213", want(null, null, null, null, "2026-10-08", null)));
+        List<TicketService.NewTicket> creates = List.of(newTask("t1", "[Prepare] Work requests"), newSub("s1", null, "t1", "Ask JM about refunds"),
+                newSub("s2", "PAY-1101", null, "Collect sample data"));
+        TicketService.BatchPreview p = tickets.previewBatch(ALL, "PAY-1100", updates, creates);
+        assertThat(p.updates()).extracting(TicketChangePreview::key).containsExactly("PAY-1213");
+        assertThat(p.creates()).extracting(c -> c.parent()).containsExactly("PAY-1100", "<new:t1>", "PAY-1101");
+        assertThat(p.creates().get(0).request().body()).contains("\"issuetype\":{\"id\":\"10001\"}", "\"reporter\":{\"accountId\":\"acc-minh\"}");
+        assertThat(p.creates().get(1).request().body()).contains("\"parent\":{\"key\":\"<new:t1>\"}", "\"originalEstimate\":\"240m\"");
+
+        TicketService.BatchResult r = tickets.applyBatch(ADMIN, ALL, "PAY-1100",
+                List.of(new ExpectedUpdate("PAY-1213", expected(p.updates().get(0)))), creates);
+        assertThat(r.updated()).containsExactly("PAY-1213");
+        assertThat(r.created()).containsExactly(Map.entry("t1", "PAY-1501"), Map.entry("s1", "PAY-1502"), Map.entry("s2", "PAY-1503"));
+        TicketService.BoardTask added = tickets.board(ALL, "PAY-1100").tasks().stream().filter(t -> t.task().key().equals("PAY-1501")).findFirst().orElseThrow();
+        assertThat(added.subtasks()).extracting(TicketService.BoardRow::summary).containsExactly("Ask JM about refunds");
+        assertThat(log.recent(10, false)).extracting(e -> e.source() + " " + e.method() + " " + e.status()).containsExactly(
+                "tickets POST 201", "tickets POST 201", "tickets POST 201", "tickets PUT 204");
+        assertThat(log.recent(10, false).get(1).body()).contains("\"parent\":{\"key\":\"PAY-1501\"}");
+    }
+
+    @Test
+    void batchIsRefusedWholeWhenOneTicketChanged(@Autowired tracker.adapters.fake.FakeJira jira) {
+        List<TicketService.TicketUpdate> updates = List.of(new TicketService.TicketUpdate("PAY-1213", want(null, null, null, null, "2026-10-08", null)));
+        TicketService.BatchPreview p = tickets.previewBatch(ALL, "PAY-1100", updates, List.of());
+        jira.send(new tracker.application.dto.JiraRequest("PUT", "/rest/api/3/issue/PAY-1213", "{\"fields\":{\"customfield_10016\":\"2026-10-15\"}}"));
+        assertThatThrownBy(() -> tickets.applyBatch(ADMIN, ALL, "PAY-1100", List.of(new ExpectedUpdate("PAY-1213", expected(p.updates().get(0)))),
+                List.of(newTask("t1", "[Prepare] Work requests")))).isInstanceOf(Conflict.class).hasMessageContaining("PAY-1213 (planned_end)");
+        assertThat(jira.findIssue("PAY-1501")).isEmpty();
+        assertThatThrownBy(() -> tickets.previewBatch(ALL, "PAY-1100", List.of(), List.of(newSub("s1", null, "t9", "X"))))
+                .isInstanceOf(Invalid.class);
     }
 
     @Test

@@ -266,11 +266,23 @@ public final class FakeJira implements JiraReader, JiraWriter {
 
     private String create(JsonNode f) {
         String parentKey = f.path("parent").path("key").asText();
-        FakeIssue parent = issue(parentKey);
-        if (!SUBTASK_TYPE.equals(f.path("issuetype").path("id").asText())) {
-            throw new JiraRejected(400, "Only sub-tasks can be created in the demo site");
+        String type = f.path("issuetype").path("id").asText();
+        String project;
+        if (TASK_TYPE.equals(type)) {
+            if (!Dataset.EPICS.containsKey(parentKey)) {
+                throw new JiraRejected(400, "The parent of a Task must be an epic: " + parentKey);
+            }
+            project = Dataset.EPICS.get(parentKey).project();
+        } else if (SUBTASK_TYPE.equals(type)) {
+            FakeIssue parent = issue(parentKey);
+            if (!Dataset.EPICS.containsKey(parent.parent)) {
+                throw new JiraRejected(400, "The parent of a sub-task must be a Task: " + parentKey);
+            }
+            project = parent.project();
+        } else {
+            throw new JiraRejected(400, "Specify a valid issue type");
         }
-        String key = parent.project() + "-" + nextKey;
+        String key = project + "-" + nextKey;
         nextKey++;
         String assignee = f.path("assignee").isObject() ? removeAccPrefix(f.path("assignee").path("accountId").asText()) : null;
         FakeIssue issue = new FakeIssue(key, f.path("summary").asText(), parentKey, "N", assignee,

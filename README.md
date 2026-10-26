@@ -215,10 +215,11 @@ Import boundaries are checked by `src/architecture.test.ts`.
 | `/my-work?member=&backlog=` | My Work |
 | `/anken`, `/anken/$epic` | Anken Overview |
 | `/anken/$epic/matrix?task=&q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix (one Task at a time), Add function |
+| `/tickets`, `/tickets/$epic` | Tickets: an anken's Tasks and sub-tasks; admins edit and create them in one reviewed commit to Jira, anyone can open a selection in Jira or export it |
 | `/planning?start=&weeks=&hide=` | Planning |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
-| `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts) |
+| `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts, jira-log) |
 
 ## Tests
 

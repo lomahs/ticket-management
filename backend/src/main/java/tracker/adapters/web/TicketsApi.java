@@ -23,7 +23,13 @@ import tracker.adapters.web.auth.Requires;
 import tracker.application.service.AnkenService.FunctionSteps;
 import tracker.application.service.AnkenService;
 import tracker.application.service.ScopeService;
+import tracker.application.service.TicketService.BatchPreview;
+import tracker.application.service.TicketService.BatchResult;
+import tracker.application.service.TicketService.ExpectedUpdate;
+import tracker.application.service.TicketService.NewTicket;
+import tracker.application.service.TicketService.TicketBoard;
 import tracker.application.service.TicketService.TicketChangePreview;
+import tracker.application.service.TicketService.TicketUpdate;
 import tracker.application.service.TicketService.ExpectedChange;
 import tracker.application.service.TicketService.TicketChanges;
 import tracker.application.service.TicketService.TicketDetail;
@@ -63,6 +69,36 @@ public class TicketsApi {
     public record ApplyIn(@NotEmpty @Size(max = 6) List<@Valid ChangeIn> changes) {
     }
 
+    /** The wanted values of one ticket in a batch; fields left out are not changed. */
+    public record UpdateIn(@NotNull String key, @Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
+                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
+                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
+                           @Nullable @PositiveOrZero Double estimateH) {
+    }
+
+    /** A Task (subtask false: under the epic) or a sub-task, under an existing Task or one created earlier in the batch. */
+    public record NewTicketIn(@NotNull @Size(min = 1, max = 40) String ref, boolean subtask, @Nullable String parentKey, @Nullable String parentRef,
+                              @NotNull @Size(max = 255) String summary, @NotNull String assigneeId, @Nullable String reporterId,
+                              @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
+                              @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
+                              @Nullable @PositiveOrZero Double estimateH) {
+        NewTicket ticket() {
+            return new NewTicket(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH);
+        }
+    }
+
+    public record BatchIn(@NotNull String epic, @NotNull @Size(max = 300) List<@NotNull @Valid UpdateIn> updates,
+                          @NotNull @Size(max = 300) List<@NotNull @Valid NewTicketIn> creates) {
+    }
+
+    /** One ticket's changes as the review showed them. */
+    public record ExpectedUpdateIn(@NotNull String key, @NotEmpty @Size(max = 6) List<@Valid ChangeIn> changes) {
+    }
+
+    public record BatchApplyIn(@NotNull String epic, @NotNull @Size(max = 300) List<@NotNull @Valid ExpectedUpdateIn> updates,
+                               @NotNull @Size(max = 300) List<@NotNull @Valid NewTicketIn> creates) {
+    }
+
     public record QuestionIn(@NotNull @Size(min = 1, max = 500) String q) {
     }
 
@@ -93,6 +129,33 @@ public class TicketsApi {
     public TicketDetail apply(@PathVariable("key") String key, @RequestBody @Valid ApplyIn body, Viewer viewer) {
         return tickets.apply(viewer, scopes.scope(viewer, null), key,
                 body.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList());
+    }
+
+    /** The Tasks and sub-tasks of an anken the viewer sees, for the Tickets screen. */
+    @Requires(feature = Feature.TICKET, level = Level.READ)
+    @GetMapping("/tickets/board")
+    public TicketBoard board(@RequestParam String anken, Viewer viewer) {
+        return tickets.board(scopes.scope(viewer, anken), anken);
+    }
+
+    /** Reads the changed tickets from Jira and shows what the batch would change and create, with the requests. Admins. */
+    @Requires(feature = Feature.TICKET, level = Level.WRITE)
+    @PostMapping("/tickets/batch/preview")
+    public BatchPreview previewBatch(@RequestBody @Valid BatchIn body, Viewer viewer) {
+        return tickets.previewBatch(scopes.scope(viewer, body.epic()), body.epic(),
+                body.updates().stream().map(u -> new TicketUpdate(u.key(), new TicketChanges(u.status(), u.assigneeId(), u.reporterId(),
+                        u.plannedStart(), u.plannedEnd(), u.estimateH()))).toList(),
+                body.creates().stream().map(NewTicketIn::ticket).toList());
+    }
+
+    /** Applies a reviewed batch; 409 when any updated ticket changed in Jira since the review (nothing is written). Admins. */
+    @Requires(feature = Feature.TICKET, level = Level.WRITE)
+    @PostMapping("/tickets/batch/apply")
+    public BatchResult applyBatch(@RequestBody @Valid BatchApplyIn body, Viewer viewer) {
+        return tickets.applyBatch(viewer, scopes.scope(viewer, body.epic()), body.epic(),
+                body.updates().stream().map(u -> new ExpectedUpdate(u.key(),
+                        u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList())).toList(),
+                body.creates().stream().map(NewTicketIn::ticket).toList());
     }
 
     @Requires(feature = Feature.QA, level = Level.READ)
