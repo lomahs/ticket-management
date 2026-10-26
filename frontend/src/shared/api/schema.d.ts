@@ -1497,10 +1497,19 @@ export interface components {
             with_jm: boolean;
         };
         DailySubPhase: {
+            /** Format: int32 */
+            closed: number;
             functions: components["schemas"]["DailyFunction"][];
             key: string;
+            /** Format: int32 */
+            late: number;
             name: string;
+            /** Format: int32 */
+            pct: number;
+            state: string;
             tickets: components["schemas"]["DailyTicket"][];
+            /** Format: int32 */
+            total: number;
             /** Format: int32 */
             unmatched: number;
         };

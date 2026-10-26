@@ -55,6 +55,15 @@ class DailyServiceTest {
     }
 
     @Test
+    void eachTaskWithSubTasksIsRolledUpOnItsOwn() {
+        List<DailySubPhase> tasks = daily.view(ALL, "PAY-1100", null).content().groups().stream().flatMap(g -> g.subPhases().stream()).toList();
+        assertThat(tasks).isNotEmpty().allMatch(t -> t.total() > 0 && t.closed() <= t.total() && t.pct() >= 0 && t.pct() <= 100)
+                .allMatch(t -> List.of("done", "current", "not_started").contains(t.state()));
+        DailyGroup coding = group(daily.view(ALL, "PAY-1100", null).content(), "Implement_Coding");
+        assertThat(coding.subPhases().stream().mapToInt(DailySubPhase::total).sum()).isEqualTo(coding.total());
+    }
+
+    @Test
     void studyTicketsThatShareANameAreSingleTicketsEach() {
         List<DailySubPhase> prepare = group(daily.view(ALL, "PAY-1100", null).content(), "Prepare").subPhases();
         assertThat(prepare).extracting(DailySubPhase::key).containsExactly("PAY-1101", "PAY-1160"); // typed Tasks are not listed

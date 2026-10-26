@@ -13,20 +13,27 @@ const chart = { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_rem
 const step = (key: string, s: string, status: string, extra: object = {}) => ({
   key, step: s, status, assignee_id: 'binh', planned_start: '2026-10-01', planned_end: '2026-10-02', late: false, late_days: 0, rounds: 0, with_jm: false, ...extra,
 });
-const ticket = (key: string, who: string) => ({ key, name: 'Requirement study', assignee_id: who, status: 'C', planned_start: '2026-09-03', planned_end: '2026-09-04', late: false, late_days: 0 });
+const ticket = (key: string, who: string, name = 'Requirement study') => ({ key, name, assignee_id: who, status: 'C', planned_start: '2026-09-03', planned_end: '2026-09-04', late: false, late_days: 0 });
+const task = (key: string, name: string, extra: object) => ({ key, name, state: 'current', pct: 40, closed: 2, total: 5, late: 0, unmatched: 0, functions: [], tickets: [], ...extra });
+const done = (pre: string) => [step(`${pre}1`, 'create', 'C'), step(`${pre}2`, 'balr', 'C'), step(`${pre}3`, 'fixb', 'C')];
 
 function content(date: string, note: string) {
   return {
     epic: 'PAY-1100', title: 'Payment flow revision', date, pct: 62, plan_to_date_h: 100, actual_to_date_h: 106, diff_h: 6,
     burndowns: [{ phase: null, chart }, { phase: 'Implement_Coding', chart }],
     groups: [
-      { name: 'Prepare', state: 'done', pct: 100, closed: 9, total: 9, late: 0, sub_phases: [] },
+      { name: 'Prepare', state: 'done', pct: 100, closed: 9, total: 9, late: 0, sub_phases: [] }, // captured before Tasks were rolled up
       { name: 'Implement_Coding', state: 'current', pct: 48, closed: 20, total: 60, late: 1, sub_phases: [
-        { key: 'PAY-1102', name: 'Payment flow revision', unmatched: 0, tickets: [], functions: [
+        task('PAY-1102', 'Payment flow revision', { late: 1, functions: [
           { id: 'F03', name: 'Domestic card payment', owner_id: 'binh', steps: [
             step('PAY-1211', 'create', 'C'), step('PAY-1212', 'balr', 'C'), step('PAY-1213', 'fixb', 'W', { late: true, late_days: 2, rounds: 3 }),
-            step('PAY-1214', 'jmr', 'N', { assignee_id: 'tanaka', with_jm: true }), null] }] },
-        { key: 'PAY-1160', name: 'Requirement study', unmatched: 2, functions: [], tickets: [ticket('PAY-1161', 'an'), ticket('PAY-1162', 'binh')] },
+            step('PAY-1214', 'jmr', 'N', { assignee_id: 'tanaka', with_jm: true }), null] },
+          { id: 'F04', name: 'Refund', owner_id: 'an', steps: [
+            ...done('PAY-122'), step('PAY-1224', 'jmr', 'W', { assignee_id: 'an' }), step('PAY-1225', 'fixj', 'W', { assignee_id: 'an', rounds: 1 })] },
+          { id: 'F05', name: 'Installments', owner_id: 'an', steps: [
+            ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N')] }] }),
+        task('PAY-1160', 'Requirement study', { unmatched: 2, tickets: [ticket('PAY-1161', 'an'), ticket('PAY-1162', 'binh')] }),
+        task('PAY-1150', 'Design review', { state: 'done', pct: 100, closed: 1, total: 1, tickets: [ticket('PAY-1151', 'an', 'Design review')] }),
       ] },
     ],
     typed: [
@@ -59,11 +66,24 @@ describe('Daily Overview', () => {
     expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
 
     const table = screen.getByRole('region', { name: 'Phases and functions' });
-    expect(within(table).getAllByText('Done')).toHaveLength(2); // the legend, and Prepare as one row
+    expect(within(table).getByText('Prepare')).toBeTruthy(); // a done group of an older snapshot, as one row
     expect(within(table).getByText('Domestic card payment')).toBeTruthy();
     expect(within(table).getByText('Late 2d')).toBeTruthy();
-    expect(within(table).getByText(/R3 · Team/)).toBeTruthy();
-    expect(within(table).getAllByText('Requirement study')).toHaveLength(3); // the sub-phase label and one row per ticket
+    expect(within(table).queryByText(/R3 · Team/)).toBeNull();
+    expect(within(table).getAllByText('Requirement study')).toHaveLength(3); // the Task and one row per ticket
+    // a done sub-task shows just Done: no Closed, no dates
+    expect(within(table).queryByText('Closed')).toBeNull();
+    expect(within(table).queryByText('04/09')).toBeNull();
+    // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
+    expect(within(table).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
+    expect(within(table).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
+    expect(within(table).queryAllByTitle(/now:/)).toHaveLength(2); // F03's JM Review has not started
+    // a done Task starts collapsed
+    expect(within(table).getAllByText('Design review')).toHaveLength(1);
+    fireEvent.click(within(table).getByRole('button', { name: 'Expand Design review' }));
+    expect(within(table).getAllByText('Design review')).toHaveLength(2);
+    fireEvent.click(within(table).getByRole('button', { name: 'Collapse Payment flow revision' }));
+    expect(within(table).queryByText('Domestic card payment')).toBeNull();
     expect(within(table).getByText(/2 sub-tasks outside the name rule, not listed here/)).toBeTruthy();
     expect(within(table).getByRole('link', { name: 'See them in Ticket Check' }).getAttribute('href')).toBe('/ticket-check?check=rule');
 

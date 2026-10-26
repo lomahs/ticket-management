@@ -84,17 +84,20 @@ public class DailyService {
     }
 
     /**
-     * A Task (sub-phase) of a phase group with its functions and single tickets.
+     * A Task (sub-phase) of a phase group with its functions and single tickets, rolled up like its group.
      *
+     * @param state     done | current | not_started
+     * @param late      sub-tasks whose finish is overdue
      * @param unmatched sub-tasks that are neither: their Summary does not match the name rule
      */
-    public record DailySubPhase(String key, String name, List<DailyFunction> functions, List<DailyTicket> tickets, int unmatched) {
+    public record DailySubPhase(String key, String name, String state, int pct, int closed, int total, int late,
+                                List<DailyFunction> functions, List<DailyTicket> tickets, int unmatched) {
     }
 
     /**
      * @param state     done | current; a phase group that has not started is left out
      * @param late      sub-tasks whose finish is overdue
-     * @param subPhases empty when the group is done
+     * @param subPhases the group's Tasks that have sub-tasks
      */
     public record DailyGroup(String name, String state, int pct, int closed, int total, int late, List<DailySubPhase> subPhases) {
     }
@@ -219,11 +222,11 @@ public class DailyService {
             if (state == Overview.Schedule.NOT_STARTED || state == Overview.Schedule.UNKNOWN) {
                 continue;
             }
-            boolean done = state == Overview.Schedule.DONE;
-            List<DailySubPhase> subPhases = done ? List.of() : tasksByGroup.get(g).stream()
-                    .sorted(Comparator.comparing((Issue t) -> earliestStart(subsOf.getOrDefault(t.key(), List.of()))).thenComparing(Issue::key))
-                    .map(t -> subPhase(ctx, t, subsOf.getOrDefault(t.key(), List.of()), bas)).toList();
-            groups.add(new DailyGroup(g, done ? "done" : "current", r.pct(), r.closed(), r.total(), r.schedule().overdue(), subPhases));
+            List<DailySubPhase> subPhases = tasksByGroup.get(g).stream()
+                    .filter(t -> subsOf.containsKey(t.key()))
+                    .sorted(Comparator.comparing((Issue t) -> earliestStart(subsOf.get(t.key()))).thenComparing(Issue::key))
+                    .map(t -> subPhase(ctx, t, subsOf.get(t.key()), bas, thr)).toList();
+            groups.add(new DailyGroup(g, stateOf(state), r.pct(), r.closed(), r.total(), r.schedule().overdue(), subPhases));
         }
 
         Map<String, String> noted = notes.find(subs.stream().map(Issue::key).toList());
@@ -239,6 +242,14 @@ public class DailyService {
                 all.schedule().diffH(), burndowns, groups, typed);
     }
 
+    private static String stateOf(Overview.Schedule s) {
+        return switch (s) {
+            case DONE -> "done";
+            case NOT_STARTED, UNKNOWN -> "not_started";
+            default -> "current";
+        };
+    }
+
     private static String earliestStart(List<Issue> subs) {
         return subs.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse("9999");
     }
@@ -248,7 +259,7 @@ public class DailyService {
         return m != null && m.role() == Role.JM;
     }
 
-    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs, Set<String> bas) {
+    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs, Set<String> bas, double thr) {
         List<DailyFunction> fns = ctx.functions.stream().filter(f -> task.key().equals(f.parentKey()))
                 .map(f -> function(ctx, f, bas)).toList();
         List<DailyTicket> tickets = subs.stream().filter(Issue::single)
@@ -259,7 +270,9 @@ public class DailyService {
                             f.late(), f.lateDays());
                 }).toList();
         int unmatched = (int) subs.stream().filter(i -> i.functionId() == null && !i.single()).count();
-        return new DailySubPhase(task.key(), PhaseGroups.taskName(task.summary()), fns, tickets, unmatched);
+        PhaseRollup r = Overview.phaseRollup(task.key(), subs, ctx.schedule, thr);
+        return new DailySubPhase(task.key(), PhaseGroups.taskName(task.summary()), stateOf(r.schedule().state()), r.pct(), r.closed(),
+                r.total(), r.schedule().overdue(), fns, tickets, unmatched);
     }
 
     private static DailyFunction function(TrackerContext ctx, Function f, Set<String> bas) {

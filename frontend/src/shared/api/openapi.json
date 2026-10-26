@@ -3611,6 +3611,10 @@
       "DailySubPhase" : {
         "type" : "object",
         "properties" : {
+          "closed" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "functions" : {
             "type" : "array",
             "items" : {
@@ -3620,7 +3624,18 @@
           "key" : {
             "type" : "string"
           },
+          "late" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "name" : {
+            "type" : "string"
+          },
+          "pct" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "state" : {
             "type" : "string"
           },
           "tickets" : {
@@ -3629,12 +3644,16 @@
               "$ref" : "#/components/schemas/DailyTicket"
             }
           },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "unmatched" : {
             "type" : "integer",
             "format" : "int32"
           }
         },
-        "required" : [ "functions", "key", "name", "tickets", "unmatched" ]
+        "required" : [ "closed", "functions", "key", "late", "name", "pct", "state", "tickets", "total", "unmatched" ]
       },
       "DailyTicket" : {
         "type" : "object",

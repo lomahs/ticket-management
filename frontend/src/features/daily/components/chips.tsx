@@ -10,6 +10,9 @@ export const chip = (s: Status): CSSProperties => {
 /** A late sub-task: red, outlined. */
 export const lateChip: CSSProperties = { background: 'var(--hl-red)', color: 'var(--hl-red-fg)', border: '2px solid var(--hl-red-fg)' };
 
+/** The step where a function's JM round is now: waiting for the JM review, or the team fixing JM's comments. */
+export const ACTIVE_RING = '0 0 0 2px var(--surface-card), 0 0 0 4px var(--do-jm)';
+
 const box = (bg: string, bd: string): CSSProperties => ({ width: 12, height: 12, borderRadius: 3, background: bg, border: bd, boxSizing: 'border-box' });
 
 export function Legend() {
@@ -23,7 +26,7 @@ export function Legend() {
       <span style={item}><span style={box('var(--do-clo-bg)', '1px solid var(--do-clo)')} />Done</span>
       <span style={item}><span style={box('var(--hl-red)', '2px solid var(--hl-red-fg)')} />Late</span>
       <span style={item}><span style={pill('var(--do-jm)', 'var(--do-jm-fg)')}>R2 · JM</span>review round, with JM</span>
-      <span style={item}><span style={pill('var(--do-team-bg)', 'var(--do-team)')}>R1 · Team</span>team fixing</span>
+      <span style={item}><span style={{ ...box('var(--do-wip)', '0'), borderRadius: '50%', boxShadow: ACTIVE_RING, margin: '0 3px' }} />JM round is here now</span>
     </div>
   );
 }
