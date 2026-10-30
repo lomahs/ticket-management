@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -19,11 +20,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
 import tracker.application.ports.IssueRepository;
+import tracker.domain.Effort;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueFlags;
 import tracker.domain.IssueSchedule;
+import tracker.domain.Member;
 import tracker.domain.Naming;
 import tracker.domain.ScheduleRules;
 import tracker.domain.Thresholds;
@@ -42,20 +45,22 @@ class GoldenTest {
     Map<String, Object> golden;
     List<Function> fns;
     Map<String, IssueFlags> flags = new LinkedHashMap<>();
+    static final Map<String, Member> MEMBERS = Dataset.demoMembers().stream().collect(Collectors.toMap(Member::id, m -> m));
 
     /** The demo profile seeded and synced the data at start-up. */
     @SuppressWarnings("unchecked")
     @BeforeAll
     void load(@Autowired IssueRepository repository) throws IOException {
         golden = new ObjectMapper().readValue(GoldenTest.class.getResourceAsStream("/characterization/golden.json"), Map.class);
-        List<Issue> issues = repository.findByEpics(List.of("PAY-1100"));
+        // as the context loads them: without JM worklogs
+        List<Issue> issues = repository.findByEpics(List.of("PAY-1100")).stream().map(i -> Effort.withoutJm(i, MEMBERS)).toList();
         fns = Flags.buildFunctions(issues).stream().filter(f -> f.epicKey().equals("PAY-1100")).toList();
         for (Function f : fns) {
             for (int i = 0; i < f.cells().size(); i++) {
                 Issue c = f.cells().get(i);
                 if (c != null) {
-                    IssueSchedule s = ScheduleRules.of(c, Flags.workerOf(c, f.ownerId()), Dataset.DEMO_TODAY, CAL, T.effortDiffH());
-                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), Dataset.demoMembers().stream().collect(java.util.stream.Collectors.toMap(tracker.domain.Member::id, m -> m)), Dataset.DEMO_TODAY, T, s));
+                    IssueSchedule s = ScheduleRules.of(c, Effort.planOwner(f, c, MEMBERS), Dataset.DEMO_TODAY, CAL, T.effortDiffH());
+                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), MEMBERS, Dataset.DEMO_TODAY, T, s));
                 }
             }
         }
@@ -89,7 +94,7 @@ class GoldenTest {
                 row.put("step", c.step().value());
                 row.put("status", c.status().value());
                 row.put("assignee", c.assigneeId());
-                row.put("worker", Flags.workerOf(c, f.ownerId()));
+                row.put("plan_owner", Effort.planOwner(f, c, MEMBERS));
                 row.put("ps", c.plannedStart());
                 row.put("pe", c.plannedEnd());
                 row.put("est", c.estimateH());

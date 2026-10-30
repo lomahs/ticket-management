@@ -38,7 +38,7 @@
   "functions_done": 1,
   "late_functions": 6,
   "late_subtasks": 6,
-  "logged_h": 148.0,
+  "logged_h": 140.5,
   "over_subtasks": 6,
   "progress_pct": 54
  },
@@ -77,11 +77,11 @@
    "held": 0,
    "logged": 10,
    "pe": "2026-09-15",
+   "plan_owner": "an",
    "ps": "2026-09-14",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "an"
+   "step": "create"
   },
   "PAY-1202": {
    "assignee": "minh",
@@ -90,11 +90,11 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-16",
+   "plan_owner": "minh",
    "ps": "2026-09-16",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1203": {
    "assignee": "an",
@@ -103,24 +103,24 @@
    "held": 0,
    "logged": 3,
    "pe": "2026-09-17",
+   "plan_owner": "an",
    "ps": "2026-09-17",
    "rounds": 1,
    "status": "C",
-   "step": "fixb",
-   "worker": "an"
+   "step": "fixb"
   },
   "PAY-1204": {
    "assignee": "tanaka",
    "est": 2,
    "fid": "F01",
    "held": 0,
-   "logged": 2,
+   "logged": 0,
    "pe": "2026-09-24",
+   "plan_owner": null,
    "ps": "2026-09-18",
    "rounds": 0,
    "status": "C",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1205": {
    "assignee": "an",
@@ -129,11 +129,11 @@
    "held": 0,
    "logged": 1.5,
    "pe": "2026-09-25",
+   "plan_owner": "an",
    "ps": "2026-09-25",
    "rounds": 1,
    "status": "C",
-   "step": "fixj",
-   "worker": "an"
+   "step": "fixj"
   },
   "PAY-1206": {
    "assignee": "an",
@@ -142,11 +142,11 @@
    "held": 0,
    "logged": 8,
    "pe": "2026-09-17",
+   "plan_owner": "an",
    "ps": "2026-09-16",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "an"
+   "step": "create"
   },
   "PAY-1207": {
    "assignee": "minh",
@@ -155,11 +155,11 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-18",
+   "plan_owner": "minh",
    "ps": "2026-09-18",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1208": {
    "assignee": "an",
@@ -168,24 +168,24 @@
    "held": 0,
    "logged": 2.5,
    "pe": "2026-09-21",
+   "plan_owner": "an",
    "ps": "2026-09-21",
    "rounds": 2,
    "status": "C",
-   "step": "fixb",
-   "worker": "an"
+   "step": "fixb"
   },
   "PAY-1209": {
    "assignee": "tanaka",
    "est": 2,
    "fid": "F02",
    "held": 0,
-   "logged": 2,
+   "logged": 0,
    "pe": "2026-09-25",
+   "plan_owner": null,
    "ps": "2026-09-24",
    "rounds": 0,
    "status": "C",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1210": {
    "assignee": "an",
@@ -194,11 +194,11 @@
    "held": 1,
    "logged": 1,
    "pe": "2026-10-08",
+   "plan_owner": "an",
    "ps": "2026-10-07",
    "rounds": 1,
    "status": "W",
-   "step": "fixj",
-   "worker": "an"
+   "step": "fixj"
   },
   "PAY-1211": {
    "assignee": "binh",
@@ -207,11 +207,11 @@
    "held": 0,
    "logged": 12,
    "pe": "2026-09-22",
+   "plan_owner": "binh",
    "ps": "2026-09-21",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "binh"
+   "step": "create"
   },
   "PAY-1212": {
    "assignee": "minh",
@@ -220,11 +220,11 @@
    "held": 0,
    "logged": 3,
    "pe": "2026-09-23",
+   "plan_owner": "minh",
    "ps": "2026-09-23",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1213": {
    "assignee": "binh",
@@ -233,11 +233,11 @@
    "held": 2,
    "logged": 7.5,
    "pe": "2026-10-06",
+   "plan_owner": "binh",
    "ps": "2026-10-01",
    "rounds": 3,
    "status": "W",
-   "step": "fixb",
-   "worker": "binh"
+   "step": "fixb"
   },
   "PAY-1214": {
    "assignee": "tanaka",
@@ -246,11 +246,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-09",
+   "plan_owner": null,
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1215": {
    "assignee": "binh",
@@ -259,11 +259,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": "binh",
    "ps": "2026-10-10",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "binh"
+   "step": "fixj"
   },
   "PAY-1216": {
    "assignee": "binh",
@@ -272,11 +272,11 @@
    "held": 0,
    "logged": 9,
    "pe": "2026-09-21",
+   "plan_owner": "binh",
    "ps": "2026-09-18",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "binh"
+   "step": "create"
   },
   "PAY-1217": {
    "assignee": "minh",
@@ -285,11 +285,11 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-22",
+   "plan_owner": "minh",
    "ps": "2026-09-22",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1218": {
    "assignee": "binh",
@@ -298,24 +298,24 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-23",
+   "plan_owner": "binh",
    "ps": "2026-09-23",
    "rounds": 1,
    "status": "C",
-   "step": "fixb",
-   "worker": "binh"
+   "step": "fixb"
   },
   "PAY-1219": {
    "assignee": "tanaka",
    "est": 2,
    "fid": "F04",
    "held": 6,
-   "logged": 1,
+   "logged": 0,
    "pe": "2026-10-02",
+   "plan_owner": null,
    "ps": "2026-09-30",
    "rounds": 0,
    "status": "W",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1220": {
    "assignee": "binh",
@@ -324,11 +324,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-08",
+   "plan_owner": "binh",
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "binh"
+   "step": "fixj"
   },
   "PAY-1221": {
    "assignee": "chi",
@@ -337,11 +337,11 @@
    "held": 0,
    "logged": 8,
    "pe": "2026-10-02",
+   "plan_owner": "chi",
    "ps": "2026-10-01",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "chi"
+   "step": "create"
   },
   "PAY-1222": {
    "assignee": "minh",
@@ -350,11 +350,11 @@
    "held": 3,
    "logged": 1,
    "pe": "2026-10-05",
+   "plan_owner": "minh",
    "ps": "2026-10-05",
    "rounds": 0,
    "status": "W",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1223": {
    "assignee": "chi",
@@ -363,11 +363,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-08",
+   "plan_owner": "chi",
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "fixb",
-   "worker": "chi"
+   "step": "fixb"
   },
   "PAY-1224": {
    "assignee": "tanaka",
@@ -376,11 +376,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": null,
    "ps": "2026-10-09",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1225": {
    "assignee": "chi",
@@ -389,11 +389,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-12",
+   "plan_owner": "chi",
    "ps": "2026-10-12",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "chi"
+   "step": "fixj"
   },
   "PAY-1226": {
    "assignee": "chi",
@@ -402,11 +402,11 @@
    "held": 0,
    "logged": 11,
    "pe": "2026-10-05",
+   "plan_owner": "chi",
    "ps": "2026-10-05",
    "rounds": 0,
    "status": "W",
-   "step": "create",
-   "worker": "chi"
+   "step": "create"
   },
   "PAY-1227": {
    "assignee": "minh",
@@ -415,11 +415,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-08",
+   "plan_owner": "minh",
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1228": {
    "assignee": "chi",
@@ -428,11 +428,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": "chi",
    "ps": "2026-10-10",
    "rounds": 0,
    "status": "N",
-   "step": "fixb",
-   "worker": "chi"
+   "step": "fixb"
   },
   "PAY-1229": {
    "assignee": "tanaka",
@@ -441,11 +441,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-14",
+   "plan_owner": null,
    "ps": "2026-10-13",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1230": {
    "assignee": "chi",
@@ -454,11 +454,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-15",
+   "plan_owner": "chi",
    "ps": "2026-10-15",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "chi"
+   "step": "fixj"
   },
   "PAY-1231": {
    "assignee": "dung",
@@ -467,11 +467,11 @@
    "held": 0,
    "logged": 8,
    "pe": "2026-09-15",
+   "plan_owner": "dung",
    "ps": "2026-09-14",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "dung"
+   "step": "create"
   },
   "PAY-1232": {
    "assignee": "minh",
@@ -480,11 +480,11 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-16",
+   "plan_owner": "minh",
    "ps": "2026-09-16",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1233": {
    "assignee": "dung",
@@ -493,24 +493,24 @@
    "held": 0,
    "logged": 3,
    "pe": "2026-09-17",
+   "plan_owner": "dung",
    "ps": "2026-09-17",
    "rounds": 2,
    "status": "C",
-   "step": "fixb",
-   "worker": "dung"
+   "step": "fixb"
   },
   "PAY-1234": {
    "assignee": "tanaka",
    "est": 2,
    "fid": "F07",
    "held": 0,
-   "logged": 2,
+   "logged": 0,
    "pe": "2026-09-24",
+   "plan_owner": null,
    "ps": "2026-09-18",
    "rounds": 0,
    "status": "C",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1235": {
    "assignee": "tanaka",
@@ -519,11 +519,11 @@
    "held": 4,
    "logged": 5,
    "pe": "2026-10-02",
+   "plan_owner": "dung",
    "ps": "2026-09-28",
    "rounds": 3,
    "status": "W",
-   "step": "fixj",
-   "worker": "dung"
+   "step": "fixj"
   },
   "PAY-1236": {
    "assignee": "dung",
@@ -532,11 +532,11 @@
    "held": 0,
    "logged": 6,
    "pe": "2026-10-06",
+   "plan_owner": "dung",
    "ps": "2026-10-05",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "dung"
+   "step": "create"
   },
   "PAY-1237": {
    "assignee": "minh",
@@ -545,11 +545,11 @@
    "held": 1,
    "logged": 0.5,
    "pe": "2026-10-07",
+   "plan_owner": "minh",
    "ps": "2026-10-07",
    "rounds": 0,
    "status": "W",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1238": {
    "assignee": "dung",
@@ -558,24 +558,24 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-08",
+   "plan_owner": "dung",
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "fixb",
-   "worker": "dung"
+   "step": "fixb"
   },
   "PAY-1239": {
    "assignee": "tanaka",
    "est": 2,
    "fid": "F08",
    "held": 1,
-   "logged": 0.5,
+   "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": null,
    "ps": "2026-10-09",
    "rounds": 0,
    "status": "W",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1240": {
    "assignee": "dung",
@@ -584,11 +584,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-12",
+   "plan_owner": "dung",
    "ps": "2026-10-12",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "dung"
+   "step": "fixj"
   },
   "PAY-1241": {
    "assignee": "an",
@@ -597,11 +597,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-13",
+   "plan_owner": "an",
    "ps": "2026-10-12",
    "rounds": 0,
    "status": "N",
-   "step": "create",
-   "worker": "an"
+   "step": "create"
   },
   "PAY-1242": {
    "assignee": "minh",
@@ -610,11 +610,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-14",
+   "plan_owner": "minh",
    "ps": "2026-10-14",
    "rounds": 0,
    "status": "N",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1243": {
    "assignee": "an",
@@ -623,11 +623,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-15",
+   "plan_owner": "an",
    "ps": "2026-10-15",
    "rounds": 0,
    "status": "N",
-   "step": "fixb",
-   "worker": "an"
+   "step": "fixb"
   },
   "PAY-1244": {
    "assignee": "tanaka",
@@ -636,11 +636,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-19",
+   "plan_owner": null,
    "ps": "2026-10-16",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1245": {
    "assignee": "an",
@@ -649,11 +649,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-20",
+   "plan_owner": "an",
    "ps": "2026-10-20",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "an"
+   "step": "fixj"
   },
   "PAY-1246": {
    "assignee": "binh",
@@ -662,11 +662,11 @@
    "held": 0,
    "logged": 8,
    "pe": "2026-09-28",
+   "plan_owner": "binh",
    "ps": "2026-09-24",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "binh"
+   "step": "create"
   },
   "PAY-1247": {
    "assignee": "minh",
@@ -675,11 +675,11 @@
    "held": 0,
    "logged": 2,
    "pe": "2026-09-29",
+   "plan_owner": "minh",
    "ps": "2026-09-29",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1248": {
    "assignee": "minh",
@@ -688,11 +688,11 @@
    "held": 5,
    "logged": 3,
    "pe": "2026-10-01",
+   "plan_owner": "binh",
    "ps": "2026-10-01",
    "rounds": 2,
    "status": "R",
-   "step": "fixb",
-   "worker": "binh"
+   "step": "fixb"
   },
   "PAY-1249": {
    "assignee": "tanaka",
@@ -701,11 +701,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-09",
+   "plan_owner": null,
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1250": {
    "assignee": "binh",
@@ -714,11 +714,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": "binh",
    "ps": "2026-10-10",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "binh"
+   "step": "fixj"
   },
   "PAY-1251": {
    "assignee": "dung",
@@ -727,11 +727,11 @@
    "held": 0,
    "logged": 7,
    "pe": "2026-10-02",
+   "plan_owner": "dung",
    "ps": "2026-10-01",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "dung"
+   "step": "create"
   },
   "PAY-1252": {
    "assignee": "minh",
@@ -740,11 +740,11 @@
    "held": 4,
    "logged": 1.5,
    "pe": "2026-10-05",
+   "plan_owner": "minh",
    "ps": "2026-10-05",
    "rounds": 0,
    "status": "W",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1253": {
    "assignee": "dung",
@@ -753,11 +753,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-08",
+   "plan_owner": "dung",
    "ps": "2026-10-08",
    "rounds": 0,
    "status": "N",
-   "step": "fixb",
-   "worker": "dung"
+   "step": "fixb"
   },
   "PAY-1254": {
    "assignee": "tanaka",
@@ -766,11 +766,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-10",
+   "plan_owner": null,
    "ps": "2026-10-09",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1255": {
    "assignee": "dung",
@@ -779,11 +779,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-12",
+   "plan_owner": "dung",
    "ps": "2026-10-12",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "dung"
+   "step": "fixj"
   },
   "PAY-1256": {
    "assignee": "chi",
@@ -792,11 +792,11 @@
    "held": 0,
    "logged": 7.5,
    "pe": "2026-10-06",
+   "plan_owner": "chi",
    "ps": "2026-10-05",
    "rounds": 0,
    "status": "C",
-   "step": "create",
-   "worker": "chi"
+   "step": "create"
   },
   "PAY-1257": {
    "assignee": "minh",
@@ -805,11 +805,11 @@
    "held": 0,
    "logged": 0.5,
    "pe": "2026-10-07",
+   "plan_owner": "minh",
    "ps": "2026-10-07",
    "rounds": 0,
    "status": "C",
-   "step": "balr",
-   "worker": "minh"
+   "step": "balr"
   },
   "PAY-1258": {
    "assignee": "chi",
@@ -818,11 +818,11 @@
    "held": 0,
    "logged": 1,
    "pe": "2026-10-09",
+   "plan_owner": "chi",
    "ps": "2026-10-07",
    "rounds": 1,
    "status": "W",
-   "step": "fixb",
-   "worker": "chi"
+   "step": "fixb"
   },
   "PAY-1259": {
    "assignee": "tanaka",
@@ -831,11 +831,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-13",
+   "plan_owner": null,
    "ps": "2026-10-10",
    "rounds": 0,
    "status": "N",
-   "step": "jmr",
-   "worker": "tanaka"
+   "step": "jmr"
   },
   "PAY-1260": {
    "assignee": "chi",
@@ -844,11 +844,11 @@
    "held": 0,
    "logged": 0,
    "pe": "2026-10-14",
+   "plan_owner": "chi",
    "ps": "2026-10-14",
    "rounds": 0,
    "status": "N",
-   "step": "fixj",
-   "worker": "chi"
+   "step": "fixj"
   }
  },
  "today": "2026-10-07",
@@ -891,7 +891,7 @@
   "PAY-1236": "clo",
   "PAY-1237": "ontime",
   "PAY-1238": "nys",
-  "PAY-1239": "early",
+  "PAY-1239": "ontime",
   "PAY-1240": "nys",
   "PAY-1241": "nys",
   "PAY-1242": "nys",
