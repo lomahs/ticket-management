@@ -40,6 +40,18 @@ class AnalysisOverviewTest {
                 new Analysis.Rework("minh", Role.BAL, 1, 0, 0, 1.5, 0, 2, 2)); // pim's hour is invalid: in no row
     }
 
+    @Test
+    void reworkKeepsThePreviousBaAfterAHandover() {
+        // an created F1, then handed it over to binh; minh is F1's BAL
+        Issue create = issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("binh").reporter("minh").logged(4).logDate("2026-09-28")
+                .events(assigned("2026-09-29", "an", "binh")).build();
+        create = create.withWorklogs(List.of(new Worklog("2026-09-28", "an", 4), new Worklog("2026-09-30", "binh", 2)));
+        List<Function> fns = Flags.buildFunctions(List.of(create));
+        assertThat(Analysis.reworkPeople(fns, Fixtures.MEMBERS)).containsExactlyInAnyOrder("an", "binh", "minh");
+        List<Analysis.Rework> r = Analysis.reworkByMember(fns, List.of("an", "binh"), Fixtures.MEMBERS, Map.of());
+        assertThat(r).extracting(Analysis.Rework::createH).containsExactly(4.0, 2.0); // an's hours stay an's
+    }
+
     private static Map<String, IssueSchedule> sched(Issue... issues) {
         Map<String, IssueSchedule> m = new HashMap<>();
         for (Issue i : issues) {

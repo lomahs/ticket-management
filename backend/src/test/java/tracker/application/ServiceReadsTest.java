@@ -111,6 +111,15 @@ class ServiceReadsTest {
     }
 
     @Test
+    void overviewCardEffortLeavesJmReviewOut() {
+        TrackerContext ctx = contexts.load(ALL);
+        List<Issue> team = ctx.subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100") && !Steps.isJmReview(i)).toList();
+        AnkenService.AnkenCard p = anken.overview(ALL).stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
+        assertThat(p.estimateH()).isEqualTo(Numbers.round(team.stream().mapToDouble(Issue::estimateH).sum(), 2));
+        assertThat(p.usedH()).isEqualTo(Numbers.round(team.stream().mapToDouble(Issue::loggedH).sum(), 2));
+    }
+
+    @Test
     void overviewCards() {
         Map<String, AnkenService.AnkenCard> cards = new java.util.LinkedHashMap<>();
         anken.overview(ALL).forEach(c -> cards.put(c.key(), c));

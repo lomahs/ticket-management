@@ -183,9 +183,8 @@ public class EffortService {
         Map<String, List<Issue>> byPhase = subtasksByPhase(ctx, epic);
         Map<String, Integer> rounds = new HashMap<>();
         ctx.flags.forEach((k, f) -> rounds.put(k, f.rounds()));
-        List<String> people = ctx.people.stream().filter(id -> ctx.members.containsKey(id)
-                && (ctx.members.get(id).role() == Role.BA || ctx.members.get(id).role() == Role.BAL)
-                && fns.stream().anyMatch(f -> id.equals(f.baId(ctx.members)) || id.equals(f.balId(ctx.members)))).toList();
+        Set<String> withRows = Analysis.reworkPeople(fns, ctx.members);
+        List<String> people = ctx.people.stream().filter(withRows::contains).toList();
         List<Rework> rework = Analysis.reworkByMember(fns, people, ctx.members, rounds);
         List<Issue> started = cells.stream().filter(c -> c.status() != Status.NYS).toList();
         List<Issue> fixes = cells.stream().filter(c -> Steps.isFixStep(c) && rounds.getOrDefault(c.key(), 0) > 0).toList();

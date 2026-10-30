@@ -144,8 +144,9 @@ public class AnkenService {
                 Text.hasText(plan) ? worst : 0,
                 (int) fns.stream().filter(f -> f.issues().stream().anyMatch(c -> lateKeys.contains(c.key()))).count(),
                 late.size(),
-                Numbers.round(subs.stream().mapToDouble(Issue::loggedH).sum(), 2),
-                Numbers.round(subs.stream().mapToDouble(Issue::estimateH).sum(), 2),
+                // JM Review is client effort: out of used / estimate
+                Numbers.round(subs.stream().filter(i -> !Steps.isJmReview(i)).mapToDouble(Issue::loggedH).sum(), 2),
+                Numbers.round(subs.stream().filter(i -> !Steps.isJmReview(i)).mapToDouble(Issue::estimateH).sum(), 2),
                 phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty(),
                 ctx.ankenMembers.getOrDefault(key, Set.of()).stream().sorted()
                         .filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.PIM).toList(),

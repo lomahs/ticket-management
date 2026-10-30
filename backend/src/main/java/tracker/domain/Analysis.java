@@ -2,8 +2,12 @@ package tracker.domain;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 
@@ -37,6 +41,23 @@ public final class Analysis {
      */
     public record Rework(String memberId, @Nullable Role role, int functions, double createH, double fixH, double reviewH, double rate,
                          double avgRounds, int maxRounds) {
+    }
+
+    /**
+     * The BAs and BALs with a Rework row: the BA or BAL of a function, or the author of a worklog on one of its steps (so a BA
+     * who handed a function over keeps the hours they logged on it).
+     */
+    public static Set<String> reworkPeople(List<Function> functions, Map<String, Member> members) {
+        Set<String> out = new LinkedHashSet<>();
+        for (Function f : functions) {
+            Stream.of(f.baId(members), f.balId(members)).filter(Objects::nonNull).forEach(out::add);
+            f.issues().forEach(c -> c.worklogs().forEach(w -> out.add(w.memberId())));
+        }
+        out.removeIf(id -> {
+            Member m = members.get(id);
+            return m == null || (m.role() != Role.BA && m.role() != Role.BAL);
+        });
+        return out;
     }
 
     /** Invalid worklogs and worklogs by someone else are in no member's row. */
