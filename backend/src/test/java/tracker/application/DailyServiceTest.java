@@ -81,7 +81,7 @@ class DailyServiceTest {
         DailySubPhase coding = group(daily.view(ALL, "PAY-1100", null).content(), "Implement_Coding").subPhases().get(0);
         assertThat(coding.functions()).hasSize(12).allMatch(f -> f.steps().size() == 5);
         DailyService.DailyFunction f03 = coding.functions().stream().filter(f -> f.id().equals("F03")).findFirst().orElseThrow();
-        assertThat(f03.ownerId()).isEqualTo("binh");
+        assertThat(f03.baId()).isEqualTo("binh");
         DailyService.DailyStep fixBal = f03.steps().get(2);
         assertThat(List.of(fixBal.step(), fixBal.late(), fixBal.rounds())).containsExactly("fixb", true, 3);
         assertThat(coding.functions().stream().flatMap(f -> f.steps().stream()).filter(Objects::nonNull)

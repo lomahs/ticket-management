@@ -195,10 +195,13 @@ class ServiceReadsTest {
         AnkenService.MatrixStats s = m.stats();
         assertThat(List.of(s.progressPct(), s.functionsDone(), s.lateFunctions(), s.lateSubtasks(), s.overSubtasks()))
                 .containsExactly(54, 1, 6, 6, 6); // progress over the team steps
-        assertThat(s.loggedH()).isEqualTo(140.5); // 148 before the JM's 7.5h were dropped
-        assertThat(s.estimateH()).isEqualTo(207);
+        TrackerContext ctx = contexts.load(ALL);
+        List<Issue> jm = ctx.subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100") && Steps.isJmReview(i)).toList();
+        // all sub-tasks: 140.5h logged (148 before the JM's 7.5h were dropped), 207h estimated; JM Review left out
+        assertThat(s.loggedH()).isEqualTo(140.5 - jm.stream().mapToDouble(Issue::loggedH).sum());
+        assertThat(s.estimateH()).isEqualTo(207 - jm.stream().mapToDouble(Issue::estimateH).sum());
         AnkenService.FunctionRow f03 = m.functions().get(2);
-        assertThat(List.of(f03.ownerId(), f03.reviewerId(), f03.current(), f03.state(), f03.progress(), f03.group(), f03.pct()))
+        assertThat(List.of(f03.baId(), f03.balId(), f03.current(), f03.state(), f03.progress(), f03.group(), f03.pct()))
                 .containsExactly("binh", "minh", 2, "delay", "late", "W", 60); // (1 + 1 + 0.4 + 0) / 4 team steps
         assertThat(f03.cells().get(2).rounds()).isEqualTo(3);
         assertThat(f03.cells().get(2).heldDays()).isEqualTo(2);
@@ -206,6 +209,14 @@ class ServiceReadsTest {
         assertThat(m.phase()).isEqualTo("Implement_Coding");
         assertThat(m.nextFunctionId()).isEqualTo("F13");
         assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166", "PAY-1102", "PAY-1103");
+    }
+
+    @Test
+    void matrixRowsUseBaAndBal() {
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
+        Map<String, Member> team = contexts.membersById();
+        assertThat(m.functions()).allMatch(r -> team.get(r.baId()).role() == Role.BA && "minh".equals(r.balId()));
+        assertThat(m.functions()).allMatch(r -> r.cells().size() == 5);
     }
 
     @Test

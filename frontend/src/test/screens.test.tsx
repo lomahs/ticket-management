@@ -134,6 +134,15 @@ describe('screens render API data at their URLs', () => {
     expect(within(res).getByTitle('Actual Start – Actual End').style.color).toBe('var(--hl-red-fg)');
   });
 
+  it('shows a 3-step function with three cells', async () => {
+    const m = JSON.parse(JSON.stringify(fixtures.matrix));
+    Object.assign(m.functions[0], { cells: m.functions[0].cells.slice(0, 3), current: 1 });
+    server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json(m)));
+    renderApp('/anken/PAY-1100/matrix');
+    expect(await screen.findByText('No JM steps')).toBeTruthy();
+    expect(screen.getByTitle(/^Step 2\/3 · BAL Review$/)).toBeTruthy();
+  });
+
   it('opens the ticket panel over the matrix when a cell is clicked', async () => {
     const { router } = renderApp('/anken/PAY-1100/matrix?members=binh');
     fireEvent.click(await screen.findByRole('button', { name: /^PAY-1213 / }));

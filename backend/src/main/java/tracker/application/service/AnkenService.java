@@ -265,11 +265,13 @@ public class AnkenService {
      * @param state      done | nys | delay | ontime
      * @param progress   early | ontime | late
      * @param group      N | W | D
-     * @param ownerId    the BA: latest assignee of the Create sub-task with the BA role, else its first assignee
-     * @param reviewerId the BAL: first reporter of the Create sub-task
+     * @param baId       the function's BA ({@link Function#baId})
+     * @param balId      the function's BAL ({@link Function#balId})
+     * @param cells      one slot per step of the function: 3 or 5
+     * @param loggedH    on the team steps (JM Review left out); also {@code estimateH}
      * @param taskKey    the Task (sub-phase) the function belongs to
      */
-    public record FunctionRow(String id, String name, @Nullable String ownerId, @Nullable String reviewerId, int current, String state,
+    public record FunctionRow(String id, String name, @Nullable String baId, @Nullable String balId, int current, String state,
                               String progress, String group, int pct, List<@Nullable TaskCard> cells, double loggedH, double estimateH,
                               String taskKey) {
     }
@@ -428,18 +430,20 @@ public class AnkenService {
                 f.id(), f.name(), f.baId(ctx.members), f.balId(ctx.members), f.current(),
                 Flags.functionState(f, late), Flags.functionProgress(f, ctx.today, late), Flags.groupStatus(f),
                 Flags.progressPct(f),
-                f.cells().stream().map(c -> c != null ? ctx.card(c) : null).toList(),
-                Numbers.round(f.issues().stream().mapToDouble(Issue::loggedH).sum(), 2),
-                Numbers.round(f.issues().stream().mapToDouble(Issue::estimateH).sum(), 2), f.parentKey())).toList();
+                f.steps().stream().map(c -> c != null ? ctx.card(c) : null).toList(),
+                Numbers.round(f.issues().stream().filter(c -> !Steps.isJmReview(c)).mapToDouble(Issue::loggedH).sum(), 2),
+                Numbers.round(f.issues().stream().filter(c -> !Steps.isJmReview(c)).mapToDouble(Issue::estimateH).sum(), 2),
+                f.parentKey())).toList();
         List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
+        List<Issue> team = cells.stream().filter(c -> !Steps.isJmReview(c)).toList();
         MatrixStats stats = new MatrixStats(
                 rows.isEmpty() ? 0 : (int) Math.round(rows.stream().mapToInt(FunctionRow::pct).sum() / (double) rows.size()),
                 (int) fns.stream().filter(Function::done).count(), fns.size(),
                 (int) rows.stream().filter(r -> r.state().equals("delay")).count(),
                 (int) cells.stream().filter(c -> late.contains(c.key())).count(),
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),
-                Numbers.round(cells.stream().mapToDouble(Issue::loggedH).sum(), 2),
-                Numbers.round(cells.stream().mapToDouble(Issue::estimateH).sum(), 2));
+                Numbers.round(team.stream().mapToDouble(Issue::loggedH).sum(), 2),
+                Numbers.round(team.stream().mapToDouble(Issue::estimateH).sum(), 2));
         List<MatrixTicket> tickets = new ArrayList<>();
         for (String t : taskKeys) {
             ctx.subtasks().stream().filter(i -> t.equals(i.parentKey()) && i.single())
@@ -456,7 +460,7 @@ public class AnkenService {
     /**
      * @param taskKey the Task the function belongs to
      * @param phase   the phase group of that Task
-     * @param steps   one slot per step, in step order; null when that sub-task is not in Jira
+     * @param steps   one slot per step of the function (3 or 5), in step order; null when that sub-task is not in Jira
      */
     public record FunctionSteps(String epicKey, String taskKey, String phase, String functionId, String name,
                                 List<@Nullable TaskCard> steps) {
@@ -470,7 +474,7 @@ public class AnkenService {
                 .orElseThrow(() -> new NotFound(key + " is not a step of a function", "key"));
         String phase = groupOfTask(ctx, f.epicKey()).getOrDefault(f.parentKey(), PhaseGroups.OTHER);
         return new FunctionSteps(f.epicKey(), f.parentKey(), phase, f.id(), f.name(),
-                f.cells().stream().map(c -> c != null ? ctx.card(c) : null).toList());
+                f.steps().stream().map(c -> c != null ? ctx.card(c) : null).toList());
     }
 
     // --- new function -------------------------------------------------------------------------------------------------

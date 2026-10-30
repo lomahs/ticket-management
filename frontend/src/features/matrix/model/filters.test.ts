@@ -5,17 +5,27 @@ import { applyFilter, fromSearch, pendingAtStep, stepRange, summaryCounts, toSea
 type Row = Schemas['FunctionRow'];
 const cell = (ps: string, pe: string, late = false) => ({ planned_start: ps, planned_end: pe, late }) as unknown as Schemas['TaskCard'];
 const row = (id: string, o: Partial<Row> = {}): Row => ({
-  id, name: `Fn ${id}`, owner_id: 'an', reviewer_id: 'minh', current: 1, state: 'ontime', progress: 'ontime', group: 'W', pct: 40,
+  id, name: `Fn ${id}`, ba_id: 'an', bal_id: 'minh', current: 1, state: 'ontime', progress: 'ontime', group: 'W', pct: 40,
   cells: [cell('2026-10-01', '2026-10-02'), cell('2026-10-05', '2026-10-05'), cell('2026-10-06', '2026-10-06'), null, null],
   logged_h: 1, estimate_h: 2, task_key: 'PAY-1102', ...o,
 });
 const ROWS = [
-  row('F01'), row('F02', { owner_id: 'binh', group: 'N', progress: 'late', current: 0, cells: [cell('2026-09-01', '2026-09-02', true), null, null, null, null] }),
-  row('F03', { reviewer_id: 'zz', group: 'D', current: 5 }),
+  row('F01'), row('F02', { ba_id: 'binh', group: 'N', progress: 'late', current: 0, cells: [cell('2026-09-01', '2026-09-02', true), null, null, null, null] }),
+  row('F03', { bal_id: 'zz', group: 'D', current: 5 }),
 ];
 const none: MatrixFilter = { q: '', members: [], status: [], prog: [], ranges: {}, sort: null };
 
+const three = (id: string, o: Partial<Row> = {}) =>
+  row(id, { cells: [cell('2026-10-01', '2026-10-02'), cell('2026-10-05', '2026-10-05'), cell('2026-10-06', '2026-10-06')], ...o });
+
 describe('matrix filters', () => {
+  it('reads a 3-step row: range filters on its columns, and done is not pending at JM Review', () => {
+    const rows = [three('T1'), three('T2', { current: 3, group: 'D' })];
+    expect(applyFilter(rows, { ...none, ranges: { 0: { from: '2026-09-15' } } }).map((r) => r.id)).toEqual(['T1', 'T2']);
+    expect(applyFilter(rows, { ...none, ranges: { 3: { from: '2026-09-15' } } })).toEqual([]);
+    expect(pendingAtStep(rows).map((p) => p.count)).toEqual([0, 1, 0, 0, 0]);
+  });
+
   it('round-trips through URL search params', () => {
     const f: MatrixFilter = { q: 'pay', members: ['an', 'binh'], status: ['W'], prog: ['late'], ranges: { 2: { from: '2026-10-01' } }, sort: { i: 2, dir: -1 } };
     const s = toSearch(f);

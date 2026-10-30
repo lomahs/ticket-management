@@ -60,7 +60,7 @@ export function filterTickets(tickets: Schemas['MatrixTicket'][], f: MatrixFilte
 export function applyFilter(rows: Row[], f: MatrixFilter): Row[] {
   let out = rows.filter((r) =>
     matchesText(r, f.q)
-    && (!f.members.length || f.members.includes(r.owner_id ?? '') || f.members.includes(r.reviewer_id ?? ''))
+    && (!f.members.length || f.members.includes(r.ba_id ?? '') || f.members.includes(r.bal_id ?? ''))
     && (!f.status.length || f.status.includes(r.group))
     && (!f.prog.length || f.prog.includes(r.progress))
     && Object.entries(f.ranges).every(([i, rg]) => {
@@ -78,7 +78,7 @@ export function applyFilter(rows: Row[], f: MatrixFilter): Row[] {
 
 export interface SummaryRow { memberId: string | null; role: 'BA' | 'BAL' | ''; counts: Record<'N' | 'W' | 'D' | 'late', number>; total: number }
 
-/** Functions by current-step group per BA (owner) and BAL (reviewer), plus an "All" row. */
+/** Functions by current-step group per BA and BAL of the function, plus an "All" row. */
 export function summaryCounts(rows: Row[], bas: string[], bals: string[]): SummaryRow[] {
   const count = (list: Row[]) => ({
     N: list.filter((r) => r.group === 'N').length, W: list.filter((r) => r.group === 'W').length,
@@ -86,8 +86,8 @@ export function summaryCounts(rows: Row[], bas: string[], bals: string[]): Summa
   });
   const mk = (memberId: string | null, role: SummaryRow['role'], list: Row[]): SummaryRow => ({ memberId, role, counts: count(list), total: list.length });
   return [
-    ...bas.map((id) => mk(id, 'BA', rows.filter((r) => r.owner_id === id))),
-    ...bals.map((id) => mk(id, 'BAL', rows.filter((r) => r.reviewer_id === id))),
+    ...bas.map((id) => mk(id, 'BA', rows.filter((r) => r.ba_id === id))),
+    ...bals.map((id) => mk(id, 'BAL', rows.filter((r) => r.bal_id === id))),
     mk(null, '', rows),
   ];
 }
@@ -99,8 +99,9 @@ export function stepRange(rows: Row[], i: number): [string, string] | null {
     cs.reduce((m, c) => (c.planned_end! > m ? c.planned_end! : m), cs[0].planned_end!)];
 }
 
+/** Functions waiting at each step; a function whose steps are all done (3 or 5 of them) waits nowhere. */
 export function pendingAtStep(rows: Row[]) {
-  const per = [0, 1, 2, 3, 4].map((i) => rows.filter((r) => r.current === i));
+  const per = [0, 1, 2, 3, 4].map((i) => rows.filter((r) => r.current === i && r.current < r.cells.length));
   const max = Math.max(...per.map((l) => l.length));
   return per.map((l, i) => ({ count: l.length, late: l.filter((r) => r.cells[i]?.late).length, bottleneck: max > 0 && l.length === max }));
 }

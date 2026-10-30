@@ -25,13 +25,15 @@ function content(date: string, note: string) {
       { name: 'Prepare', state: 'done', pct: 100, closed: 9, total: 9, late: 0, sub_phases: [] }, // captured before Tasks were rolled up
       { name: 'Implement_Coding', state: 'current', pct: 48, closed: 20, total: 60, late: 1, sub_phases: [
         task('PAY-1102', 'Payment flow revision', { late: 1, functions: [
-          { id: 'F03', name: 'Domestic card payment', owner_id: 'binh', steps: [
+          { id: 'F03', name: 'Domestic card payment', ba_id: 'binh', steps: [
             step('PAY-1211', 'create', 'C'), step('PAY-1212', 'balr', 'C'), step('PAY-1213', 'fixb', 'W', { late: true, late_days: 2, rounds: 3 }),
             step('PAY-1214', 'jmr', 'N', { assignee_id: 'tanaka', with_jm: true }), null] },
-          { id: 'F04', name: 'Refund', owner_id: 'an', steps: [
+          { id: 'F04', name: 'Refund', ba_id: 'an', steps: [
             ...done('PAY-122'), step('PAY-1224', 'jmr', 'W', { assignee_id: 'an' }), step('PAY-1225', 'fixj', 'W', { assignee_id: 'an', rounds: 1 })] },
-          { id: 'F05', name: 'Installments', owner_id: 'an', steps: [
-            ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N')] }] }),
+          { id: 'F05', name: 'Installments', ba_id: 'an', steps: [
+            ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N')] },
+          { id: 'F06', name: 'Execute test case', ba_id: 'an', steps: [
+            step('PAY-1241', 'create', 'C'), step('PAY-1242', 'balr', 'W'), step('PAY-1243', 'fixb', 'N')] }] }),
         task('PAY-1160', 'Requirement study', { unmatched: 2, tickets: [ticket('PAY-1161', 'an'), ticket('PAY-1162', 'binh')] }),
         task('PAY-1150', 'Design review', { state: 'done', pct: 100, closed: 1, total: 1, tickets: [ticket('PAY-1151', 'an', 'Design review')] }),
       ] },
@@ -78,6 +80,7 @@ describe('Daily Overview', () => {
     expect(within(table).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
     expect(within(table).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
     expect(within(table).queryAllByTitle(/now:/)).toHaveLength(2); // F03's JM Review has not started
+    expect(within(table).getByText('No JM steps')).toBeTruthy(); // F06 runs the 3-step flow
     // a done Task starts collapsed
     expect(within(table).getAllByText('Design review')).toHaveLength(1);
     fireEvent.click(within(table).getByRole('button', { name: 'Expand Design review' }));

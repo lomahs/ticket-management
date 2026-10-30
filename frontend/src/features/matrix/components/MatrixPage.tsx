@@ -57,8 +57,8 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
   const tickets = filterTickets(m.tickets, f);
   const pool = m.functions.filter((r) => matchesText(r, f.q));
   const ids = Object.keys(members);
-  const bas = ids.filter((id) => members[id].role === 'BA' && pool.some((r) => r.owner_id === id));
-  const bals = ids.filter((id) => members[id].role === 'BAL' && pool.some((r) => r.reviewer_id === id));
+  const bas = ids.filter((id) => members[id].role === 'BA' && pool.some((r) => r.ba_id === id));
+  const bals = ids.filter((id) => members[id].role === 'BAL' && pool.some((r) => r.bal_id === id));
   const summary = summaryCounts(pool, bas, bals);
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const s = m.stats;
@@ -372,9 +372,10 @@ const FS: Record<string, [string, string]> = { done: ['Done', 'clo'], nys: ['NYS
 function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
   const members = useMemberMap();
   const [fl, ft] = FS[r.state] ?? FS.ontime;
-  const ba = av(members[r.owner_id ?? ''], r.owner_id ?? '–');
-  const bal = av(members[r.reviewer_id ?? ''], r.reviewer_id ?? '–');
-  const stepText = r.current >= 5 ? 'All 5 steps done' : `Step ${r.current + 1}/5 · ${STEPS[r.current].label}`;
+  const ba = av(members[r.ba_id ?? ''], r.ba_id ?? '–');
+  const bal = av(members[r.bal_id ?? ''], r.bal_id ?? '–');
+  const n = r.cells.length; // 3 or 5 steps
+  const stepText = r.current >= n ? `All ${n} steps done` : `Step ${r.current + 1}/${n} · ${STEPS[r.current].label}`;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)' }}>
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, minWidth: 0 }}>
@@ -395,6 +396,9 @@ function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
         </div>
       </div>
       {r.cells.map((c, i) => (c ? <Cell key={c.key} c={c} /> : <div key={i} style={{ margin: 3, borderRadius: 10, border: '1px dashed var(--border-subtle)' }} title="Sub-task not in Jira" />))}
+      {n < STEPS.length && (
+        <div style={{ gridColumn: `${n + 2} / span ${STEPS.length - n}`, display: 'flex', alignItems: 'center', padding: '0 14px', fontSize: 11, color: 'var(--text-muted)' }}>No JM steps</div>
+      )}
     </div>
   );
 }

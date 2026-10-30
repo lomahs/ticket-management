@@ -1464,9 +1464,9 @@ export interface components {
             typed: components["schemas"]["DailyTyped"][];
         };
         DailyFunction: {
+            ba_id: string | null;
             id: string;
             name: string;
-            owner_id: string | null;
             steps: (components["schemas"]["DailyStep"] | null)[];
         };
         DailyGroup: {
@@ -1693,6 +1693,8 @@ export interface components {
             steps: components["schemas"]["PreviewStep"][];
         };
         FunctionRow: {
+            ba_id: string | null;
+            bal_id: string | null;
             cells: (components["schemas"]["TaskCard"] | null)[];
             /** Format: int32 */
             current: number;
@@ -1703,11 +1705,9 @@ export interface components {
             /** Format: double */
             logged_h: number;
             name: string;
-            owner_id: string | null;
             /** Format: int32 */
             pct: number;
             progress: string;
-            reviewer_id: string | null;
             state: string;
             task_key: string;
         };

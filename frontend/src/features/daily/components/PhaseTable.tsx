@@ -117,7 +117,7 @@ function SubPhase({ s, fnSort, setFnSort, oneSort, setOneSort }: {
 }) {
   const members = useMemberMap();
   const name = (id?: string | null) => members[id ?? '']?.name ?? id ?? '';
-  const fns = sorted(s.functions, fnSort, (f: Fn, k) => (k === 'name' ? f.name.toLowerCase() : name(f.owner_id).toLowerCase()));
+  const fns = sorted(s.functions, fnSort, (f: Fn, k) => (k === 'name' ? f.name.toLowerCase() : name(f.ba_id).toLowerCase()));
   const ones = sorted(s.tickets, oneSort, (t: Ticket, k) => (
     k === 'name' ? t.name.toLowerCase() : k === 'owner' ? name(t.assignee_id).toLowerCase() : k === 'status' ? STATUS_ORDER[t.status] ?? 0
       : k === 'start' ? t.planned_start ?? '9999' : t.planned_end ?? '9999'));
@@ -195,10 +195,13 @@ function FunctionRow({ f }: { f: Fn }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: FN_COLS, gap: '0 10px', alignItems: 'center', padding: '0 20px 0 46px', borderBottom: '1px solid var(--border-subtle)', minHeight: 40 }}>
       <span style={nameStyle} title={`${f.id} ${f.name}`}>{f.name}</span>
-      <Owner id={f.owner_id} />
+      <Owner id={f.ba_id} />
       {f.steps.map((c, i) => (c
         ? <StepCell key={i} c={c} active={i === active} prev={i > 0 ? f.steps[i - 1] : null} next={i < f.steps.length - 1 ? f.steps[i + 1] : null} />
         : <span key={i} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>—</span>))}
+      {f.steps.length < STEPS.length && (
+        <span style={{ gridColumn: `span ${STEPS.length - f.steps.length}`, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>No JM steps</span>
+      )}
     </div>
   );
 }

@@ -75,8 +75,8 @@ public class DailyService {
                             @Nullable String plannedEnd, boolean late, int lateDays, int rounds, boolean withJm) {
     }
 
-    /** @param steps one slot per workflow step, null when that sub-task does not exist */
-    public record DailyFunction(String id, String name, @Nullable String ownerId, List<@Nullable DailyStep> steps) {
+    /** @param steps one slot per step of the function (3 or 5), null when that sub-task does not exist */
+    public record DailyFunction(String id, String name, @Nullable String baId, List<@Nullable DailyStep> steps) {
     }
 
     /** A single ticket: a sub-task outside the 5-step workflow. */
@@ -276,7 +276,7 @@ public class DailyService {
 
     private static DailyFunction function(TrackerContext ctx, Function f) {
         List<DailyStep> steps = new ArrayList<>();
-        for (Issue c : f.cells()) {
+        for (Issue c : f.steps()) {
             if (c == null) {
                 steps.add(null);
                 continue;

@@ -3514,14 +3514,14 @@
       "DailyFunction" : {
         "type" : "object",
         "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
           "id" : {
             "type" : "string"
           },
           "name" : {
             "type" : "string"
-          },
-          "owner_id" : {
-            "type" : [ "string", "null" ]
           },
           "steps" : {
             "type" : "array",
@@ -3534,7 +3534,7 @@
             }
           }
         },
-        "required" : [ "id", "name", "owner_id", "steps" ]
+        "required" : [ "ba_id", "id", "name", "steps" ]
       },
       "DailyGroup" : {
         "type" : "object",
@@ -4218,6 +4218,12 @@
       "FunctionRow" : {
         "type" : "object",
         "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
           "cells" : {
             "type" : "array",
             "items" : {
@@ -4249,18 +4255,12 @@
           "name" : {
             "type" : "string"
           },
-          "owner_id" : {
-            "type" : [ "string", "null" ]
-          },
           "pct" : {
             "type" : "integer",
             "format" : "int32"
           },
           "progress" : {
             "type" : "string"
-          },
-          "reviewer_id" : {
-            "type" : [ "string", "null" ]
           },
           "state" : {
             "type" : "string"
@@ -4269,7 +4269,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "cells", "current", "estimate_h", "group", "id", "logged_h", "name", "owner_id", "pct", "progress", "reviewer_id", "state", "task_key" ]
+        "required" : [ "ba_id", "bal_id", "cells", "current", "estimate_h", "group", "id", "logged_h", "name", "pct", "progress", "state", "task_key" ]
       },
       "FunctionSteps" : {
         "type" : "object",
