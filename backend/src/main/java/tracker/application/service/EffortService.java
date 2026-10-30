@@ -64,14 +64,13 @@ public class EffortService {
     public record DayDetailView(String memberId, String date, double loggedH, double plannedH, List<DayEntryView> entries) {
     }
 
+    /** Each sub-task's planned load for its plan owner (JM Review has none), handovers applied. */
     private static Capacity.Plan plan(TrackerContext ctx) {
         List<PlanItem> items = new ArrayList<>();
         for (Issue i : ctx.subtasks()) {
-            if (Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd())) {
-                String w = ctx.worker(i);
-                if (Text.hasText(w)) {
-                    items.add(new PlanItem(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH()));
-                }
+            PlanItem it = ctx.planItem(i);
+            if (it != null) {
+                items.add(it);
             }
         }
         return Capacity.dailyPlan(items, ctx.cal);
@@ -213,7 +212,7 @@ public class EffortService {
      * @param ankens     every anken in scope, in Settings order
      * @param phases     phase groups of the anken's planned sub-tasks, in Settings → Structure order
      * @param tasks      Tasks (sub-phases) of {@code phase} with planned sub-tasks, by planned start; empty without a phase
-     * @param members    workers of the planned sub-tasks of the picked anken, phase and sub-phase who are people of the scope
+     * @param members    plan owners of the planned sub-tasks of the picked anken, phase and sub-phase who are people of the scope
      * @param subtasks   sub-tasks in the chart: Planned Start, Planned End and an estimate, after every filter
      */
     public record BurndownView(@Nullable String epicKey, String title, List<BurndownOption> ankens, List<String> phases,
@@ -229,7 +228,7 @@ public class EffortService {
      * @param requested the anken, which must be in {@code scope}; null: the first tracked one with functions there
      * @param phase     a phase group; null: every phase
      * @param task      a Task (sub-phase) of the epic; null: every Task
-     * @param member    the worker, a person of the scope; null: everyone
+     * @param member    the plan owner, a person of the scope; null: everyone
      */
     public BurndownView burndown(AnkenScope scope, @Nullable String requested, @Nullable String phase, @Nullable String task,
                                  @Nullable String member) {
@@ -249,7 +248,8 @@ public class EffortService {
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
         Map<String, String> start = new HashMap<>();
         for (Issue i : ctx.subtasks()) {
-            if (i.epicKey().equals(epic) && Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0) {
+            if (i.epicKey().equals(epic) && Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0
+                    && !Steps.isJmReview(i)) {
                 byPhase.computeIfAbsent(groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER), k -> new ArrayList<>()).add(i);
                 if (i.parentKey() != null) {
                     start.merge(i.parentKey(), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
@@ -270,12 +270,12 @@ public class EffortService {
             }
         }));
         Set<String> workers = new HashSet<>();
-        chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.worker(i), "")));
+        chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.planOwner(i), "")));
         List<String> members = ctx.people.stream().filter(workers::contains).toList();
         String who = Text.hasText(member) ? member : null;
         List<Burndown.Item> items = new ArrayList<>();
         for (Issue i : chart) {
-            String w = Objects.requireNonNullElse(ctx.worker(i), "");
+            String w = Objects.requireNonNullElse(ctx.planOwner(i), "");
             if (who == null || who.equals(w)) {
                 items.add(new Burndown.Item(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH(), i.worklogs()));
             }

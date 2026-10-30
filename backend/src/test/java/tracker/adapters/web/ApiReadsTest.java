@@ -58,7 +58,7 @@ class ApiReadsTest extends ApiTestSupport {
         assertThat(d.get("card").get("late_functions").asInt()).isEqualTo(6);
         assertThat(d.get("attention").get(1).get("kind").asText()).isEqualTo("stuck_resolved");
         JsonNode m = call(get("/api/v1/anken/PAY-1100/matrix")).json();
-        assertThat(m.get("stats").get("logged_h").asDouble()).isEqualTo(148);
+        assertThat(m.get("stats").get("logged_h").asDouble()).isEqualTo(140.5);
         assertThat(m.get("functions")).hasSize(12);
         assertThat(m.get("functions").get(0).get("cells").get(0).get("tone").asText()).isEqualTo("clo");
         assertThat(m.get("functions").get(0).get("cells").get(0).has("is_current")).isTrue();

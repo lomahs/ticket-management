@@ -18,6 +18,8 @@ import tracker.application.ports.SettingsRepository;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.Effort;
+import tracker.domain.Issue;
 import tracker.domain.Leave;
 import tracker.domain.Member;
 import tracker.domain.WorkCalendar;
@@ -82,7 +84,7 @@ public class TrackerContextLoader {
     }
 
     /**
-     * Members, calendar and the issues of the tracked epics in {@code scope}, with the flags derived from them. Epics that are not
+     * Members, calendar and the issues of the tracked epics in {@code scope} (JM worklogs dropped), with the flags derived from them. Epics that are not
      * tracked are left out; {@link TrackerContext#people} are the members of the epics kept.
      */
     public TrackerContext load(AnkenScope scope) {
@@ -92,7 +94,8 @@ public class TrackerContextLoader {
         List<String> epics = epicsOf(s, scope);
         List<Anken> tracking = anken.findAll().stream().filter(a -> epics.contains(a.key())).toList();
         Map<String, Set<String>> membersOf = membersOf(epics);
-        TrackerContext ctx = new TrackerContext(today(), s, team, tracking, issues.findByEpics(epics), leaves,
+        List<Issue> loaded = issues.findByEpics(epics).stream().map(i -> Effort.withoutJm(i, team)).toList();
+        TrackerContext ctx = new TrackerContext(today(), s, team, tracking, loaded, leaves,
                 calendar(s, team, leaves), people(membersOf), membersOf);
         ctx.deriveFlags();
         return ctx;

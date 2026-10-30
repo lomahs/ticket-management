@@ -5,7 +5,7 @@ import { dueLabel, taskSub, taskTitle } from './task';
 const card = (over: Partial<TaskCard> = {}): TaskCard => ({
   key: 'PAY-1213', summary: '[Implement_Coding][F03] Domestic card payment – Fix comment BAL', project: 'PAY', epic_key: 'PAY-1100',
   phase: 'Implement_Coding', function_id: 'F03', function_name: 'Domestic card payment', step: 'fixb', status: 'W', jira_status: 'In Progress',
-  assignee_id: 'binh', worker_id: 'binh', planned_start: '2026-10-01', planned_end: '2026-10-06', estimate_h: 4, logged_h: 7.5, remaining_h: 0,
+  assignee_id: 'binh', worker_id: 'binh', plan_owner_id: 'binh', planned_start: '2026-10-01', planned_end: '2026-10-06', estimate_h: 4, logged_h: 7.5, remaining_h: 0,
   actual_start: '2026-10-01', actual_end: '2026-10-07', is_current: true, late: true, late_days: 1, soon: false, over: true, tone: 'delay',
   held_days: 2, rounds: 3,
   schedule: {

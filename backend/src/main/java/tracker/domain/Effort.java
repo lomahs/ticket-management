@@ -43,16 +43,33 @@ public final class Effort {
 
     /**
      * Who the plan of {@code i} belongs to: on a function step, the function's BA for Create and the Fix comment steps, its BAL
-     * for BAL Review and nobody for JM Review; on any other issue, its assignee.
+     * for BAL Review and nobody for JM Review; on any other issue, its assignee unless they are a JM (JM effort is in no number).
      */
     public static @Nullable String planOwner(@Nullable Function fn, Issue i, Map<String, Member> members) {
         if (fn == null || Steps.stepDef(i) == null) {
-            return i.assigneeId();
+            Member m = i.assigneeId() != null ? members.get(i.assigneeId()) : null;
+            return m != null && m.role() == Role.JM ? null : i.assigneeId();
         }
         return switch (i.step()) {
             case CREATE, FIX_BAL, FIX_JM -> fn.baId(members);
             case BAL_REVIEW -> fn.balId(members);
             case JM_REVIEW -> null;
         };
+    }
+
+    /**
+     * The planned load of {@code i} for {@code owner}: its estimate over its planned dates; after a handover on {@code handoverDay}
+     * (later than the planned start), the remaining estimate from that day (the planned end at the latest) to the planned end.
+     * null without an owner or planned dates.
+     */
+    public static Capacity.@Nullable PlanItem planItem(Issue i, @Nullable String owner, @Nullable String handoverDay) {
+        if (!Text.hasText(owner) || !Text.hasText(i.plannedStart()) || !Text.hasText(i.plannedEnd())) {
+            return null;
+        }
+        if (handoverDay != null && handoverDay.compareTo(i.plannedStart()) > 0) {
+            String from = handoverDay.compareTo(i.plannedEnd()) > 0 ? i.plannedEnd() : handoverDay;
+            return new Capacity.PlanItem(i.key(), owner, from, i.plannedEnd(), i.remainingH());
+        }
+        return new Capacity.PlanItem(i.key(), owner, i.plannedStart(), i.plannedEnd(), i.estimateH());
     }
 }

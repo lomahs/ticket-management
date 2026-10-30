@@ -5859,6 +5859,9 @@
           "phase" : {
             "type" : "string"
           },
+          "plan_owner_id" : {
+            "type" : [ "string", "null" ]
+          },
           "planned_end" : {
             "type" : [ "string", "null" ]
           },
@@ -5898,7 +5901,7 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "planned_end", "planned_start", "project", "remaining_h", "rounds", "schedule", "soon", "status", "step", "summary", "tone", "worker_id" ]
+        "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "plan_owner_id", "planned_end", "planned_start", "project", "remaining_h", "rounds", "schedule", "soon", "status", "step", "summary", "tone", "worker_id" ]
       },
       "TaskTemplate" : {
         "type" : "object",

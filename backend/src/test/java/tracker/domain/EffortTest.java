@@ -37,6 +37,20 @@ class EffortTest {
     }
 
     @Test
+    void handoverMovesTheRemainingPlan() {
+        Issue create = issue().key("A1").fid("F1").step(StepKind.CREATE).ps("2026-10-05").pe("2026-10-09").est(8).remaining(5).build();
+        assertThat(Effort.planItem(create, "binh", "2026-10-07"))
+                .isEqualTo(new Capacity.PlanItem("A1", "binh", "2026-10-07", "2026-10-09", 5));
+        assertThat(Effort.planItem(create, "binh", "2026-10-12"))
+                .isEqualTo(new Capacity.PlanItem("A1", "binh", "2026-10-09", "2026-10-09", 5));
+        assertThat(Effort.planItem(create, "binh", "2026-10-05"))
+                .isEqualTo(new Capacity.PlanItem("A1", "binh", "2026-10-05", "2026-10-09", 8)); // handed over before it began
+        assertThat(Effort.planItem(create, "an", null)).isEqualTo(new Capacity.PlanItem("A1", "an", "2026-10-05", "2026-10-09", 8));
+        assertThat(Effort.planItem(create, null, null)).isNull();
+        assertThat(Effort.planItem(issue().ps(null).build(), "an", null)).isNull();
+    }
+
+    @Test
     void planOwnerByStepRole() {
         List<Issue> cells = FlagsTest.five("F1", "WNNNN");
         Issue create = issue().key("PAY-F10").fid("F1").step(StepKind.CREATE).assignee("pim").reporter("minh")
@@ -46,5 +60,7 @@ class EffortTest {
         assertThat(cells).extracting(c -> Effort.planOwner(fn, c, MEMBERS)).containsExactly("an", "minh", "an", null, "an");
         Issue single = issue().key("PAY-9").assignee("chi").single("Study").build();
         assertThat(Effort.planOwner(null, single, MEMBERS)).isEqualTo("chi");
+        Issue question = issue().key("PAY-8").assignee("tanaka").build(); // a QnA waiting for the client
+        assertThat(Effort.planOwner(null, question, MEMBERS)).isNull();
     }
 }

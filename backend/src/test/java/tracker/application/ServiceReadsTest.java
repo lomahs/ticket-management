@@ -50,8 +50,11 @@ import tracker.domain.Burndown;
 import tracker.domain.DateReason;
 import tracker.domain.Issue;
 import tracker.domain.LeaveType;
+import tracker.domain.Member;
 import tracker.domain.Numbers;
+import tracker.domain.Role;
 import tracker.domain.StepKind;
+import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
 import tracker.domain.WorkStructure;
 
@@ -192,7 +195,7 @@ class ServiceReadsTest {
         AnkenService.MatrixStats s = m.stats();
         assertThat(List.of(s.progressPct(), s.functionsDone(), s.lateFunctions(), s.lateSubtasks(), s.overSubtasks()))
                 .containsExactly(54, 1, 6, 6, 6); // progress over the team steps
-        assertThat(s.loggedH()).isEqualTo(148);
+        assertThat(s.loggedH()).isEqualTo(140.5); // 148 before the JM's 7.5h were dropped
         assertThat(s.estimateH()).isEqualTo(207);
         AnkenService.FunctionRow f03 = m.functions().get(2);
         assertThat(List.of(f03.ownerId(), f03.reviewerId(), f03.current(), f03.state(), f03.progress(), f03.group(), f03.pct()))
@@ -276,6 +279,31 @@ class ServiceReadsTest {
         assertThat(chi.get("2026-10-09")).isEqualTo("off");
         assertThat(chi.get("2026-10-08")).isEqualTo("future");
         assertThatThrownBy(() -> effort.timesheet(ALL, "2026-01-01", "2026-12-31")).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void timesheetHasNoJmEffort() {
+        var tanaka = effort.timesheet(ALL, "2026-09-01", "2026-10-31").rows().stream()
+                .filter(r -> r.memberId().equals("tanaka")).findFirst().orElseThrow();
+        assertThat(tanaka.cells()).allMatch(c -> c.plannedH() == 0 && c.loggedH() == 0);
+    }
+
+    @Test
+    void jmWorklogsAreGoneFromCards() {
+        TrackerContext ctx = contexts.load(ALL);
+        Map<String, Member> team = contexts.membersById();
+        List<Issue> jmReviews = ctx.subtasks().stream().filter(Steps::isJmReview).toList();
+        assertThat(jmReviews).isNotEmpty();
+        assertThat(jmReviews).allMatch(i -> i.worklogs().stream().noneMatch(w -> team.get(w.memberId()).role() == Role.JM));
+        assertThat(jmReviews).allMatch(i -> ctx.planOwner(i) == null && ctx.card(i).planOwnerId() == null);
+    }
+
+    @Test
+    void burndownHasNoJmReview() {
+        TrackerContext ctx = contexts.load(ALL);
+        long planned = ctx.subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100") && !Steps.isJmReview(i)
+                && i.plannedStart() != null && i.plannedEnd() != null && i.estimateH() > 0).count();
+        assertThat(effort.burndown(ALL, "PAY-1100", null, null, null).subtasks()).isEqualTo((int) planned);
     }
 
     @Test

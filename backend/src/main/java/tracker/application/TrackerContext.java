@@ -7,8 +7,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
+
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
+import tracker.domain.Capacity;
+import tracker.domain.Effort;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
@@ -20,6 +24,7 @@ import tracker.domain.Member;
 import tracker.domain.Numbers;
 import tracker.domain.ScheduleRules;
 import tracker.domain.Status;
+import tracker.domain.StepKind;
 import tracker.domain.WorkCalendar;
 
 /** The loaded team context: members, calendar, the issues of the anken in scope and the flags derived from them. */
@@ -39,7 +44,10 @@ public final class TrackerContext {
     public final Map<String, IssueFlags> flags = new LinkedHashMap<>();
     /** Start, finish and effort labels of every issue; {@link #flags} derive late and tone from them. */
     public final Map<String, IssueSchedule> schedule = new LinkedHashMap<>();
+    /** The legacy worker identity (the Create step's assignee) by key: Planning and Capacity only (spec §4). */
     public final Map<String, String> owner = new LinkedHashMap<>();
+    private final Map<String, String> planOwner = new LinkedHashMap<>();
+    private final Map<String, Function> functionOf = new LinkedHashMap<>();
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
                    List<Leave> leaves, WorkCalendar cal, List<String> people, Map<String, Set<String>> ankenMembers) {
@@ -81,8 +89,26 @@ public final class TrackerContext {
         return anken.stream().filter(a -> a.key().equals(key)).findFirst();
     }
 
+    /** The legacy worker: Planning and Capacity only (spec §4). Every other number reads {@link #planOwner}. */
     public String worker(Issue i) {
         return Flags.workerOf(i, owner.get(i.key()));
+    }
+
+    /** Who the plan of {@code i} belongs to by the role of its step ({@link Effort#planOwner}); null on JM Review. */
+    public @Nullable String planOwner(Issue i) {
+        return planOwner.get(i.key());
+    }
+
+    /** The function {@code i} is a step of; null for any other issue. */
+    public @Nullable Function function(Issue i) {
+        return functionOf.get(i.key());
+    }
+
+    /** The planned load of {@code i}: its plan owner's, and after a BA handover the new BA's remaining estimate. */
+    public Capacity.@Nullable PlanItem planItem(Issue i) {
+        Function fn = function(i);
+        boolean baStep = fn != null && i.step() != StepKind.BAL_REVIEW && i.step() != StepKind.JM_REVIEW;
+        return Effort.planItem(i, planOwner(i), baStep ? fn.handoverDay(members) : null);
     }
 
     public TaskCard card(Issue i) {
@@ -91,7 +117,7 @@ public final class TrackerContext {
         boolean closed = i.status() == Status.CLOSED;
         return new TaskCard(
                 i.key(), i.summary(), i.project(), i.epicKey(), i.phase(), i.functionId(), i.functionName(),
-                i.step() != null ? i.step().value() : null, i.status().value(), i.jiraStatus(), i.assigneeId(), worker(i),
+                i.step() != null ? i.step().value() : null, i.status().value(), i.jiraStatus(), i.assigneeId(), worker(i), planOwner(i),
                 i.plannedStart(), i.plannedEnd(), i.estimateH(), Numbers.round(i.loggedH(), 2),
                 closed ? 0 : Numbers.round(Math.max(0.0, i.estimateH() - i.loggedH()), 2),
                 span != null ? span[0] : null, span != null ? span[1] : null,
@@ -107,6 +133,8 @@ public final class TrackerContext {
                 Issue c = fn.cells().get(idx);
                 if (c != null) {
                     owner.put(c.key(), fn.ownerId());
+                    planOwner.put(c.key(), Effort.planOwner(fn, c, members));
+                    functionOf.put(c.key(), fn);
                     flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), members, today, settings.thresholds, schedule(c)));
                 }
             }
@@ -114,14 +142,15 @@ public final class TrackerContext {
         for (Issue i : issues) {
             if (!flags.containsKey(i.key())) {
                 owner.put(i.key(), null);
+                planOwner.put(i.key(), Effort.planOwner(null, i, members));
                 flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, members, today, settings.thresholds, schedule(i)));
             }
         }
     }
 
-    /** Computes and keeps the schedule labels of {@code i}; its owner must be known already (the worker depends on it). */
+    /** Computes and keeps the schedule labels of {@code i}; its plan owner must be known already. */
     private IssueSchedule schedule(Issue i) {
-        IssueSchedule s = ScheduleRules.of(i, worker(i), today, cal, settings.thresholds.effortDiffH());
+        IssueSchedule s = ScheduleRules.of(i, planOwner(i), today, cal, settings.thresholds.effortDiffH());
         schedule.put(i.key(), s);
         return s;
     }

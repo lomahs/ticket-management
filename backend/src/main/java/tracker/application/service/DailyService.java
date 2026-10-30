@@ -36,6 +36,7 @@ import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
 import tracker.domain.WorkStructure;
@@ -316,8 +317,8 @@ public class DailyService {
 
     private static BurndownChart burndown(TrackerContext ctx, List<Issue> subs) {
         List<Burndown.Item> items = subs.stream()
-                .filter(i -> Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0)
-                .map(i -> new Burndown.Item(i.key(), Objects.requireNonNullElse(ctx.worker(i), ""), i.plannedStart(), i.plannedEnd(),
+                .filter(i -> Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0 && !Steps.isJmReview(i))
+                .map(i -> new Burndown.Item(i.key(), Objects.requireNonNullElse(ctx.planOwner(i), ""), i.plannedStart(), i.plannedEnd(),
                         i.estimateH(), i.worklogs())).toList();
         return Burndown.compute(items, ctx.cal, ctx.today, null);
     }

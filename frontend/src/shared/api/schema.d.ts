@@ -2250,6 +2250,7 @@ export interface components {
             logged_h: number;
             over: boolean;
             phase: string;
+            plan_owner_id: string | null;
             planned_end: string | null;
             planned_start: string | null;
             project: string;
