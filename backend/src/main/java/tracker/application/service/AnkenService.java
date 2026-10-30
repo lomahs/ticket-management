@@ -424,10 +424,8 @@ public class AnkenService {
                 late.add(k);
             }
         });
-        Set<String> bas = ctx.members.entrySet().stream().filter(e -> e.getValue().role() == Role.BA).map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
         List<FunctionRow> rows = fns.stream().map(f -> new FunctionRow(
-                f.id(), f.name(), f.baId(bas), f.balId(), f.current(),
+                f.id(), f.name(), f.baId(ctx.members), f.balId(ctx.members), f.current(),
                 Flags.functionState(f, late), Flags.functionProgress(f, ctx.today, late), Flags.groupStatus(f),
                 Flags.progressPct(f),
                 f.cells().stream().map(c -> c != null ? ctx.card(c) : null).toList(),
@@ -436,7 +434,7 @@ public class AnkenService {
         List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
         MatrixStats stats = new MatrixStats(
                 rows.isEmpty() ? 0 : (int) Math.round(rows.stream().mapToInt(FunctionRow::pct).sum() / (double) rows.size()),
-                (int) fns.stream().filter(f -> f.current() >= Steps.COUNT).count(), fns.size(),
+                (int) fns.stream().filter(Function::done).count(), fns.size(),
                 (int) rows.stream().filter(r -> r.state().equals("delay")).count(),
                 (int) cells.stream().filter(c -> late.contains(c.key())).count(),
                 (int) cells.stream().filter(c -> ctx.flags.get(c.key()).over()).count(),

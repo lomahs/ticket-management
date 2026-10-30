@@ -75,7 +75,7 @@ public class AnkenMemberSeeder {
         for (Function fn : ctx.functions) {
             if (epic.equals(fn.epicKey())) {
                 out.add(fn.ownerId());
-                out.add(fn.reviewerId());
+                out.add(fn.balId(ctx.members));
             }
         }
         out.remove(null);

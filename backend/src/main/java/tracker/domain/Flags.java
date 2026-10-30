@@ -40,7 +40,7 @@ public final class Flags {
     }
 
     public static Status currentStatus(Function fn) {
-        if (fn.current() >= Steps.COUNT) {
+        if (fn.done()) {
             return Status.CLOSED;
         }
         Issue c = fn.cells().get(fn.current());
@@ -54,7 +54,7 @@ public final class Flags {
     }
 
     public static String functionState(Function fn, Set<String> lateKeys) {
-        if (fn.current() >= Steps.COUNT) {
+        if (fn.done()) {
             return "done";
         }
         if (fn.issues().stream().allMatch(c -> c.status() == Status.NYS)) {

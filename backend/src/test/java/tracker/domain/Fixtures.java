@@ -11,6 +11,13 @@ final class Fixtures {
 
     static final String TODAY = "2026-10-07";
 
+    /** an, binh, chi, dung: BA; minh: BAL; pim: PIM; tanaka: JM. */
+    static final Map<String, Member> MEMBERS = Map.of(
+            "an", member("an", "An", Role.BA, "VN"), "binh", member("binh", "Binh", Role.BA, "VN"),
+            "chi", member("chi", "Chi", Role.BA, "VN"), "dung", member("dung", "Dung", Role.BA, "VN"),
+            "minh", member("minh", "Minh", Role.BAL, "VN"), "pim", member("pim", "Pim", Role.PIM, "VN"),
+            "tanaka", member("tanaka", "Tanaka", Role.JM, "JP"));
+
     /** Mon-Fri for everyone: no holidays, leave or extra working days. */
     static final WorkCalendar CAL = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), Map.of(), List.of());
 

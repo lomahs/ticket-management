@@ -1,6 +1,7 @@
 package tracker.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static tracker.domain.Fixtures.MEMBERS;
 import static tracker.domain.Fixtures.TODAY;
 import static tracker.domain.Fixtures.assigned;
 import static tracker.domain.Fixtures.issue;
@@ -50,28 +51,71 @@ class FlagsTest {
         assertThat(fns.get(0).ownerId()).isEqualTo("an");
     }
 
-    @Test
-    void baIsTheCreateStepsLatestAssigneeWithTheBaRoleAndBalItsFirstReporter() {
-        Set<String> bas = Set.of("an", "chi");
-        // an → minh (lent to the BAL) → chi (handed over to another BA) → minh (lent again)
-        Issue create = issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("minh").reporter("minh")
-                .events(assigned("2026-10-02", "an", "minh"), assigned("2026-10-05", "minh", "chi"), assigned("2026-10-06", "chi", "minh"))
-                .build();
-        Issue review = issue().key("A2").fid("F1").step(StepKind.BAL_REVIEW).assignee("an").build();
-        Function fn = Flags.buildFunctions(List.of(create, review)).get(0);
-        assertThat(fn.baId(bas)).isEqualTo("chi");
-        assertThat(fn.baId(Set.of())).isEqualTo("an"); // nobody has the BA role: the first assignee
-        assertThat(fn.balId()).isEqualTo("minh");
-        assertThat(fn.ownerId()).isEqualTo("minh"); // the worker rules keep the current assignee
+    static Function fn(Issue... cells) {
+        return Flags.buildFunctions(List.of(cells)).get(0);
+    }
 
-        Issue unassignedAtFirst = issue().key("B1").fid("F2").step(StepKind.CREATE).assignee("minh")
-                .events(assigned("2026-10-02", null, "an"), assigned("2026-10-03", "an", "minh")).build();
-        Function noReporter = Flags.buildFunctions(List.of(unassignedAtFirst,
-                issue().key("B2").fid("F2").step(StepKind.BAL_REVIEW).assignee("an").build())).get(0);
-        assertThat(noReporter.baId(bas)).isEqualTo("an");
-        assertThat(noReporter.balId()).isEqualTo("an"); // no reporter: the BAL Review assignee
-        assertThat(Flags.buildFunctions(List.of(issue().key("C1").fid("F3").step(StepKind.CREATE).assignee("dung").build())).get(0)
-                .baId(bas)).isEqualTo("dung"); // never reassigned, not a BA: still the assignee
+    @Test
+    void baIsCreatesAssigneeWithTheBaRole() {
+        Function f = fn(issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("an").build());
+        assertThat(f.baId(MEMBERS)).isEqualTo("an");
+        assertThat(f.handoverDay(MEMBERS)).isNull();
+    }
+
+    @Test
+    void baSurvivesCreateGoingBackToPim() {
+        Function f = fn(issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("pim").status(Status.RESOLVED)
+                .events(assigned("2026-10-06", "an", "pim")).build());
+        assertThat(f.baId(MEMBERS)).isEqualTo("an");
+        assertThat(f.handoverDay(MEMBERS)).isNull();
+    }
+
+    @Test
+    void baIsTheLatestBaAfterAHandover() {
+        Function f = fn(issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("binh")
+                .events(assigned("2026-10-05T09:00", "an", "binh")).build());
+        assertThat(f.baId(MEMBERS)).isEqualTo("binh");
+        assertThat(f.handoverDay(MEMBERS)).isEqualTo("2026-10-05");
+        // lent to the BAL and back: no handover
+        Function lent = fn(issue().key("B1").fid("F2").step(StepKind.CREATE).assignee("an")
+                .events(assigned("2026-10-02", "an", "minh"), assigned("2026-10-03", "minh", "an")).build());
+        assertThat(lent.baId(MEMBERS)).isEqualTo("an");
+        assertThat(lent.handoverDay(MEMBERS)).isNull();
+        // no BA ever held it
+        assertThat(fn(issue().key("C1").fid("F3").step(StepKind.CREATE).assignee("pim").build()).baId(MEMBERS)).isNull();
+    }
+
+    @Test
+    void balIsCreatesReporterWithTheBalRole() {
+        Issue review = issue().key("A2").fid("F1").step(StepKind.BAL_REVIEW).assignee("an").build();
+        assertThat(fn(issue().key("A1").fid("F1").step(StepKind.CREATE).reporter("minh").build(), review).balId(MEMBERS))
+                .isEqualTo("minh");
+        Issue reviewToMinh = issue().key("B2").fid("F2").step(StepKind.BAL_REVIEW).assignee("an")
+                .events(assigned("2026-10-02", "pim", "minh"), assigned("2026-10-03", "minh", "an")).build();
+        assertThat(fn(issue().key("B1").fid("F2").step(StepKind.CREATE).reporter("pim").build(), reviewToMinh).balId(MEMBERS))
+                .isEqualTo("minh");
+        assertThat(fn(issue().key("C1").fid("F3").step(StepKind.CREATE).reporter("pim").build(),
+                issue().key("C2").fid("F3").step(StepKind.BAL_REVIEW).assignee("an").build()).balId(MEMBERS)).isNull();
+    }
+
+    @Test
+    void aFunctionWithoutJmStepsHasThreeSteps() {
+        List<Issue> three = five("F1", "CCCNN").subList(0, 3);
+        Function f = Flags.buildFunctions(three).get(0);
+        assertThat(f.stepCount()).isEqualTo(3);
+        assertThat(f.steps()).hasSize(3);
+        assertThat(f.current()).isEqualTo(3);
+        assertThat(f.done()).isTrue();
+        assertThat(Flags.buildFunctions(five("F2", "CCWNN").subList(0, 3)).get(0).done()).isFalse();
+    }
+
+    @Test
+    void aFunctionMissingOnlyFixJmStillHasFiveSteps() {
+        Function f = Flags.buildFunctions(five("F1", "CCCCN").subList(0, 4)).get(0);
+        assertThat(f.stepCount()).isEqualTo(5);
+        assertThat(f.steps()).hasSize(5);
+        assertThat(f.current()).isEqualTo(4);
+        assertThat(f.done()).isFalse();
     }
 
     @Test

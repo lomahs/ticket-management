@@ -148,7 +148,7 @@ class AnkenScopeApiTest extends ApiTestSupport {
         }
         for (Function f : Flags.buildFunctions(pay1100)) {
             allowed.add(f.ownerId());
-            allowed.add(f.reviewerId());
+            allowed.add(f.cells().get(0) != null ? f.cells().get(0).reporterId() : null); // a BAL is a reporter or a BAL Review assignee
         }
         List<String> mine = ids(call(get("/api/v1/members").with(as(AN))).json());
         assertThat(mine).contains("an").doesNotContain(OUTSIDER).isSorted().allMatch(allowed::contains);

@@ -213,8 +213,6 @@ public class DailyService {
                 subsByGroup.computeIfAbsent(g, k -> new ArrayList<>()).addAll(subsOf.getOrDefault(p.key(), List.of()));
             }
         }
-        Set<String> bas = new LinkedHashSet<>();
-        ctx.members.values().stream().filter(m -> m.role() == Role.BA).forEach(m -> bas.add(m.id()));
         List<DailyGroup> groups = new ArrayList<>();
         for (String g : PhaseGroups.ordered(subsByGroup, st.phases())) {
             PhaseRollup r = Overview.phaseRollup(g, subsByGroup.get(g), ctx.schedule, thr);
@@ -225,7 +223,7 @@ public class DailyService {
             List<DailySubPhase> subPhases = tasksByGroup.get(g).stream()
                     .filter(t -> subsOf.containsKey(t.key()))
                     .sorted(Comparator.comparing((Issue t) -> earliestStart(subsOf.get(t.key()))).thenComparing(Issue::key))
-                    .map(t -> subPhase(ctx, t, subsOf.get(t.key()), bas, thr)).toList();
+                    .map(t -> subPhase(ctx, t, subsOf.get(t.key()), thr)).toList();
             groups.add(new DailyGroup(g, stateOf(state), r.pct(), r.closed(), r.total(), r.schedule().overdue(), subPhases));
         }
 
@@ -259,9 +257,9 @@ public class DailyService {
         return m != null && m.role() == Role.JM;
     }
 
-    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs, Set<String> bas, double thr) {
+    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs, double thr) {
         List<DailyFunction> fns = ctx.functions.stream().filter(f -> task.key().equals(f.parentKey()))
-                .map(f -> function(ctx, f, bas)).toList();
+                .map(f -> function(ctx, f)).toList();
         List<DailyTicket> tickets = subs.stream().filter(Issue::single)
                 .sorted(Comparator.comparing((Issue i) -> Text.orElse(i.plannedStart(), "9999")).thenComparing(Issue::key))
                 .map(i -> {
@@ -275,7 +273,7 @@ public class DailyService {
                 r.total(), r.schedule().overdue(), fns, tickets, unmatched);
     }
 
-    private static DailyFunction function(TrackerContext ctx, Function f, Set<String> bas) {
+    private static DailyFunction function(TrackerContext ctx, Function f) {
         List<DailyStep> steps = new ArrayList<>();
         for (Issue c : f.cells()) {
             if (c == null) {
@@ -286,7 +284,7 @@ public class DailyService {
             steps.add(new DailyStep(c.key(), c.step().value(), c.status().value(), c.assigneeId(), c.plannedStart(), c.plannedEnd(),
                     fl.late(), fl.lateDays(), fl.rounds(), withJm(ctx, c.assigneeId())));
         }
-        return new DailyFunction(f.id(), f.name(), f.baId(bas), steps);
+        return new DailyFunction(f.id(), f.name(), f.baId(ctx.members), steps);
     }
 
     private static List<DailyTyped> typed(TrackerContext ctx, List<Issue> parents, Map<String, String> typeOf, Map<String, List<Issue>> subsOf) {

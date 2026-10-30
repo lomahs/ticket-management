@@ -41,6 +41,11 @@ public final class Steps {
         return step != null && step.fix();
     }
 
+    public static boolean isJmReview(Issue issue) {
+        StepDef step = stepDef(issue);
+        return step != null && step.kind() == StepKind.JM_REVIEW;
+    }
+
     /** For tasks outside the naming rule: the step their Summary ends with ("… – BAL Review"), if any. */
     public static StepKind stepHint(String summary) {
         String s = summary.strip().toLowerCase(java.util.Locale.ROOT);

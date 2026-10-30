@@ -117,7 +117,7 @@ public class SystemService {
         }
         for (Function f : ctx.functions) {
             ids.add(f.ownerId());
-            ids.add(f.reviewerId());
+            ids.add(f.balId(ctx.members));
         }
         return ctx.members.values().stream().filter(m -> ids.contains(m.id())).sorted(Comparator.comparing(Member::id))
                 .map(m -> ScopeMember.of(m, people.contains(m.id()))).toList();

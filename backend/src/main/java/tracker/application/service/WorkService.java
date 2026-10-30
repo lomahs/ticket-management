@@ -117,7 +117,7 @@ public class WorkService {
         String relatedScope;
         if (me.role() == Role.BAL) {
             for (Function f : ctx.functions) {
-                if (Objects.equals(f.reviewerId(), memberId)) {
+                if (Objects.equals(f.balId(ctx.members), memberId)) {
                     for (int idx : new int[]{0, 2, 3, 4}) {
                         Issue c = f.cells().get(idx);
                         if (c != null) {

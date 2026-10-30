@@ -133,7 +133,7 @@ class GoldenTest {
                 .map(Map.Entry::getKey).toList());
         Map<String, Object> want = section("matrix_stats");
         assertThat(Math.round(fns.stream().mapToInt(Flags::progressPct).sum() / (double) fns.size())).isEqualTo(((Number) want.get("progress_pct")).longValue());
-        assertThat(fns.stream().filter(f -> f.current() == 5).count()).isEqualTo(((Number) want.get("functions_done")).longValue());
+        assertThat(fns.stream().filter(Function::done).count()).isEqualTo(((Number) want.get("functions_done")).longValue());
         assertThat(fns.stream().filter(f -> f.cells().stream().anyMatch(c -> lateKeys.contains(c.key()))).count())
                 .isEqualTo(((Number) want.get("late_functions")).longValue());
         assertThat(lateKeys).hasSize(((Number) want.get("late_subtasks")).intValue());
