@@ -30,20 +30,25 @@ public final class Overview {
                                  int lateStart, int earlyStart, int lateFinish, int earlyFinish, Schedule state) {
     }
 
-    /** Progress of a phase from its sub-tasks' effort: spent / (spent + remaining), plus its schedule roll-up. */
-    public static PhaseRollup phaseRollup(String name, List<Issue> subtasks, Map<String, IssueSchedule> schedules, double thresholdH) {
-        String start = subtasks.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
-        String end = subtasks.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
+    /**
+     * Progress of a phase from its sub-tasks' effort: spent / (spent + remaining), plus its schedule roll-up. JM Review sub-tasks
+     * are client effort: they are left out of the progress, the hours and closed/total, not out of the dates and the schedule.
+     */
+    public static PhaseRollup phaseRollup(String name, List<Issue> all, Map<String, IssueSchedule> schedules, double thresholdH) {
+        List<Issue> subtasks = all.stream().filter(i -> !Steps.isJmReview(i)).toList();
+        String start = all.stream().map(Issue::plannedStart).filter(Text::hasText).min(String::compareTo).orElse(null);
+        String end = all.stream().map(Issue::plannedEnd).filter(Text::hasText).max(String::compareTo).orElse(null);
         double spent = Numbers.round(subtasks.stream().mapToDouble(Issue::loggedH).sum(), 2);
         double remaining = Numbers.round(subtasks.stream().mapToDouble(Issue::remainingH).sum(), 2);
         int pct = spent + remaining > 0 ? (int) Math.round(spent / (spent + remaining) * 100) : 0;
         int closed = (int) subtasks.stream().filter(i -> i.status() == Status.CLOSED).count();
         return new PhaseRollup(name, pct, closed, subtasks.size(), start, end, spent, remaining,
-                scheduleRollup(subtasks, schedules, thresholdH));
+                scheduleRollup(all, schedules, thresholdH));
     }
 
     /**
-     * Sums and counts of the schedule labels of {@code subtasks}, and their main state by dates only: done when all are Closed;
+     * Sums and counts of the schedule labels of {@code subtasks} (JM Review left out of the effort sums), and their main state
+     * by dates only: done when all are Closed;
      * late when any is overdue or is a late start that has not started; not started when none has; early when any started or
      * finished early; else on track. "Started" means an actual start exists or the status is past NYS.
      */
@@ -62,7 +67,7 @@ public final class Overview {
             IssueSchedule s = schedules.get(i.key());
             boolean started = Flags.actualStart(i) != null || i.status() != Status.NYS;
             anyStarted |= started;
-            if (s.effort() != EffortState.NO_PLAN && s.effort() != EffortState.NO_ESTIMATE) {
+            if (s.effort() != EffortState.NO_PLAN && s.effort() != EffortState.NO_ESTIMATE && !Steps.isJmReview(i)) {
                 estimated = true;
                 plan += s.planToDateH();
                 actual += s.actualToDateH();

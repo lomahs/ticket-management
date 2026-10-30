@@ -34,9 +34,19 @@ public final class Flags {
         return out;
     }
 
+    /** Status weights over the function's team steps (JM Review left out; a missing step weighs 0), as a percentage. */
     public static int progressPct(Function fn) {
-        double weights = fn.issues().stream().mapToDouble(c -> PROGRESS_WEIGHT.get(c.status())).sum();
-        return (int) Math.round(weights / Steps.COUNT * 100);
+        double weights = 0;
+        int team = 0;
+        for (int i = 0; i < fn.stepCount(); i++) {
+            if (Steps.STEPS.get(i).kind() == StepKind.JM_REVIEW) {
+                continue;
+            }
+            team++;
+            Issue c = fn.cells().get(i);
+            weights += c != null ? PROGRESS_WEIGHT.get(c.status()) : 0;
+        }
+        return (int) Math.round(weights / team * 100);
     }
 
     public static Status currentStatus(Function fn) {
@@ -77,7 +87,10 @@ public final class Flags {
         return done > due ? "early" : "ontime";
     }
 
-    /** Who does the work: the reviewer on review steps, the function owner on other steps, else the assignee. */
+    /**
+     * The legacy worker, kept for Planning and Capacity only: the reviewer on review steps, the function owner on other steps,
+     * else the assignee. Every other number reads {@link Effort#planOwner}.
+     */
     public static String workerOf(Issue issue, String ownerId) {
         StepDef step = Steps.stepDef(issue);
         if (step != null && !step.review() && Text.hasText(ownerId)) {
@@ -127,22 +140,32 @@ public final class Flags {
         return Text.hasText(since) ? Dates.weekdaysAfter(since, today) : 0;
     }
 
-    private static int rounds(Issue i, String ownerId) {
+    /**
+     * Review rounds of a Fix comment step: 1 + the runs of consecutive worklogs by a BAL, in date order (same-day worklogs in
+     * sync order); 0 while it is NYS without a worklog. 0 for any other step.
+     */
+    public static int rounds(Issue i, Map<String, Member> members) {
         if (!Steps.isFixStep(i)) {
             return 0;
         }
-        int n = (int) i.events().stream()
-                .filter(e -> e.field() == EventField.ASSIGNEE && java.util.Objects.equals(e.toValue(), ownerId)
-                        && e.fromValue() != null && !e.fromValue().equals(ownerId))
-                .count();
-        if (n != 0) {
-            return n;
+        if (i.status() == Status.NYS && i.worklogs().isEmpty()) {
+            return 0;
         }
-        return i.status() == Status.NYS ? 0 : 1;
+        List<Worklog> logs = i.worklogs().stream().sorted(java.util.Comparator.comparing(Worklog::date)).toList();
+        int runs = 0;
+        boolean inRun = false;
+        for (Worklog w : logs) {
+            boolean bal = Effort.roleOf(w, members) == Role.BAL;
+            if (bal && !inRun) {
+                runs++;
+            }
+            inRun = bal;
+        }
+        return 1 + runs;
     }
 
     /** Late is the schedule's {@code overdue} finish; {@code soon} applies only to an active step that is not late. */
-    public static IssueFlags issueFlags(Issue issue, boolean isCurrent, String ownerId, String today, Thresholds thresholds,
+    public static IssueFlags issueFlags(Issue issue, boolean isCurrent, Map<String, Member> members, String today, Thresholds thresholds,
                                         IssueSchedule schedule) {
         boolean active = issue.status() == Status.WIP || (issue.status() == Status.NYS && isCurrent);
         String pe = issue.plannedEnd();
@@ -157,7 +180,7 @@ public final class Flags {
                 issue.loggedH() > issue.estimateH(),
                 tone(issue, schedule),
                 held(issue, today),
-                rounds(issue, ownerId));
+                rounds(issue, members));
     }
 
     private static String earlier(String a, String b) {

@@ -107,14 +107,14 @@ public final class TrackerContext {
                 Issue c = fn.cells().get(idx);
                 if (c != null) {
                     owner.put(c.key(), fn.ownerId());
-                    flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), fn.ownerId(), today, settings.thresholds, schedule(c)));
+                    flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), members, today, settings.thresholds, schedule(c)));
                 }
             }
         }
         for (Issue i : issues) {
             if (!flags.containsKey(i.key())) {
                 owner.put(i.key(), null);
-                flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, null, today, settings.thresholds, schedule(i)));
+                flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, members, today, settings.thresholds, schedule(i)));
             }
         }
     }

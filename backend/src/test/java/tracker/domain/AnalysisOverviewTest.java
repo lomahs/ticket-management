@@ -26,13 +26,13 @@ class AnalysisOverviewTest {
     @Test
     void reworkRateRoundsByOwner() {
         List<Issue> cells = List.of(issue().key("A1").fid("F1").step(StepKind.CREATE).logged(10).assignee("an").build(),
-                issue().key("A3").fid("F1").step(StepKind.FIX_BAL).logged(3).assignee("an").events(assigned("2026-10-01", "minh", "an"),
-                        assigned("2026-10-02", "an", "minh"), assigned("2026-10-05", "minh", "an")).build());
+                issue().key("A3").fid("F1").step(StepKind.FIX_BAL).logged(3).logDate("2026-10-01").assignee("an")
+                        .log("2026-10-02", "minh", 0.5).build());
         List<Function> fns = Flags.buildFunctions(cells);
         Map<String, Integer> rounds = new HashMap<>();
         cells.forEach(c -> rounds.put(c.key(), Fixtures.flags(c, true, "an").rounds()));
         List<Analysis.Rework> r = Analysis.reworkByMember(fns, List.of("an"), rounds);
-        assertThat(r).containsExactly(new Analysis.Rework("an", 1, 10, 3, 0.3, 2, 2));
+        assertThat(r).containsExactly(new Analysis.Rework("an", 1, 10, 3.5, 0.35, 2, 2));
     }
 
     private static Map<String, IssueSchedule> sched(Issue... issues) {
@@ -55,6 +55,17 @@ class AnalysisOverviewTest {
         assertThat(p).usingRecursiveComparison().ignoringFields("schedule")
                 .isEqualTo(new Overview.PhaseRollup("Prepare", 80, 1, 2, "2026-09-01", "2026-09-11", 8.0, 2.0, null));
         assertThat(p.schedule().overdue()).isEqualTo(1);
+    }
+
+    @Test
+    void phaseProgressIgnoresJmReview() {
+        Issue a = issue().key("A").fid("F1").step(StepKind.CREATE).status(Status.CLOSED).logged(6).remaining(0).build();
+        Issue jm = issue().key("B").fid("F1").step(StepKind.JM_REVIEW).status(Status.WIP).logged(1).remaining(3).build();
+        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, jm), sched(a, jm), 1.0);
+        assertThat(p.pct()).isEqualTo(100);
+        assertThat(List.of(p.closed(), p.total())).containsExactly(1, 1);
+        assertThat(p.spentH()).isEqualTo(6.0);
+        assertThat(p.schedule().state()).isNotEqualTo(Overview.Schedule.DONE); // its dates still count
     }
 
     @Test

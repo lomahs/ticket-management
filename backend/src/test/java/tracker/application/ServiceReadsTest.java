@@ -114,9 +114,9 @@ class ServiceReadsTest {
         assertThat(List.of(p.plan(), p.forecast(), p.slipDays(), p.lateFunctions(), p.hasFunctions()))
                 .containsExactly("2026-11-20", "2026-11-25", 3, 6, true);
         assertThat(p.phases()).extracting(x -> x.name()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
-        assertThat(p.phases().get(1).pct()).isEqualTo(42); // logged / (logged + remaining)
-        assertThat(p.phases().get(1).closed()).isEqualTo(25);
-        assertThat(p.phases().get(1).total()).isEqualTo(60);
+        assertThat(p.phases().get(1).pct()).isEqualTo(43); // logged / (logged + remaining), JM Review left out
+        assertThat(p.phases().get(1).closed()).isEqualTo(22); // the 12 JM Reviews are left out
+        assertThat(p.phases().get(1).total()).isEqualTo(48);
         assertThat(p.memberIds()).containsExactlyInAnyOrder("an", "binh", "chi", "dung", "minh", "tanaka");
         assertThat(cards.get("CRM-400").hasFunctions()).isFalse();
     }
@@ -191,12 +191,12 @@ class ServiceReadsTest {
                 .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
         AnkenService.MatrixStats s = m.stats();
         assertThat(List.of(s.progressPct(), s.functionsDone(), s.lateFunctions(), s.lateSubtasks(), s.overSubtasks()))
-                .containsExactly(50, 1, 6, 6, 6);
+                .containsExactly(54, 1, 6, 6, 6); // progress over the team steps
         assertThat(s.loggedH()).isEqualTo(148);
         assertThat(s.estimateH()).isEqualTo(207);
         AnkenService.FunctionRow f03 = m.functions().get(2);
         assertThat(List.of(f03.ownerId(), f03.reviewerId(), f03.current(), f03.state(), f03.progress(), f03.group(), f03.pct()))
-                .containsExactly("binh", "minh", 2, "delay", "late", "W", 48);
+                .containsExactly("binh", "minh", 2, "delay", "late", "W", 60); // (1 + 1 + 0.4 + 0) / 4 team steps
         assertThat(f03.cells().get(2).rounds()).isEqualTo(3);
         assertThat(f03.cells().get(2).heldDays()).isEqualTo(2);
         assertThat(f03.cells().get(2).late()).isTrue();

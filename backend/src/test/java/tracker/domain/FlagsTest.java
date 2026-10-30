@@ -163,7 +163,8 @@ class FlagsTest {
 
     @Test
     void progressPctWeightsStatuses() {
-        assertThat(Flags.progressPct(Flags.buildFunctions(five("F1", "CCRWN")).get(0))).isEqualTo(64);
+        // (1 + 1 + 0.8 + 0) / 4 team steps; JM Review (W) is left out
+        assertThat(Flags.progressPct(Flags.buildFunctions(five("F1", "CCRWN")).get(0))).isEqualTo(70);
     }
 
     @Test
@@ -259,19 +260,30 @@ class FlagsTest {
     }
 
     @Test
-    void roundsCountReturnsToOwner() {
-        Issue i = issue().step(StepKind.FIX_BAL).fid("F03").assignee("binh").events(
-                assigned("2026-09-25", "minh", "binh"), assigned("2026-09-28", "binh", "minh"),
-                assigned("2026-09-29", "minh", "binh"), assigned("2026-09-30", "binh", "minh"),
-                assigned("2026-10-01", "minh", "binh")).build();
+    void roundsCountBalReviewRuns() {
+        Issue i = issue().step(StepKind.FIX_BAL).fid("F03").assignee("binh")
+                .log("2026-09-25", "binh", 2).log("2026-09-28", "binh", 1).log("2026-09-29", "minh", 0.5)
+                .log("2026-09-30", "binh", 1).log("2026-10-01", "minh", 0.5).log("2026-10-02", "binh", 1).build();
         assertThat(flags(i, true, "binh").rounds()).isEqualTo(3);
+        Issue baOnly = issue().step(StepKind.FIX_BAL).fid("F03").assignee("binh").log("2026-10-01", "binh", 2).build();
+        assertThat(flags(baOnly, true, "binh").rounds()).isEqualTo(1);
+        // same day: the sync order decides
+        Issue sameDay = issue().step(StepKind.FIX_JM).fid("F03").assignee("binh")
+                .log("2026-10-01", "binh", 1).log("2026-10-01", "minh", 0.5).log("2026-10-02", "binh", 1).build();
+        assertThat(flags(sameDay, true, "binh").rounds()).isEqualTo(2);
     }
 
     @Test
     void roundsDefaultToOneOnceStarted() {
         assertThat(flags(issue().step(StepKind.FIX_BAL).fid("F1").status(Status.WIP).build(), true, "an").rounds()).isEqualTo(1);
         assertThat(flags(issue().step(StepKind.FIX_BAL).fid("F1").status(Status.NYS).build(), true, "an").rounds()).isZero();
-        assertThat(flags(issue().step(StepKind.CREATE).fid("F1").build(), true, "an").rounds()).isZero();
+        assertThat(flags(issue().step(StepKind.CREATE).fid("F1").log("2026-10-01", "minh", 1).build(), true, "an").rounds()).isZero();
+    }
+
+    @Test
+    void progressLeavesJmReviewOut() {
+        assertThat(Flags.progressPct(Flags.buildFunctions(five("F1", "CCCWN")).get(0))).isEqualTo(75);
+        assertThat(Flags.progressPct(Flags.buildFunctions(five("F2", "CRNNN").subList(0, 3)).get(0))).isEqualTo(60);
     }
 
     @Test

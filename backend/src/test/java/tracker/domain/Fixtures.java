@@ -22,10 +22,10 @@ final class Fixtures {
     static final WorkCalendar CAL = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), Map.of(), List.of());
 
     /** The flags of {@code i} on {@link #TODAY}, from its schedule labels with the default thresholds. */
-    static IssueFlags flags(Issue i, boolean current, String owner) {
+    static IssueFlags flags(Issue i, boolean current, String planOwner) {
         Thresholds t = Thresholds.defaults();
-        IssueSchedule s = ScheduleRules.of(i, Flags.workerOf(i, owner), TODAY, CAL, t.effortDiffH());
-        return Flags.issueFlags(i, current, owner, TODAY, t, s);
+        IssueSchedule s = ScheduleRules.of(i, planOwner, TODAY, CAL, t.effortDiffH());
+        return Flags.issueFlags(i, current, MEMBERS, TODAY, t, s);
     }
 
     /** A WIP sub-task of PAY-1100 planned 05/10–09/10 with an 8h estimate. */
@@ -50,6 +50,7 @@ final class Fixtures {
         String reporter;
         String single;
         List<String> labels = List.of("PAY");
+        List<Worklog> logs = new ArrayList<>();
 
         I key(String v) { key = v; return this; }
         I status(Status v) { status = v; return this; }
@@ -69,10 +70,13 @@ final class Fixtures {
         I reporter(String v) { reporter = v; return this; }
         I single(String name) { single = name; return this; }
         I labels(String... v) { labels = List.of(v); return this; }
+        I log(String date, String author, double hours) { logs.add(new Worklog(date, author, hours)); return this; }
 
         Issue build() {
-            List<Worklog> logs = logged != 0
-                    ? List.of(new Worklog(logDate != null ? logDate : ps != null ? ps : TODAY, assignee, logged)) : List.of();
+            List<Worklog> logs = new ArrayList<>(this.logs);
+            if (logged != 0) {
+                logs.add(0, new Worklog(logDate != null ? logDate : ps != null ? ps : TODAY, assignee, logged));
+            }
             return new Issue(key, key.split("-")[0], epic, null, IssueKind.SUBTASK, summary != null ? summary : key, phase, status,
                     assignee, ps, pe, est, remaining != null ? remaining : est, created, "", fid, fid != null ? fname : single, step, logs, events, reporter,
                     labels);

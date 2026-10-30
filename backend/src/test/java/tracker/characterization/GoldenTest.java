@@ -55,7 +55,7 @@ class GoldenTest {
                 Issue c = f.cells().get(i);
                 if (c != null) {
                     IssueSchedule s = ScheduleRules.of(c, Flags.workerOf(c, f.ownerId()), Dataset.DEMO_TODAY, CAL, T.effortDiffH());
-                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), f.ownerId(), Dataset.DEMO_TODAY, T, s));
+                    flags.put(c.key(), Flags.issueFlags(c, i == f.current(), Dataset.demoMembers().stream().collect(java.util.stream.Collectors.toMap(tracker.domain.Member::id, m -> m)), Dataset.DEMO_TODAY, T, s));
                 }
             }
         }

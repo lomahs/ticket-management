@@ -161,6 +161,32 @@ public final class Dataset {
         return out;
     }
 
+    /**
+     * Fix-step worklogs for {@code rounds} review rounds: one BA entry per round with a 0.5h review by the BAL between rounds
+     * (carved out of {@code logged}, so the total stays), on distinct weekdays walking back from the planned end (or today).
+     * Fewer than two rounds: {@link #splitLogs}.
+     */
+    static List<FakeIssue.Log> fixLogs(String ba, String bal, double logged, int rounds, String pe, String note) {
+        double review = 0.5;
+        double baH = logged - review * (rounds - 1);
+        if (rounds < 2 || baH < rounds * 0.5) {
+            return splitLogs(ba, logged, pe, note);
+        }
+        double share = Math.floor(baH / rounds * 2) / 2;
+        List<FakeIssue.Log> out = new ArrayList<>();
+        String d = pe != null && !pe.isEmpty() && pe.compareTo(DEMO_TODAY) < 0 ? pe : DEMO_TODAY;
+        for (int k = 0; k < 2 * rounds - 1; k++) {
+            boolean baSlot = k % 2 == 0;
+            double h = !baSlot ? review : k == 0 ? baH - share * (rounds - 1) : share;
+            out.add(new FakeIssue.Log(d, baSlot ? ba : bal, h, baSlot ? note : "Review fixes"));
+            d = Dates.addDays(d, -1);
+            while (Dates.weekday(d) % 6 == 0) {
+                d = Dates.addDays(d, -1);
+            }
+        }
+        return out;
+    }
+
     /** Changelog that reproduces review rounds and days held with the current assignee. */
     static List<FakeIssue.Change> handoverEvents(String status, String assignee, String owner, String reviewer, boolean fix,
                                                  int rounds, int held, String anchorDefault) {
@@ -355,7 +381,8 @@ public final class Dataset {
                 out.add(new FakeIssue(
                         "PAY-" + k, summary("Implement_Coding", f.fid(), f.name(), step.label()), "PAY-1102", o.status(), who, ps, pe,
                         o.est(), Dates.addDays(f.start(), -3),
-                        splitLogs(worker, o.logged(), pe, STEP_NOTES.get(kind)),
+                        step.fix() ? fixLogs(f.ba(), "minh", o.logged(), orZero(o.r()), pe, STEP_NOTES.get(kind))
+                                : splitLogs(worker, o.logged(), pe, STEP_NOTES.get(kind)),
                         handoverEvents(o.status(), who, f.ba(), reviewer != null ? reviewer : fixReviewer, step.fix(),
                                 orZero(o.r()), orZero(o.d()), ps)));
                 k++;
@@ -487,7 +514,8 @@ public final class Dataset {
                 int held = fixed != null ? fixed.d() : 0;
                 FakeIssue issue = new FakeIssue(
                         fixed != null ? fixed.key() : keys.next(), summary(phase, f.fid(), f.name(), step.label()), parent, st, who,
-                        ps, pe, est, Dates.addDays(start, -3), splitLogs(worker, logged, pe, STEP_NOTES.get(kind)),
+                        ps, pe, est, Dates.addDays(start, -3), step.fix() ? fixLogs(f.ba(), reviewer, logged, rounds, pe, STEP_NOTES.get(kind))
+                                : splitLogs(worker, logged, pe, STEP_NOTES.get(kind)),
                         handoverEvents(st, who, f.ba(), kind.equals("fixj") ? jm : reviewer, step.fix(), rounds, held, ps));
                 issue.reporter = reviewer; // the BAL files the function's sub-tasks
                 out.add(issue);
