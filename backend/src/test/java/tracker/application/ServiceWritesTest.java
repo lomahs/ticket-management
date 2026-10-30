@@ -102,6 +102,25 @@ class ServiceWritesTest {
         assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
     }
 
+    @Test
+    void createsAThreeStepFunction() {
+        FunctionDraft d = new FunctionDraft("PAY-1102", "Execute test case", "an", "minh", null, 8,
+                new ArrayList<>(Collections.nCopies(3, null)), 3);
+        assertThat(anken.previewFunction(ALL, "PAY-1100", d).steps()).extracting(AnkenService.PreviewStep::step)
+                .containsExactly("create", "balr", "fixb");
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
+        assertThat(keys).hasSize(3);
+        AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
+        AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
+        assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
+        FunctionDraft four = new FunctionDraft("PAY-1102", "Bad", "an", "minh", "tanaka", 8, List.of(), 4);
+        assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", four)).isInstanceOf(Invalid.class)
+                .extracting("field").isEqualTo("steps");
+        FunctionDraft noJm = new FunctionDraft("PAY-1102", "Bad", "an", "minh", null, 8, List.of(), 5);
+        assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", noJm)).isInstanceOf(Invalid.class)
+                .extracting("field").isEqualTo("jm");
+    }
+
     /** The company's naming: Tasks recognised by name, sub-tasks named [prefix][function name]_Step without a function ID. */
     @Test
     void createFunctionWithCompanyNaming(@Autowired SettingsStore settings, @Autowired SyncService sync) {

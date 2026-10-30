@@ -8,7 +8,7 @@ import { Button, Icon, Select, TextField } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
-import { Avatar, av } from '../../../shared/ui/bits';
+import { Avatar, av, Seg } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { functionPreviewQuery, matrixQuery, useCreateFunction } from '../api';
 import { MatrixHeader } from './MatrixHeader';
@@ -48,22 +48,24 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
   const workflowParents = m.parents.filter((p) => p.workflow);
   const defaultParent = workflowParents.find((p) => p.key === m.task_keys[0]) ?? workflowParents[0];
   const [form, setForm] = useState({ parent: defaultParent?.key ?? '', name: '', ba: '', bal: '', jm: '', hours: '8' });
+  const [steps, setSteps] = useState<3 | 5>(5);
+  const five = steps === 5;
   const [overrides, setOverrides] = useState<({ start?: string; end?: string } | null)[]>([null, null, null, null, null]);
   const [nameErr, setNameErr] = useState<string>();
   const ba = form.ba || baOpts[0]?.value || '', bal = form.bal || balOpts[0]?.value || '', jm = form.jm || jmOpts[0]?.value || '';
   const hours = parseFloat(form.hours);
   const draft = useMemo<Schemas['FunctionDraftIn']>(() => ({
-    parent_key: form.parent, name: form.name, ba, bal, jm, create_hours: hours, overrides,
-  }), [form.parent, form.name, ba, bal, jm, hours, overrides]);
+    parent_key: form.parent, name: form.name, ba, bal, jm: five ? jm : null, create_hours: hours, overrides: overrides.slice(0, steps), steps,
+  }), [form.parent, form.name, ba, bal, jm, hours, overrides, steps, five]);
   const debounced = useDebounced(draft, 250);
-  const ready = !!(debounced.parent_key && debounced.ba && debounced.bal && debounced.jm && debounced.create_hours > 0);
+  const ready = !!(debounced.parent_key && debounced.ba && debounced.bal && (debounced.steps === 3 || debounced.jm) && debounced.create_hours > 0);
   const preview = useQuery(functionPreviewQuery(epic, debounced, ready));
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setDate = (i: number, k: 'start' | 'end', v: string) => setOverrides((o) => o.map((x, j) => (j === i ? { ...(x ?? {}), [k]: v || undefined } : x)));
 
   const submit = () => {
     if (!form.name.trim()) { setNameErr('Function name is required'); return; }
-    create.mutate({ ...draft, name: form.name.trim(), overrides }, {
+    create.mutate({ ...draft, name: form.name.trim() }, {
       onSuccess: (r) => {
         toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${preview.data?.function_id || form.name.trim()}`);
         navigate({ to: '/anken/$epic/matrix', params: { epic }, search: { tasks: form.parent } });
@@ -77,8 +79,9 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 13, padding: '20px 22px' }}>
       <div>
         <div style={{ font: '700 17px/1.3 var(--font-display)', color: 'var(--text-heading)' }}>Add new function</div>
-        <div className="eyebrow">Creates 5 sequential sub-tasks under the chosen Task, named by the name rule in Settings</div>
+        <div className="eyebrow">Creates {steps} sequential sub-tasks under the chosen Task, named by the name rule in Settings</div>
       </div>
+      <Seg outline items={[['5', '5 steps'], ['3', '3 steps']]} value={String(steps)} onPick={(v) => setSteps(v === '3' ? 3 : 5)} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <Select label="Parent ticket" options={workflowParents.map((p) => ({ value: p.key, label: `${p.key} · ${p.summary}` }))} value={form.parent} onChange={set('parent')} />
@@ -98,7 +101,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
         <Select label="BA" options={baOpts} value={ba} onChange={set('ba')} />
         <Select label="Reviewer BAL" options={balOpts} value={bal} onChange={set('bal')} />
-        <Select label="Reviewer JM" options={jmOpts} value={jm} onChange={set('jm')} />
+        {five && <Select label="Reviewer JM" options={jmOpts} value={jm} onChange={set('jm')} />}
         <div>
           <TextField label="Effort Create (hours)" type="number" min={0.5} step={0.5} value={form.hours} onChange={set('hours')} aria-invalid={!(hours > 0)} />
           {!(hours > 0) && <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', marginTop: 4 }}>Enter more than 0 hours</div>}
@@ -108,11 +111,11 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
         <Icon name="scale" size={14} />
         <span className="muted">Effort for remaining steps = Create × project weight</span>
         <span className="spacer" />
-        {STEPS.slice(1).map((s, i) => (
+        {STEPS.slice(1, steps).map((s, i) => (
           <span key={s.k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 10px', borderRadius: 999, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)' }}>
             <span className="muted">{s.label}</span>
             <span className="mono muted">×{WEIGHTS[i + 1]}</span>
-            <b className="mono heading">{preview.data ? f1(preview.data.steps[i + 1].estimate_h) + 'h' : '–'}</b>
+            <b className="mono heading">{preview.data?.steps[i + 1] ? f1(preview.data.steps[i + 1].estimate_h) + 'h' : '–'}</b>
           </span>
         ))}
       </div>

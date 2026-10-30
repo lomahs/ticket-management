@@ -20,14 +20,14 @@ function useDebounced<T>(value: T, ms: number): T {
 export interface ParentTask { key?: string; ref?: string; summary: string; workflow: boolean }
 
 /**
- * Sub-tasks for one Task, as drafts. Under a workflow Task each function name becomes its five step sub-tasks, named and
+ * Sub-tasks for one Task, as drafts. Under a workflow Task each function name becomes its step sub-tasks (3 or 5), named and
  * planned like Add function does; otherwise (or for a Task that is new itself) one sub-task at a time.
  */
 export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
   epic: string; task: ParentTask; people: Option[]; members: Schemas['Member'][]; add: (rows: NewRow[]) => void; close: () => void;
 }) {
   const canFunctions = task.workflow && !!task.key;
-  const [mode, setMode] = useState<'functions' | 'single'>(canFunctions ? 'functions' : 'single');
+  const [mode, setMode] = useState<'fn5' | 'fn3' | 'single'>(canFunctions ? 'fn5' : 'single');
   const parent = task.key ? { parent_key: task.key } : { parent_ref: task.ref };
   return (
     <div className="scrim" onClick={close}>
@@ -42,7 +42,7 @@ export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
         </div>
         {canFunctions && (
           <div className="seg" role="group" aria-label="Kind" style={{ alignSelf: 'flex-start' }}>
-            {([['functions', 'Functions · 5 steps each'], ['single', 'Single sub-task']] as const).map(([k, label]) => (
+            {([['fn5', 'Function · 5 steps'], ['fn3', 'Function · 3 steps'], ['single', 'Single sub-task']] as const).map(([k, label]) => (
               <button key={k} type="button" aria-pressed={mode === k} onClick={() => setMode(k)}
                 style={{ background: mode === k ? 'var(--button-primary-bg)' : 'transparent', color: mode === k ? 'var(--button-primary-fg)' : 'var(--text-heading)' }}>
                 {label}
@@ -50,8 +50,9 @@ export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
             ))}
           </div>
         )}
-        {mode === 'functions' && task.key
-          ? <Functions epic={epic} parentKey={task.key} people={people} members={members} add={(rows) => { add(rows); close(); }} close={close} />
+        {mode !== 'single' && task.key
+          ? <Functions key={mode} epic={epic} parentKey={task.key} steps={mode === 'fn3' ? 3 : 5} people={people} members={members}
+            add={(rows) => { add(rows); close(); }} close={close} />
           : <Single people={people} add={(row) => { add([{ ...row, ...parent }]); close(); }} close={close} />}
       </div>
     </div>
@@ -80,18 +81,18 @@ function Single({ people, add, close }: { people: Option[]; add: (row: NewRow) =
   );
 }
 
-function Functions({ epic, parentKey, people, members, add, close }: {
-  epic: string; parentKey: string; people: Option[]; members: Schemas['Member'][]; add: (rows: NewRow[]) => void; close: () => void;
+function Functions({ epic, parentKey, steps, people, members, add, close }: {
+  epic: string; parentKey: string; steps: 3 | 5; people: Option[]; members: Schemas['Member'][]; add: (rows: NewRow[]) => void; close: () => void;
 }) {
   const byRole = (role: string) => members.filter((m) => m.role === role).map((m) => ({ value: m.id, label: m.name }));
   const first = (role: string) => byRole(role)[0]?.value ?? '';
   const [f, setF] = useState({ names: '', ba: first('BA'), bal: first('BAL'), jm: first('JM'), create_hours: '8', reporter_id: '' });
   const set = (k: keyof typeof f) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   const names = useDebounced(f.names, 400).split('\n').map((s) => s.trim()).filter(Boolean);
-  const ready = !!(f.ba && f.bal && f.jm && Number(f.create_hours) > 0);
+  const ready = !!(f.ba && f.bal && (steps === 3 || f.jm) && Number(f.create_hours) > 0);
   const previews = useQueries({
-    queries: names.map((name) => functionPreviewQuery(epic, { parent_key: parentKey, name, ba: f.ba, bal: f.bal, jm: f.jm,
-      create_hours: Number(f.create_hours) }, ready)),
+    queries: names.map((name) => functionPreviewQuery(epic, { parent_key: parentKey, name, ba: f.ba, bal: f.bal, jm: steps === 5 ? f.jm : null,
+      create_hours: Number(f.create_hours), steps }, ready)),
   });
   const name = (id: string) => people.find((p) => p.value === id)?.label ?? id;
   const error = previews.find((p) => p.isError)?.error;
@@ -106,12 +107,12 @@ function Functions({ epic, parentKey, people, members, add, close }: {
         <span className="title" style={{ fontSize: 13 }}>Function names</span>
         <textarea value={f.names} onChange={(e) => set('names')(e.target.value)} rows={4} placeholder="One function per line"
           style={{ font: 'var(--type-body-sm)', padding: 10, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-strong)', resize: 'vertical' }} />
-        <span className="eyebrow">Each function gets the 5 workflow steps, named by the anken's name rule and planned from tomorrow.</span>
+        <span className="eyebrow">Each function gets {steps === 5 ? 'the 5 workflow steps' : 'Create, BAL Review and Fix comment BAL'}, named by the anken's name rule and planned from tomorrow.</span>
       </label>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 12 }}>
         <Select label="BA · Create, Fix" value={f.ba} options={byRole('BA')} onChange={set('ba')} />
         <Select label="Reviewer BAL" value={f.bal} options={byRole('BAL')} onChange={set('bal')} />
-        <Select label="Reviewer JM" value={f.jm} options={byRole('JM')} onChange={set('jm')} />
+        {steps === 5 && <Select label="Reviewer JM" value={f.jm} options={byRole('JM')} onChange={set('jm')} />}
         <TextField label="Create effort (h)" type="number" min={0} step={0.5} value={f.create_hours} onChange={set('create_hours')} />
         <Select label="Reporter" value={f.reporter_id} options={[{ value: '', label: 'The Jira account (default)' }, ...people]} onChange={set('reporter_id')} />
       </div>
@@ -131,7 +132,7 @@ function Functions({ epic, parentKey, people, members, add, close }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="eyebrow" style={{ flex: 1 }}>Added as drafts. Nothing reaches Jira until you commit.</span>
         <Button appearance="subtle" onClick={close}>Cancel</Button>
-        <Button disabled={!done} onClick={submit}>Add {names.length * 5 || ''} sub-tasks</Button>
+        <Button disabled={!done} onClick={submit}>Add {names.length * steps || ''} sub-tasks</Button>
       </div>
     </>
   );

@@ -1671,20 +1671,24 @@ export interface components {
             /** Format: double */
             create_hours: number;
             function_id?: string | null;
-            jm: string;
+            jm?: string | null;
             name: string;
             overrides?: (components["schemas"]["StepOverride"] | null)[] | null;
             parent_key: string;
+            /** Format: int32 */
+            steps?: number | null;
         };
         FunctionDraftIn: {
             ba: string;
             bal: string;
             /** Format: double */
             create_hours: number;
-            jm: string;
+            jm?: string | null;
             name?: string | null;
             overrides?: (components["schemas"]["StepOverride"] | null)[] | null;
             parent_key: string;
+            /** Format: int32 */
+            steps?: number | null;
         };
         FunctionPreview: {
             function_id: string;

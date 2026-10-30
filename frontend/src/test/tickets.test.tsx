@@ -62,6 +62,28 @@ describe('Tickets', () => {
     expect(await screen.findByText('No pending changes')).toBeTruthy();
   });
 
+  it('adds 3-step functions under a workflow Task', async () => {
+    const bodies: { steps?: number; jm?: string | null }[] = [];
+    const wf = { ...board, tasks: [{ task: row('PAY-1102', '[Implement_Coding] Payment flow', { estimate_h: 0 }), phase: 'Implement_Coding',
+      workflow: true, subtasks: [] }] };
+    server.use(
+      http.get('*/api/v1/tickets/board', () => HttpResponse.json(wf)),
+      http.post('*/api/v1/anken/PAY-1100/functions/preview', async ({ request }) => {
+        bodies.push(await request.json() as { steps?: number });
+        return HttpResponse.json({ phase: 'Implement_Coding', function_id: 'F13', prefix: 'PAY', steps: [] });
+      }),
+    );
+    renderApp('/tickets/PAY-1100');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add sub-tasks to PAY-1102' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add sub-tasks' });
+    // no role queries in this dialog: jsdom cannot clone its segment buttons' var() backgrounds
+    expect(within(dialog).getByText('Single sub-task')).toBeTruthy();
+    fireEvent.click(within(dialog).getByText('Function · 3 steps'));
+    expect(within(dialog).queryByLabelText('Reviewer JM')).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText(/^Function names/), { target: { value: 'Execute test case' } });
+    await waitFor(() => expect(bodies.at(-1)).toMatchObject({ steps: 3, name: 'Execute test case' }));
+  });
+
   it('hands selected tickets to Jira and shows everything read-only to a non-admin', async () => {
     server.use(
       http.get('*/api/v1/me', () => HttpResponse.json(meBa)),

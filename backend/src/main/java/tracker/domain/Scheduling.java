@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-/** Plan suggestions: dates for a new function's 5 steps, and shifting a planned item. */
+/** Plan suggestions: dates for a new function's steps, and shifting a planned item. */
 public final class Scheduling {
     private Scheduling() {
     }
@@ -37,12 +37,15 @@ public final class Scheduling {
         return offs;
     }
 
-    /** Each step starts on the working day after the previous one ends; {@code overrides} may fix a step's start/end. */
+    /**
+     * The first {@code assignees.size()} steps (3 or 5), each starting on the working day after the previous one ends;
+     * {@code overrides} may fix a step's start/end.
+     */
     public static List<PlannedStep> suggestFunctionPlan(String firstDay, double createHours, List<String> assignees,
                                                         WorkCalendar cal, List<Map<String, String>> overrides) {
         List<PlannedStep> out = new ArrayList<>();
         String cur = firstDay;
-        for (int i = 0; i < Steps.COUNT; i++) {
+        for (int i = 0; i < assignees.size(); i++) {
             StepDef st = Steps.STEPS.get(i);
             String who = assignees.get(i);
             double est = stepEstimate(createHours, st.effortWeight());

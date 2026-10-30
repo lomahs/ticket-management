@@ -479,9 +479,18 @@ public class AnkenService {
 
     // --- new function -------------------------------------------------------------------------------------------------
 
-    /** @param overrides per step: {"start": …, "end": …} or null */
-    public record FunctionDraft(String parentKey, String name, String ba, String bal, String jm, double createHours,
-                                List<@Nullable Map<String, String>> overrides) {
+    /**
+     * @param jm        the JM Review's assignee; only for 5 steps
+     * @param overrides per step: {"start": …, "end": …} or null
+     * @param steps     3 (Create → BAL Review → Fix comment BAL) or 5
+     */
+    public record FunctionDraft(String parentKey, String name, String ba, String bal, @Nullable String jm, double createHours,
+                                List<@Nullable Map<String, String>> overrides, int steps) {
+
+        public FunctionDraft(String parentKey, String name, String ba, String bal, @Nullable String jm, double createHours,
+                             List<@Nullable Map<String, String>> overrides) {
+            this(parentKey, name, ba, bal, jm, createHours, overrides, Steps.COUNT);
+        }
     }
 
     /** @param note auto | skips | edited | dayoff */
@@ -511,7 +520,14 @@ public class AnkenService {
         if (!parent.workflow()) {
             throw new Invalid(parent.summary() + " has no function workflow", "parent");
         }
-        String[][] people = {{"ba", draft.ba()}, {"bal", draft.bal()}, {"jm", draft.jm()}};
+        if (draft.steps() != 3 && draft.steps() != Steps.COUNT) {
+            throw new Invalid("A function has 3 or 5 steps", "steps");
+        }
+        boolean five = draft.steps() == Steps.COUNT;
+        List<String[]> people = new ArrayList<>(List.of(new String[]{"ba", draft.ba()}, new String[]{"bal", draft.bal()}));
+        if (five) {
+            people.add(new String[]{"jm", draft.jm()});
+        }
         for (String[] p : people) {
             if (!ctx.members.containsKey(p[1])) {
                 throw new Invalid("Unknown member " + p[1], p[0]);
@@ -524,14 +540,15 @@ public class AnkenService {
             throw new Invalid("Effort for Create must be more than 0 hours", "create_hours");
         }
         List<@Nullable Map<String, String>> overrides = new ArrayList<>(draft.overrides());
-        while (overrides.size() < 5) {
+        while (overrides.size() < draft.steps()) {
             overrides.add(null);
         }
-        overrides = overrides.subList(0, 5);
+        overrides = overrides.subList(0, draft.steps());
         String fid = Text.hasText(functionId) ? functionId
                 : ruleHasId(ctx, epic) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
-                List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()), ctx.cal, overrides);
+                five ? List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()) : List.of(draft.ba(), draft.bal(), draft.ba()),
+                ctx.cal, overrides);
         String rule = ctx.settings.nameRulesOf(epic).rule;
         String ankenName = anken(ctx, epic).title();
         List<PreviewStep> steps = new ArrayList<>();
@@ -550,7 +567,7 @@ public class AnkenService {
         return new FunctionPreview(parent.phase(), fid, steps, parent.prefix());
     }
 
-    /** {@code epic} must be in the scope; BA, BAL and JM must be members of its anken. */
+    /** {@code epic} must be in the scope; BA, BAL and (for 5 steps) JM must be members of its anken. */
     public FunctionPreview previewFunction(AnkenScope scope, String epic, FunctionDraft draft) {
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
@@ -558,7 +575,7 @@ public class AnkenService {
     }
 
     /**
-     * Creates the five step sub-tasks in Jira, one logged request each, and reads them back; the rules of
+     * Creates the step sub-tasks (3 or 5) in Jira, one logged request each, and reads them back; the rules of
      * {@link #previewFunction} apply.
      */
     public List<String> createFunction(Viewer actor, AnkenScope scope, String epic, FunctionDraft draft, @Nullable String functionId) {

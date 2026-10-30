@@ -131,6 +131,22 @@ describe('anken members', () => {
     await waitFor(() => expect([...ba.options].map((o) => o.text)).toEqual(['An']));
   });
 
+  it('adds a 3-step function without a JM', async () => {
+    const bodies: { steps?: number; jm?: string | null }[] = [];
+    server.use(
+      http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json({ ...fixtures.matrix, member_ids: ['an', 'minh'] })),
+      http.post('*/api/v1/anken/PAY-1100/functions/preview', async ({ request }) => {
+        bodies.push(await request.json() as { steps?: number });
+        return HttpResponse.json({}, { status: 500 });
+      }),
+    );
+    renderApp('/anken/PAY-1100/matrix/new');
+    expect(await screen.findByRole('combobox', { name: 'Reviewer JM' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '3 steps' }));
+    expect(screen.queryByRole('combobox', { name: 'Reviewer JM' })).toBeNull();
+    await waitFor(() => expect(bodies.at(-1)).toMatchObject({ steps: 3, ba: 'an', bal: 'minh' }));
+  });
+
   it('card names the PIM', async () => {
     server.use(http.get('*/api/v1/anken', () => HttpResponse.json([{ ...fixtures.anken[0], pim_ids: ['minh'] }])));
     serve();

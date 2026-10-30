@@ -28,6 +28,15 @@ class SchedulingTest {
     }
 
     @Test
+    void threeStepPlanStopsAtFixBal() {
+        List<Scheduling.PlannedStep> p = Scheduling.suggestFunctionPlan("2026-10-08", 8, List.of("an", "minh", "an"), CAL,
+                new ArrayList<>(Collections.nCopies(3, null)));
+        assertThat(p).extracting(Scheduling.PlannedStep::step).containsExactly(StepKind.CREATE, StepKind.BAL_REVIEW, StepKind.FIX_BAL);
+        assertThat(p).extracting(Scheduling.PlannedStep::start).isEqualTo(
+                plan("an", 8, null).subList(0, 3).stream().map(Scheduling.PlannedStep::start).toList());
+    }
+
+    @Test
     void stepsFollowEachOtherWithWeightedEstimates() {
         List<Scheduling.PlannedStep> p = plan("an", 8, null);
         assertThat(p).extracting(Scheduling.PlannedStep::step).containsExactly(StepKind.values());

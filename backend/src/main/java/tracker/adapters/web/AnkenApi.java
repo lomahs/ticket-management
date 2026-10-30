@@ -40,6 +40,7 @@ import tracker.application.service.ScopeService;
 import tracker.domain.AnkenScope;
 import tracker.domain.Feature;
 import tracker.domain.Level;
+import tracker.domain.Steps;
 import tracker.domain.Viewer;
 
 @RestController
@@ -64,22 +65,27 @@ public class AnkenApi {
                                @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end) {
     }
 
-    /** A function to preview: its five steps are scheduled from the hours of "Create". */
+    /**
+     * A function to preview: its steps are scheduled from the hours of "Create".
+     *
+     * @param jm    the JM Review's assignee, needed for 5 steps
+     * @param steps 3 or 5; 5 when left out
+     */
     public record FunctionDraftIn(@NotNull String parentKey, @Nullable String name, @NotNull String ba, @NotNull String bal,
-                                  @NotNull String jm,
+                                  @Nullable String jm,
                                   @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1000") Double createHours,
-                                  @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides) {
+                                  @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides, @Nullable Integer steps) {
     }
 
     /** A function to create in Jira; the function id is generated when left out. */
     public record FunctionCreateIn(@NotNull String parentKey, @NotEmpty String name, @NotNull String ba, @NotNull String bal,
-                                   @NotNull String jm,
+                                   @Nullable String jm,
                                    @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1000") Double createHours,
                                    @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides,
                                    @Nullable @Pattern(regexp = "^[A-Za-z]+\\d+$", message = "must be letters then digits, like K20")
-                                   String functionId) {
+                                   String functionId, @Nullable Integer steps) {
         FunctionDraftIn draft() {
-            return new FunctionDraftIn(parentKey, name, ba, bal, jm, createHours, overrides);
+            return new FunctionDraftIn(parentKey, name, ba, bal, jm, createHours, overrides, steps);
         }
     }
 
@@ -139,7 +145,7 @@ public class AnkenApi {
             }
         }
         return new FunctionDraft(in.parentKey(), in.name() == null ? "" : in.name(), in.ba(), in.bal(), in.jm(), in.createHours(),
-                overrides);
+                overrides, in.steps() != null ? in.steps() : Steps.COUNT);
     }
 
     @Requires(feature = Feature.MATRIX, level = Level.WRITE)

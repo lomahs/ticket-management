@@ -4131,7 +4131,7 @@
             "pattern" : "^[A-Za-z]+\\d+$"
           },
           "jm" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "name" : {
             "type" : "string",
@@ -4151,9 +4151,13 @@
           },
           "parent_key" : {
             "type" : "string"
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
           }
         },
-        "required" : [ "ba", "bal", "create_hours", "jm", "name", "parent_key" ]
+        "required" : [ "ba", "bal", "create_hours", "name", "parent_key" ]
       },
       "FunctionDraftIn" : {
         "type" : "object",
@@ -4171,7 +4175,7 @@
             "minimum" : 0
           },
           "jm" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "name" : {
             "type" : [ "string", "null" ]
@@ -4190,9 +4194,13 @@
           },
           "parent_key" : {
             "type" : "string"
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
           }
         },
-        "required" : [ "ba", "bal", "create_hours", "jm", "parent_key" ]
+        "required" : [ "ba", "bal", "create_hours", "parent_key" ]
       },
       "FunctionPreview" : {
         "type" : "object",
