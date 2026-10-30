@@ -31,7 +31,9 @@ import tracker.application.ports.JiraRejected;
 import tracker.application.settings.TrackerSettings.FieldMapping;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.Effort;
 import tracker.domain.EventField;
+import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
 import tracker.domain.Member;
@@ -61,18 +63,27 @@ public class TicketService {
         this.sync = sync;
     }
 
-    /** @param kind late (days) | over (hours) | rounds (count) */
-    public record TicketWarning(String kind, double value) {
+    /**
+     * @param kind     late (days) | over (hours) | rounds (count) | invalid_worklog (hours: a worklog whose author's role does no work
+     *                 on this step)
+     * @param memberId the worklog's author, for invalid_worklog
+     * @param date     the worklog's date, for invalid_worklog
+     */
+    public record TicketWarning(String kind, double value, @Nullable String memberId, @Nullable String date) {
+        public TicketWarning(String kind, double value) {
+            this(kind, value, null, null);
+        }
     }
 
     public record Handover(String date, @Nullable String fromId, @Nullable String toId) {
     }
 
     /**
+     * @param baId       the BA of the function the ticket is a step of; null for any other ticket
      * @param reporterId the reporter as last synced (the first one, when it was changed in Jira)
      * @param jiraUrl    the ticket in Jira; null when no Jira site is set
      */
-    public record TicketDetail(TaskCard card, @Nullable String ownerId, @Nullable String reporterId, List<TicketWarning> warnings,
+    public record TicketDetail(TaskCard card, @Nullable String baId, @Nullable String reporterId, List<TicketWarning> warnings,
                                List<Handover> history, List<Worklog> worklogs, @Nullable String jiraUrl) {
     }
 
@@ -91,12 +102,20 @@ public class TicketService {
         if (Steps.isFixStep(i) && c.rounds() >= ctx.settings.thresholds.reviewRounds()) {
             warns.add(new TicketWarning("rounds", c.rounds()));
         }
+        if (Steps.stepDef(i) != null) {
+            for (Worklog w : i.worklogs()) {
+                if (Effort.kindOf(i.step(), Effort.roleOf(w, ctx.members)) == Effort.WorkKind.INVALID) {
+                    warns.add(new TicketWarning("invalid_worklog", w.hours(), w.memberId(), w.date()));
+                }
+            }
+        }
         List<Handover> history = i.events().stream().sorted(Comparator.comparing(IssueEvent::at))
                 .filter(e -> e.field() == EventField.ASSIGNEE)
                 .map(e -> new Handover(e.at(), e.fromValue(), e.toValue())).toList();
         List<Worklog> logs = i.worklogs().stream().sorted(Comparator.comparing(Worklog::date).reversed()).toList();
         String site = ctx.settings.jira.url.strip().replaceAll("/+$", "");
-        return new TicketDetail(c, ctx.owner.get(key), i.reporterId(), warns, history, logs, Text.hasText(site) ? site + "/browse/" + key : null);
+        Function fn = ctx.function(i);
+        return new TicketDetail(c, fn != null ? fn.baId(ctx.members) : null, i.reporterId(), warns, history, logs, Text.hasText(site) ? site + "/browse/" + key : null);
     }
 
     /** What to change; fields that are null are left as they are. */

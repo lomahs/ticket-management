@@ -19,10 +19,13 @@ function dateLine(label: string, n: number) {
   return SCHEDULE_LABEL[label] + (n > 0 ? ` · ${days(n)}` : '');
 }
 
-const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (v: number) => string }> = {
-  late: { icon: 'alarm-clock', bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)', label: (v) => `Late by ${v} days` },
-  over: { icon: 'trending-up', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (v) => `Over estimate ${f1(v)}h` },
-  rounds: { icon: 'refresh-cw', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (v) => `${v} round` },
+type Warning = Schemas['TicketWarning'];
+const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (w: Warning, name: (id: string | null) => string) => string }> = {
+  late: { icon: 'alarm-clock', bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)', label: (w) => `Late by ${w.value} days` },
+  over: { icon: 'trending-up', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (w) => `Over estimate ${f1(w.value)}h` },
+  rounds: { icon: 'refresh-cw', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (w) => `${w.value} round` },
+  invalid_worklog: { icon: 'triangle-alert', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)',
+    label: (w, name) => `${name(w.member_id)} logged ${f1(w.value)}h on ${dm(w.date)}: not a role that works on this step` },
 };
 
 /** Members to pick, with the current value kept even when it is not a member (a Jira account id). */
@@ -141,11 +144,11 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           </h2>
           {t.warnings.length > 0 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {t.warnings.map((w) => {
+              {t.warnings.map((w, i) => {
                 const s = WARN[w.kind];
                 return s ? (
-                  <span key={w.kind} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: '600 11px/22px var(--font-text)', padding: '0 8px', borderRadius: 6, background: s.bg, color: s.fg }}>
-                    <Icon name={s.icon} size={12} />{s.label(w.value)}
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: '600 11px/22px var(--font-text)', padding: '0 8px', borderRadius: 6, background: s.bg, color: s.fg }}>
+                    <Icon name={s.icon} size={12} />{s.label(w, (id) => members[id ?? '']?.name ?? id ?? '–')}
                   </span>
                 ) : null;
               })}
@@ -212,7 +215,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           <div>
             <div className="title" style={{ marginBottom: 8 }}>Assignee history{c.rounds ? ` · ${c.rounds} round` : ''}</div>
             {t.history.map((h, i) => {
-              const back = h.to_id === t.owner_id && h.from_id !== t.owner_id;
+              const back = h.to_id === t.ba_id && h.from_id !== t.ba_id;
               return (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', fontSize: 12 }}>
                   <span style={{ font: '600 11px/1 var(--font-mono)', color: 'var(--text-muted)', width: 40 }}>{dm(h.date)}</span>

@@ -2333,16 +2333,18 @@ export interface components {
             rows: components["schemas"]["CheckRow"][];
         };
         TicketDetail: {
+            ba_id: string | null;
             card: components["schemas"]["TaskCard"];
             history: components["schemas"]["Handover"][];
             jira_url: string | null;
-            owner_id: string | null;
             reporter_id: string | null;
             warnings: components["schemas"]["TicketWarning"][];
             worklogs: components["schemas"]["Worklog"][];
         };
         TicketWarning: {
+            date: string | null;
             kind: string;
+            member_id: string | null;
             /** Format: double */
             value: number;
         };

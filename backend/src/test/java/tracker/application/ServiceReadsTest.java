@@ -58,6 +58,7 @@ import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
 import tracker.domain.WorkStructure;
+import tracker.domain.Worklog;
 
 /** The services on the demo data, synced through the real pipeline; read-only checks share one context. */
 @DemoTest
@@ -493,12 +494,27 @@ class ServiceReadsTest {
     void ticketDetailWithWarningsHistoryAndWorklogs() {
         TicketService.TicketDetail t = tickets.detail(ALL, "PAY-1213");
         assertThat(t.card().functionId()).isEqualTo("F03");
-        assertThat(t.ownerId()).isEqualTo("binh");
+        assertThat(t.baId()).isEqualTo("binh");
         assertThat(t.warnings()).containsExactly(new TicketService.TicketWarning("late", 1),
                 new TicketService.TicketWarning("over", 3.5), new TicketService.TicketWarning("rounds", 3));
         assertThat(t.history().get(t.history().size() - 1)).extracting(h -> h.fromId() + ">" + h.toId()).isEqualTo("minh>binh");
         assertThat(t.worklogs().stream().mapToDouble(w -> w.hours()).sum()).isEqualTo(7.5);
         assertThatThrownBy(() -> tickets.detail(ALL, "PAY-9")).isInstanceOf(NotFound.class);
+    }
+
+    @Test
+    void invalidWorklogIsWarned(@Autowired IssueRepository repository) {
+        Issue review = repository.findByKey("PAY-1212").orElseThrow(); // F03's BAL Review
+        assertThat(tickets.detail(ALL, "PAY-1212").warnings()).noneMatch(w -> w.kind().equals("invalid_worklog"));
+        List<Worklog> logs = new ArrayList<>(review.worklogs());
+        logs.add(new Worklog("2026-10-02", "binh", 1.5)); // a BA logging on a BAL Review
+        repository.save(review.withWorklogs(logs));
+        try {
+            assertThat(tickets.detail(ALL, "PAY-1212").warnings()).filteredOn(w -> w.kind().equals("invalid_worklog"))
+                    .containsExactly(new TicketService.TicketWarning("invalid_worklog", 1.5, "binh", "2026-10-02"));
+        } finally {
+            repository.save(review);
+        }
     }
 
     @Test

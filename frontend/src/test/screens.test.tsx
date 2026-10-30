@@ -79,6 +79,14 @@ describe('screens render API data at their URLs', () => {
     expect(screen.getAllByText(/^1\/12 function/).length).toBeGreaterThan(0);
   });
 
+  it('warns about a worklog whose author does no work on the step', async () => {
+    const warnings = [{ kind: 'invalid_worklog', value: 1.5, member_id: 'binh', date: '2026-10-02' }];
+    server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({ ...fixtures.ticket, warnings })));
+    renderApp('/my-work?member=binh&ticket=PAY-1213');
+    const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
+    expect(await within(panel).findByText(/logged 1\.5h on .*: not a role that works on this step/)).toBeTruthy();
+  });
+
   it('opens the ticket panel from ?ticket= and disables Jira edits without a writer', async () => {
     server.use(http.get('*/api/v1/meta', () => HttpResponse.json({ ...fixtures.meta, mode: 'jira', capabilities: { jira_write: false, planning_push: false } })));
     renderApp('/my-work?member=binh&ticket=PAY-1213');

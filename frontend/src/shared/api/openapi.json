@@ -6100,6 +6100,9 @@
       "TicketDetail" : {
         "type" : "object",
         "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
           "card" : {
             "$ref" : "#/components/schemas/TaskCard"
           },
@@ -6110,9 +6113,6 @@
             }
           },
           "jira_url" : {
-            "type" : [ "string", "null" ]
-          },
-          "owner_id" : {
             "type" : [ "string", "null" ]
           },
           "reporter_id" : {
@@ -6131,20 +6131,26 @@
             }
           }
         },
-        "required" : [ "card", "history", "jira_url", "owner_id", "reporter_id", "warnings", "worklogs" ]
+        "required" : [ "ba_id", "card", "history", "jira_url", "reporter_id", "warnings", "worklogs" ]
       },
       "TicketWarning" : {
         "type" : "object",
         "properties" : {
+          "date" : {
+            "type" : [ "string", "null" ]
+          },
           "kind" : {
             "type" : "string"
+          },
+          "member_id" : {
+            "type" : [ "string", "null" ]
           },
           "value" : {
             "type" : "number",
             "format" : "double"
           }
         },
-        "required" : [ "kind", "value" ]
+        "required" : [ "date", "kind", "member_id", "value" ]
       },
       "TimesheetCell" : {
         "type" : "object",
