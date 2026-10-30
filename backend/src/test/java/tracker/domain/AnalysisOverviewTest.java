@@ -24,15 +24,20 @@ class AnalysisOverviewTest {
     }
 
     @Test
-    void reworkRateRoundsByOwner() {
-        List<Issue> cells = List.of(issue().key("A1").fid("F1").step(StepKind.CREATE).logged(10).assignee("an").build(),
-                issue().key("A3").fid("F1").step(StepKind.FIX_BAL).logged(3).logDate("2026-10-01").assignee("an")
+    void reworkGroupsByAuthorRole() {
+        List<Issue> cells = List.of(
+                issue().key("A1").fid("F1").step(StepKind.CREATE).assignee("an").reporter("minh").logged(8).logDate("2026-09-28")
+                        .log("2026-09-29", "pim", 1).build(),
+                issue().key("A2").fid("F1").step(StepKind.BAL_REVIEW).assignee("minh").logged(1).logDate("2026-09-30").build(),
+                issue().key("A3").fid("F1").step(StepKind.FIX_BAL).assignee("an").logged(2).logDate("2026-10-01")
                         .log("2026-10-02", "minh", 0.5).build());
         List<Function> fns = Flags.buildFunctions(cells);
         Map<String, Integer> rounds = new HashMap<>();
         cells.forEach(c -> rounds.put(c.key(), Fixtures.flags(c, true, "an").rounds()));
-        List<Analysis.Rework> r = Analysis.reworkByMember(fns, List.of("an"), rounds);
-        assertThat(r).containsExactly(new Analysis.Rework("an", 1, 10, 3.5, 0.35, 2, 2));
+        List<Analysis.Rework> r = Analysis.reworkByMember(fns, List.of("an", "minh"), Fixtures.MEMBERS, rounds);
+        assertThat(r).containsExactly(
+                new Analysis.Rework("an", Role.BA, 1, 8, 2, 0, 0.25, 2, 2),
+                new Analysis.Rework("minh", Role.BAL, 1, 0, 0, 1.5, 0, 2, 2)); // pim's hour is invalid: in no row
     }
 
     private static Map<String, IssueSchedule> sched(Issue... issues) {

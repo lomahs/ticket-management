@@ -5558,9 +5558,17 @@
           "rate" : {
             "type" : "number",
             "format" : "double"
+          },
+          "review_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "role" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         },
-        "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate" ]
+        "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate", "review_h", "role" ]
       },
       "ScheduleRollup" : {
         "type" : "object",

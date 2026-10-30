@@ -2141,6 +2141,10 @@ export interface components {
             member_id: string;
             /** Format: double */
             rate: number;
+            /** Format: double */
+            review_h: number;
+            /** @enum {string|null} */
+            role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
         ScheduleRollup: {
             /** Format: double */

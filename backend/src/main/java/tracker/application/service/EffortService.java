@@ -33,6 +33,7 @@ import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepDef;
+import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.Text;
 import tracker.domain.Timesheet.TimesheetRow;
@@ -154,13 +155,13 @@ public class EffortService {
         return ctx.anken.stream().filter(a -> a.key().equals(epic)).map(tracker.domain.Anken::title).findFirst().orElse("");
     }
 
-    /** The epic's sub-tasks by phase (their parent Task's stored phase, else their own), in sync order. */
+    /** The epic's sub-tasks but JM Review by phase (their parent Task's stored phase, else their own), in sync order. */
     private static Map<String, List<Issue>> subtasksByPhase(TrackerContext ctx, @Nullable String epic) {
         Map<String, String> phaseOfParent = new HashMap<>();
         ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).forEach(p -> phaseOfParent.put(p.key(), p.phase()));
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
         for (Issue i : ctx.subtasks()) {
-            if (i.epicKey().equals(epic)) {
+            if (i.epicKey().equals(epic) && !Steps.isJmReview(i)) {
                 byPhase.computeIfAbsent(phaseOfParent.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), i.phase()),
                         k -> new ArrayList<>()).add(i);
             }
@@ -177,13 +178,15 @@ public class EffortService {
         String epic = epicOf(ctx, requested);
         String title = titleOf(ctx, epic);
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(epic)).toList();
-        List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).toList();
+        // JM Review is client effort: out of estimate vs logged
+        List<Issue> cells = fns.stream().flatMap(f -> f.issues().stream()).filter(c -> !Steps.isJmReview(c)).toList();
         Map<String, List<Issue>> byPhase = subtasksByPhase(ctx, epic);
         Map<String, Integer> rounds = new HashMap<>();
         ctx.flags.forEach((k, f) -> rounds.put(k, f.rounds()));
-        List<String> bas = ctx.people.stream().filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.BA
-                && fns.stream().anyMatch(f -> Objects.equals(f.ownerId(), id))).toList();
-        List<Rework> rework = Analysis.reworkByMember(fns, bas, rounds);
+        List<String> people = ctx.people.stream().filter(id -> ctx.members.containsKey(id)
+                && (ctx.members.get(id).role() == Role.BA || ctx.members.get(id).role() == Role.BAL)
+                && fns.stream().anyMatch(f -> id.equals(f.baId(ctx.members)) || id.equals(f.balId(ctx.members)))).toList();
+        List<Rework> rework = Analysis.reworkByMember(fns, people, ctx.members, rounds);
         List<Issue> started = cells.stream().filter(c -> c.status() != Status.NYS).toList();
         List<Issue> fixes = cells.stream().filter(c -> Steps.isFixStep(c) && rounds.getOrDefault(c.key(), 0) > 0).toList();
         double createH = rework.stream().mapToDouble(Rework::createH).sum();
@@ -197,7 +200,7 @@ public class EffortService {
         List<Analysis.Group> phaseGroups = ctx.settings.structureOf(epic).orderedPhases(byPhase.keySet()).stream()
                 .map(p -> new Analysis.Group(p, byPhase.get(p))).toList();
         List<Analysis.Group> stepGroups = new ArrayList<>();
-        for (StepDef s : Steps.STEPS) {
+        for (StepDef s : Steps.STEPS.stream().filter(x -> x.kind() != StepKind.JM_REVIEW).toList()) {
             stepGroups.add(new Analysis.Group(s.label(), cells.stream().filter(c -> c.step() == s.kind()).toList()));
         }
         return new EffortAnalysis(epic, title, kpis, Analysis.estimateVsLogged(phaseGroups), Analysis.estimateVsLogged(stepGroups),

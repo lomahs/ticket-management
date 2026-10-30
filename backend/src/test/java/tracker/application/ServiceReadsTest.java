@@ -360,9 +360,11 @@ class ServiceReadsTest {
     void effortAnalysisForTheMatrixAnken() {
         EffortService.EffortAnalysis a = effort.analysis(ALL, null);
         assertThat(a.epicKey()).isEqualTo("PAY-1100");
-        assertThat(a.byStep()).extracting(b -> b.label()).containsExactly("Create", "BAL Review", "Fix comment BAL", "JM Review",
-                "Fix comment JM");
-        assertThat(a.rework()).extracting(r -> r.memberId()).containsExactly("an", "binh", "chi", "dung");
+        assertThat(a.byStep()).extracting(b -> b.label()).containsExactly("Create", "BAL Review", "Fix comment BAL", "Fix comment JM");
+        assertThat(a.rework()).extracting(r -> r.memberId()).containsExactly("an", "binh", "chi", "dung", "minh");
+        var minh = a.rework().get(4);
+        assertThat(List.of(minh.createH(), minh.fixH())).containsExactly(0.0, 0.0);
+        assertThat(minh.reviewH()).isPositive(); // BAL Review plus the review runs on Fix tickets
         assertThat(a.kpis().overSubtasks()).isEqualTo(6);
         assertThat(a.kpis().fixTickets()).isEqualTo(10);
     }

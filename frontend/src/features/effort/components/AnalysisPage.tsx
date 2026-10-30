@@ -9,7 +9,7 @@ import { analysisQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 import { PickAnken } from '../../../shared/ui/PickAnken';
 
-const RW_GRID = 'minmax(150px,1.2fr) 80px 90px 110px minmax(180px,2fr) 90px 90px';
+const RW_GRID = 'minmax(150px,1.2fr) 80px 90px 110px 90px minmax(180px,2fr) 90px 90px';
 const pct = (x: number | null | undefined) => (x == null ? '–' : Math.round(x * 100) + '%');
 
 export function AnalysisPage() {
@@ -95,12 +95,13 @@ function Analysis({ a }: { a: Schemas['EffortAnalysis'] }) {
       <section className="card card-clip">
         <div style={{ padding: '14px 18px' }}>
           <div className="title">Rework by member</div>
-          <div className="eyebrow">Rework rate = hours on Fix comment BAL/JM ÷ hours on Create</div>
+          <div className="eyebrow">Hours by the author's role: Create and Fix comment by the BA, Review by the BAL · Rework rate = Fix comment ÷ Create</div>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 680 }}>
+          <div style={{ minWidth: 780 }}>
             <div style={{ display: 'grid', gridTemplateColumns: RW_GRID, gap: 12, padding: '8px 18px', background: 'var(--surface-hover)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
-              <span>BA</span><span style={{ textAlign: 'right' }}>Functions</span><span style={{ textAlign: 'right' }}>Create</span><span style={{ textAlign: 'right' }}>Fix comment</span>
+              <span>Member</span><span style={{ textAlign: 'right' }}>Functions</span><span style={{ textAlign: 'right' }}>Create</span><span style={{ textAlign: 'right' }}>Fix comment</span>
+              <span style={{ textAlign: 'right' }}>Review</span>
               <span>Rework rate</span><span style={{ textAlign: 'right' }}>Avg rounds</span><span style={{ textAlign: 'right' }}>Max rounds</span>
             </div>
             {a.rework.map((r) => {
@@ -108,16 +109,17 @@ function Analysis({ a }: { a: Schemas['EffortAnalysis'] }) {
               const hot = r.rate > 0.35;
               return (
                 <div key={r.member_id} style={{ display: 'grid', gridTemplateColumns: RW_GRID, gap: 12, alignItems: 'center', padding: '10px 18px', borderTop: '1px solid var(--border-subtle)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar a={m} size={22} /><b className="heading">{m.name}</b></span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar a={m} size={22} /><b className="heading">{m.name}</b>{r.role && <span className="eyebrow">{r.role}</span>}</span>
                   <span className="heading" style={{ textAlign: 'right' }}>{r.functions}</span>
                   <span className="heading" style={{ textAlign: 'right' }}>{hrs(r.create_h)}</span>
                   <span className="heading" style={{ textAlign: 'right' }}>{hrs(r.fix_h)}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="heading" style={{ textAlign: 'right' }}>{hrs(r.review_h)}</span>
+                  {r.create_h === 0 ? <span className="muted">–</span> : <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ flex: 1, height: 6, borderRadius: 99, background: 'var(--border-subtle)' }}>
                       <span style={{ display: 'block', height: 6, borderRadius: 99, width: (r.rate / mxRate) * 100 + '%', background: hot ? 'var(--hl-red-fg)' : 'var(--surface-accent)' }} />
                     </span>
                     <b style={{ width: 40, textAlign: 'right', color: hot ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{pct(r.rate)}</b>
-                  </span>
+                  </span>}
                   <span style={{ textAlign: 'right', fontWeight: 600, color: 'var(--text-heading)' }}>{r.avg_rounds ? r.avg_rounds.toFixed(1) : '–'}</span>
                   <span style={{ textAlign: 'right', fontWeight: 600, color: r.max_rounds >= 3 ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{r.max_rounds || '–'}</span>
                 </div>
