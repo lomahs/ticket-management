@@ -461,6 +461,16 @@ describe('screens render API data at their URLs', () => {
     expect(await screen.findByText('Synced with Jira')).toBeTruthy();
   });
 
+  it('names the related steps by the viewer\'s role and hides them for a PIM', async () => {
+    renderApp('/my-work?member=binh');
+    expect(await screen.findByText('BAL Review, JM Review and Fix comments with the BAL, of functions you are BA of')).toBeTruthy();
+    cleanup();
+    server.use(http.get('*/api/v1/my-work', () => HttpResponse.json({ ...fixtures.myWork, related: [], related_scope: 'none' })));
+    renderApp('/my-work?member=binh');
+    await screen.findByRole('region', { name: 'Your backlog' });
+    expect(screen.queryByRole('region', { name: 'Related tasks' })).toBeNull();
+  });
+
   it('timesheet shows under and no allocation', async () => {
     const cell = (date: string, state: string, logged_h: number, target_h: number, unallocated_h = 0) => ({
       date, state, logged_h, target_h, unallocated_h, planned_h: 0, off_reason: null,

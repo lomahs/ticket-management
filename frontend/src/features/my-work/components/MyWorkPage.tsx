@@ -110,20 +110,22 @@ function MyWorkBody({ w, backlog, setBacklog }: { w: Schemas['MyWork']; backlog:
         </div>
       </section>
 
-      <section className="card card-clip" aria-label="Related tasks">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px' }}>
-          <Icon name="link" size={14} />
-          <span className="title">Related tasks</span>
-          <span className="count" style={{ background: 'var(--surface-hover)', color: 'var(--text-heading)' }}>{w.related.length}</span>
-          <span className="eyebrow">{w.related_scope === 'reviewer'
-            ? 'BA Create, JM Review and Fix comment BAL/JM tickets of functions you review'
-            : 'Steps after Create (review, fix comment) of functions you own'}</span>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          {w.related.map((c) => <ListRow key={c.key} c={c} withAssignee cols="76px minmax(180px,1fr) 96px 92px 76px 150px" minW={720} />)}
-          {!w.related.length && <div className="empty-row">No open related tasks.</div>}
-        </div>
-      </section>
+      {w.related_scope !== 'none' && (
+        <section className="card card-clip" aria-label="Related tasks">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px' }}>
+            <Icon name="link" size={14} />
+            <span className="title">Related tasks</span>
+            <span className="count" style={{ background: 'var(--surface-hover)', color: 'var(--text-heading)' }}>{w.related.length}</span>
+            <span className="eyebrow">{w.related_scope === 'bal'
+              ? 'Create, JM Review and Fix comments not with you, of functions you are BAL of'
+              : 'BAL Review, JM Review and Fix comments with the BAL, of functions you are BA of'}</span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            {w.related.map((c) => <ListRow key={c.key} c={c} withAssignee cols="76px minmax(180px,1fr) 96px 92px 76px 150px" minW={720} />)}
+            {!w.related.length && <div className="empty-row">No open related tasks.</div>}
+          </div>
+        </section>
+      )}
     </>
   );
 }

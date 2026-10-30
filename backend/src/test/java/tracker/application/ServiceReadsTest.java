@@ -48,6 +48,7 @@ import tracker.domain.Allocation;
 import tracker.domain.AnkenScope;
 import tracker.domain.Burndown;
 import tracker.domain.DateReason;
+import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.LeaveType;
 import tracker.domain.Member;
@@ -660,11 +661,51 @@ class ServiceReadsTest {
             }
             List<String> shown = new ArrayList<>(overdue);
             w.delay().forEach(c -> shown.add(c.key()));
-            List<String> lateOpen = ctx.subtasks().stream()
+            // tickets outside the function workflow are listed by assignee
+            List<String> lateOpen = ctx.subtasks().stream().filter(i -> ctx.function(i) == null)
                     .filter(i -> member.equals(i.assigneeId()) && i.status() != tracker.domain.Status.CLOSED)
                     .filter(i -> ctx.flags.get(i.key()).late()).map(Issue::key).toList();
             assertThat(shown).as(member).containsAll(lateOpen);
         }
+    }
+
+    private static List<TaskCard> mine(WorkService.MyWork w) {
+        return w.backlog().stream().flatMap(g -> g.items().stream()).toList();
+    }
+
+    @Test
+    void myWorkOfABaFollowsStepRoles() {
+        TrackerContext ctx = contexts.load(ALL);
+        WorkService.MyWork w = work.myWork(ALL, "binh", "week", null);
+        assertThat(w.relatedScope()).isEqualTo("ba");
+        for (TaskCard c : mine(w)) {
+            Issue i = ctx.issue(c.key()).orElseThrow();
+            Function fn = ctx.function(i);
+            if (fn != null) {
+                assertThat(fn.baId(ctx.members)).as(c.key()).isEqualTo("binh");
+                assertThat(c.step()).as(c.key()).isIn("create", "fixb", "fixj");
+                assertThat(c.assigneeId()).as(c.key()).isNotEqualTo(fn.balId(ctx.members));
+            }
+        }
+        assertThat(w.related()).isNotEmpty().allMatch(c -> !"C".equals(c.status()));
+        for (TaskCard c : w.related()) {
+            Function fn = ctx.function(ctx.issue(c.key()).orElseThrow());
+            assertThat(fn.baId(ctx.members)).isEqualTo("binh");
+            assertThat("balr".equals(c.step()) || "jmr".equals(c.step()) || Objects.equals(c.assigneeId(), fn.balId(ctx.members)))
+                    .as(c.key()).isTrue();
+        }
+    }
+
+    @Test
+    void myWorkOfABalFollowsStepRoles() {
+        TrackerContext ctx = contexts.load(ALL);
+        WorkService.MyWork w = work.myWork(ALL, "minh", "week", null);
+        assertThat(w.relatedScope()).isEqualTo("bal");
+        List<TaskCard> steps = mine(w).stream().filter(c -> c.functionId() != null).toList();
+        assertThat(steps).isNotEmpty().allMatch(c -> "balr".equals(c.step())
+                || (("fixb".equals(c.step()) || "fixj".equals(c.step())) && "minh".equals(c.assigneeId())));
+        assertThat(w.related()).isNotEmpty().noneMatch(c -> "balr".equals(c.step()))
+                .noneMatch(c -> c.step() != null && c.step().startsWith("fix") && "minh".equals(c.assigneeId()));
     }
 
     @Test
@@ -688,9 +729,6 @@ class ServiceReadsTest {
         WorkService.MyWork month = work.myWork(ALL, "binh", "month", null);
         assertThat(month.backlog()).extracting(WorkService.BacklogGroup::kind).startsWith("overdue", "month");
         assertThat(month.backlog().get(1).start()).isEqualTo("2026-10");
-        WorkService.MyWork minh = work.myWork(ALL, "minh", "week", null);
-        assertThat(minh.relatedScope()).isEqualTo("reviewer");
-        assertThat(minh.related()).allMatch(c -> !"balr".equals(c.step()));
         assertThatThrownBy(() -> work.myWork(ALL, "nobody", "week", null)).isInstanceOf(NotFound.class);
     }
 }

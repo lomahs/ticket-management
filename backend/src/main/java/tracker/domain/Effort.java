@@ -1,6 +1,7 @@
 package tracker.domain;
 
 import java.util.Map;
+import java.util.Objects;
 
 import org.jspecify.annotations.Nullable;
 
@@ -71,5 +72,32 @@ public final class Effort {
             return new Capacity.PlanItem(i.key(), owner, from, i.plannedEnd(), i.remainingH());
         }
         return new Capacity.PlanItem(i.key(), owner, i.plannedStart(), i.plannedEnd(), i.estimateH());
+    }
+
+    /** Where a function step stands in a member's My Work. */
+    public enum Place { MINE, RELATED }
+
+    /**
+     * By the role of the step, over the functions the member is the BA or BAL of: a BA's own work is Create and the Fix comment
+     * steps that are not with the BAL; a BAL's is BAL Review and the Fix comment steps assigned to them; the function's other
+     * steps are related. null when the member is neither the function's BA nor its BAL.
+     */
+    public static @Nullable Place place(Function fn, Issue step, String memberId, Map<String, Member> members) {
+        Member m = members.get(memberId);
+        Role role = m != null ? m.role() : null;
+        boolean fix = step.step() == StepKind.FIX_BAL || step.step() == StepKind.FIX_JM;
+        if (role == Role.BA && memberId.equals(fn.baId(members))) {
+            if (step.step() == StepKind.CREATE) {
+                return Place.MINE;
+            }
+            return fix && !Objects.equals(step.assigneeId(), fn.balId(members)) ? Place.MINE : Place.RELATED;
+        }
+        if (role == Role.BAL && memberId.equals(fn.balId(members))) {
+            if (step.step() == StepKind.BAL_REVIEW) {
+                return Place.MINE;
+            }
+            return fix && memberId.equals(step.assigneeId()) ? Place.MINE : Place.RELATED;
+        }
+        return null;
     }
 }

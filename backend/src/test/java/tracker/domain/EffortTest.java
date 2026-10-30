@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import tracker.domain.Effort.Place;
 import tracker.domain.Effort.WorkKind;
 
 class EffortTest {
@@ -62,5 +63,26 @@ class EffortTest {
         assertThat(Effort.planOwner(null, single, MEMBERS)).isEqualTo("chi");
         Issue question = issue().key("PAY-8").assignee("tanaka").build(); // a QnA waiting for the client
         assertThat(Effort.planOwner(null, question, MEMBERS)).isNull();
+    }
+
+    @Test
+    void myWorkPlacesStepsByRole() {
+        // F1: BA an (Create's assignee), BAL minh (reporter); the Fix BAL sits with minh for a second review round
+        List<Issue> cells = FlagsTest.five("F1", "CCWNN");
+        cells.set(0, issue().key("PAY-F10").fid("F1").step(StepKind.CREATE).assignee("an").reporter("minh").status(Status.CLOSED).build());
+        cells.set(2, issue().key("PAY-F12").fid("F1").step(StepKind.FIX_BAL).assignee("minh").build());
+        Function fn = Flags.buildFunctions(cells).get(0);
+        assertThat(cells).extracting(c -> Effort.place(fn, c, "an", MEMBERS))
+                .containsExactly(Place.MINE, Place.RELATED, Place.RELATED, Place.RELATED, Place.MINE);
+        assertThat(cells).extracting(c -> Effort.place(fn, c, "minh", MEMBERS))
+                .containsExactly(Place.RELATED, Place.MINE, Place.MINE, Place.RELATED, Place.RELATED);
+    }
+
+    @Test
+    void myWorkHoldsOnlyTheStepsOfOwnFunctions() {
+        Issue create = issue().key("PAY-F10").fid("F1").step(StepKind.CREATE).assignee("an").build();
+        Function fn = Flags.buildFunctions(List.of(create)).get(0);
+        assertThat(Effort.place(fn, create, "binh", MEMBERS)).isNull(); // binh is not F1's BA
+        assertThat(Effort.place(fn, create, "pim", MEMBERS)).isNull(); // PIM: not by step role
     }
 }

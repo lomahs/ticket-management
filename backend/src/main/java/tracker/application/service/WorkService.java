@@ -16,6 +16,7 @@ import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.domain.AnkenScope;
 import tracker.domain.Dates;
+import tracker.domain.Effort;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.IssueFlags;
@@ -27,7 +28,7 @@ import tracker.domain.StepDef;
 import tracker.domain.Steps;
 import tracker.domain.Text;
 
-/** My Work: a member's deadlines, backlog and the related steps of functions they own or review. */
+/** My Work: a member's deadlines and backlog, and the related steps of their functions, by the role of each step (spec §2.6). */
 @Service
 public class WorkService {
     private final TrackerContextLoader context;
@@ -43,7 +44,7 @@ public class WorkService {
     public record BacklogGroup(String kind, @Nullable String start, boolean current, List<TaskCard> items, double remainingH) {
     }
 
-    /** @param relatedScope owner | reviewer */
+    /** @param relatedScope ba | bal: the role whose steps fill {@code related}; none: a PM, PIM or no role (related is empty) */
     public record MyWork(String memberId, String today, String nextDay, List<TaskCard> delay, List<TaskCard> dueToday,
                          List<TaskCard> dueNext, List<BacklogGroup> backlog, List<TaskCard> related, String relatedScope,
                          int openCount, double remainingH) {
@@ -80,8 +81,28 @@ public class WorkService {
         if (me == null || !(ctx.people.contains(memberId) || memberId.equals(viewerMemberId))) {
             throw new NotFound("Member " + memberId + " was not found", "member");
         }
-        List<Issue> mine = new ArrayList<>(ctx.subtasks().stream()
-                .filter(i -> Objects.equals(i.assigneeId(), memberId) && i.status() != Status.CLOSED).toList());
+        boolean byStep = me.role() == Role.BA || me.role() == Role.BAL;
+        List<Issue> mine = new ArrayList<>();
+        List<Issue> related = new ArrayList<>();
+        for (Issue i : ctx.subtasks()) {
+            if (i.status() == Status.CLOSED) {
+                continue;
+            }
+            Function fn = ctx.function(i);
+            if (!byStep || fn == null) {
+                // PM, PIM or no role (their own setting comes later), and tickets outside the function workflow: by assignee
+                if (Objects.equals(i.assigneeId(), memberId)) {
+                    mine.add(i);
+                }
+                continue;
+            }
+            Effort.Place place = Effort.place(fn, i, memberId, ctx.members);
+            if (place == Effort.Place.MINE) {
+                mine.add(i);
+            } else if (place == Effort.Place.RELATED) {
+                related.add(i);
+            }
+        }
         mine.sort(BY_END);
         List<Issue> tasks = mine.stream().filter(i -> i.status() != Status.RESOLVED || isReviewItem(ctx, i)).toList();
         String nextDay = ctx.cal.nextWork(Dates.addDays(today, 1), memberId);
@@ -113,29 +134,7 @@ public class WorkService {
                     remaining(ctx, e.getValue()));
         }).toList();
 
-        List<Issue> related = new ArrayList<>();
-        String relatedScope;
-        if (me.role() == Role.BAL) {
-            for (Function f : ctx.functions) {
-                if (Objects.equals(f.balId(ctx.members), memberId)) {
-                    for (int idx : new int[]{0, 2, 3, 4}) {
-                        Issue c = f.cells().get(idx);
-                        if (c != null) {
-                            related.add(c);
-                        }
-                    }
-                }
-            }
-            relatedScope = "reviewer";
-        } else {
-            for (Function f : ctx.functions) {
-                if (Objects.equals(f.ownerId(), memberId)) {
-                    f.cells().subList(1, f.cells().size()).stream().filter(Objects::nonNull).forEach(related::add);
-                }
-            }
-            relatedScope = "owner";
-        }
-        related = new ArrayList<>(related.stream().filter(c -> c.status() != Status.CLOSED).toList());
+        String relatedScope = me.role() == Role.BA ? "ba" : me.role() == Role.BAL ? "bal" : "none";
         related.sort(BY_END);
 
         return new MyWork(
