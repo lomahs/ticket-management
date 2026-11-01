@@ -23,6 +23,7 @@ import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
+import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.MemberMergeRepository;
 import tracker.application.ports.MemberRepository;
@@ -34,6 +35,8 @@ import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
 import tracker.domain.Anken;
+import tracker.domain.EstimationRow;
+import tracker.domain.TaskTarget;
 import tracker.domain.Allocation;
 import tracker.domain.AnkenMember;
 import tracker.domain.AnkenScopeSetting;
@@ -73,6 +76,8 @@ class PersistenceTest {
     @Autowired
     AllocationRepository allocations;
     @Autowired
+    EstimationRepository estimation;
+    @Autowired
     IssueRepository issues;
     @Autowired
     AnkenRepository anken;
@@ -97,7 +102,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
     }
 
     @Test
@@ -271,6 +276,37 @@ class PersistenceTest {
         assertThat(allocations.findAll()).hasSize(2);
         assertThat(jdbc.sql("SELECT set_at FROM allocations WHERE effective_from = '2026-10-01'").query(String.class).single())
                 .isEqualTo("2026-10-08T09:00:00Z");
+    }
+
+    static EstimationRow row(long id, int pos, String fn) {
+        return new EstimationRow(id, "PAY-1100", pos, "ITA", "Create test case", fn, 5, 8, null, null, null, null);
+    }
+
+    @Test
+    void estimationSaveUpdatesInsertsAndKeepsPushedRows() {
+        estimation.save("PAY-1100", List.of(row(0, 0, "Login"), row(0, 1, "Pay"), row(0, 2, "Cart")));
+        List<EstimationRow> first = estimation.findByEpic("PAY-1100");
+        assertThat(first).extracting(EstimationRow::functionName).containsExactly("Login", "Pay", "Cart");
+        estimation.markPushed(List.of(first.get(2).id()), "2026-10-07T09:00:00Z");
+        EstimationRow login = first.get(0);
+        // Login renamed and moved last, Pay dropped, a new row first; Cart is pushed and must stay as it was
+        estimation.save("PAY-1100", List.of(row(0, 0, "Ship"), new EstimationRow(login.id(), "PAY-1100", 1, "ITA", "Create test case",
+                "Login 2", 3, 6, "an", "minh", null, null), row(first.get(2).id(), 5, "Cart changed")));
+        List<EstimationRow> after = estimation.findByEpic("PAY-1100");
+        assertThat(after).extracting(EstimationRow::functionName).containsExactly("Ship", "Login 2", "Cart");
+        assertThat(after.get(1).id()).isEqualTo(login.id());
+        assertThat(after.get(1).baId()).isEqualTo("an");
+        assertThat(after.get(1).steps()).isEqualTo(3);
+        assertThat(after.get(2).pushed()).isTrue();
+        assertThat(estimation.findByEpic("PAY-1300")).isEmpty();
+    }
+
+    @Test
+    void taskTargetsAreReplaced() {
+        estimation.saveTargets("PAY-1100", List.of(new TaskTarget("ITA", "Create test case", "PAY-1102", null, null),
+                new TaskTarget("ITA", "Execute", null, "[Pay][LocalTask] ITA Execute", "an")));
+        estimation.saveTargets("PAY-1100", List.of(new TaskTarget("ITA", "Execute", null, "ITA Execute", "binh")));
+        assertThat(estimation.findTargets("PAY-1100")).containsExactly(new TaskTarget("ITA", "Execute", null, "ITA Execute", "binh"));
     }
 
     @Test
