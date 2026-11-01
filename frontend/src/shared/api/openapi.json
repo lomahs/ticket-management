@@ -1735,6 +1735,105 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/master-schedule" : {
+      "get" : {
+        "operationId" : "masterSchedule",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MasterScheduleView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      },
+      "post" : {
+        "operationId" : "saveMasterSchedule",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ScheduleIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MasterScheduleView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/master-schedule/preview" : {
+      "post" : {
+        "operationId" : "previewMasterSchedule",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SchedulePreviewIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PhaseRow"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/qa" : {
       "post" : {
         "operationId" : "ask",
@@ -5044,6 +5143,37 @@
         },
         "required" : [ "password", "username" ]
       },
+      "MasterScheduleView" : {
+        "type" : "object",
+        "properties" : {
+          "current" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ScheduleVersion"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "estimation_phases" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "shifts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseShift"
+            }
+          },
+          "versions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ScheduleVersion"
+            }
+          }
+        },
+        "required" : [ "current", "estimation_phases", "shifts", "versions" ]
+      },
       "MatrixStats" : {
         "type" : "object",
         "properties" : {
@@ -5639,6 +5769,27 @@
         },
         "required" : [ "phase", "total_effort_h" ]
       },
+      "PhaseIn" : {
+        "type" : "object",
+        "properties" : {
+          "member_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "minLength" : 1
+            }
+          },
+          "phase" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "start" : {
+            "type" : "string",
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required" : [ "member_ids", "phase", "start" ]
+      },
       "PhaseRollup" : {
         "type" : "object",
         "properties" : {
@@ -5676,6 +5827,64 @@
           }
         },
         "required" : [ "closed", "end", "name", "pct", "remaining_h", "schedule", "spent_h", "start", "total" ]
+      },
+      "PhaseRow" : {
+        "type" : "object",
+        "properties" : {
+          "end" : {
+            "type" : "string"
+          },
+          "member_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "plan_md" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "start" : {
+            "type" : "string"
+          },
+          "total_effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "end", "member_ids", "phase", "plan_md", "start", "total_effort_h" ]
+      },
+      "PhaseShift" : {
+        "type" : "object",
+        "properties" : {
+          "baseline_end" : {
+            "type" : [ "string", "null" ]
+          },
+          "baseline_start" : {
+            "type" : [ "string", "null" ]
+          },
+          "end" : {
+            "type" : "string"
+          },
+          "end_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "start" : {
+            "type" : "string"
+          },
+          "start_days" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "baseline_end", "baseline_start", "end", "end_days", "phase", "start", "start_days" ]
       },
       "PhaseTask" : {
         "type" : "object",
@@ -5912,6 +6121,33 @@
         },
         "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate", "review_h", "role" ]
       },
+      "ScheduleIn" : {
+        "type" : "object",
+        "properties" : {
+          "phases" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseIn"
+            }
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "phases", "reason" ]
+      },
+      "SchedulePreviewIn" : {
+        "type" : "object",
+        "properties" : {
+          "phases" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseIn"
+            }
+          }
+        },
+        "required" : [ "phases" ]
+      },
       "ScheduleRollup" : {
         "type" : "object",
         "properties" : {
@@ -5957,6 +6193,34 @@
           }
         },
         "required" : [ "actual_to_date_h", "diff_h", "early_finish", "early_start", "effort", "late_finish", "late_start", "overdue", "plan_to_date_h", "state" ]
+      },
+      "ScheduleVersion" : {
+        "type" : "object",
+        "properties" : {
+          "epic_key" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "phases" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseRow"
+            }
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "saved_at" : {
+            "type" : "string"
+          },
+          "saved_by" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "epic_key", "id", "phases", "reason", "saved_at", "saved_by" ]
       },
       "ScopeMember" : {
         "type" : "object",

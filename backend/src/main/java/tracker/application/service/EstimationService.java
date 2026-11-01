@@ -17,7 +17,6 @@ import tracker.application.ports.EstimationRepository;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.StepWeights;
-import tracker.domain.Text;
 
 /** Step 1 of planning: the estimation of an anken, one row per function or ticket, and its effort per phase. */
 @Service
@@ -99,13 +98,13 @@ public class EstimationService {
     }
 
     private static void check(EstimationRow r, String at) {
-        if (!Text.hasText(r.phase())) {
+        if (r.phase() == null || r.phase().isBlank()) {
             throw new Invalid("Phase is required", at + "phase");
         }
-        if (!Text.hasText(r.subphase())) {
+        if (r.subphase() == null || r.subphase().isBlank()) {
             throw new Invalid("Subphase is required", at + "subphase");
         }
-        if (!Text.hasText(r.functionName())) {
+        if (r.functionName() == null || r.functionName().isBlank()) {
             throw new Invalid("Function is required", at + "function_name");
         }
         if (r.steps() != null && r.steps() != 3 && r.steps() != 5) {

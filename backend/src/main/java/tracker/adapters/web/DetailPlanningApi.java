@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Set;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
@@ -33,11 +35,15 @@ import tracker.adapters.web.auth.Requires;
 import tracker.application.AppError.Invalid;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
+import tracker.application.service.MasterScheduleService;
+import tracker.application.service.MasterScheduleService.MasterScheduleView;
+import tracker.application.service.MasterScheduleService.PhaseRowIn;
 import tracker.application.service.ScopeService;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Feature;
 import tracker.domain.Level;
+import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Viewer;
 
 /** Building an anken's plan: estimation, master schedule, detail plan and re-plan. Reads: Planning; writes: admins. */
@@ -45,10 +51,12 @@ import tracker.domain.Viewer;
 @RequestMapping("/api/v1/planning")
 public class DetailPlanningApi {
     private final EstimationService estimation;
+    private final MasterScheduleService schedule;
     private final ScopeService scopes;
 
-    public DetailPlanningApi(EstimationService estimation, ScopeService scopes) {
+    public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, ScopeService scopes) {
         this.estimation = estimation;
+        this.schedule = schedule;
         this.scopes = scopes;
     }
 
@@ -100,5 +108,38 @@ public class DetailPlanningApi {
                 .contentType(MediaType.parseMediaType("text/csv; charset=utf-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"estimation-template.csv\"")
                 .body(EstimationFiles.TEMPLATE_CSV.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public record PhaseIn(@NotBlank String phase, @NotNull @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
+                          @NotNull List<@NotBlank String> memberIds) {
+        PhaseRowIn row() {
+            return new PhaseRowIn(phase, start, memberIds);
+        }
+    }
+
+    public record SchedulePreviewIn(@NotNull List<@NotNull @Valid PhaseIn> phases) {
+    }
+
+    public record ScheduleIn(@NotNull List<@NotNull @Valid PhaseIn> phases, @NotNull String reason) {
+    }
+
+    @Requires(feature = Feature.PLANNING, level = Level.READ)
+    @GetMapping("/{epic}/master-schedule")
+    public MasterScheduleView masterSchedule(@PathVariable("epic") String epic, Viewer viewer) {
+        return schedule.view(epicScope(viewer, epic), epic);
+    }
+
+    /** The phases as they would be saved: effort, end and plan MD; nothing is stored. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/master-schedule/preview")
+    public List<PhaseRow> previewMasterSchedule(@PathVariable("epic") String epic, @RequestBody @Valid SchedulePreviewIn body, Viewer viewer) {
+        return schedule.preview(epicScope(viewer, epic), epic, body.phases().stream().map(PhaseIn::row).toList());
+    }
+
+    /** Saves a new version of the master schedule; the first one is the baseline. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/master-schedule")
+    public MasterScheduleView saveMasterSchedule(@PathVariable("epic") String epic, @RequestBody @Valid ScheduleIn body, Viewer viewer) {
+        return schedule.save(viewer, epicScope(viewer, epic), epic, body.phases().stream().map(PhaseIn::row).toList(), body.reason());
     }
 }

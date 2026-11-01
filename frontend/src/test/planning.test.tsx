@@ -71,5 +71,44 @@ describe('detail planning', () => {
     expect((screen.getByLabelText('Function, row 1') as HTMLInputElement).value).toBe('Login');
     expect(puts).toBe(0);
   });
+
+  it('previews a master schedule and saves a version with a reason', async () => {
+    let previewed: unknown = null;
+    let saved: unknown = null;
+    const row = { phase: 'ITA', total_effort_h: 30, member_ids: ['an'], start: '2026-10-12', end: '2026-10-16', plan_md: 5 };
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA'], current: null, versions: [], shifts: [] })),
+      http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async ({ request }) => { previewed = await request.json(); return HttpResponse.json([row]); }),
+      http.post('*/api/v1/planning/PAY-1100/master-schedule', async ({ request }) => {
+        saved = await request.json();
+        return HttpResponse.json({ estimation_phases: ['ITA'], current: { id: 1, epic_key: 'PAY-1100', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', reason: 'Kick-off', phases: [row] }, versions: [], shifts: [] });
+      }),
+    );
+    renderApp('/planning/schedule?anken=PAY-1100');
+    fireEvent.change(await screen.findByLabelText('Start, ITA'), { target: { value: '2026-10-12' } });
+    fireEvent.click(screen.getByLabelText('ITA: An'));
+    await waitFor(() => expect(previewed).toEqual({ phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }] }));
+    const phases = screen.getByRole('region', { name: 'Master schedule phases' });
+    expect(await within(phases).findByText('16/10')).toBeTruthy();
+    expect(within(phases).getByText('30h')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Reason for this version'), { target: { value: 'Kick-off' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => expect(saved).toEqual({ phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }], reason: 'Kick-off' }));
+  });
+
+  it('shows phases moved since the baseline', async () => {
+    const v = (id: number, reason: string, start: string, end: string) => ({ id, epic_key: 'PAY-1100', saved_at: '2026-10-0' + id + 'T09:00:00Z', saved_by: 'minh.hoang@acme.vn', reason,
+      phases: [{ phase: 'ITA', total_effort_h: 30, member_ids: ['an'], start, end, plan_md: 5 }] });
+    server.use(http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({
+      estimation_phases: ['ITA'], current: v(2, 'Client moved ITA', '2026-10-14', '2026-10-20'), versions: [v(1, 'Kick-off', '2026-10-12', '2026-10-16'), v(2, 'Client moved ITA', '2026-10-14', '2026-10-20')],
+      shifts: [{ phase: 'ITA', baseline_start: '2026-10-12', baseline_end: '2026-10-16', start: '2026-10-14', end: '2026-10-20', start_days: 2, end_days: 4 }],
+    })), http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', () => HttpResponse.json([])));
+    renderApp('/planning/schedule?anken=PAY-1100');
+    const shifts = await screen.findByRole('region', { name: 'Changes since the baseline' });
+    expect(within(shifts).getByText('4 days later')).toBeTruthy();
+    const versions = screen.getByRole('region', { name: 'Versions' });
+    expect(within(versions).getByText('Kick-off')).toBeTruthy();
+    expect(within(versions).getByText('Baseline')).toBeTruthy();
+  });
 });
 

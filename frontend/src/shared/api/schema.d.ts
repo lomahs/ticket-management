@@ -804,6 +804,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/master-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["masterSchedule"];
+        put?: never;
+        post: operations["saveMasterSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/master-schedule/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewMasterSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/qa": {
         parameters: {
             query?: never;
@@ -1969,6 +2001,12 @@ export interface components {
             password: string;
             username: string;
         };
+        MasterScheduleView: {
+            current: components["schemas"]["ScheduleVersion"] | null;
+            estimation_phases: string[];
+            shifts: components["schemas"]["PhaseShift"][];
+            versions: components["schemas"]["ScheduleVersion"][];
+        };
         MatrixStats: {
             /** Format: double */
             estimate_h: number;
@@ -2168,6 +2206,11 @@ export interface components {
             /** Format: double */
             total_effort_h: number;
         };
+        PhaseIn: {
+            member_ids: string[];
+            phase: string;
+            start: string;
+        };
         PhaseRollup: {
             /** Format: int32 */
             closed: number;
@@ -2183,6 +2226,27 @@ export interface components {
             start: string | null;
             /** Format: int32 */
             total: number;
+        };
+        PhaseRow: {
+            end: string;
+            member_ids: string[];
+            phase: string;
+            /** Format: int32 */
+            plan_md: number;
+            start: string;
+            /** Format: double */
+            total_effort_h: number;
+        };
+        PhaseShift: {
+            baseline_end: string | null;
+            baseline_start: string | null;
+            end: string;
+            /** Format: int32 */
+            end_days: number;
+            phase: string;
+            start: string;
+            /** Format: int32 */
+            start_days: number;
         };
         PhaseTask: {
             /** Format: int32 */
@@ -2260,6 +2324,13 @@ export interface components {
             /** @enum {string|null} */
             role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
+        ScheduleIn: {
+            phases: components["schemas"]["PhaseIn"][];
+            reason: string;
+        };
+        SchedulePreviewIn: {
+            phases: components["schemas"]["PhaseIn"][];
+        };
         ScheduleRollup: {
             /** Format: double */
             actual_to_date_h: number;
@@ -2281,6 +2352,15 @@ export interface components {
             plan_to_date_h: number;
             /** @enum {string} */
             state: "UNKNOWN" | "NOT_STARTED" | "EARLY" | "ON_TRACK" | "LATE" | "DONE";
+        };
+        ScheduleVersion: {
+            epic_key: string;
+            /** Format: int64 */
+            id: number;
+            phases: components["schemas"]["PhaseRow"][];
+            reason: string;
+            saved_at: string;
+            saved_by: string;
         };
         ScopeMember: {
             color: string;
@@ -3896,6 +3976,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EstimationImportRow"][];
+                };
+            };
+        };
+    };
+    masterSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterScheduleView"];
+                };
+            };
+        };
+    };
+    saveMasterSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterScheduleView"];
+                };
+            };
+        };
+    };
+    previewMasterSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchedulePreviewIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhaseRow"][];
                 };
             };
         };

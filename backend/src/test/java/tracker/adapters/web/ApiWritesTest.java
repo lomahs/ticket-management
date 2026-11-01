@@ -89,6 +89,22 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void masterScheduleSavesVersions() throws Exception {
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
+                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
+        call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row))));
+        Map<String, Object> ita = Map.of("phase", "ITA", "start", "2026-10-12", "member_ids", List.of("an"));
+        JsonNode pv = call(json(post("/api/v1/planning/PAY-1100/master-schedule/preview"), Map.of("phases", List.of(ita)))).json();
+        assertThat(pv.get(0).get("total_effort_h").asDouble()).isEqualTo(16.0);
+        JsonNode saved = call(json(post("/api/v1/planning/PAY-1100/master-schedule"), Map.of("phases", List.of(ita), "reason", "Kick-off"))).json();
+        assertThat(saved.get("current").get("phases").get(0).get("end").asText()).isEqualTo(pv.get(0).get("end").asText());
+        problem(call(json(post("/api/v1/planning/PAY-1100/master-schedule"), Map.of("phases", List.of(ita), "reason", "x"))
+                .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        problem(call(json(post("/api/v1/planning/PAY-1100/master-schedule/preview"),
+                Map.of("phases", List.of(Map.of("phase", "ITA", "start", "12/10", "member_ids", List.of("an")))))), 400, "invalid");
+    }
+
+    @Test
     void createFunction() throws Exception {
         Res r = call(json(post("/api/v1/anken/PAY-1100/functions"), Map.of("parent_key", "PAY-1102", "name", "Installment",
                 "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)));
