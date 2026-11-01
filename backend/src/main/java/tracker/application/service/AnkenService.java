@@ -349,7 +349,7 @@ public class AnkenService {
     }
 
     /** The epic's Tasks by phase group, then the earliest planned start of their sub-tasks, each with its template's prefix and workflow. */
-    private static List<ParentOption> parentOptions(TrackerContext ctx, String epic) {
+    static List<ParentOption> parentOptions(TrackerContext ctx, String epic) {
         WorkStructure st = ctx.settings.structureOf(epic);
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
         Map<String, String> groups = groupOfTask(ctx, epic);

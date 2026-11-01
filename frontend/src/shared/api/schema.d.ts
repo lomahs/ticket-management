@@ -772,6 +772,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detailPlan"];
+        put: operations["saveDetailPlan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/estimation": {
         parameters: {
             query?: never;
@@ -1677,9 +1693,32 @@ export interface components {
             extra_note: string | null;
             is_today: boolean;
         };
+        DayOverrun: {
+            /** Format: double */
+            allocation_h: number;
+            date: string;
+            member_id: string;
+            /** Format: double */
+            planned_h: number;
+        };
         DaysOut: {
             /** Format: int32 */
             days: number;
+        };
+        DetailPlanView: {
+            checks: components["schemas"]["PhaseCheck"][];
+            over_budget: components["schemas"]["Overrun"][];
+            over_day: components["schemas"]["DayOverrun"][];
+            plan: components["schemas"]["RowPlan"][];
+            problems: string[];
+            rows: components["schemas"]["EstimationRow"][];
+            targets: components["schemas"]["TaskTarget"][];
+            tasks: components["schemas"]["ExistingTask"][];
+        };
+        DraftIn: {
+            assigns?: components["schemas"]["RowAssign"][];
+            order?: number[];
+            targets?: components["schemas"]["TaskTarget"][];
         };
         EffortAnalysis: {
             by_phase: components["schemas"]["EffortBar"][];
@@ -1758,6 +1797,11 @@ export interface components {
         EstimationView: {
             phases: components["schemas"]["PhaseEffort"][];
             rows: components["schemas"]["EstimationRow"][];
+        };
+        ExistingTask: {
+            key: string;
+            phase: string;
+            summary: string;
         };
         ExpectedUpdateIn: {
             changes: components["schemas"]["ChangeIn"][];
@@ -2183,6 +2227,14 @@ export interface components {
             key: string;
             note: string;
         };
+        Overrun: {
+            /** Format: double */
+            budget_h: number;
+            member_id: string;
+            phase: string;
+            /** Format: double */
+            planned_h: number;
+        };
         ParentOption: {
             end: string | null;
             /** Format: int32 */
@@ -2200,6 +2252,13 @@ export interface components {
             clear_role?: boolean | null;
             /** @enum {string|null} */
             role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
+        PhaseCheck: {
+            /** Format: int32 */
+            days_late: number;
+            master_end: string;
+            phase: string;
+            plan_end: string | null;
         };
         PhaseEffort: {
             phase: string;
@@ -2324,6 +2383,18 @@ export interface components {
             /** @enum {string|null} */
             role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
+        RowAssign: {
+            ba_id?: string | null;
+            bal_id?: string | null;
+            jm_id?: string | null;
+            /** Format: int64 */
+            row_id?: number;
+        };
+        RowPlan: {
+            /** Format: int64 */
+            row_id: number;
+            steps: components["schemas"]["StepPlan"][];
+        };
         ScheduleIn: {
             phases: components["schemas"]["PhaseIn"][];
             reason: string;
@@ -2405,6 +2476,15 @@ export interface components {
             end?: string | null;
             start?: string | null;
         };
+        StepPlan: {
+            end: string;
+            /** Format: double */
+            hours: number;
+            member_id: string;
+            ref: string;
+            start: string;
+            step: string | null;
+        };
         StepWeightsIn: {
             weights: {
                 [key: string]: number;
@@ -2474,6 +2554,13 @@ export interface components {
             summary: string;
             tone: string;
             worker_id: string | null;
+        };
+        TaskTarget: {
+            existing_key?: string | null;
+            new_assignee_id?: string | null;
+            new_name?: string | null;
+            phase?: string;
+            subphase?: string;
         };
         TaskTemplate: {
             match: string;
@@ -3902,6 +3989,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeysOut"];
+                };
+            };
+        };
+    };
+    detailPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    saveDetailPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
                 };
             };
         };

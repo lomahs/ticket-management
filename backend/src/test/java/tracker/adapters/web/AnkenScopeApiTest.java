@@ -270,6 +270,7 @@ class AnkenScopeApiTest extends ApiTestSupport {
                         "/api/v1/planning/estimation/template"),
                 Arguments.of("/api/v1/planning/{epic}/master-schedule", List.of("/api/v1/planning/PAY-1300/master-schedule"),
                         "/api/v1/planning/PAY-1100/master-schedule"),
+                Arguments.of("/api/v1/planning/{epic}/detail", List.of("/api/v1/planning/PAY-1300/detail"), "/api/v1/planning/PAY-1100/detail"),
                 Arguments.of("/api/v1/effort/timesheet", List.of("/api/v1/effort/timesheet?from=2026-10-05&to=2026-10-11&" + other),
                         "/api/v1/effort/timesheet?from=2026-10-05&to=2026-10-11"),
                 Arguments.of("/api/v1/effort/timesheet/{member}/{date}",

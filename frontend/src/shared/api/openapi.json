@@ -1634,6 +1634,66 @@
         "tags" : [ "planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail" : {
+      "get" : {
+        "operationId" : "detailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      },
+      "put" : {
+        "operationId" : "saveDetailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/estimation" : {
       "get" : {
         "operationId" : "estimation",
@@ -4159,6 +4219,26 @@
         },
         "required" : [ "date", "extra_note", "is_today" ]
       },
+      "DayOverrun" : {
+        "type" : "object",
+        "properties" : {
+          "allocation_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "allocation_h", "date", "member_id", "planned_h" ]
+      },
       "DaysOut" : {
         "type" : "object",
         "properties" : {
@@ -4168,6 +4248,84 @@
           }
         },
         "required" : [ "days" ]
+      },
+      "DetailPlanView" : {
+        "type" : "object",
+        "properties" : {
+          "checks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseCheck"
+            }
+          },
+          "over_budget" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Overrun"
+            }
+          },
+          "over_day" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayOverrun"
+            }
+          },
+          "plan" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RowPlan"
+            }
+          },
+          "problems" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "rows" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/EstimationRow"
+            }
+          },
+          "targets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskTarget"
+            }
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ExistingTask"
+            }
+          }
+        },
+        "required" : [ "checks", "over_budget", "over_day", "plan", "problems", "rows", "targets", "tasks" ]
+      },
+      "DraftIn" : {
+        "type" : "object",
+        "properties" : {
+          "assigns" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RowAssign"
+            }
+          },
+          "order" : {
+            "type" : "array",
+            "items" : {
+              "type" : "integer",
+              "format" : "int64"
+            }
+          },
+          "targets" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskTarget"
+            }
+          }
+        }
       },
       "EffortAnalysis" : {
         "type" : "object",
@@ -4389,6 +4547,21 @@
           }
         },
         "required" : [ "phases", "rows" ]
+      },
+      "ExistingTask" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "key", "phase", "summary" ]
       },
       "ExpectedUpdateIn" : {
         "type" : "object",
@@ -5707,6 +5880,26 @@
         },
         "required" : [ "key", "note" ]
       },
+      "Overrun" : {
+        "type" : "object",
+        "properties" : {
+          "budget_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "budget_h", "member_id", "phase", "planned_h" ]
+      },
       "ParentOption" : {
         "type" : "object",
         "properties" : {
@@ -5755,6 +5948,25 @@
             "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         }
+      },
+      "PhaseCheck" : {
+        "type" : "object",
+        "properties" : {
+          "days_late" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "master_end" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "plan_end" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "days_late", "master_end", "phase", "plan_end" ]
       },
       "PhaseEffort" : {
         "type" : "object",
@@ -6121,6 +6333,40 @@
         },
         "required" : [ "avg_rounds", "create_h", "fix_h", "functions", "max_rounds", "member_id", "rate", "review_h", "role" ]
       },
+      "RowAssign" : {
+        "type" : "object",
+        "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "jm_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "row_id" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "RowPlan" : {
+        "type" : "object",
+        "properties" : {
+          "row_id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "steps" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StepPlan"
+            }
+          }
+        },
+        "required" : [ "row_id", "steps" ]
+      },
       "ScheduleIn" : {
         "type" : "object",
         "properties" : {
@@ -6344,6 +6590,31 @@
           }
         }
       },
+      "StepPlan" : {
+        "type" : "object",
+        "properties" : {
+          "end" : {
+            "type" : "string"
+          },
+          "hours" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "start" : {
+            "type" : "string"
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "end", "hours", "member_id", "ref", "start", "step" ]
+      },
       "StepWeightsIn" : {
         "type" : "object",
         "properties" : {
@@ -6545,6 +6816,26 @@
           }
         },
         "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "plan_owner_id", "planned_end", "planned_start", "project", "remaining_h", "rounds", "schedule", "soon", "status", "step", "summary", "tone", "worker_id" ]
+      },
+      "TaskTarget" : {
+        "type" : "object",
+        "properties" : {
+          "existing_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "new_assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "new_name" : {
+            "type" : [ "string", "null" ]
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "subphase" : {
+            "type" : "string"
+          }
+        }
       },
       "TaskTemplate" : {
         "type" : "object",

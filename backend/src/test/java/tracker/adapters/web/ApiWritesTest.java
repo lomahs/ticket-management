@@ -105,6 +105,21 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void detailPlanDraftRoundTrip() throws Exception {
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
+                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
+        long id = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json().get("rows").get(0).get("id").asLong();
+        JsonNode v = call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(id),
+                "assigns", List.of(Map.of("row_id", id, "ba_id", "an")),
+                "targets", List.of(Map.of("phase", "ITA", "subphase", "Execute", "new_name", "ITA Execute", "new_assignee_id", "an"))))).json();
+        assertThat(v.get("rows").get(0).get("ba_id").asText()).isEqualTo("an");
+        assertThat(v.get("problems").toString()).contains("Save a master schedule first");
+        assertThat(call(get("/api/v1/planning/PAY-1100/detail")).json().get("targets").get(0).get("new_name").asText()).isEqualTo("ITA Execute");
+        problem(call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(), "assigns", List.of(), "targets", List.of()))
+                .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+    }
+
+    @Test
     void createFunction() throws Exception {
         Res r = call(json(post("/api/v1/anken/PAY-1100/functions"), Map.of("parent_key", "PAY-1102", "name", "Installment",
                 "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)));

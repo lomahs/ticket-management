@@ -33,6 +33,9 @@ import tracker.adapters.web.auth.Open;
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Requires;
 import tracker.application.AppError.Invalid;
+import tracker.application.service.DetailPlanService;
+import tracker.application.service.DetailPlanService.DetailPlanView;
+import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.MasterScheduleService;
@@ -52,11 +55,13 @@ import tracker.domain.Viewer;
 public class DetailPlanningApi {
     private final EstimationService estimation;
     private final MasterScheduleService schedule;
+    private final DetailPlanService detail;
     private final ScopeService scopes;
 
-    public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, ScopeService scopes) {
+    public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, DetailPlanService detail, ScopeService scopes) {
         this.estimation = estimation;
         this.schedule = schedule;
+        this.detail = detail;
         this.scopes = scopes;
     }
 
@@ -141,5 +146,18 @@ public class DetailPlanningApi {
     @PostMapping("/{epic}/master-schedule")
     public MasterScheduleView saveMasterSchedule(@PathVariable("epic") String epic, @RequestBody @Valid ScheduleIn body, Viewer viewer) {
         return schedule.save(viewer, epicScope(viewer, epic), epic, body.phases().stream().map(PhaseIn::row).toList(), body.reason());
+    }
+
+    @Requires(feature = Feature.PLANNING, level = Level.READ)
+    @GetMapping("/{epic}/detail")
+    public DetailPlanView detailPlan(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.view(epicScope(viewer, epic), epic);
+    }
+
+    /** Saves the draft (row order, people, the Task of each subphase) and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PutMapping("/{epic}/detail")
+    public DetailPlanView saveDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid DraftIn body, Viewer viewer) {
+        return detail.saveDraft(epicScope(viewer, epic), epic, body);
     }
 }

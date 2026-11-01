@@ -18,6 +18,11 @@ import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
 import tracker.application.service.AllocationService;
+import tracker.application.service.DetailPlanService;
+import tracker.application.service.DetailPlanService.DetailPlanView;
+import tracker.application.service.DetailPlanService.DraftIn;
+import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.StepPlan;
 import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.MasterScheduleView;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
@@ -29,6 +34,7 @@ import tracker.domain.MasterSchedule;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.ScheduleVersion.PhaseRow;
+import tracker.domain.TaskTarget;
 import tracker.domain.Viewer;
 
 /** Estimation → master schedule → detail plan → re-plan, on fresh demo data. */
@@ -48,6 +54,8 @@ class DetailPlanningTest {
     AllocationService allocations;
     @Autowired
     TrackerContextLoader loader;
+    @Autowired
+    DetailPlanService detail;
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
@@ -129,5 +137,76 @@ class DetailPlanningTest {
         assertThatThrownBy(() -> schedule.preview(ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("zz")))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("phases.0.member_ids");
         assertThat(schedule.view(ALL, EPIC).current()).isNull();
+    }
+
+    /** Estimation, a master schedule (ITA from Monday 12, ITB from Monday 19) and a full draft. */
+    List<EstimationRow> planned() {
+        assertThat(loader.load(ALL).ankenMembers.get(EPIC)).contains("an", "binh", "minh", "tanaka");
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("an"))), "Kick-off");
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
+                new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
+                new RowAssign(rows.get(2).id(), "binh", "minh", null)), List.of(
+                new TaskTarget("ITA", "Create test case", "PAY-1102", null, null), new TaskTarget("ITA", "Execute", null, "ITA Execute", "an"),
+                new TaskTarget("ITB", "Create test case", null, "ITB Create test case", "an"))));
+        return rows;
+    }
+
+    static StepPlan first(DetailPlanView v, long rowId) {
+        return v.plan().stream().filter(r -> r.rowId() == rowId).findFirst().orElseThrow().steps().get(0);
+    }
+
+    @Test
+    void detailPlanSchedulesFromThePhaseStartInRowOrder() {
+        List<EstimationRow> rows = planned();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.problems()).isEmpty();
+        assertThat(v.plan()).hasSize(3);
+        List<StepPlan> login = v.plan().get(0).steps();
+        assertThat(login).extracting(StepPlan::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
+        assertThat(login).extracting(StepPlan::memberId).containsExactly("an", "minh", "an", "tanaka", "an");
+        assertThat(login).extracting(StepPlan::hours).containsExactly(8.0, 2.0, 2.5, 2.0, 1.5);
+        assertThat(login.get(0).start()).isGreaterThanOrEqualTo("2026-10-12");
+        for (int i = 1; i < login.size(); i++) {
+            assertThat(login.get(i).start()).isGreaterThan(login.get(i - 1).end());
+        }
+        assertThat(first(v, rows.get(1).id()).start()).isGreaterThanOrEqualTo(login.get(0).start()); // Run comes after Login for an
+        assertThat(first(v, rows.get(2).id()).start()).isGreaterThanOrEqualTo("2026-10-19");
+        assertThat(v.tasks()).extracting(t -> t.key()).contains("PAY-1102");
+    }
+
+    @Test
+    void reorderingRowsChangesTheirDates() {
+        List<EstimationRow> rows = planned();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        DetailPlanView swapped = detail.saveDraft(ALL, EPIC, new DraftIn(List.of(rows.get(1).id(), rows.get(0).id(), rows.get(2).id()),
+                List.of(), v.targets()));
+        assertThat(swapped.rows().get(0).id()).isEqualTo(rows.get(1).id());
+        assertThat(swapped.rows().get(0).baId()).isEqualTo("an"); // assignments are kept
+        assertThat(first(swapped, rows.get(1).id()).start()).isLessThanOrEqualTo(first(swapped, rows.get(0).id()).start());
+    }
+
+    @Test
+    void detailPlanListsProblemsInsteadOfAPlan() {
+        estimate();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.problems()).contains("Save a master schedule first");
+        assertThat(v.plan()).isEmpty();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an"))), "Kick-off");
+        List<String> p = detail.view(ALL, EPIC).problems();
+        assertThat(p).contains("ITB is not in the master schedule", "Row 1 (Login): pick a BA", "Row 2 (Run): pick a member",
+                "ITA / Create test case: choose a Task");
+    }
+
+    @Test
+    void planEndLaterThanMasterEndIsReported() {
+        planned();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        var ita = v.checks().stream().filter(c -> c.phase().equals("ITA")).findFirst().orElseThrow();
+        assertThat(ita.planEnd()).isNotNull();
+        assertThat(ita.daysLate()).isEqualTo(tracker.domain.Dates.dayDiff(ita.masterEnd(), ita.planEnd()));
+        assertThat(ita.daysLate()).isPositive(); // one BA for ITA, the master schedule counted two
     }
 }
