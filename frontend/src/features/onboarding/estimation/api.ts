@@ -4,6 +4,7 @@ import type { Schemas } from '../../../shared/api/types';
 
 export type EstimationRow = Schemas['EstimationRow'];
 export type ImportRow = Schemas['EstimationImportRow'];
+export type TaskOption = Schemas['TaskOption'];
 
 export const estimationQuery = (epic: string) => ({
   queryKey: ['planning', 'estimation', epic] as const,

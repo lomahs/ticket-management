@@ -33,6 +33,7 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
   const save = useSaveNameRules(anken);
   const [rule, setRule] = useState(v.rule);
   const [aliases, setAliases] = useState<Record<string, string>>(v.aliases);
+  const [taskRule, setTaskRule] = useState(v.task_rule);
   const [sample, setSample] = useState('[Implement_Coding][F03] Domestic card payment – Fix comment BAL');
   const body = useDebounced({ rule, aliases, sample }, 250);
   const p = useQuery(namePreviewQuery(anken, body)).data;
@@ -85,8 +86,15 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
           </div>
         ))}
       </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+        <div>
+          <div className="title">Task name rule</div>
+          <div className="eyebrow">How Onboarding names the template Tasks it creates: {'{anken_prefix}'}, {'{phase}'} and {'{task}'} (the template's name without its leading [...] and *). A name its template would not recognise falls back to the template with * as the prefix.</div>
+        </div>
+        <TextField mono label="Task pattern" placeholder="[{anken_prefix}][LocalTask] {task}" value={taskRule} onChange={setTaskRule} />
+      </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button disabled={save.isPending || !!p?.error} onClick={() => save.mutate({ rule, aliases }, {
+        <Button disabled={save.isPending || !!p?.error} onClick={() => save.mutate({ rule, aliases, task_rule: taskRule }, {
           onSuccess: () => toast('Name rules saved · synced'), onError: (e) => toast(errorMessage(e), true),
         })}>Save</Button>
       </div>

@@ -161,9 +161,12 @@ const ticketCheck = createRoute({
 
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
-const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
 const planningReplan = createRoute({ getParentRoute: () => app, path: 'planning/replan', ...needs('planning'), validateSearch: replanSearch, component: lazyRouteComponent(() => import('../features/planning'), 'ReplanPage') });
-const planningEstimation = createRoute({ getParentRoute: () => app, path: 'planning/estimation', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'EstimationPage') });
+
+const onboardingPages = () => import('../features/onboarding');
+const onboarding = createRoute({ getParentRoute: () => app, path: 'onboarding', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingPage') });
+const onboardingNew = createRoute({ getParentRoute: () => app, path: 'onboarding/new', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'NewOnboardingPage') });
+const onboardingStep = createRoute({ getParentRoute: () => app, path: 'onboarding/$epic/$step', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingStepPage') });
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
 const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needs('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
@@ -217,7 +220,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningEstimation, planningSchedule, planningDetail, planningReplan, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningSchedule, planningReplan, onboarding, onboardingNew, onboardingStep, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

@@ -1,6 +1,6 @@
 # Team Tracker
 
-Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning (Gantt + capacity), Effort
+Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning (Gantt + capacity), Onboarding, Effort
 (timesheet + analysis), Team Calendar (leave, holidays), and Settings. It implements the claude.ai/design project
 "Team Tracker" (`Team Tracker.dc.html`) on the Atlassian design-system tokens.
 
@@ -58,6 +58,8 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
    `[{prefix}][{function_name}]_{step}` with the step aliases `Create`, `BALReview`, `FixCommentBAL`, `JMReview`,
    `FixCommentJM` (default `[{phase_name}][{function_id}] {function_name} – {step}`). Without `{function_id}` the
    function name identifies the function; the first alias of each step is used when the tracker creates sub-tasks.
+   The Task name rule names the template Tasks that Onboarding creates, from `{anken_prefix}`, `{phase}` and `{task}`
+   (default `[{anken_prefix}][LocalTask] {task}`).
    The preview shows how many synced sub-tasks match.
 
    Steps 4 and 5 are set per anken: pick the anken in the **Settings for** picker at the top of each page. The picker only
@@ -148,15 +150,23 @@ in Planning is the sum of the allocation per week; a member with none shows *no 
 work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1100 and 3h PAY-1300, the others 8h on the anken
 with most of their open sub-tasks).
 
-**Building a plan** (Planning → Estimation, Master schedule, Detail plan, Re-plan; admins write, Planning readers look). The
-estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per ticket without steps (its effort); a
+**Onboarding a new anken** (Onboarding, admins only) takes an anken from its epic to its detail plan in six steps, each
+saved so the PIM can stop and resume: 1 look the epic up in Jira and track it; 2 create the missing template Tasks, named
+by the Task name rule with the anken prefix; 3 the estimation, each row under a Task of the epic; 4 the members and their
+hours a day on the anken (allocations from today); 5 the master schedule from one Start date, each phase starting the
+working day after the previous one ends, with a Gantt by phase; 6 the detail plan, pushed to Jira, then Finish. The
+overview lists the ankens in progress at the furthest step reached; Discard drops the progress and the rows not in Jira,
+and the epic stays tracked.
+
+**Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Re-plan once the anken runs; admins
+write, Planning readers look). The estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per ticket without steps (its effort); a
 function's effort is Create × the step weights (Settings → Step weights, per anken or the default) without JM Review. The
 master schedule gives each phase its members and Start; its End is the day the members' allocations use up the phase's
-effort, and every save is a version, the first being the baseline. The detail plan picks the BA, BAL and JM of each
-function (one member for a ticket), the Task of each subphase (an existing one or a new one), and fills each member's day
+effort, and every save is a version, the first being the baseline; in Planning each phase has its own Start, so phases may
+overlap after a re-plan. The detail plan picks the BA, BAL and JM of each function (one member for a ticket), and fills each member's day
 up to their allocation from the phase's Start, steps one after the other; JM Review lasts its hours over the working hours
 of a day. A member over their budget in a phase (allocation × the phase's days in the master schedule) blocks the push,
-which creates the new Tasks, then the sub-tasks, through the reviewed batch. Re-plan recomputes a phase from Jira (every
+which creates the sub-tasks under each row's Task through the reviewed batch. Re-plan recomputes a phase from Jira (every
 sub-task but the Closed ones; a started one keeps its Planned Start and places its remaining estimate) and writes the moves
 through the same batch, on the real site too.
 
@@ -229,7 +239,8 @@ Import boundaries are checked by `src/architecture.test.ts`.
 | `/anken/$epic/matrix?task=&q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix (one Task at a time), Add function |
 | `/tickets`, `/tickets/$epic` | Tickets: an anken's Tasks and sub-tasks; admins edit and create them in one reviewed commit to Jira, anyone can open a selection in Jira or export it |
 | `/planning?start=&weeks=&hide=` | Planning: the Gantt by member and capacity |
-| `/planning/estimation`, `/planning/schedule`, `/planning/detail`, `/planning/replan?phase=` | Building an anken's plan: estimation (typed or imported), master schedule (versions, the first is the baseline), detail plan (pushed to Jira), re-plan |
+| `/planning/schedule`, `/planning/replan?phase=` | Updating a running anken's plan: master schedule (versions, the first is the baseline), re-plan |
+| `/onboarding`, `/onboarding/new`, `/onboarding/$epic/$step` | Onboarding a new anken (admins): the overview, then the steps `epic`, `tasks`, `estimation`, `members`, `schedule`, `detail` |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
 | `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, step-weights, members, holidays, hours, extra-days, alerts, jira-log) |

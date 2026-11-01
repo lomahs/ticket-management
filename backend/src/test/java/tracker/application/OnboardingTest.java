@@ -53,6 +53,20 @@ class OnboardingTest {
     MasterScheduleRepository versions;
     @Autowired
     MasterScheduleService schedule;
+    @Autowired
+    tracker.application.service.JiraSettingsService jiraSettings;
+
+    @Test
+    void taskNameRuleIsSavedWithTheNameRulesAndChecked() {
+        var nr = jiraSettings.nameRules(null);
+        assertThat(nr.taskRule()).isEqualTo(tracker.domain.TaskNames.DEFAULT_RULE);
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{anken_prefix}] {task} {who}"))
+                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("task_rule");
+        jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{phase}][{anken_prefix}] {task}");
+        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo("[{phase}][{anken_prefix}] {task}");
+        jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), null); // null keeps it
+        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo("[{phase}][{anken_prefix}] {task}");
+    }
 
     @Test
     void lookupFindsAnEpicInJira() {

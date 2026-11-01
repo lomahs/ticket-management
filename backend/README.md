@@ -104,6 +104,8 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
   figures are in `ServiceReadsTest` (the demo seeds allocations once, so tests that change one restore it);
 - building a plan: `StepWeightsTest`, `MasterScheduleTest`, `DetailSchedulerTest` (domain), `DetailPlanningTest` (estimation,
   master schedule versions, detail plan, push to the simulated site with a refusal half-way, re-plan), `EstimationFilesTest`;
+- onboarding: `TaskNamesTest` (domain), `OnboardingTest` (lookup and tracking, template Tasks, members, progress, discard,
+  finish, phases that follow each other, the Task name rule);
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:

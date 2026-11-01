@@ -1,52 +1,41 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
-import { useCan, useMemberMap, useMembers } from '../../../shared/api/queries';
+import { useCan } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, IconButton } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
-import { PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { PlanningTabs, WithAnken } from '../components/PlanningTabs';
 import { detailPlanQuery, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
 
-/** Step 3 of planning: who does each row, where its sub-tasks go, the dates that follow, then the push to Jira. */
-export function DetailPlanPage() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
-      <PageHead eyebrow="Planning · step 3" title="Detail plan" />
-      <PlanningTabs at="/planning/detail" />
-      <WithAnken>{(epic) => <Detail key={epic} epic={epic} />}</WithAnken>
-    </div>
-  );
-}
+/** A person who can be given a row: a member of the anken. */
+export interface Person { id: string; name: string }
 
-function Detail({ epic }: { epic: string }) {
+/** Who does each row and the dates that follow, checked against the master schedule; then the push to Jira. */
+export function DetailPlan({ epic, people }: { epic: string; people: Person[] }) {
   const q = useQuery(detailPlanQuery(epic));
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
-  return <Plan epic={epic} v={q.data} />;
+  return <Plan epic={epic} v={q.data} people={people} />;
 }
 
 const SEL: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 12px/1 var(--font-text)', maxWidth: '100%' };
 const COLS = '56px minmax(160px,2fr) minmax(220px,3fr) 120px 70px';
 const days = (n: number) => `${n} day${Math.abs(n) === 1 ? '' : 's'}`;
 type Row = Schemas['EstimationRow'];
-type Target = Schemas['TaskTarget'];
 
-function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
+function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Person[] }) {
   const admin = useCan('planning', 'write');
   const toast = useToast();
-  const members = useMembers().data ?? [];
-  const names = useMemberMap();
-  const name = (id: string) => names[id]?.name ?? id;
+  const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+  const task = (key?: string | null) => v.tasks.find((t) => t.key === key);
   const save = useSaveDraft(epic);
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
   const open = v.rows.filter((r) => !r.pushed_at);
   const draft = (p: Partial<DraftIn>) => save.mutate({
-    order: open.map((r) => r.id), targets: v.targets,
+    order: open.map((r) => r.id),
     assigns: open.map((r) => ({ row_id: r.id, ba_id: r.ba_id ?? null, bal_id: r.bal_id ?? null, jm_id: r.jm_id ?? null })), ...p,
   }, { onError: (e) => toast(errorMessage(e), true) });
   const assign = (r: Row, p: Partial<Row>) => draft({
@@ -57,17 +46,11 @@ function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
     [ids[i], ids[i + d]] = [ids[i + d], ids[i]];
     draft({ order: ids });
   };
-  const subphases = [...new Map(open.map((r) => [`${r.phase}/${r.subphase}`, { phase: r.phase, subphase: r.subphase }])).values()];
-  const targetOf = (s: { phase: string; subphase: string }) => v.targets.find((t) => t.phase === s.phase && t.subphase === s.subphase);
-  const setTarget = (s: { phase: string; subphase: string }, t: Partial<Target>) => {
-    const cur = targetOf(s) ?? { phase: s.phase, subphase: s.subphase, existing_key: null, new_name: null, new_assignee_id: null };
-    draft({ targets: [...v.targets.filter((x) => x !== targetOf(s)), { ...cur, ...t }] });
-  };
   const blocked = v.problems.length > 0 || v.over_budget.length > 0 || v.over_day.length > 0 || v.plan.length === 0;
   const pick = (label: string, value: string | null | undefined, on: (id: string | null) => void) => (
     <select aria-label={label} disabled={!admin} value={value ?? ''} onChange={(e) => on(e.target.value || null)} style={SEL}>
       <option value="">–</option>
-      {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+      {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
     </select>
   );
   return (
@@ -110,6 +93,7 @@ function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
                   <div style={{ minWidth: 0 }}>
                     <div className="heading ellipsis" style={{ fontWeight: 600 }}>{r.function_name}</div>
                     <div className="eyebrow ellipsis">{`${r.phase} / ${r.subphase} · ${r.steps ? `${r.steps} steps · Create ${hrs(r.effort_h)}` : hrs(r.effort_h)}`}</div>
+                    <div className="eyebrow ellipsis" title={task(r.task_key)?.summary}>{r.task_key ? `${r.task_key} · ${task(r.task_key)?.summary ?? ''}` : 'No Task'}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {r.steps == null ? pick(`Member, ${r.function_name}`, r.ba_id, (id) => assign(r, { ba_id: id })) : (
@@ -129,35 +113,6 @@ function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
         </div>
       </section>
 
-      {subphases.length > 0 && (
-        <section className="card card-clip" aria-label="Tasks in Jira">
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}><span className="title">Task of each subphase</span></div>
-          {subphases.map((s) => {
-            const t = targetOf(s);
-            const label = `${s.phase} / ${s.subphase}`;
-            return (
-              <div key={label} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
-                <b className="heading" style={{ minWidth: 200 }}>{label}</b>
-                <select aria-label={`Task, ${label}`} disabled={!admin} value={t?.existing_key ?? (t?.new_name != null ? 'new' : '')} style={SEL}
-                  onChange={(e) => setTarget(s, e.target.value === 'new' ? { existing_key: null, new_name: t?.new_name ?? `${s.phase} ${s.subphase}`, new_assignee_id: t?.new_assignee_id ?? null }
-                    : { existing_key: e.target.value || null, new_name: null, new_assignee_id: null })}>
-                  <option value="">Choose…</option>
-                  <option value="new">New Task</option>
-                  {v.tasks.map((x) => <option key={x.key} value={x.key}>{`${x.key} ${x.summary}`}</option>)}
-                </select>
-                {t?.new_name != null && !t.existing_key && (
-                  <>
-                    <input aria-label={`New Task name, ${label}`} disabled={!admin} defaultValue={t.new_name} style={{ ...SEL, minWidth: 220 }}
-                      onBlur={(e) => e.target.value !== t.new_name && setTarget(s, { new_name: e.target.value })} />
-                    {pick(`New Task assignee, ${label}`, t.new_assignee_id, (id) => setTarget(s, { new_assignee_id: id }))}
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      )}
-
       {admin && (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button disabled={blocked || preview.isPending} onClick={() => preview.mutate(undefined, { onError: (e) => toast(errorMessage(e), true) })}>Review push</Button>
@@ -166,11 +121,11 @@ function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
       {preview.data && (
         <section className="card card-clip" aria-label="Push review">
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="title">{`${preview.data.creates.length} tickets to create`}</span>
+            <span className="title">{`${preview.data.creates.length} sub-tasks to create`}</span>
             <span className="spacer" />
             <Button appearance="subtle" size="sm" onClick={() => preview.reset()}>Cancel</Button>
             <Button size="sm" iconBefore="upload" disabled={push.isPending} onClick={() => push.mutate(undefined, {
-              onSuccess: (r) => { toast(`Created ${Object.keys(r.created).length} tickets in Jira`); preview.reset(); },
+              onSuccess: (r) => { toast(`Created ${Object.keys(r.created).length} sub-tasks in Jira`); preview.reset(); },
               onError: (e) => toast(errorMessage(e), true),
             })}>Push to Jira</Button>
           </div>

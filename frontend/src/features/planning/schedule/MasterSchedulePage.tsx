@@ -82,7 +82,7 @@ function Editor({ epic, v }: { epic: string; v: Schemas['MasterScheduleView'] })
                       </label>
                     ))}
                   </div>
-                  <input type="date" aria-label={`Start, ${r.phase}`} disabled={!admin} value={r.start} onChange={(e) => edit(i, { start: e.target.value })} style={DATE} />
+                  <input type="date" aria-label={`Start, ${r.phase}`} disabled={!admin} value={r.start ?? ''} onChange={(e) => edit(i, { start: e.target.value })} style={DATE} />
                   <span>{c ? c.plan_md : '–'}</span>
                   <span>{c ? dm(c.end) : '–'}</span>
                 </div>

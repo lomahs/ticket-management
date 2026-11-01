@@ -2,13 +2,10 @@ import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useAnkenScope } from '../../../shared/state/anken';
 
-const TABS = [
-  ['/planning', 'Gantt'], ['/planning/estimation', 'Estimation'], ['/planning/schedule', 'Master schedule'],
-  ['/planning/detail', 'Detail plan'], ['/planning/replan', 'Re-plan'],
-] as const;
+const TABS = [['/planning', 'Gantt'], ['/planning/schedule', 'Master schedule'], ['/planning/replan', 'Re-plan']] as const;
 export type PlanningPath = (typeof TABS)[number][0];
 
-/** The tabs of Planning: the Gantt and the steps that build an anken's plan. */
+/** The tabs of Planning: the Gantt, and updating a running anken's plan (an anken's first plan is built in Onboarding). */
 export function PlanningTabs({ at }: { at: PlanningPath }) {
   return (
     <div role="tablist" aria-label="Planning" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
