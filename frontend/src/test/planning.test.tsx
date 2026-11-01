@@ -210,5 +210,16 @@ describe('detail planning', () => {
     fireEvent.change(await screen.findByLabelText('Member, PAY-1502'), { target: { value: 'binh' } });
     await waitFor(() => expect(bodies).toContainEqual({ phase: 'ITA', assignees: { 'PAY-1502': 'binh' } }));
   });
+
+  it('names a new Task after its phase and subphase by default', async () => {
+    let saved: { targets: Record<string, unknown>[] } | null = null;
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ targets: [] }))),
+      http.put('*/api/v1/planning/PAY-1100/detail', async ({ request }) => { saved = await request.json() as typeof saved; return HttpResponse.json(detailView()); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.change(await screen.findByLabelText('Task, ITA / Execute'), { target: { value: 'new' } });
+    await waitFor(() => expect(saved?.targets).toContainEqual({ phase: 'ITA', subphase: 'Execute', existing_key: null, new_name: 'ITA Execute', new_assignee_id: null }));
+  });
 });
 

@@ -139,7 +139,7 @@ function Plan({ epic, v }: { epic: string; v: DetailPlanView }) {
               <div key={label} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
                 <b className="heading" style={{ minWidth: 200 }}>{label}</b>
                 <select aria-label={`Task, ${label}`} disabled={!admin} value={t?.existing_key ?? (t?.new_name != null ? 'new' : '')} style={SEL}
-                  onChange={(e) => setTarget(s, e.target.value === 'new' ? { existing_key: null, new_name: t?.new_name ?? s.subphase, new_assignee_id: t?.new_assignee_id ?? null }
+                  onChange={(e) => setTarget(s, e.target.value === 'new' ? { existing_key: null, new_name: t?.new_name ?? `${s.phase} ${s.subphase}`, new_assignee_id: t?.new_assignee_id ?? null }
                     : { existing_key: e.target.value || null, new_name: null, new_assignee_id: null })}>
                   <option value="">Choose…</option>
                   <option value="new">New Task</option>
