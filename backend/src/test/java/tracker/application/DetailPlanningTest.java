@@ -19,12 +19,20 @@ import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.Invalid;
 import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.EstimationRepository;
+import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraRejected;
 import tracker.application.ports.JiraWriteLog;
 import tracker.application.ports.JiraWriter;
 import tracker.application.ports.MasterScheduleRepository;
+import tracker.application.service.ReplanService;
+import tracker.application.service.ReplanService.ReplanIn;
+import tracker.application.service.ReplanService.ReplanItem;
+import tracker.application.service.ReplanService.ReplanView;
 import tracker.application.service.TicketService;
+import tracker.application.service.TicketService.BatchPreview;
+import tracker.application.service.TicketService.ExpectedChange;
+import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.BatchResult;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
@@ -47,6 +55,7 @@ import tracker.domain.EstimationRow;
 import tracker.domain.MasterSchedule;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
+import tracker.domain.Status;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.TaskTarget;
 import tracker.domain.Viewer;
@@ -72,6 +81,10 @@ class DetailPlanningTest {
     DetailPlanService detail;
     @Autowired
     AllocationRepository allocationRows;
+    @Autowired
+    ReplanService replan;
+    @Autowired
+    IssueRepository issues;
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
@@ -300,5 +313,95 @@ class DetailPlanningTest {
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
         assertThat(pushed).containsEntry(rows.get(0).id(), true).containsEntry(rows.get(1).id(), true).containsEntry(rows.get(2).id(), false);
         assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(3); // only Pay's steps are left
+    }
+
+    /** The pushed plan of {@link #pushable()}: row ref → Jira key. */
+    Map<String, String> pushedPlan() {
+        pushable();
+        return detail.push(ADMIN, ALL, EPIC).created();
+    }
+
+    void setStatus(String key, Status status, @org.jspecify.annotations.Nullable String plannedStart, double remaining) {
+        Issue i = issues.findByKey(key).orElseThrow();
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), status, i.assigneeId(),
+                plannedStart, i.plannedEnd(), i.estimateH(), remaining, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                i.worklogs(), i.events(), i.reporterId(), i.labels()));
+    }
+
+    static ReplanItem item(ReplanView v, String key) {
+        return v.items().stream().filter(x -> x.key().equals(key)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void replanSkipsClosedAndMovesTheRest() {
+        Map<String, String> keys = pushedPlan();
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        String create = keys.get(rows.get(0).id() + ":create");
+        setStatus(create, Status.CLOSED, "2026-10-12", 0);
+        ReplanView v = replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of()));
+        assertThat(v.problems()).isEmpty();
+        assertThat(v.items()).extracting(ReplanItem::key).doesNotContain(create).hasSize(5);
+        assertThat(v.items()).allMatch(x -> x.toStart().compareTo("2026-10-12") >= 0);
+        assertThat(v.check()).isNotNull();
+    }
+
+    @Test
+    void startedSubTaskKeepsItsPlannedStartAndUsesRemaining() {
+        pushedPlan();
+        String run = runKey();
+        setStatus(run, Status.WIP, "2026-10-12", 6);
+        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run);
+        assertThat(i.started()).isTrue();
+        assertThat(i.hours()).isEqualTo(6.0);
+        assertThat(i.toStart()).isEqualTo("2026-10-12");
+    }
+
+    @Test
+    void resolvedWithNoRemainingEndsOnItsFirstFreeDay() {
+        pushedPlan();
+        String run = runKey();
+        setStatus(run, Status.RESOLVED, "2026-10-12", 0);
+        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run);
+        assertThat(i.hours()).isZero();
+        assertThat(i.toEnd()).isGreaterThanOrEqualTo(i.toStart());
+    }
+
+    @Test
+    void startedWithoutPlannedStartStartsToday() {
+        pushedPlan();
+        String run = runKey();
+        setStatus(run, Status.WIP, null, 4);
+        assertThat(item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run).toStart()).isEqualTo(loader.load(ALL).today);
+    }
+
+    @Test
+    void reassigningMovesHoursToTheNewMember() {
+        pushedPlan();
+        String run = runKey();
+        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of(run, "binh"))), run);
+        assertThat(i.fromMember()).isEqualTo("an");
+        assertThat(i.toMember()).isEqualTo("binh");
+    }
+
+    @Test
+    void replanApplyRefusesStaleTargets() {
+        pushedPlan();
+        String run = runKey();
+        ReplanIn in = new ReplanIn("ITA", Map.of(run, "binh"));
+        BatchPreview p = replan.preview(ALL, EPIC, in);
+        List<ExpectedUpdate> updates = p.updates().stream().map(u -> new ExpectedUpdate(u.key(),
+                u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList())).toList();
+        assertThat(updates).extracting(ExpectedUpdate::key).contains(run);
+        List<ExpectedUpdate> stale = updates.stream().map(u -> !u.key().equals(run) ? u : new ExpectedUpdate(u.key(),
+                u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.field() == tracker.domain.TicketField.ASSIGNEE ? "an" : c.after()))
+                        .toList())).toList();
+        assertThatThrownBy(() -> replan.apply(ADMIN, ALL, EPIC, in, stale)).isInstanceOf(Invalid.class).hasMessageContaining("review again");
+        replan.apply(ADMIN, ALL, EPIC, in, updates);
+        assertThat(loader.load(ALL).issue(run).orElseThrow().assigneeId()).isEqualTo("binh");
+    }
+
+    String runKey() {
+        TrackerContext ctx = loader.load(ALL);
+        return ctx.subtasks().stream().filter(i -> i.summary().equals("[ITA] Run")).findFirst().orElseThrow().key();
     }
 }

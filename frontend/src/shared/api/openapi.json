@@ -1946,6 +1946,114 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/replan" : {
+      "post" : {
+        "operationId" : "replan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplanBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReplanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/replan/apply" : {
+      "post" : {
+        "operationId" : "applyReplan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplanApplyIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/replan/preview" : {
+      "post" : {
+        "operationId" : "previewReplan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplanBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/qa" : {
       "post" : {
         "operationId" : "ask",
@@ -6381,6 +6489,123 @@
           }
         },
         "required" : [ "q" ]
+      },
+      "ReplanApplyIn" : {
+        "type" : "object",
+        "properties" : {
+          "assignees" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "phase" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "updates" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ExpectedUpdateIn"
+            },
+            "maxItems" : 300,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "assignees", "phase", "updates" ]
+      },
+      "ReplanBody" : {
+        "type" : "object",
+        "properties" : {
+          "assignees" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          },
+          "phase" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "assignees", "phase" ]
+      },
+      "ReplanItem" : {
+        "type" : "object",
+        "properties" : {
+          "from_end" : {
+            "type" : [ "string", "null" ]
+          },
+          "from_member" : {
+            "type" : [ "string", "null" ]
+          },
+          "from_start" : {
+            "type" : [ "string", "null" ]
+          },
+          "hours" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "started" : {
+            "type" : "boolean"
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "to_end" : {
+            "type" : "string"
+          },
+          "to_member" : {
+            "type" : "string"
+          },
+          "to_start" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "from_end", "from_member", "from_start", "hours", "key", "started", "step", "summary", "to_end", "to_member", "to_start" ]
+      },
+      "ReplanView" : {
+        "type" : "object",
+        "properties" : {
+          "check" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PhaseCheck"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReplanItem"
+            }
+          },
+          "over_budget" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Overrun"
+            }
+          },
+          "over_day" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayOverrun"
+            }
+          },
+          "problems" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        },
+        "required" : [ "check", "items", "over_budget", "over_day", "problems" ]
       },
       "Rework" : {
         "type" : "object",

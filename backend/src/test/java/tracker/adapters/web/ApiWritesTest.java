@@ -122,6 +122,15 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void replanNeedsAMasterScheduleAndAnAdmin() throws Exception {
+        JsonNode v = call(json(post("/api/v1/planning/PAY-1100/replan"), Map.of("phase", "ITA", "assignees", Map.of()))).json();
+        assertThat(v.get("problems").get(0).asText()).isEqualTo("Save a master schedule first");
+        problem(call(json(post("/api/v1/planning/PAY-1100/replan/preview"), Map.of("phase", "ITA", "assignees", Map.of()))), 422, "invalid");
+        problem(call(json(post("/api/v1/planning/PAY-1100/replan/apply"), Map.of("phase", "ITA", "assignees", Map.of(), "updates", List.of()))
+                .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+    }
+
+    @Test
     void createFunction() throws Exception {
         Res r = call(json(post("/api/v1/anken/PAY-1100/functions"), Map.of("parent_key", "PAY-1102", "name", "Installment",
                 "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)));

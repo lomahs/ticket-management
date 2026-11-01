@@ -884,6 +884,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/replan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["replan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/replan/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyReplan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/replan/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewReplan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/qa": {
         parameters: {
             query?: never;
@@ -2409,6 +2457,40 @@ export interface components {
         };
         QuestionIn: {
             q: string;
+        };
+        ReplanApplyIn: {
+            assignees: {
+                [key: string]: string;
+            };
+            phase: string;
+            updates: components["schemas"]["ExpectedUpdateIn"][];
+        };
+        ReplanBody: {
+            assignees: {
+                [key: string]: string;
+            };
+            phase: string;
+        };
+        ReplanItem: {
+            from_end: string | null;
+            from_member: string | null;
+            from_start: string | null;
+            /** Format: double */
+            hours: number;
+            key: string;
+            started: boolean;
+            step: string | null;
+            summary: string;
+            to_end: string;
+            to_member: string;
+            to_start: string;
+        };
+        ReplanView: {
+            check: components["schemas"]["PhaseCheck"] | null;
+            items: components["schemas"]["ReplanItem"][];
+            over_budget: components["schemas"]["Overrun"][];
+            over_day: components["schemas"]["DayOverrun"][];
+            problems: string[];
         };
         Rework: {
             /** Format: double */
@@ -4282,6 +4364,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PhaseRow"][];
+                };
+            };
+        };
+    };
+    replan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplanBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplanView"];
+                };
+            };
+        };
+    };
+    applyReplan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplanApplyIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+        };
+    };
+    previewReplan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplanBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
                 };
             };
         };
