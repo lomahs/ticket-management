@@ -102,6 +102,8 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
   `ScopeServiceTest` (anken scope per user), `AnkenScopeApiTest` (hidden anken answer 404) and `ApiAnkenMembersTest`;
 - allocation: `AllocationsTest` (domain), `AllocationServiceTest`, `ApiAllocationTest`; the Timesheet and Planning capacity
   figures are in `ServiceReadsTest` (the demo seeds allocations once, so tests that change one restore it);
+- building a plan: `StepWeightsTest`, `MasterScheduleTest`, `DetailSchedulerTest` (domain), `DetailPlanningTest` (estimation,
+  master schedule versions, detail plan, push to the simulated site with a refusal half-way, re-plan), `EstimationFilesTest`;
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:

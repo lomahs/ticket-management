@@ -148,6 +148,18 @@ in Planning is the sum of the allocation per week; a member with none shows *no 
 work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1100 and 3h PAY-1300, the others 8h on the anken
 with most of their open sub-tasks).
 
+**Building a plan** (Planning → Estimation, Master schedule, Detail plan, Re-plan; admins write, Planning readers look). The
+estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per ticket without steps (its effort); a
+function's effort is Create × the step weights (Settings → Step weights, per anken or the default) without JM Review. The
+master schedule gives each phase its members and Start; its End is the day the members' allocations use up the phase's
+effort, and every save is a version, the first being the baseline. The detail plan picks the BA, BAL and JM of each
+function (one member for a ticket), the Task of each subphase (an existing one or a new one), and fills each member's day
+up to their allocation from the phase's Start, steps one after the other; JM Review lasts its hours over the working hours
+of a day. A member over their budget in a phase (allocation × the phase's days in the master schedule) blocks the push,
+which creates the new Tasks, then the sub-tasks, through the reviewed batch. Re-plan recomputes a phase from Jira (every
+sub-task but the Closed ones; a started one keeps its Planned Start and places its remaining estimate) and writes the moves
+through the same batch, on the real site too.
+
 **Schedule state:** the Anken Overview judges every sub-task on its own planned dates. *Start* is early, late or on time (a
 sub-task not started is *late start* only after its planned start day, and one without a recorded start date but past
 Not Yet Started counts as started on time), or *not due* / *no plan*. *Finish* is early, late or on time once Resolved
@@ -216,10 +228,11 @@ Import boundaries are checked by `src/architecture.test.ts`.
 | `/anken`, `/anken/$epic` | Anken Overview |
 | `/anken/$epic/matrix?task=&q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix (one Task at a time), Add function |
 | `/tickets`, `/tickets/$epic` | Tickets: an anken's Tasks and sub-tasks; admins edit and create them in one reviewed commit to Jira, anyone can open a selection in Jira or export it |
-| `/planning?start=&weeks=&hide=` | Planning |
+| `/planning?start=&weeks=&hide=` | Planning: the Gantt by member and capacity |
+| `/planning/estimation`, `/planning/schedule`, `/planning/detail`, `/planning/replan?phase=` | Building an anken's plan: estimation (typed or imported), master schedule (versions, the first is the baseline), detail plan (pushed to Jira), re-plan |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |
-| `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, members, holidays, hours, extra-days, alerts, jira-log) |
+| `/settings/$tab` (`?for=` an anken key or `default`) | Settings (jira, field-mapping, status-mapping, structure, name-rules, step-weights, members, holidays, hours, extra-days, alerts, jira-log) |
 
 ## Tests
 
