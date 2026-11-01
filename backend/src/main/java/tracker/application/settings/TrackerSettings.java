@@ -9,6 +9,7 @@ import org.jspecify.annotations.Nullable;
 
 import tracker.domain.Naming;
 import tracker.domain.StepKind;
+import tracker.domain.StepWeights;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
@@ -27,6 +28,8 @@ public class TrackerSettings {
     public String dailyCapture = "18:00";
     /** Phases in order and the fixed set of Tasks under every epic. */
     public WorkStructure structure = WorkStructure.empty();
+    /** Effort weight of each step; an anken may have its own ({@link AnkenSettings#stepWeights}). */
+    public StepWeights stepWeights = StepWeights.defaults();
     /** Per tracked epic: its own Phases & Tasks and name rules. {@link #structure} and {@link #nameRules} are the default for new anken. */
     public Map<String, AnkenSettings> anken = new LinkedHashMap<>();
 
@@ -34,6 +37,8 @@ public class TrackerSettings {
     public static class AnkenSettings {
         public WorkStructure structure = WorkStructure.empty();
         public NameRules nameRules = new NameRules();
+        /** Null: the default {@link TrackerSettings#stepWeights}. */
+        public @Nullable StepWeights stepWeights = null;
 
         /** A deep copy: editing the copy never touches the source. */
         public static AnkenSettings copyOf(WorkStructure structure, NameRules nameRules) {
@@ -57,6 +62,12 @@ public class TrackerSettings {
     public NameRules nameRulesOf(@Nullable String epic) {
         AnkenSettings a = epic == null || epic.isBlank() ? null : anken.get(epic);
         return a == null ? nameRules : a.nameRules;
+    }
+
+    /** The step weights of an epic; the default when the epic is null, blank or has none of its own. */
+    public StepWeights stepWeightsOf(@Nullable String epic) {
+        AnkenSettings a = epic == null || epic.isBlank() ? null : anken.get(epic);
+        return a == null || a.stepWeights == null ? stepWeights : a.stepWeights;
     }
 
     public static class JiraConnection {

@@ -19,7 +19,7 @@ class SchedulingTest {
             List.of(new Leave(1, "chi", "2026-10-09", LeaveType.FULL, ""), new Leave(2, "minh", "2026-10-09", LeaveType.FULL, "")));
 
     static List<Scheduling.PlannedStep> plan(String ba, double hours, List<Map<String, String>> overrides) {
-        return Scheduling.suggestFunctionPlan("2026-10-08", hours, List.of(ba, "minh", ba, "tanaka", ba), CAL,
+        return Scheduling.suggestFunctionPlan("2026-10-08", hours, List.of(ba, "minh", ba, "tanaka", ba), StepWeights.defaults(), CAL,
                 overrides != null ? overrides : new ArrayList<>(Collections.nCopies(5, null)));
     }
 
@@ -29,7 +29,7 @@ class SchedulingTest {
 
     @Test
     void threeStepPlanStopsAtFixBal() {
-        List<Scheduling.PlannedStep> p = Scheduling.suggestFunctionPlan("2026-10-08", 8, List.of("an", "minh", "an"), CAL,
+        List<Scheduling.PlannedStep> p = Scheduling.suggestFunctionPlan("2026-10-08", 8, List.of("an", "minh", "an"), StepWeights.defaults(), CAL,
                 new ArrayList<>(Collections.nCopies(3, null)));
         assertThat(p).extracting(Scheduling.PlannedStep::step).containsExactly(StepKind.CREATE, StepKind.BAL_REVIEW, StepKind.FIX_BAL);
         assertThat(p).extracting(Scheduling.PlannedStep::start).isEqualTo(
@@ -73,5 +73,14 @@ class SchedulingTest {
         Scheduling.PlannedStep s = plan("an", 8, first(Map.of("start", "2026-10-13", "end", "2026-10-12"))).get(0);
         assertThat(s.start() + "/" + s.end()).isEqualTo("2026-10-13/2026-10-13");
         assertThat(s.note()).isEqualTo("edited");
+    }
+
+    @Test
+    void customWeightsChangeStepEstimates() {
+        java.util.Map<StepKind, Double> w = new java.util.EnumMap<>(StepWeights.defaults().weights());
+        w.put(StepKind.BAL_REVIEW, 0.5);
+        List<Scheduling.PlannedStep> p = Scheduling.suggestFunctionPlan("2026-10-08", 8, List.of("an", "minh", "an"), new StepWeights(w), CAL,
+                new ArrayList<>(Collections.nCopies(3, null)));
+        assertThat(p.get(1).estimateH()).isEqualTo(4.0);
     }
 }

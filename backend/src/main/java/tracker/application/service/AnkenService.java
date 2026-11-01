@@ -549,7 +549,7 @@ public class AnkenService {
                 : ruleHasId(ctx, epic) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
                 five ? List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()) : List.of(draft.ba(), draft.bal(), draft.ba()),
-                ctx.cal, overrides);
+                ctx.settings.stepWeightsOf(epic), ctx.cal, overrides);
         String rule = ctx.settings.nameRulesOf(epic).rule;
         String ankenName = anken(ctx, epic).title();
         List<PreviewStep> steps = new ArrayList<>();

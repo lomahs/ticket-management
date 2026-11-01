@@ -41,14 +41,14 @@ public final class Scheduling {
      * The first {@code assignees.size()} steps (3 or 5), each starting on the working day after the previous one ends;
      * {@code overrides} may fix a step's start/end.
      */
-    public static List<PlannedStep> suggestFunctionPlan(String firstDay, double createHours, List<String> assignees,
+    public static List<PlannedStep> suggestFunctionPlan(String firstDay, double createHours, List<String> assignees, StepWeights weights,
                                                         WorkCalendar cal, List<Map<String, String>> overrides) {
         List<PlannedStep> out = new ArrayList<>();
         String cur = firstDay;
         for (int i = 0; i < assignees.size(); i++) {
             StepDef st = Steps.STEPS.get(i);
             String who = assignees.get(i);
-            double est = stepEstimate(createHours, st.effortWeight());
+            double est = weights.stepHours(createHours, st.kind());
             int dur = Math.max(1, (int) Math.ceil(est / HOURS_PER_PLANNED_DAY));
             List<DateReason> skipped = new ArrayList<>();
             String[] suggested = cal.span(cur, dur, who, skipped);
