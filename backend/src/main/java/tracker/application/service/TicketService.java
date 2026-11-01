@@ -534,6 +534,13 @@ public class TicketService {
      * each. Everything touched is re-read from Jira, also when Jira refuses a request half-way.
      */
     public BatchResult applyBatch(Viewer actor, AnkenScope scope, String epic, List<ExpectedUpdate> updates, List<NewTicket> newTickets) {
+        return applyBatch(actor, scope, epic, updates, newTickets, created -> {
+        });
+    }
+
+    /** @param onCreated gets the ref → key of the tickets created, also when Jira refuses a request half-way */
+    public BatchResult applyBatch(Viewer actor, AnkenScope scope, String epic, List<ExpectedUpdate> updates, List<NewTicket> newTickets,
+                                  java.util.function.Consumer<Map<String, String>> onCreated) {
         calls.requireEnabled();
         if (updates.isEmpty() && newTickets.isEmpty()) {
             throw new Invalid("There is nothing to apply", "updates");
@@ -586,6 +593,7 @@ public class TicketService {
             throw sent == 0 ? e : new JiraRejected(e.status(), "Jira applied " + sent + " of " + total + " requests, then refused the next: "
                     + e.getMessage());
         } finally {
+            onCreated.accept(Map.copyOf(created));
             if (!touched.isEmpty()) {
                 sync.refresh(touched);
             }

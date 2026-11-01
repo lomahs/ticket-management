@@ -788,6 +788,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pushDetailPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/detail/push/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewDetailPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/estimation": {
         parameters: {
             query?: never;
@@ -4037,6 +4069,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    pushDetailPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+        };
+    };
+    previewDetailPush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
                 };
             };
         };

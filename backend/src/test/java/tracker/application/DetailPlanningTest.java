@@ -3,8 +3,12 @@ package tracker.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +17,15 @@ import org.springframework.test.annotation.DirtiesContext;
 import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.Invalid;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.EstimationRepository;
+import tracker.application.ports.JiraReader;
+import tracker.application.ports.JiraRejected;
+import tracker.application.ports.JiraWriteLog;
+import tracker.application.ports.JiraWriter;
+import tracker.application.ports.MasterScheduleRepository;
+import tracker.application.service.TicketService;
+import tracker.application.service.TicketService.BatchResult;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
@@ -28,6 +40,8 @@ import tracker.application.service.MasterScheduleService.MasterScheduleView;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
 import tracker.application.service.MasterScheduleService.PhaseShift;
 import tracker.domain.AccessStatus;
+import tracker.domain.Allocation;
+import tracker.domain.Issue;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.MasterSchedule;
@@ -56,6 +70,8 @@ class DetailPlanningTest {
     TrackerContextLoader loader;
     @Autowired
     DetailPlanService detail;
+    @Autowired
+    AllocationRepository allocationRows;
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
@@ -208,5 +224,81 @@ class DetailPlanningTest {
         assertThat(ita.planEnd()).isNotNull();
         assertThat(ita.daysLate()).isEqualTo(tracker.domain.Dates.dayDiff(ita.masterEnd(), ita.planEnd()));
         assertThat(ita.daysLate()).isPositive(); // one BA for ITA, the master schedule counted two
+    }
+
+    /**
+     * Allocations that keep every member within budget: ITA (Login + Run, 30h) by an 8h + minh 1h → 4 days, an given 28h of 32;
+     * ITB (Pay, 12.5h) by binh 8h; Login and Run go under a new Task, Pay under the existing PAY-1102.
+     */
+    List<EstimationRow> pushable() {
+        for (String[] a : new String[][]{{"an", "8"}, {"minh", "1"}, {"binh", "8"}}) {
+            allocationRows.save(new Allocation(a[0], EPIC, "2026-10-01", Double.parseDouble(a[1])), "test", "2026-10-07T09:00:00Z");
+        }
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "minh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("binh"))), "Kick-off");
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
+                new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
+                new RowAssign(rows.get(2).id(), "binh", "an", null)), List.of(
+                new TaskTarget("ITA", "Create test case", null, "ITA Create test case", "an"), new TaskTarget("ITA", "Execute", null, "ITA Execute", "an"),
+                new TaskTarget("ITB", "Create test case", "PAY-1102", null, null))));
+        return rows;
+    }
+
+    @Test
+    void pushCreatesNewTasksThenSubTasksUnderThem() {
+        List<EstimationRow> rows = pushable();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.overBudget()).isEmpty();
+        assertThat(v.overDay()).isEmpty();
+        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(2 + 5 + 1 + 3);
+        BatchResult r = detail.push(ADMIN, ALL, EPIC);
+        TrackerContext ctx = loader.load(ALL);
+        String execute = r.created().get("task:ITA/Execute");
+        Issue run = ctx.issue(r.created().get(String.valueOf(rows.get(1).id()))).orElseThrow();
+        assertThat(run.parentKey()).isEqualTo(execute);
+        StepPlan runPlan = first(v, rows.get(1).id());
+        assertThat(run.plannedStart()).isEqualTo(runPlan.start());
+        assertThat(run.plannedEnd()).isEqualTo(runPlan.end());
+        assertThat(run.estimateH()).isEqualTo(16.0);
+        assertThat(run.summary()).isEqualTo("[ITA] Run"); // no step and no function id: their brackets and separator go
+        assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[ITA][F01] Login – Create");
+        assertThat(ctx.issue(execute).orElseThrow().summary()).isEqualTo("ITA Execute");
+        Issue jm = ctx.issue(r.created().get(rows.get(0).id() + ":jmr")).orElseThrow();
+        assertThat(jm.estimateH()).isEqualTo(2.0);
+        assertThat(jm.parentKey()).isEqualTo(r.created().get("task:ITA/Create test case"));
+        Issue pay = ctx.issue(r.created().get(rows.get(2).id() + ":create")).orElseThrow();
+        assertThat(pay.parentKey()).isEqualTo("PAY-1102");
+        assertThat(estimationRows.findByEpic(EPIC)).allMatch(EstimationRow::pushed);
+        assertThat(detail.view(ALL, EPIC).plan()).isEmpty();
+    }
+
+    @Test
+    void pushIsBlockedOverBudget() {
+        planned(); // ITA counted with an and binh, all of it given to an
+        assertThat(detail.view(ALL, EPIC).overBudget()).isNotEmpty();
+        assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessageContaining("budget");
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void rowsCreatedBeforeJiraRefusesStayPushed(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log,
+                                                @Autowired SyncService sync, @Autowired MasterScheduleRepository versions, @Autowired Clock clock) {
+        List<EstimationRow> rows = pushable();
+        AtomicInteger sent = new AtomicInteger();
+        JiraWriter failing = req -> {
+            if (sent.incrementAndGet() == 9) { // 2 new Tasks, Login's 5 steps and Run go through; Pay's first step is refused
+                throw new JiraRejected(400, "refused for the test");
+            }
+            return jira.send(req);
+        };
+        TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, clock);
+        assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
+        Map<Long, Boolean> pushed = new java.util.HashMap<>();
+        estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
+        assertThat(pushed).containsEntry(rows.get(0).id(), true).containsEntry(rows.get(1).id(), true).containsEntry(rows.get(2).id(), false);
+        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(3); // only Pay's steps are left
     }
 }

@@ -1694,6 +1694,58 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/push" : {
+      "post" : {
+        "operationId" : "pushDetailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/detail/push/preview" : {
+      "post" : {
+        "operationId" : "previewDetailPush",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/estimation" : {
       "get" : {
         "operationId" : "estimation",

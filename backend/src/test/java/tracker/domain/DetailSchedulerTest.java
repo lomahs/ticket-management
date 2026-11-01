@@ -76,8 +76,11 @@ class DetailSchedulerTest {
     }
 
     @Test
-    void loadsAboveAllocationAreReported() {
-        assertThat(run(Map.of("an", Map.of(MON, 8.0)), single("t", "an", 4)).overDay()).containsExactly(new DayOverrun("an", MON, 8.0, 6.0));
+    void anOverloadAlreadyThereIsNotTheRunsAndTheRunNeverOverfillsADay() {
+        Result r = run(Map.of("an", Map.of(MON, 8.0), "chi", Map.of(MON, 3.0)), single("t", "an", 4));
+        assertThat(r.overDay()).isEmpty();
+        assertThat(spans(r)).containsExactly("2026-10-06/2026-10-06");
+        assertThat(r.overDay()).doesNotContain(new DayOverrun("an", MON, 8.0, 6.0));
     }
 
     @Test

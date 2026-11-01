@@ -117,6 +117,8 @@ class ApiWritesTest extends ApiTestSupport {
         assertThat(call(get("/api/v1/planning/PAY-1100/detail")).json().get("targets").get(0).get("new_name").asText()).isEqualTo("ITA Execute");
         problem(call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(), "assigns", List.of(), "targets", List.of()))
                 .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        problem(call(post("/api/v1/planning/PAY-1100/detail/push/preview")), 422, "invalid"); // no master schedule yet
+        problem(call(post("/api/v1/planning/PAY-1100/detail/push").with(as("an.nguyen@acme.vn"))), 403, "forbidden");
     }
 
     @Test

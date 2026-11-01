@@ -509,7 +509,24 @@ public class AnkenService {
         return first.isEmpty() ? Steps.STEPS.get(Steps.index(kind)).label() : first;
     }
 
-    private static boolean ruleHasId(TrackerContext ctx, String epic) {
+    /**
+     * A sub-task's Summary by the anken's name rule. A ticket without steps ({@code step} null) leaves {step} and an empty
+     * {function_id} out, with the brackets and separators they leave behind.
+     */
+    static String subtaskSummary(TrackerContext ctx, String epic, String phase, String prefix, String functionId, String functionName,
+                                 @Nullable StepKind step) {
+        Map<String, String> values = new HashMap<>();
+        values.put("phase_name", phase);
+        values.put("prefix", prefix);
+        values.put("function_id", functionId);
+        values.put("function_name", functionName);
+        values.put("step", step == null ? "" : stepText(ctx, epic, step));
+        values.put("anken_name", anken(ctx, epic).title());
+        String s = Naming.renderSummary(ctx.settings.nameRulesOf(epic).rule, values);
+        return step != null ? s : s.replace("[]", "").replaceAll("[\\s\\u2013_:-]+$", "").strip();
+    }
+
+    static boolean ruleHasId(TrackerContext ctx, String epic) {
         return ctx.settings.nameRulesOf(epic).rule.contains("{function_id}");
     }
 
@@ -550,20 +567,11 @@ public class AnkenService {
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
                 five ? List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()) : List.of(draft.ba(), draft.bal(), draft.ba()),
                 ctx.settings.stepWeightsOf(epic), ctx.cal, overrides);
-        String rule = ctx.settings.nameRulesOf(epic).rule;
-        String ankenName = anken(ctx, epic).title();
         List<PreviewStep> steps = new ArrayList<>();
         for (int i = 0; i < plan.size(); i++) {
             Scheduling.PlannedStep p = plan.get(i);
-            Map<String, String> values = new HashMap<>();
-            values.put("phase_name", parent.phase());
-            values.put("prefix", parent.prefix());
-            values.put("function_id", fid);
-            values.put("function_name", Text.orElse(draft.name(), "(function name)"));
-            values.put("step", stepText(ctx, epic, p.step()));
-            values.put("anken_name", ankenName);
-            steps.add(new PreviewStep(p.step().value(), Naming.renderSummary(rule, values), p.assigneeId(), p.estimateH(),
-                    p.start(), p.end(), p.note(), p.reasons()));
+            steps.add(new PreviewStep(p.step().value(), subtaskSummary(ctx, epic, parent.phase(), parent.prefix(), fid,
+                    Text.orElse(draft.name(), "(function name)"), p.step()), p.assigneeId(), p.estimateH(), p.start(), p.end(), p.note(), p.reasons()));
         }
         return new FunctionPreview(parent.phase(), fid, steps, parent.prefix());
     }

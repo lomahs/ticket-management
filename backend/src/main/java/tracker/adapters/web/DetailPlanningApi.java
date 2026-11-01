@@ -42,6 +42,8 @@ import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.MasterScheduleView;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
 import tracker.application.service.ScopeService;
+import tracker.application.service.TicketService.BatchPreview;
+import tracker.application.service.TicketService.BatchResult;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Feature;
@@ -159,5 +161,19 @@ public class DetailPlanningApi {
     @PutMapping("/{epic}/detail")
     public DetailPlanView saveDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid DraftIn body, Viewer viewer) {
         return detail.saveDraft(epicScope(viewer, epic), epic, body);
+    }
+
+    /** The review of the push: new Tasks, then every sub-task, with the requests; refused while the plan has problems or overruns. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/push/preview")
+    public BatchPreview previewDetailPush(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.pushPreview(epicScope(viewer, epic), epic);
+    }
+
+    /** Creates the plan's Tasks and sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/push")
+    public BatchResult pushDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.push(viewer, epicScope(viewer, epic), epic);
     }
 }

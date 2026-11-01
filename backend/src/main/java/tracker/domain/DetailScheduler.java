@@ -6,7 +6,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import org.jspecify.annotations.Nullable;
 
@@ -42,7 +44,10 @@ public final class DetailScheduler {
     public record DayOverrun(String memberId, String date, double plannedH, double allocationH) {
     }
 
-    /** @param ledger member → day → hours planned, the loads included */
+    /**
+     * @param ledger  member → day → hours planned, the loads included
+     * @param overDay the days this run placed hours on that end up above the allocation (loads alone are not the run's)
+     */
     public record Result(List<Placed> placed, Map<String, Map<String, Double>> ledger, List<DayOverrun> overDay) {
     }
 
@@ -56,6 +61,7 @@ public final class DetailScheduler {
                                   double jmHoursPerDay) {
         Map<String, Map<String, Double>> ledger = new HashMap<>();
         loads.forEach((m, days) -> ledger.put(m, new TreeMap<>(days)));
+        Map<String, Set<String>> touched = new HashMap<>();
         List<Placed> placed = new ArrayList<>();
         for (Chain chain : chains) {
             String cursor = chain.earliest();
@@ -71,7 +77,7 @@ public final class DetailScheduler {
                     s = cal.nextWork(cursor, st.memberId());
                     e = s;
                 } else {
-                    String[] span = fill(epic, st, cursor, ledger, a, cal);
+                    String[] span = fill(epic, st, cursor, ledger, touched, a, cal);
                     s = span[0];
                     e = span[1];
                 }
@@ -81,7 +87,8 @@ public final class DetailScheduler {
             }
         }
         List<DayOverrun> over = new ArrayList<>();
-        ledger.forEach((m, days) -> days.forEach((d, h) -> {
+        touched.forEach((m, days) -> days.forEach(d -> {
+            double h = ledger.get(m).get(d);
             double cap = MasterSchedule.hoursOn(m, epic, d, a, cal);
             if (h > cap + EPS) {
                 over.add(new DayOverrun(m, d, h, cap));
@@ -92,7 +99,8 @@ public final class DetailScheduler {
     }
 
     /** Takes the step's hours from the member's free hours, day by day from {@code from}; returns its first and last day. */
-    private static String[] fill(String epic, Step st, String from, Map<String, Map<String, Double>> ledger, Allocations a, WorkCalendar cal) {
+    private static String[] fill(String epic, Step st, String from, Map<String, Map<String, Double>> ledger,
+                                 Map<String, Set<String>> touched, Allocations a, WorkCalendar cal) {
         Map<String, Double> mine = ledger.computeIfAbsent(st.memberId(), k -> new TreeMap<>());
         double left = st.hours();
         String d = from;
@@ -104,6 +112,7 @@ public final class DetailScheduler {
             if (free > EPS) {
                 double take = Math.min(free, left);
                 mine.merge(d, take, Double::sum);
+                touched.computeIfAbsent(st.memberId(), k -> new TreeSet<>()).add(d);
                 left -= take;
                 first = first == null ? d : first;
                 last = d;

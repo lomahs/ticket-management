@@ -1,5 +1,7 @@
 package tracker.application.service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -13,6 +15,7 @@ import java.util.TreeMap;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
+import tracker.application.AppError.Invalid;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
@@ -39,7 +42,13 @@ import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
 import tracker.domain.Steps;
 import tracker.domain.TaskTarget;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
+import tracker.domain.Viewer;
+import tracker.application.service.AnkenService.ParentOption;
+import tracker.application.service.TicketService.BatchPreview;
+import tracker.application.service.TicketService.BatchResult;
+import tracker.application.service.TicketService.NewTicket;
 
 /** Step 3 of planning: who does each row, where its sub-tasks go, and the dates that follow; checked against the master schedule. */
 @Service
@@ -48,13 +57,17 @@ public class DetailPlanService {
     private final EstimationRepository estimation;
     private final MasterScheduleRepository versions;
     private final AllocationService allocations;
+    private final TicketService tickets;
+    private final Clock clock;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
-                             AllocationService allocations) {
+                             AllocationService allocations, TicketService tickets, Clock clock) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
         this.allocations = allocations;
+        this.tickets = tickets;
+        this.clock = clock;
     }
 
     /** @param baId the BA of a function, or the one member of a row without steps */
@@ -285,5 +298,122 @@ public class DetailPlanService {
             out.add(new PhaseCheck(p.phase(), p.end(), end, end == null ? 0 : Dates.dayDiff(p.end(), end)));
         }
         return out;
+    }
+
+    /** The review of the push: the new Tasks, then every sub-task, with the requests that create them. */
+    public BatchPreview pushPreview(AnkenScope scope, String epic) {
+        Computed c = pushable(scope, epic);
+        return tickets.previewBatch(scope, epic, List.of(), newTickets(c, epic));
+    }
+
+    /**
+     * Creates the new Tasks, then the sub-tasks of the unpushed rows under them; a row is marked pushed once all its sub-tasks
+     * exist, also when Jira refuses a request half-way.
+     */
+    public BatchResult push(Viewer actor, AnkenScope scope, String epic) {
+        Computed c = pushable(scope, epic);
+        List<NewTicket> creates = newTickets(c, epic);
+        return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
+            List<Long> done = new ArrayList<>();
+            for (EstimationRow r : c.rows()) {
+                List<String> refs = c.placed().stream().map(Placed::ref).filter(ref -> rowOf(ref) == r.id()).toList();
+                if (!refs.isEmpty() && created.keySet().containsAll(refs)) {
+                    done.add(r.id());
+                }
+            }
+            if (!done.isEmpty()) {
+                estimation.markPushed(done, Instant.now(clock).toString());
+            }
+        });
+    }
+
+    /** The computed plan, refused when it cannot be pushed as it is. */
+    private Computed pushable(AnkenScope scope, String epic) {
+        Computed c = compute(scope, epic);
+        DetailPlanView v = c.view();
+        if (c.rows().isEmpty()) {
+            throw new Invalid("There is nothing to push", "plan");
+        }
+        if (!v.problems().isEmpty()) {
+            throw new Invalid(v.problems().getFirst(), "plan");
+        }
+        if (!v.overBudget().isEmpty()) {
+            Overrun o = v.overBudget().getFirst();
+            throw new Invalid(c.ctx().members.get(o.memberId()).name() + " is over budget in " + o.phase() + ": " + o.plannedH() + "h of "
+                    + o.budgetH() + "h", "plan");
+        }
+        if (!v.overDay().isEmpty()) {
+            DayOverrun o = v.overDay().getFirst();
+            throw new Invalid(c.ctx().members.get(o.memberId()).name() + " has " + o.plannedH() + "h planned on " + o.date() + ", more than the "
+                    + o.allocationH() + "h allocation", "plan");
+        }
+        return c;
+    }
+
+    static String taskRef(String phase, String subphase) {
+        return "task:" + phase + "/" + subphase;
+    }
+
+    /** New Tasks first, then each step's sub-task under its Task (an existing one, or a new one by its ref). */
+    private static List<NewTicket> newTickets(Computed c, String epic) {
+        TrackerContext ctx = c.ctx();
+        List<NewTicket> out = new ArrayList<>();
+        Map<String, TaskTarget> target = new HashMap<>();
+        for (TaskTarget t : c.targets()) {
+            target.put(t.phase() + "/" + t.subphase(), t);
+        }
+        Set<String> used = new LinkedHashSet<>();
+        c.rows().forEach(r -> used.add(r.phase() + "/" + r.subphase()));
+        for (String k : used) {
+            TaskTarget t = target.get(k);
+            if (!Text.hasText(t.existingKey())) {
+                out.add(new NewTicket(taskRef(t.phase(), t.subphase()), false, null, null, Objects.requireNonNull(t.newName()).strip(),
+                        Objects.requireNonNull(t.newAssigneeId()), null, null, null, null));
+            }
+        }
+        Map<String, ParentOption> parents = new HashMap<>();
+        AnkenService.parentOptions(ctx, epic).forEach(p -> parents.put(p.key(), p));
+        boolean ids = AnkenService.ruleHasId(ctx, epic);
+        Map<String, String> lastId = new HashMap<>();
+        for (EstimationRow r : c.rows()) {
+            TaskTarget t = target.get(r.phase() + "/" + r.subphase());
+            boolean existing = Text.hasText(t.existingKey());
+            String parentKey = existing ? t.existingKey() : null;
+            String parentRef = existing ? null : taskRef(t.phase(), t.subphase());
+            ParentOption p = existing ? parents.get(parentKey) : null;
+            TaskTemplate tpl = existing ? null : ctx.settings.structureOf(epic).taskTemplate(Objects.requireNonNull(t.newName()));
+            String phase = p != null ? p.phase() : r.phase();
+            String prefix = p != null ? p.prefix() : tpl != null ? tpl.prefix() : r.phase();
+            String fid = "";
+            if (r.steps() != null && ids) {
+                String parent = existing ? parentKey : parentRef;
+                String prev = lastId.get(parent);
+                fid = prev == null ? AnkenService.nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parentKey)).toList())
+                        : nextId(prev);
+                lastId.put(parent, fid);
+            }
+            for (Placed s : c.placed()) {
+                if (rowOf(s.ref()) != r.id()) {
+                    continue;
+                }
+                out.add(new NewTicket(s.ref(), true, parentKey, parentRef,
+                        AnkenService.subtaskSummary(ctx, epic, phase, prefix, fid, r.functionName(), s.kind()), s.memberId(), null, s.start(), s.end(),
+                        s.hours()));
+            }
+        }
+        return out;
+    }
+
+    /** The id after {@code id}: its trailing number plus one, as wide as before ("F09" → "F10"). */
+    static String nextId(String id) {
+        int i = id.length();
+        while (i > 0 && Character.isDigit(id.charAt(i - 1))) {
+            i--;
+        }
+        if (i == id.length()) {
+            return id + "2";
+        }
+        String num = id.substring(i);
+        return id.substring(0, i) + String.format("%0" + num.length() + "d", Long.parseLong(num) + 1);
     }
 }
