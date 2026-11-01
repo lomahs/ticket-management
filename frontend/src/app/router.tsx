@@ -160,6 +160,7 @@ const ticketCheck = createRoute({
 
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
+const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
 const planningEstimation = createRoute({ getParentRoute: () => app, path: 'planning/estimation', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'EstimationPage') });
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
@@ -214,7 +215,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningEstimation, planningSchedule, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningEstimation, planningSchedule, planningDetail, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

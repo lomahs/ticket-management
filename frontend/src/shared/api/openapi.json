@@ -1673,7 +1673,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/DraftIn"
+                "$ref" : "#/components/schemas/DraftBody"
               }
             }
           },
@@ -4355,7 +4355,7 @@
         },
         "required" : [ "checks", "over_budget", "over_day", "plan", "problems", "rows", "targets", "tasks" ]
       },
-      "DraftIn" : {
+      "DraftBody" : {
         "type" : "object",
         "properties" : {
           "assigns" : {
@@ -4374,10 +4374,11 @@
           "targets" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/TaskTarget"
+              "$ref" : "#/components/schemas/TaskTargetIn"
             }
           }
-        }
+        },
+        "required" : [ "assigns", "order", "targets" ]
       },
       "EffortAnalysis" : {
         "type" : "object",
@@ -4522,7 +4523,7 @@
           "rows" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/EstimationRow"
+              "$ref" : "#/components/schemas/EstimationRowIn"
             }
           }
         },
@@ -4571,7 +4572,44 @@
           "subphase" : {
             "type" : "string"
           }
-        }
+        },
+        "required" : [ "ba_id", "bal_id", "effort_h", "epic_key", "function_name", "id", "jm_id", "phase", "position", "pushed_at", "steps", "subphase" ]
+      },
+      "EstimationRowIn" : {
+        "type" : "object",
+        "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "function_name" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "jm_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
+          },
+          "subphase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "function_name", "phase", "subphase" ]
       },
       "EstimationUpload" : {
         "type" : "object",
@@ -6887,7 +6925,29 @@
           "subphase" : {
             "type" : "string"
           }
-        }
+        },
+        "required" : [ "existing_key", "new_assignee_id", "new_name", "phase", "subphase" ]
+      },
+      "TaskTargetIn" : {
+        "type" : "object",
+        "properties" : {
+          "existing_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "new_assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "new_name" : {
+            "type" : [ "string", "null" ]
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "subphase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "phase", "subphase" ]
       },
       "TaskTemplate" : {
         "type" : "object",

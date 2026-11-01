@@ -36,6 +36,7 @@ import tracker.application.AppError.Invalid;
 import tracker.application.service.DetailPlanService;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
+import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.MasterScheduleService;
@@ -49,6 +50,7 @@ import tracker.domain.EstimationRow;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.ScheduleVersion.PhaseRow;
+import tracker.domain.TaskTarget;
 import tracker.domain.Viewer;
 
 /** Building an anken's plan: estimation, master schedule, detail plan and re-plan. Reads: Planning; writes: admins. */
@@ -72,7 +74,15 @@ public class DetailPlanningApi {
         return new AnkenScope(Set.of(epic));
     }
 
-    public record EstimationIn(@NotNull List<@NotNull @Valid EstimationRow> rows) {
+    /** @param id 0 for a new row */
+    public record EstimationRowIn(long id, @NotNull String phase, @NotNull String subphase, @NotNull String functionName, @Nullable Integer steps,
+                                  double effortH, @Nullable String baId, @Nullable String balId, @Nullable String jmId) {
+        EstimationRow row(String epic, int position) {
+            return new EstimationRow(id, epic, position, phase, subphase, functionName, steps, effortH, baId, balId, jmId, null);
+        }
+    }
+
+    public record EstimationIn(@NotNull List<@NotNull @Valid EstimationRowIn> rows) {
     }
 
     @Requires(feature = Feature.PLANNING, level = Level.READ)
@@ -84,7 +94,11 @@ public class DetailPlanningApi {
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}/estimation")
     public EstimationView saveEstimation(@PathVariable("epic") String epic, @RequestBody @Valid EstimationIn body, Viewer viewer) {
-        return estimation.save(epicScope(viewer, epic), epic, body.rows());
+        List<EstimationRow> rows = new java.util.ArrayList<>();
+        for (int i = 0; i < body.rows().size(); i++) {
+            rows.add(body.rows().get(i).row(epic, i));
+        }
+        return estimation.save(epicScope(viewer, epic), epic, rows);
     }
 
     /** The multipart body of an estimation import. */
@@ -150,6 +164,19 @@ public class DetailPlanningApi {
         return schedule.save(viewer, epicScope(viewer, epic), epic, body.phases().stream().map(PhaseIn::row).toList(), body.reason());
     }
 
+    public record TaskTargetIn(@NotNull String phase, @NotNull String subphase, @Nullable String existingKey, @Nullable String newName,
+                               @Nullable String newAssigneeId) {
+    }
+
+    /** @param order the unpushed rows' ids in their new order */
+    public record DraftBody(@NotNull List<@NotNull Long> order, @NotNull List<@NotNull RowAssign> assigns,
+                            @NotNull List<@NotNull @Valid TaskTargetIn> targets) {
+        DraftIn draft() {
+            return new DraftIn(order, assigns, targets.stream().map(t -> new TaskTarget(t.phase(), t.subphase(), t.existingKey(), t.newName(),
+                    t.newAssigneeId())).toList());
+        }
+    }
+
     @Requires(feature = Feature.PLANNING, level = Level.READ)
     @GetMapping("/{epic}/detail")
     public DetailPlanView detailPlan(@PathVariable("epic") String epic, Viewer viewer) {
@@ -159,8 +186,8 @@ public class DetailPlanningApi {
     /** Saves the draft (row order, people, the Task of each subphase) and returns the plan that follows. */
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}/detail")
-    public DetailPlanView saveDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid DraftIn body, Viewer viewer) {
-        return detail.saveDraft(epicScope(viewer, epic), epic, body);
+    public DetailPlanView saveDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid DraftBody body, Viewer viewer) {
+        return detail.saveDraft(epicScope(viewer, epic), epic, body.draft());
     }
 
     /** The review of the push: new Tasks, then every sub-task, with the requests; refused while the plan has problems or overruns. */

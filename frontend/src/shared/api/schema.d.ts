@@ -1747,10 +1747,10 @@ export interface components {
             targets: components["schemas"]["TaskTarget"][];
             tasks: components["schemas"]["ExistingTask"][];
         };
-        DraftIn: {
-            assigns?: components["schemas"]["RowAssign"][];
-            order?: number[];
-            targets?: components["schemas"]["TaskTarget"][];
+        DraftBody: {
+            assigns: components["schemas"]["RowAssign"][];
+            order: number[];
+            targets: components["schemas"]["TaskTargetIn"][];
         };
         EffortAnalysis: {
             by_phase: components["schemas"]["EffortBar"][];
@@ -1802,25 +1802,39 @@ export interface components {
             subphase: string;
         };
         EstimationIn: {
-            rows: components["schemas"]["EstimationRow"][];
+            rows: components["schemas"]["EstimationRowIn"][];
         };
         EstimationRow: {
+            ba_id: string | null;
+            bal_id: string | null;
+            /** Format: double */
+            effort_h: number;
+            epic_key: string;
+            function_name: string;
+            /** Format: int64 */
+            id: number;
+            jm_id: string | null;
+            phase: string;
+            /** Format: int32 */
+            position: number;
+            pushed_at: string | null;
+            /** Format: int32 */
+            steps: number | null;
+            subphase: string;
+        };
+        EstimationRowIn: {
             ba_id?: string | null;
             bal_id?: string | null;
             /** Format: double */
             effort_h?: number;
-            epic_key?: string;
-            function_name?: string;
+            function_name: string;
             /** Format: int64 */
             id?: number;
             jm_id?: string | null;
-            phase?: string;
-            /** Format: int32 */
-            position?: number;
-            pushed_at?: string | null;
+            phase: string;
             /** Format: int32 */
             steps?: number | null;
-            subphase?: string;
+            subphase: string;
         };
         EstimationUpload: {
             /** Format: binary */
@@ -2588,11 +2602,18 @@ export interface components {
             worker_id: string | null;
         };
         TaskTarget: {
+            existing_key: string | null;
+            new_assignee_id: string | null;
+            new_name: string | null;
+            phase: string;
+            subphase: string;
+        };
+        TaskTargetIn: {
             existing_key?: string | null;
             new_assignee_id?: string | null;
             new_name?: string | null;
-            phase?: string;
-            subphase?: string;
+            phase: string;
+            subphase: string;
         };
         TaskTemplate: {
             match: string;
@@ -4058,7 +4079,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DraftIn"];
+                "application/json": components["schemas"]["DraftBody"];
             };
         };
         responses: {

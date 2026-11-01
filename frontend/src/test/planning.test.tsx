@@ -110,5 +110,63 @@ describe('detail planning', () => {
     expect(within(versions).getByText('Kick-off')).toBeTruthy();
     expect(within(versions).getByText('Baseline')).toBeTruthy();
   });
+
+  const RUN = { ...LOGIN, id: 2, position: 1, subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16, ba_id: 'an' };
+  const detailView = (over: Record<string, unknown> = {}) => ({
+    rows: [LOGIN, RUN], targets: [{ phase: 'ITA', subphase: 'Create test case', existing_key: 'PAY-1102', new_name: null, new_assignee_id: null },
+      { phase: 'ITA', subphase: 'Execute', existing_key: null, new_name: 'ITA Execute', new_assignee_id: 'an' }],
+    tasks: [{ key: 'PAY-1102', summary: '[Implement_Coding] Payment flow revision', phase: 'Implement_Coding' }],
+    plan: [], over_budget: [], over_day: [], checks: [], problems: [], ...over,
+  });
+  const planned = {
+    plan: [{ row_id: 2, steps: [{ ref: '2', step: null, member_id: 'an', hours: 16, start: '2026-10-12', end: '2026-10-14' }] }],
+    checks: [{ phase: 'ITA', master_end: '2026-10-13', plan_end: '2026-10-14', days_late: 1 }],
+  };
+
+  it('assigns members and shows computed dates', async () => {
+    let saved: { assigns: Record<string, unknown>[] } | null = null;
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }))),
+      http.put('*/api/v1/planning/PAY-1100/detail', async ({ request }) => {
+        saved = await request.json() as typeof saved;
+        return HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'an' }, RUN], ...planned }));
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
+    await waitFor(() => expect(saved?.assigns).toContainEqual({ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }));
+    expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();
+    expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
+  });
+
+  it('blocks the push while a member is over budget', async () => {
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
+      ...planned, over_budget: [{ member_id: 'an', phase: 'ITA', planned_h: 40, budget_h: 36 }],
+    }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect(await screen.findByText('An is over budget in ITA: 40h of 36h')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('reviews then pushes the plan', async () => {
+    let pushed = false;
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', () => HttpResponse.json({ updates: [], creates: [
+        { ref: 'task:ITA/Execute', subtask: false, parent: 'PAY-1100', summary: 'ITA Execute', request: { method: 'POST', path: '/rest/api/3/issue', body: '{}' } },
+        { ref: '2', subtask: true, parent: '<new:task:ITA/Execute>', summary: '[ITA] Run', request: { method: 'POST', path: '/rest/api/3/issue', body: '{}' } },
+      ] })),
+      http.post('*/api/v1/planning/PAY-1100/detail/push', () => { pushed = true; return HttpResponse.json({ updated: [], created: { 'task:ITA/Execute': 'PAY-1501', 2: 'PAY-1502' } }); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
+    const review = await screen.findByRole('region', { name: 'Push review' });
+    expect(within(review).getByText('[ITA] Run')).toBeTruthy();
+    expect(within(review).getByText('ITA Execute')).toBeTruthy();
+    fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
+    expect(await screen.findByText('Created 2 tickets in Jira')).toBeTruthy();
+    expect(pushed).toBe(true);
+  });
 });
 
