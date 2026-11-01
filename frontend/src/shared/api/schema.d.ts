@@ -724,6 +724,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/estimation/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["estimationTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/preview": {
         parameters: {
             query?: never;
@@ -750,6 +766,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["push"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/estimation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["estimation"];
+        put: operations["saveEstimation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/estimation/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importEstimation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1638,6 +1686,47 @@ export interface components {
             project: string;
             title: string;
         };
+        EstimationImportRow: {
+            /** Format: double */
+            effort_h: number | null;
+            errors: string[];
+            function: string;
+            /** Format: int32 */
+            line: number;
+            phase: string;
+            /** Format: int32 */
+            steps: number | null;
+            subphase: string;
+        };
+        EstimationIn: {
+            rows: components["schemas"]["EstimationRow"][];
+        };
+        EstimationRow: {
+            ba_id?: string | null;
+            bal_id?: string | null;
+            /** Format: double */
+            effort_h?: number;
+            epic_key?: string;
+            function_name?: string;
+            /** Format: int64 */
+            id?: number;
+            jm_id?: string | null;
+            phase?: string;
+            /** Format: int32 */
+            position?: number;
+            pushed_at?: string | null;
+            /** Format: int32 */
+            steps?: number | null;
+            subphase?: string;
+        };
+        EstimationUpload: {
+            /** Format: binary */
+            file?: string | null;
+        };
+        EstimationView: {
+            phases: components["schemas"]["PhaseEffort"][];
+            rows: components["schemas"]["EstimationRow"][];
+        };
         ExpectedUpdateIn: {
             changes: components["schemas"]["ChangeIn"][];
             key: string;
@@ -2073,6 +2162,11 @@ export interface components {
             clear_role?: boolean | null;
             /** @enum {string|null} */
             role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
+        PhaseEffort: {
+            phase: string;
+            /** Format: double */
+            total_effort_h: number;
         };
         PhaseRollup: {
             /** Format: int32 */
@@ -3662,6 +3756,26 @@ export interface operations {
             };
         };
     };
+    estimationTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
     preview: {
         parameters: {
             query?: {
@@ -3708,6 +3822,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeysOut"];
+                };
+            };
+        };
+    };
+    estimation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimationView"];
+                };
+            };
+        };
+    };
+    saveEstimation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimationIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimationView"];
+                };
+            };
+        };
+    };
+    importEstimation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["EstimationUpload"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimationImportRow"][];
                 };
             };
         };

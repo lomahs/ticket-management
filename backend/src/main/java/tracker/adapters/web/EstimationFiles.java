@@ -18,13 +18,13 @@ final class EstimationFiles {
      * @param steps   3, 5 or null (a row without steps)
      * @param effortH Create hours of a function; hours of a row without steps
      */
-    record ImportRow(int line, String phase, String subphase, String function, @Nullable Integer steps, @Nullable Double effortH,
+    public record EstimationImportRow(int line, String phase, String subphase, String function, @Nullable Integer steps, @Nullable Double effortH,
                      List<String> errors) {
     }
 
-    static List<ImportRow> parse(String fileName, byte[] raw) {
+    static List<EstimationImportRow> parse(String fileName, byte[] raw) {
         List<List<String>> rows = LeaveFiles.readRows(fileName, raw);
-        List<ImportRow> out = new ArrayList<>();
+        List<EstimationImportRow> out = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             List<String> r = rows.get(i);
             String phase = at(r, 0);
@@ -59,7 +59,7 @@ final class EstimationFiles {
             } catch (NumberFormatException e) {
                 errors.add("Effort must be a number of hours");
             }
-            out.add(new ImportRow(i + 2, phase, subphase, function, steps, effort, errors));
+            out.add(new EstimationImportRow(i + 2, phase, subphase, function, steps, effort, errors));
         }
         return out;
     }

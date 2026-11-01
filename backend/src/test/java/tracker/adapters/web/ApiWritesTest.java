@@ -72,6 +72,23 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void estimationReadWriteAndImport() throws Exception {
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
+                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
+        JsonNode saved = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json();
+        assertThat(saved.get("phases").get(0).get("total_effort_h").asDouble()).isEqualTo(16.0);
+        assertThat(call(get("/api/v1/planning/PAY-1100/estimation")).json().get("rows")).hasSize(1);
+        problem(call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row))).with(as("an.nguyen@acme.vn"))),
+                403, "forbidden");
+        JsonNode imported = call(multipart("/api/v1/planning/PAY-1100/estimation/import").file(new org.springframework.mock.web.MockMultipartFile(
+                "file", "e.csv", "text/csv", "Phase,Subphase,Function,Steps,Effort (h)\nITA,Create test case,Login,5,8\nITA,X,,4,8\n"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)))).json();
+        assertThat(imported.get(0).get("errors")).isEmpty();
+        assertThat(imported.get(1).get("errors")).hasSize(2);
+        assertThat(call(get("/api/v1/planning/estimation/template")).text()).contains("Phase,Subphase,Function,Steps,Effort (h)");
+    }
+
+    @Test
     void createFunction() throws Exception {
         Res r = call(json(post("/api/v1/anken/PAY-1100/functions"), Map.of("parent_key", "PAY-1102", "name", "Installment",
                 "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)));

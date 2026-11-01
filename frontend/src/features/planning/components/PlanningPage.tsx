@@ -18,6 +18,7 @@ import { clusterByFunction, stripes } from '../model/clusters';
 import { layoutLanes, startForDrop } from '../model/lanes';
 import { usePendingMoves } from '../model/pending';
 import { FunctionPanel, type PlanOf } from './FunctionPanel';
+import { PlanningTabs } from './PlanningTabs';
 
 const route = getRouteApi('/app/planning');
 const LANE_H = 32;
@@ -57,6 +58,7 @@ export function PlanningPage() {
           <IconButton icon="chevron-right" label="Next" appearance="secondary" size="sm" onClick={() => setSearch({ start: add(start, weeks * 7) })} />
         </div>
       </PageHead>
+      <PlanningTabs at="/planning" />
       {view.isPending ? <Loading /> : view.isError ? <QueryError error={view.error} /> : (
         <Planning v={view.data} hidden={hidden} setHidden={(h) => setSearch({ hide: h.join(',') })}
           fn={search.fn} setFn={(fn) => navigate({ search: (prev) => ({ ...prev, fn: fn ?? undefined }) })}

@@ -1551,6 +1551,25 @@
         "tags" : [ "planning-api" ]
       }
     },
+    "/api/v1/planning/estimation/template" : {
+      "get" : {
+        "operationId" : "estimationTemplate",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "binary"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/preview" : {
       "post" : {
         "operationId" : "preview",
@@ -1613,6 +1632,107 @@
           }
         },
         "tags" : [ "planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/estimation" : {
+      "get" : {
+        "operationId" : "estimation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EstimationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      },
+      "put" : {
+        "operationId" : "saveEstimation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EstimationIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EstimationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/estimation/import" : {
+      "post" : {
+        "operationId" : "importEstimation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "encoding" : {
+                "file" : { }
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/EstimationUpload"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/EstimationImportRow"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
       }
     },
     "/api/v1/qa" : {
@@ -4054,6 +4174,123 @@
         },
         "required" : [ "key", "project", "title" ]
       },
+      "EstimationImportRow" : {
+        "type" : "object",
+        "properties" : {
+          "effort_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "function" : {
+            "type" : "string"
+          },
+          "line" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
+          },
+          "subphase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "effort_h", "errors", "function", "line", "phase", "steps", "subphase" ]
+      },
+      "EstimationIn" : {
+        "type" : "object",
+        "properties" : {
+          "rows" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/EstimationRow"
+            }
+          }
+        },
+        "required" : [ "rows" ]
+      },
+      "EstimationRow" : {
+        "type" : "object",
+        "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "epic_key" : {
+            "type" : "string"
+          },
+          "function_name" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "jm_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "position" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "pushed_at" : {
+            "type" : [ "string", "null" ]
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
+          },
+          "subphase" : {
+            "type" : "string"
+          }
+        }
+      },
+      "EstimationUpload" : {
+        "type" : "object",
+        "properties" : {
+          "file" : {
+            "type" : [ "string", "null" ],
+            "format" : "binary"
+          }
+        }
+      },
+      "EstimationView" : {
+        "type" : "object",
+        "properties" : {
+          "phases" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PhaseEffort"
+            }
+          },
+          "rows" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/EstimationRow"
+            }
+          }
+        },
+        "required" : [ "phases", "rows" ]
+      },
       "ExpectedUpdateIn" : {
         "type" : "object",
         "properties" : {
@@ -5388,6 +5625,19 @@
             "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         }
+      },
+      "PhaseEffort" : {
+        "type" : "object",
+        "properties" : {
+          "phase" : {
+            "type" : "string"
+          },
+          "total_effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "phase", "total_effort_h" ]
       },
       "PhaseRollup" : {
         "type" : "object",
