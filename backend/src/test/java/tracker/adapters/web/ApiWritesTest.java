@@ -105,17 +105,37 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void onboardingIsForAdmins() throws Exception {
+        problem(call(get("/api/v1/onboarding").with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        problem(call(get("/api/v1/onboarding/lookup").param("key", "PAY-1500").with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        assertThat(call(get("/api/v1/onboarding/lookup").param("key", "PAY-1500")).json().get("tracked").asBoolean()).isFalse();
+        JsonNode v = call(json(post("/api/v1/onboarding"), Map.of("key", "PAY-1500"))).json();
+        assertThat(v.get("step").asInt()).isEqualTo(2);
+        assertThat(call(get("/api/v1/onboarding")).json().get(0).get("epic_key").asText()).isEqualTo("PAY-1500");
+        assertThat(call(json(put("/api/v1/onboarding/PAY-1500"), Map.of("step", 3, "anken_prefix", "RFD"))).json().get("anken_prefix").asText())
+                .isEqualTo("RFD");
+        assertThat(call(get("/api/v1/onboarding/PAY-1500/tasks")).json().get("tasks").size()).isEqualTo(2);
+        problem(call(json(put("/api/v1/onboarding/PAY-1500"), Map.of("step", 9))), 422, "invalid");
+        assertThat(call(delete("/api/v1/onboarding/PAY-1500")).status()).isEqualTo(204);
+        problem(call(get("/api/v1/onboarding/PAY-1500")), 404, "not_found");
+    }
+
+    @Test
     void detailPlanDraftRoundTrip() throws Exception {
         Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
-                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
-        long id = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json().get("rows").get(0).get("id").asLong();
+                "subphase", "Execute", "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
+        JsonNode est = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json();
+        long id = est.get("rows").get(0).get("id").asLong();
+        assertThat(est.get("rows").get(0).get("task_key").asText()).isEqualTo("PAY-1102");
+        assertThat(est.get("tasks").toString()).contains("PAY-1102");
+        row.put("task_key", "PAY-9999");
+        problem(call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))), 422, "invalid");
         JsonNode v = call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(id),
-                "assigns", List.of(Map.of("row_id", id, "ba_id", "an")),
-                "targets", List.of(Map.of("phase", "ITA", "subphase", "Execute", "new_name", "ITA Execute", "new_assignee_id", "an"))))).json();
+                "assigns", List.of(Map.of("row_id", id, "ba_id", "an"))))).json();
         assertThat(v.get("rows").get(0).get("ba_id").asText()).isEqualTo("an");
+        assertThat(v.get("rows").get(0).get("task_key").asText()).isEqualTo("PAY-1102");
         assertThat(v.get("problems").toString()).contains("Save a master schedule first");
-        assertThat(call(get("/api/v1/planning/PAY-1100/detail")).json().get("targets").get(0).get("new_name").asText()).isEqualTo("ITA Execute");
-        problem(call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(), "assigns", List.of(), "targets", List.of()))
+        problem(call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(), "assigns", List.of()))
                 .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
         problem(call(post("/api/v1/planning/PAY-1100/detail/push/preview")), 422, "invalid"); // no master schedule yet
         problem(call(post("/api/v1/planning/PAY-1100/detail/push").with(as("an.nguyen@acme.vn"))), 403, "forbidden");

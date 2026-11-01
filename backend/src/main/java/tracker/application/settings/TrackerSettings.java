@@ -10,6 +10,7 @@ import org.jspecify.annotations.Nullable;
 import tracker.domain.Naming;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
+import tracker.domain.TaskNames;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
@@ -48,6 +49,7 @@ public class TrackerSettings {
             a.nameRules = new NameRules();
             a.nameRules.rule = nameRules.rule;
             a.nameRules.aliases = new LinkedHashMap<>(nameRules.aliases);
+            a.nameRules.taskRule = nameRules.taskRule;
             return a;
         }
     }
@@ -124,6 +126,8 @@ public class TrackerSettings {
     public static class NameRules {
         public String rule = Naming.DEFAULT_RULE;
         public Map<StepKind, String> aliases = new LinkedHashMap<>(Naming.DEFAULT_ALIASES);
+        /** How the template Tasks an onboarding creates are named ({@link TaskNames}). */
+        public String taskRule = TaskNames.DEFAULT_RULE;
     }
 
     public static class StatusMapping {

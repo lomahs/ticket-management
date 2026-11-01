@@ -34,6 +34,7 @@ import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.ExpectedChange;
 import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.BatchResult;
+import tracker.application.service.TicketService.NewTicket;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
@@ -57,7 +58,6 @@ import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.ScheduleVersion.PhaseRow;
-import tracker.domain.TaskTarget;
 import tracker.domain.Viewer;
 
 /** Estimation → master schedule → detail plan → re-plan, on fresh demo data. */
@@ -85,23 +85,42 @@ class DetailPlanningTest {
     ReplanService replan;
     @Autowired
     IssueRepository issues;
+    @Autowired
+    TicketService tickets;
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
 
-    void estimate() {
-        estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8),
-                row(0, 1, "ITA", "Execute", "Run", null, 16), row(0, 2, "ITB", "Create test case", "Pay", 3, 8)));
+    /** Tasks created in Jira for the plan: name → key. */
+    Map<String, String> tasks = new java.util.HashMap<>();
+
+    String task(String name) {
+        return tasks.computeIfAbsent(name, n -> tickets.applyBatch(ADMIN, ALL, EPIC, List.of(),
+                List.of(new NewTicket("t", false, null, null, n, "an", null, null, null, null))).created().get("t"));
     }
 
-    static EstimationRow row(long id, int pos, String phase, String subphase, String fn, Integer steps, double effort) {
-        return new EstimationRow(id, EPIC, pos, phase, subphase, fn, steps, effort, null, null, null, null);
+    /** Login and Run under new ITA Tasks, Pay under a new ITB Task. */
+    void estimate() {
+        estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).withTask(task("ITA Create test case")),
+                row(0, 1, "ITA", "Execute", "Run", null, 16).withTask(task("ITA Execute")),
+                row(0, 2, "ITB", "Create test case", "Pay", 3, 8).withTask(task("ITB Create test case"))));
+    }
+
+    record Row(EstimationRow r) {
+        EstimationRow withTask(String key) {
+            return new EstimationRow(r.id(), r.epicKey(), r.position(), r.phase(), r.subphase(), r.functionName(), r.steps(), r.effortH(),
+                    r.baId(), r.balId(), r.jmId(), key, r.pushedAt());
+        }
+    }
+
+    static Row row(long id, int pos, String phase, String subphase, String fn, Integer steps, double effort) {
+        return new Row(new EstimationRow(id, EPIC, pos, phase, subphase, fn, steps, effort, null, null, null, null, null));
     }
 
     @Test
     void estimationTotalsPerPhaseUseWeightsWithoutJmReview() {
-        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8),
-                row(0, 1, "ITA", "Execute", "Run", null, 16), row(0, 2, "ITB", "Create test case", "Pay", 3, 8)));
+        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).r(),
+                row(0, 1, "ITA", "Execute", "Run", null, 16).r(), row(0, 2, "ITB", "Create test case", "Pay", 3, 8).r()));
         assertThat(v.rows()).hasSize(3);
         assertThat(v.phases()).containsExactly(new PhaseEffort("ITA", 30.0), new PhaseEffort("ITB", 12.5));
         assertThat(estimation.view(ALL, EPIC).phases()).isEqualTo(v.phases());
@@ -109,21 +128,21 @@ class DetailPlanningTest {
 
     @Test
     void estimationRefusesStepsFour() {
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 4, 8))))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 4, 8).r())))
                 .isInstanceOf(Invalid.class).hasMessageContaining("3 or 5").extracting("field").isEqualTo("rows.0.steps");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "", "Login", 5, 8))))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "", "Login", 5, 8).r())))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.subphase");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Execute", "Run", null, 0))))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Execute", "Run", null, 0).r())))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.effort_h");
     }
 
     @Test
     void estimationKeepsPushedRowsOutOfReach() {
-        EstimationRow saved = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8))).rows().get(0);
+        EstimationRow saved = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).r())).rows().get(0);
         estimationRows.markPushed(List.of(saved.id()), "2026-10-07T09:00:00Z");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(saved.id(), 0, "ITA", "Create test case", "Login 2", 5, 8))))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(saved.id(), 0, "ITA", "Create test case", "Login 2", 5, 8).r())))
                 .isInstanceOf(Invalid.class).hasMessageContaining("pushed");
-        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 1, "ITA", "Execute", "Run", null, 16)));
+        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 1, "ITA", "Execute", "Run", null, 16).r()));
         assertThat(v.rows()).extracting(EstimationRow::functionName).containsExactly("Login", "Run");
     }
 
@@ -177,9 +196,7 @@ class DetailPlanningTest {
         List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
                 new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
-                new RowAssign(rows.get(2).id(), "binh", "minh", null)), List.of(
-                new TaskTarget("ITA", "Create test case", "PAY-1102", null, null), new TaskTarget("ITA", "Execute", null, "ITA Execute", "an"),
-                new TaskTarget("ITB", "Create test case", null, "ITB Create test case", "an"))));
+                new RowAssign(rows.get(2).id(), "binh", "minh", null))));
         return rows;
     }
 
@@ -203,7 +220,7 @@ class DetailPlanningTest {
         }
         assertThat(first(v, rows.get(1).id()).start()).isGreaterThanOrEqualTo(login.get(0).start()); // Run comes after Login for an
         assertThat(first(v, rows.get(2).id()).start()).isGreaterThanOrEqualTo("2026-10-19");
-        assertThat(v.tasks()).extracting(t -> t.key()).contains("PAY-1102");
+        assertThat(v.tasks()).extracting(t -> t.key()).contains(task("ITA Execute"));
     }
 
     @Test
@@ -211,7 +228,7 @@ class DetailPlanningTest {
         List<EstimationRow> rows = planned();
         DetailPlanView v = detail.view(ALL, EPIC);
         DetailPlanView swapped = detail.saveDraft(ALL, EPIC, new DraftIn(List.of(rows.get(1).id(), rows.get(0).id(), rows.get(2).id()),
-                List.of(), v.targets()));
+                List.of()));
         assertThat(swapped.rows().get(0).id()).isEqualTo(rows.get(1).id());
         assertThat(swapped.rows().get(0).baId()).isEqualTo("an"); // assignments are kept
         assertThat(first(swapped, rows.get(1).id()).start()).isLessThanOrEqualTo(first(swapped, rows.get(0).id()).start());
@@ -225,8 +242,8 @@ class DetailPlanningTest {
         assertThat(v.plan()).isEmpty();
         schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an"))), "Kick-off");
         List<String> p = detail.view(ALL, EPIC).problems();
-        assertThat(p).contains("ITB is not in the master schedule", "Row 1 (Login): pick a BA", "Row 2 (Run): pick a member",
-                "ITA / Create test case: choose a Task");
+        assertThat(p).contains("ITB is not in the master schedule", "Row 1 (Login): pick a BA", "Row 2 (Run): pick a member");
+        assertThat(p).noneMatch(x -> x.contains("choose a Task"));
     }
 
     @Test
@@ -241,7 +258,7 @@ class DetailPlanningTest {
 
     /**
      * Allocations that keep every member within budget: ITA (Login + Run, 30h) by an 8h + minh 1h → 4 days, an given 28h of 32;
-     * ITB (Pay, 12.5h) by binh 8h; Login and Run go under a new Task, Pay under the existing PAY-1102.
+     * ITB (Pay, 12.5h) by binh 8h.
      */
     List<EstimationRow> pushable() {
         for (String[] a : new String[][]{{"an", "8"}, {"minh", "1"}, {"binh", "8"}}) {
@@ -253,22 +270,20 @@ class DetailPlanningTest {
         List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
                 new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
-                new RowAssign(rows.get(2).id(), "binh", "an", null)), List.of(
-                new TaskTarget("ITA", "Create test case", null, "ITA Create test case", "an"), new TaskTarget("ITA", "Execute", null, "ITA Execute", "an"),
-                new TaskTarget("ITB", "Create test case", "PAY-1102", null, null))));
+                new RowAssign(rows.get(2).id(), "binh", "an", null))));
         return rows;
     }
 
     @Test
-    void pushCreatesNewTasksThenSubTasksUnderThem() {
+    void pushCreatesEachRowsSubTasksUnderItsTask() {
         List<EstimationRow> rows = pushable();
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overBudget()).isEmpty();
         assertThat(v.overDay()).isEmpty();
-        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(2 + 5 + 1 + 3);
+        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(5 + 1 + 3);
         BatchResult r = detail.push(ADMIN, ALL, EPIC);
         TrackerContext ctx = loader.load(ALL);
-        String execute = r.created().get("task:ITA/Execute");
+        String execute = task("ITA Execute");
         Issue run = ctx.issue(r.created().get(String.valueOf(rows.get(1).id()))).orElseThrow();
         assertThat(run.parentKey()).isEqualTo(execute);
         StepPlan runPlan = first(v, rows.get(1).id());
@@ -277,12 +292,11 @@ class DetailPlanningTest {
         assertThat(run.estimateH()).isEqualTo(16.0);
         assertThat(run.summary()).isEqualTo("[ITA] Run"); // no step and no function id: their brackets and separator go
         assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[ITA][F01] Login – Create");
-        assertThat(ctx.issue(execute).orElseThrow().summary()).isEqualTo("ITA Execute");
         Issue jm = ctx.issue(r.created().get(rows.get(0).id() + ":jmr")).orElseThrow();
         assertThat(jm.estimateH()).isEqualTo(2.0);
-        assertThat(jm.parentKey()).isEqualTo(r.created().get("task:ITA/Create test case"));
+        assertThat(jm.parentKey()).isEqualTo(task("ITA Create test case"));
         Issue pay = ctx.issue(r.created().get(rows.get(2).id() + ":create")).orElseThrow();
-        assertThat(pay.parentKey()).isEqualTo("PAY-1102");
+        assertThat(pay.parentKey()).isEqualTo(task("ITB Create test case"));
         assertThat(estimationRows.findByEpic(EPIC)).allMatch(EstimationRow::pushed);
         assertThat(detail.view(ALL, EPIC).plan()).isEmpty();
     }
@@ -301,7 +315,7 @@ class DetailPlanningTest {
         List<EstimationRow> rows = pushable();
         AtomicInteger sent = new AtomicInteger();
         JiraWriter failing = req -> {
-            if (sent.incrementAndGet() == 9) { // 2 new Tasks, Login's 5 steps and Run go through; Pay's first step is refused
+            if (sent.incrementAndGet() == 7) { // Login's 5 steps and Run go through; Pay's first step is refused
                 throw new JiraRejected(400, "refused for the test");
             }
             return jira.send(req);

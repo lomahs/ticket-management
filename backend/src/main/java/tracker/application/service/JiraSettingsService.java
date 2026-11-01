@@ -26,6 +26,7 @@ import tracker.application.dto.JiraField;
 import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraError;
+import tracker.application.dto.EpicSnapshot;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraReaderFactory;
 import tracker.application.ports.SecretBox;
@@ -41,6 +42,7 @@ import tracker.domain.RuleError;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
+import tracker.domain.TaskNames;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
 import tracker.domain.WorkStructure;
@@ -135,6 +137,19 @@ public class JiraSettingsService {
             s.jira.status = status;
         });
         return jiraSettings();
+    }
+
+    /** An epic as Jira has it, and whether the app tracks it. */
+    public record EpicLookup(String key, String title, String project, boolean tracked) {
+    }
+
+    public EpicLookup lookupEpic(String key) {
+        String k = key.strip().toUpperCase(Locale.ROOT);
+        if (!EPIC_KEY.matcher(k).matches()) {
+            throw new Invalid("Enter an Epic key such as PAY-1100", "key");
+        }
+        EpicSnapshot e = reader.findEpic(k).orElseThrow(() -> new NotFound(k + " was not found or is not an Epic", "key"));
+        return new EpicLookup(k, e.summary(), e.project(), settings.load().jira.epics.contains(k));
     }
 
     public JiraSettingsView addEpic(String key) {
@@ -485,7 +500,8 @@ public class JiraSettingsService {
     // --- name rules -------------------------------------------------------------------------------------------------
 
     /** @param matched sub-task summaries the rule reads */
-    public record NameRulesView(String rule, Map<String, String> aliases, int matched, int total) {
+    /** @param taskRule how onboarding names the template Tasks it creates */
+    public record NameRulesView(String rule, Map<String, String> aliases, int matched, int total, String taskRule) {
     }
 
     public record NameRulePreview(@Nullable String error, List<String> tokens, Map<String, String> values, @Nullable String step,
@@ -524,7 +540,7 @@ public class JiraSettingsService {
         TrackerSettings.NameRules nr = settings.load().nameRulesOf(e);
         List<String> summaries = summaries(e);
         return new NameRulesView(nr.rule, aliasValues(nr.aliases), Naming.coverage(Naming.compileRule(nr.rule, nr.aliases), summaries),
-                summaries.size());
+                summaries.size(), Text.orElse(nr.taskRule, TaskNames.DEFAULT_RULE));
     }
 
     /** @param rawAliases null uses the saved aliases */
@@ -545,7 +561,8 @@ public class JiraSettingsService {
     }
 
     /** @param rule "" restores the default rule */
-    public NameRulesView saveNameRules(@Nullable String epic, String rule, Map<String, String> rawAliases) {
+    /** @param taskRule null keeps the saved Task name rule */
+    public NameRulesView saveNameRules(@Nullable String epic, String rule, Map<String, String> rawAliases, @Nullable String taskRule) {
         String scope = tracked(epic);
         Map<StepKind, String> al = aliases(rawAliases, Map.of());
         String r = Text.orElse(rule, Naming.DEFAULT_RULE);
@@ -554,10 +571,21 @@ public class JiraSettingsService {
         } catch (RuleError e) {
             throw new Invalid(e.getMessage(), "rule");
         }
+        String tr = taskRule == null ? null : Text.orElse(taskRule.strip(), TaskNames.DEFAULT_RULE);
+        if (tr != null) {
+            try {
+                TaskNames.check(tr);
+            } catch (RuleError e) {
+                throw new Invalid(e.getMessage(), "task_rule");
+            }
+        }
         settings.update(s -> {
             TrackerSettings.NameRules nr = scope == null ? s.nameRules : ankenSettings(s, scope).nameRules;
             nr.rule = r;
             nr.aliases = al;
+            if (tr != null) {
+                nr.taskRule = tr;
+            }
         });
         sync.run(true);
         return nameRules(scope);

@@ -43,7 +43,8 @@ public class MasterScheduleService {
         this.clock = clock;
     }
 
-    public record PhaseRowIn(String phase, String start, List<String> memberIds) {
+    /** @param start null: the working day after the previous phase's End (not for the first phase) */
+    public record PhaseRowIn(String phase, @Nullable String start, List<String> memberIds) {
     }
 
     /** A phase of the current version against the baseline; days are calendar days, positive = later. */
@@ -74,7 +75,7 @@ public class MasterScheduleService {
                         Dates.dayDiff(b.end(), p.end())));
             }
         }
-        return new MasterScheduleView(List.copyOf(efforts(ctx, epic).keySet()), current, all, shifts);
+        return new MasterScheduleView(ctx.settings.structureOf(epic).orderedPhases(efforts(ctx, epic).keySet()), current, all, shifts);
     }
 
     private Map<String, Double> efforts(TrackerContext ctx, String epic) {
@@ -109,10 +110,17 @@ public class MasterScheduleService {
                     throw new Invalid(ctx.notAMember(epic, m), at + "member_ids");
                 }
             }
+            String start = in.start();
+            if (start == null || start.isBlank()) {
+                if (out.isEmpty()) {
+                    throw new Invalid("Enter the Start of " + in.phase(), at + "start");
+                }
+                start = ctx.cal.nextWork(Dates.addDays(out.getLast().end(), 1), in.memberIds().getFirst());
+            }
             double effort = efforts.get(in.phase());
             try {
-                MasterSchedule.PhaseEnd end = MasterSchedule.endOf(epic, in.start(), effort, in.memberIds(), a, ctx.cal);
-                out.add(new PhaseRow(in.phase(), effort, in.memberIds(), in.start(), end.end(), end.planMd()));
+                MasterSchedule.PhaseEnd end = MasterSchedule.endOf(epic, start, effort, in.memberIds(), a, ctx.cal);
+                out.add(new PhaseRow(in.phase(), effort, in.memberIds(), start, end.end(), end.planMd()));
             } catch (RuleError e) {
                 throw new Invalid(e.getMessage(), at + "member_ids");
             }

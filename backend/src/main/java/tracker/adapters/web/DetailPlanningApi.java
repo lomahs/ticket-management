@@ -58,7 +58,6 @@ import tracker.domain.EstimationRow;
 import tracker.domain.Feature;
 import tracker.domain.Level;
 import tracker.domain.ScheduleVersion.PhaseRow;
-import tracker.domain.TaskTarget;
 import tracker.domain.Viewer;
 
 /** Building an anken's plan: estimation, master schedule, detail plan and re-plan. Reads: Planning; writes: admins. */
@@ -87,9 +86,9 @@ public class DetailPlanningApi {
 
     /** @param id 0 for a new row */
     public record EstimationRowIn(long id, @NotNull String phase, @NotNull String subphase, @NotNull String functionName, @Nullable Integer steps,
-                                  double effortH, @Nullable String baId, @Nullable String balId, @Nullable String jmId) {
+                                  double effortH, @Nullable String baId, @Nullable String balId, @Nullable String jmId, @Nullable String taskKey) {
         EstimationRow row(String epic, int position) {
-            return new EstimationRow(id, epic, position, phase, subphase, functionName, steps, effortH, baId, balId, jmId, null);
+            return new EstimationRow(id, epic, position, phase, subphase, functionName, steps, effortH, baId, balId, jmId, taskKey, null);
         }
     }
 
@@ -142,7 +141,8 @@ public class DetailPlanningApi {
                 .body(EstimationFiles.TEMPLATE_CSV.getBytes(StandardCharsets.UTF_8));
     }
 
-    public record PhaseIn(@NotBlank String phase, @NotNull @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
+    /** @param start null: the working day after the previous phase's End (not for the first phase) */
+    public record PhaseIn(@NotBlank String phase, @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
                           @NotNull List<@NotBlank String> memberIds) {
         PhaseRowIn row() {
             return new PhaseRowIn(phase, start, memberIds);
@@ -175,16 +175,10 @@ public class DetailPlanningApi {
         return schedule.save(viewer, epicScope(viewer, epic), epic, body.phases().stream().map(PhaseIn::row).toList(), body.reason());
     }
 
-    public record TaskTargetIn(@NotNull String phase, @NotNull String subphase, @Nullable String existingKey, @Nullable String newName,
-                               @Nullable String newAssigneeId) {
-    }
-
     /** @param order the unpushed rows' ids in their new order */
-    public record DraftBody(@NotNull List<@NotNull Long> order, @NotNull List<@NotNull RowAssign> assigns,
-                            @NotNull List<@NotNull @Valid TaskTargetIn> targets) {
+    public record DraftBody(@NotNull List<@NotNull Long> order, @NotNull List<@NotNull RowAssign> assigns) {
         DraftIn draft() {
-            return new DraftIn(order, assigns, targets.stream().map(t -> new TaskTarget(t.phase(), t.subphase(), t.existingKey(), t.newName(),
-                    t.newAssigneeId())).toList());
+            return new DraftIn(order, assigns);
         }
     }
 
@@ -194,21 +188,21 @@ public class DetailPlanningApi {
         return detail.view(epicScope(viewer, epic), epic);
     }
 
-    /** Saves the draft (row order, people, the Task of each subphase) and returns the plan that follows. */
+    /** Saves the draft (row order and people) and returns the plan that follows. */
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}/detail")
     public DetailPlanView saveDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid DraftBody body, Viewer viewer) {
         return detail.saveDraft(epicScope(viewer, epic), epic, body.draft());
     }
 
-    /** The review of the push: new Tasks, then every sub-task, with the requests; refused while the plan has problems or overruns. */
+    /** The review of the push: every sub-task, with the requests; refused while the plan has problems or overruns. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push/preview")
     public BatchPreview previewDetailPush(@PathVariable("epic") String epic, Viewer viewer) {
         return detail.pushPreview(epicScope(viewer, epic), epic);
     }
 
-    /** Creates the plan's Tasks and sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
+    /** Creates the plan's sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push")
     public BatchResult pushDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {

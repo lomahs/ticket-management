@@ -33,7 +33,17 @@ public class EstimationService {
     public record PhaseEffort(String phase, double totalEffortH) {
     }
 
-    public record EstimationView(List<EstimationRow> rows, List<PhaseEffort> phases) {
+    /** @param phase the Task's phase group */
+    public record TaskOption(String key, String summary, String phase) {
+    }
+
+    /** @param tasks the Tasks of the epic a row's sub-tasks can go under */
+    public record EstimationView(List<EstimationRow> rows, List<PhaseEffort> phases, List<TaskOption> tasks) {
+    }
+
+    /** The Tasks of the epic, in the order Add function lists them. */
+    static List<TaskOption> tasks(TrackerContext ctx, String epic) {
+        return AnkenService.parentOptions(ctx, epic).stream().map(p -> new TaskOption(p.key(), p.summary(), p.group())).toList();
     }
 
     /** {@code epic} must be a tracked anken of the scope. */
@@ -51,7 +61,7 @@ public class EstimationService {
     private EstimationView view(TrackerContext ctx, String epic) {
         List<EstimationRow> all = rows.findByEpic(epic);
         return new EstimationView(all, phaseEfforts(all, ctx.settings.stepWeightsOf(epic)).entrySet().stream()
-                .map(e -> new PhaseEffort(e.getKey(), e.getValue())).toList());
+                .map(e -> new PhaseEffort(e.getKey(), e.getValue())).toList(), tasks(ctx, epic));
     }
 
     /** Phase → total effort, phases in the order of their first row. */
@@ -69,6 +79,7 @@ public class EstimationService {
         TrackerContext ctx = load(context, scope, epic);
         Map<Long, EstimationRow> current = rows.findByEpic(epic).stream().collect(Collectors.toMap(EstimationRow::id, r -> r));
         Set<Long> pushed = current.values().stream().filter(EstimationRow::pushed).map(EstimationRow::id).collect(Collectors.toSet());
+        Set<String> taskKeys = tasks(ctx, epic).stream().map(TaskOption::key).collect(Collectors.toSet());
         List<EstimationRow> out = new ArrayList<>();
         int position = pushed.size(); // pushed rows keep their place first, the others follow in the order given
         for (int n = 0; n < next.size(); n++) {
@@ -85,8 +96,12 @@ public class EstimationService {
                 continue;
             }
             check(r, at);
+            String task = r.taskKey() == null || r.taskKey().isBlank() ? null : r.taskKey().strip();
+            if (task != null && !taskKeys.contains(task)) {
+                throw new Invalid(task + " is not a Task of " + epic, at + "task_key");
+            }
             out.add(new EstimationRow(r.id(), epic, position++, r.phase().strip(), r.subphase().strip(), r.functionName().strip(), r.steps(),
-                    r.effortH(), r.baId(), r.balId(), r.jmId(), null));
+                    r.effortH(), r.baId(), r.balId(), r.jmId(), task, null));
         }
         rows.save(epic, out);
         return view(ctx, epic);

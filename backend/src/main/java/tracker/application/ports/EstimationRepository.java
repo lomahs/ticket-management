@@ -3,9 +3,8 @@ package tracker.application.ports;
 import java.util.List;
 
 import tracker.domain.EstimationRow;
-import tracker.domain.TaskTarget;
 
-/** The estimation rows of each anken and where their sub-tasks go. */
+/** The estimation rows of each anken. */
 public interface EstimationRepository {
     /** Ordered by position. */
     List<EstimationRow> findByEpic(String epic);
@@ -18,8 +17,6 @@ public interface EstimationRepository {
 
     void markPushed(List<Long> ids, String at);
 
-    List<TaskTarget> findTargets(String epic);
-
-    /** Replaces every target of the epic. */
-    void saveTargets(String epic, List<TaskTarget> targets);
+    /** Deletes the epic's unpushed rows. */
+    void deleteUnpushed(String epic);
 }

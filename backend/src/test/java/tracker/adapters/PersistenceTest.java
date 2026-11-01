@@ -36,7 +36,6 @@ import tracker.domain.AccessRequest;
 import tracker.domain.AccessStatus;
 import tracker.domain.Anken;
 import tracker.domain.EstimationRow;
-import tracker.domain.TaskTarget;
 import tracker.domain.Allocation;
 import tracker.domain.AnkenMember;
 import tracker.domain.AnkenScopeSetting;
@@ -102,7 +101,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
     }
 
     @Test
@@ -279,7 +278,7 @@ class PersistenceTest {
     }
 
     static EstimationRow row(long id, int pos, String fn) {
-        return new EstimationRow(id, "PAY-1100", pos, "ITA", "Create test case", fn, 5, 8, null, null, null, null);
+        return new EstimationRow(id, "PAY-1100", pos, "ITA", "Create test case", fn, 5, 8, null, null, null, null, null);
     }
 
     @Test
@@ -291,22 +290,23 @@ class PersistenceTest {
         EstimationRow login = first.get(0);
         // Login renamed and moved last, Pay dropped, a new row first; Cart is pushed and must stay as it was
         estimation.save("PAY-1100", List.of(row(0, 0, "Ship"), new EstimationRow(login.id(), "PAY-1100", 1, "ITA", "Create test case",
-                "Login 2", 3, 6, "an", "minh", null, null), row(first.get(2).id(), 5, "Cart changed")));
+                "Login 2", 3, 6, "an", "minh", null, "PAY-1102", null), row(first.get(2).id(), 5, "Cart changed")));
         List<EstimationRow> after = estimation.findByEpic("PAY-1100");
         assertThat(after).extracting(EstimationRow::functionName).containsExactly("Ship", "Login 2", "Cart");
         assertThat(after.get(1).id()).isEqualTo(login.id());
         assertThat(after.get(1).baId()).isEqualTo("an");
         assertThat(after.get(1).steps()).isEqualTo(3);
+        assertThat(after.get(1).taskKey()).isEqualTo("PAY-1102");
         assertThat(after.get(2).pushed()).isTrue();
         assertThat(estimation.findByEpic("PAY-1300")).isEmpty();
     }
 
     @Test
-    void taskTargetsAreReplaced() {
-        estimation.saveTargets("PAY-1100", List.of(new TaskTarget("ITA", "Create test case", "PAY-1102", null, null),
-                new TaskTarget("ITA", "Execute", null, "[Pay][LocalTask] ITA Execute", "an")));
-        estimation.saveTargets("PAY-1100", List.of(new TaskTarget("ITA", "Execute", null, "ITA Execute", "binh")));
-        assertThat(estimation.findTargets("PAY-1100")).containsExactly(new TaskTarget("ITA", "Execute", null, "ITA Execute", "binh"));
+    void deleteUnpushedKeepsPushedRows() {
+        estimation.save("PAY-1100", List.of(row(0, 0, "Login"), row(0, 1, "Pay")));
+        estimation.markPushed(List.of(estimation.findByEpic("PAY-1100").get(0).id()), "2026-10-07T09:00:00Z");
+        estimation.deleteUnpushed("PAY-1100");
+        assertThat(estimation.findByEpic("PAY-1100")).extracting(EstimationRow::functionName).containsExactly("Login");
     }
 
     @Test

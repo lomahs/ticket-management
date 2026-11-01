@@ -407,7 +407,7 @@
     },
     "/api/v1/anken/{epic}/members" : {
       "get" : {
-        "operationId" : "members",
+        "operationId" : "members_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "epic",
@@ -1295,7 +1295,7 @@
     },
     "/api/v1/members" : {
       "get" : {
-        "operationId" : "members_1",
+        "operationId" : "members_2",
         "parameters" : [ {
           "in" : "query",
           "name" : "anken",
@@ -1380,6 +1380,351 @@
           }
         },
         "tags" : [ "work-api" ]
+      }
+    },
+    "/api/v1/onboarding" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/OnboardingView"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "post" : {
+        "operationId" : "start",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/lookup" : {
+      "get" : {
+        "operationId" : "lookup",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EpicLookup"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}" : {
+      "delete" : {
+        "operationId" : "discard",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "put" : {
+        "operationId" : "save",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProgressIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/finish" : {
+      "post" : {
+        "operationId" : "finish",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/members" : {
+      "get" : {
+        "operationId" : "members",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MemberHours"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "put" : {
+        "operationId" : "saveMembers",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MembersIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MemberHours"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/tasks" : {
+      "get" : {
+        "operationId" : "tasks",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "anken_prefix",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemplateTasksView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "post" : {
+        "operationId" : "createTasks",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewTasksIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/tasks/preview" : {
+      "post" : {
+        "operationId" : "previewTasks",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewTasksIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BatchPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
       }
     },
     "/api/v1/people" : {
@@ -4448,20 +4793,14 @@
               "$ref" : "#/components/schemas/EstimationRow"
             }
           },
-          "targets" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/TaskTarget"
-            }
-          },
           "tasks" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/ExistingTask"
+              "$ref" : "#/components/schemas/TaskOption"
             }
           }
         },
-        "required" : [ "checks", "over_budget", "over_day", "plan", "problems", "rows", "targets", "tasks" ]
+        "required" : [ "checks", "over_budget", "over_day", "plan", "problems", "rows", "tasks" ]
       },
       "DraftBody" : {
         "type" : "object",
@@ -4478,15 +4817,9 @@
               "type" : "integer",
               "format" : "int64"
             }
-          },
-          "targets" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/TaskTargetIn"
-            }
           }
         },
-        "required" : [ "assigns", "order", "targets" ]
+        "required" : [ "assigns", "order" ]
       },
       "EffortAnalysis" : {
         "type" : "object",
@@ -4576,6 +4909,27 @@
           }
         },
         "required" : [ "key" ]
+      },
+      "EpicLookup" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "onboarding" : {
+            "type" : "boolean"
+          },
+          "project" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "tracked" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "key", "onboarding", "project", "title", "tracked" ]
       },
       "EpicView" : {
         "type" : "object",
@@ -4679,9 +5033,12 @@
           },
           "subphase" : {
             "type" : "string"
+          },
+          "task_key" : {
+            "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "ba_id", "bal_id", "effort_h", "epic_key", "function_name", "id", "jm_id", "phase", "position", "pushed_at", "steps", "subphase" ]
+        "required" : [ "ba_id", "bal_id", "effort_h", "epic_key", "function_name", "id", "jm_id", "phase", "position", "pushed_at", "steps", "subphase", "task_key" ]
       },
       "EstimationRowIn" : {
         "type" : "object",
@@ -4715,6 +5072,9 @@
           },
           "subphase" : {
             "type" : "string"
+          },
+          "task_key" : {
+            "type" : [ "string", "null" ]
           }
         },
         "required" : [ "function_name", "phase", "subphase" ]
@@ -4742,24 +5102,15 @@
             "items" : {
               "$ref" : "#/components/schemas/EstimationRow"
             }
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskOption"
+            }
           }
         },
-        "required" : [ "phases", "rows" ]
-      },
-      "ExistingTask" : {
-        "type" : "object",
-        "properties" : {
-          "key" : {
-            "type" : "string"
-          },
-          "phase" : {
-            "type" : "string"
-          },
-          "summary" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "key", "phase", "summary" ]
+        "required" : [ "phases", "rows", "tasks" ]
       },
       "ExpectedUpdateIn" : {
         "type" : "object",
@@ -5729,6 +6080,23 @@
         },
         "required" : [ "color", "country", "email", "external", "full_name", "id", "jira_account_id", "name", "permission", "role" ]
       },
+      "MemberBody" : {
+        "type" : "object",
+        "properties" : {
+          "hours_per_day" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "in_anken" : {
+            "type" : "boolean"
+          },
+          "member_id" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "member_id" ]
+      },
       "MemberCapacity" : {
         "type" : "object",
         "properties" : {
@@ -5743,6 +6111,31 @@
           }
         },
         "required" : [ "member_id", "weeks" ]
+      },
+      "MemberHours" : {
+        "type" : "object",
+        "properties" : {
+          "country" : {
+            "type" : "string"
+          },
+          "hours_per_day" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "in_anken" : {
+            "type" : "boolean"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "country", "hours_per_day", "in_anken", "member_id", "name", "role" ]
       },
       "MemberLane" : {
         "type" : "object",
@@ -5764,6 +6157,18 @@
           }
         },
         "required" : [ "days", "items", "member_id" ]
+      },
+      "MembersIn" : {
+        "type" : "object",
+        "properties" : {
+          "members" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MemberBody"
+            }
+          }
+        },
+        "required" : [ "members" ]
       },
       "MergeIn" : {
         "type" : "object",
@@ -5923,6 +6328,9 @@
           },
           "rule" : {
             "type" : "string"
+          },
+          "task_rule" : {
+            "type" : [ "string", "null" ]
           }
         },
         "required" : [ "aliases", "rule" ]
@@ -5943,12 +6351,15 @@
           "rule" : {
             "type" : "string"
           },
+          "task_rule" : {
+            "type" : "string"
+          },
           "total" : {
             "type" : "integer",
             "format" : "int32"
           }
         },
-        "required" : [ "aliases", "matched", "rule", "total" ]
+        "required" : [ "aliases", "matched", "rule", "task_rule", "total" ]
       },
       "NewPersonIn" : {
         "type" : "object",
@@ -5973,6 +6384,37 @@
           }
         },
         "required" : [ "email", "epics", "name" ]
+      },
+      "NewTaskBody" : {
+        "type" : "object",
+        "properties" : {
+          "match" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "match", "name" ]
+      },
+      "NewTasksIn" : {
+        "type" : "object",
+        "properties" : {
+          "anken_prefix" : {
+            "type" : "string"
+          },
+          "assignee_id" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/NewTaskBody"
+            }
+          }
+        },
+        "required" : [ "anken_prefix", "assignee_id", "tasks" ]
       },
       "NewTicketIn" : {
         "type" : "object",
@@ -6077,6 +6519,40 @@
           }
         },
         "required" : [ "key", "note" ]
+      },
+      "OnboardingView" : {
+        "type" : "object",
+        "properties" : {
+          "anken_prefix" : {
+            "type" : "string"
+          },
+          "epic_key" : {
+            "type" : "string"
+          },
+          "finished_at" : {
+            "type" : [ "string", "null" ]
+          },
+          "saved_at" : {
+            "type" : "string"
+          },
+          "saved_by" : {
+            "type" : "string"
+          },
+          "started_at" : {
+            "type" : "string"
+          },
+          "started_by" : {
+            "type" : "string"
+          },
+          "step" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "anken_prefix", "epic_key", "finished_at", "saved_at", "saved_by", "started_at", "started_by", "step", "title" ]
       },
       "Overrun" : {
         "type" : "object",
@@ -6194,11 +6670,11 @@
             "minLength" : 1
           },
           "start" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
           }
         },
-        "required" : [ "member_ids", "phase", "start" ]
+        "required" : [ "member_ids", "phase" ]
       },
       "PhaseRollup" : {
         "type" : "object",
@@ -6478,6 +6954,18 @@
           }
         },
         "required" : [ "assignee_id", "end", "estimate_h", "note", "reasons", "start", "step", "summary" ]
+      },
+      "ProgressIn" : {
+        "type" : "object",
+        "properties" : {
+          "anken_prefix" : {
+            "type" : [ "string", "null" ]
+          },
+          "step" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
       },
       "QuestionIn" : {
         "type" : "object",
@@ -6861,6 +7349,16 @@
         },
         "required" : [ "captured_at", "captured_by", "date" ]
       },
+      "StartIn" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "key" ]
+      },
       "StatusMappingIn" : {
         "type" : "object",
         "properties" : {
@@ -7132,47 +7630,20 @@
         },
         "required" : [ "actual_end", "actual_start", "assignee_id", "epic_key", "estimate_h", "function_id", "function_name", "held_days", "is_current", "jira_status", "key", "late", "late_days", "logged_h", "over", "phase", "plan_owner_id", "planned_end", "planned_start", "project", "remaining_h", "rounds", "schedule", "soon", "status", "step", "summary", "tone", "worker_id" ]
       },
-      "TaskTarget" : {
+      "TaskOption" : {
         "type" : "object",
         "properties" : {
-          "existing_key" : {
-            "type" : [ "string", "null" ]
-          },
-          "new_assignee_id" : {
-            "type" : [ "string", "null" ]
-          },
-          "new_name" : {
-            "type" : [ "string", "null" ]
+          "key" : {
+            "type" : "string"
           },
           "phase" : {
             "type" : "string"
           },
-          "subphase" : {
+          "summary" : {
             "type" : "string"
           }
         },
-        "required" : [ "existing_key", "new_assignee_id", "new_name", "phase", "subphase" ]
-      },
-      "TaskTargetIn" : {
-        "type" : "object",
-        "properties" : {
-          "existing_key" : {
-            "type" : [ "string", "null" ]
-          },
-          "new_assignee_id" : {
-            "type" : [ "string", "null" ]
-          },
-          "new_name" : {
-            "type" : [ "string", "null" ]
-          },
-          "phase" : {
-            "type" : "string"
-          },
-          "subphase" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "phase", "subphase" ]
+        "required" : [ "key", "phase", "summary" ]
       },
       "TaskTemplate" : {
         "type" : "object",
@@ -7217,6 +7688,42 @@
           }
         },
         "required" : [ "match", "phase" ]
+      },
+      "TemplateTask" : {
+        "type" : "object",
+        "properties" : {
+          "existing_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "match" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "existing_key", "match", "name", "phase" ]
+      },
+      "TemplateTasksView" : {
+        "type" : "object",
+        "properties" : {
+          "anken_prefix" : {
+            "type" : "string"
+          },
+          "task_rule" : {
+            "type" : "string"
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TemplateTask"
+            }
+          }
+        },
+        "required" : [ "anken_prefix", "task_rule", "tasks" ]
       },
       "Thresholds" : {
         "type" : "object",

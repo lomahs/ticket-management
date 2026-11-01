@@ -78,4 +78,11 @@ class JdbcMasterScheduleRepository implements MasterScheduleRepository {
             throw new IllegalStateException(e);
         }
     }
+
+    @Override
+    public void deleteByEpic(String epic) {
+        jdbc.sql("DELETE FROM master_schedule_phases WHERE version_id IN (SELECT id FROM master_schedule_versions WHERE epic_key = :epic)")
+                .param("epic", epic).update();
+        jdbc.sql("DELETE FROM master_schedule_versions WHERE epic_key = :epic").param("epic", epic).update();
+    }
 }

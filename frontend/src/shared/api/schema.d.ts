@@ -203,7 +203,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["members"];
+        get: operations["members_1"];
         put?: never;
         post: operations["add"];
         delete?: never;
@@ -619,7 +619,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["members_1"];
+        get: operations["members_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -654,6 +654,118 @@ export interface paths {
         get: operations["myWork"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put?: never;
+        post: operations["start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["lookup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["save"];
+        post?: never;
+        delete: operations["discard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["members"];
+        put: operations["saveMembers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tasks"];
+        put?: never;
+        post: operations["createTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}/tasks/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewTasks"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1792,13 +1904,11 @@ export interface components {
             plan: components["schemas"]["RowPlan"][];
             problems: string[];
             rows: components["schemas"]["EstimationRow"][];
-            targets: components["schemas"]["TaskTarget"][];
-            tasks: components["schemas"]["ExistingTask"][];
+            tasks: components["schemas"]["TaskOption"][];
         };
         DraftBody: {
             assigns: components["schemas"]["RowAssign"][];
             order: number[];
-            targets: components["schemas"]["TaskTargetIn"][];
         };
         EffortAnalysis: {
             by_phase: components["schemas"]["EffortBar"][];
@@ -1831,6 +1941,13 @@ export interface components {
         };
         EpicIn: {
             key: string;
+        };
+        EpicLookup: {
+            key: string;
+            onboarding: boolean;
+            project: string;
+            title: string;
+            tracked: boolean;
         };
         EpicView: {
             key: string;
@@ -1869,6 +1986,7 @@ export interface components {
             /** Format: int32 */
             steps: number | null;
             subphase: string;
+            task_key: string | null;
         };
         EstimationRowIn: {
             ba_id?: string | null;
@@ -1883,6 +2001,7 @@ export interface components {
             /** Format: int32 */
             steps?: number | null;
             subphase: string;
+            task_key?: string | null;
         };
         EstimationUpload: {
             /** Format: binary */
@@ -1891,11 +2010,7 @@ export interface components {
         EstimationView: {
             phases: components["schemas"]["PhaseEffort"][];
             rows: components["schemas"]["EstimationRow"][];
-        };
-        ExistingTask: {
-            key: string;
-            phase: string;
-            summary: string;
+            tasks: components["schemas"]["TaskOption"][];
         };
         ExpectedUpdateIn: {
             changes: components["schemas"]["ChangeIn"][];
@@ -2209,14 +2324,32 @@ export interface components {
             /** @enum {string|null} */
             role: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
+        MemberBody: {
+            /** Format: double */
+            hours_per_day?: number | null;
+            in_anken?: boolean;
+            member_id: string;
+        };
         MemberCapacity: {
             member_id: string;
             weeks: components["schemas"]["WeekLoad"][];
+        };
+        MemberHours: {
+            country: string;
+            /** Format: double */
+            hours_per_day: number | null;
+            in_anken: boolean;
+            member_id: string;
+            name: string;
+            role: string | null;
         };
         MemberLane: {
             days: components["schemas"]["DayCell"][];
             items: components["schemas"]["PlanBlock"][];
             member_id: string;
+        };
+        MembersIn: {
+            members: components["schemas"]["MemberBody"][];
         };
         MergeIn: {
             keep_id: string;
@@ -2269,6 +2402,7 @@ export interface components {
                 [key: string]: string;
             };
             rule: string;
+            task_rule?: string | null;
         };
         NameRulesView: {
             aliases: {
@@ -2277,6 +2411,7 @@ export interface components {
             /** Format: int32 */
             matched: number;
             rule: string;
+            task_rule: string;
             /** Format: int32 */
             total: number;
         };
@@ -2286,6 +2421,15 @@ export interface components {
             name: string;
             /** @enum {string|null} */
             role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
+        };
+        NewTaskBody: {
+            match: string;
+            name: string;
+        };
+        NewTasksIn: {
+            anken_prefix: string;
+            assignee_id: string;
+            tasks: components["schemas"]["NewTaskBody"][];
         };
         NewTicketIn: {
             assignee_id: string;
@@ -2320,6 +2464,18 @@ export interface components {
         NoteOut: {
             key: string;
             note: string;
+        };
+        OnboardingView: {
+            anken_prefix: string;
+            epic_key: string;
+            finished_at: string | null;
+            saved_at: string;
+            saved_by: string;
+            started_at: string;
+            started_by: string;
+            /** Format: int32 */
+            step: number;
+            title: string;
         };
         Overrun: {
             /** Format: double */
@@ -2362,7 +2518,7 @@ export interface components {
         PhaseIn: {
             member_ids: string[];
             phase: string;
-            start: string;
+            start?: string | null;
         };
         PhaseRollup: {
             /** Format: int32 */
@@ -2454,6 +2610,11 @@ export interface components {
             start: string;
             step: string;
             summary: string;
+        };
+        ProgressIn: {
+            anken_prefix?: string | null;
+            /** Format: int32 */
+            step?: number;
         };
         QuestionIn: {
             q: string;
@@ -2589,6 +2750,9 @@ export interface components {
             captured_by: string;
             date: string;
         };
+        StartIn: {
+            key: string;
+        };
         StatusMappingIn: {
             mapping: {
                 [key: string]: "N" | "W" | "R" | "C" | null;
@@ -2683,19 +2847,10 @@ export interface components {
             tone: string;
             worker_id: string | null;
         };
-        TaskTarget: {
-            existing_key: string | null;
-            new_assignee_id: string | null;
-            new_name: string | null;
+        TaskOption: {
+            key: string;
             phase: string;
-            subphase: string;
-        };
-        TaskTargetIn: {
-            existing_key?: string | null;
-            new_assignee_id?: string | null;
-            new_name?: string | null;
-            phase: string;
-            subphase: string;
+            summary: string;
         };
         TaskTemplate: {
             match: string;
@@ -2711,6 +2866,17 @@ export interface components {
             /** @enum {string|null} */
             type?: "" | "qna" | "bug" | "work_request" | null;
             workflow?: boolean | null;
+        };
+        TemplateTask: {
+            existing_key: string | null;
+            match: string;
+            name: string;
+            phase: string;
+        };
+        TemplateTasksView: {
+            anken_prefix: string;
+            task_rule: string;
+            tasks: components["schemas"]["TemplateTask"][];
         };
         Thresholds: {
             /** Format: double */
@@ -3177,7 +3343,7 @@ export interface operations {
             };
         };
     };
-    members: {
+    members_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -3870,7 +4036,7 @@ export interface operations {
             };
         };
     };
-    members_1: {
+    members_2: {
         parameters: {
             query?: {
                 anken?: string;
@@ -3932,6 +4098,286 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyWork"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"][];
+                };
+            };
+        };
+    };
+    start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
+    lookup: {
+        parameters: {
+            query: {
+                key: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpicLookup"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
+    save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
+    discard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
+    members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberHours"][];
+                };
+            };
+        };
+    };
+    saveMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembersIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberHours"][];
+                };
+            };
+        };
+    };
+    tasks: {
+        parameters: {
+            query?: {
+                anken_prefix?: string;
+            };
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateTasksView"];
+                };
+            };
+        };
+    };
+    createTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewTasksIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchResult"];
+                };
+            };
+        };
+    };
+    previewTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewTasksIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPreview"];
                 };
             };
         };

@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tracker.application.ports.EstimationRepository;
 import tracker.domain.EstimationRow;
-import tracker.domain.TaskTarget;
 
 @Repository
 class JdbcEstimationRepository implements EstimationRepository {
@@ -44,13 +43,13 @@ class JdbcEstimationRepository implements EstimationRepository {
             if (r.id() > 0) {
                 jdbc.sql("""
                         UPDATE estimation_rows SET position = :position, phase = :phase, subphase = :subphase, function_name = :fn,
-                            steps = :steps, effort_h = :effort, ba_id = :ba, bal_id = :bal, jm_id = :jm
+                            steps = :steps, effort_h = :effort, ba_id = :ba, bal_id = :bal, jm_id = :jm, task_key = :task
                         WHERE id = :id AND epic_key = :epic AND pushed_at IS NULL
                         """).param("id", r.id()).param("epic", epic).params(values(r)).update();
             } else {
                 jdbc.sql("""
-                        INSERT INTO estimation_rows (epic_key, position, phase, subphase, function_name, steps, effort_h, ba_id, bal_id, jm_id)
-                        VALUES (:epic, :position, :phase, :subphase, :fn, :steps, :effort, :ba, :bal, :jm)
+                        INSERT INTO estimation_rows (epic_key, position, phase, subphase, function_name, steps, effort_h, ba_id, bal_id, jm_id, task_key)
+                        VALUES (:epic, :position, :phase, :subphase, :fn, :steps, :effort, :ba, :bal, :jm, :task)
                         """).param("epic", epic).params(values(r)).update();
             }
         }
@@ -64,23 +63,8 @@ class JdbcEstimationRepository implements EstimationRepository {
     }
 
     @Override
-    public List<TaskTarget> findTargets(String epic) {
-        return jdbc.sql("SELECT * FROM plan_task_targets WHERE epic_key = :epic ORDER BY phase, subphase").param("epic", epic)
-                .query((r, n) -> new TaskTarget(r.getString("phase"), r.getString("subphase"), r.getString("existing_key"),
-                        r.getString("new_name"), r.getString("new_assignee_id"))).list();
-    }
-
-    @Override
-    @Transactional
-    public void saveTargets(String epic, List<TaskTarget> targets) {
-        jdbc.sql("DELETE FROM plan_task_targets WHERE epic_key = :epic").param("epic", epic).update();
-        for (TaskTarget t : targets) {
-            jdbc.sql("""
-                    INSERT INTO plan_task_targets (epic_key, phase, subphase, existing_key, new_name, new_assignee_id)
-                    VALUES (:epic, :phase, :subphase, :existing, :name, :assignee)
-                    """).param("epic", epic).param("phase", t.phase()).param("subphase", t.subphase()).param("existing", t.existingKey())
-                    .param("name", t.newName()).param("assignee", t.newAssigneeId()).update();
-        }
+    public void deleteUnpushed(String epic) {
+        jdbc.sql("DELETE FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL").param("epic", epic).update();
     }
 
     private static Map<String, Object> values(EstimationRow r) {
@@ -94,6 +78,7 @@ class JdbcEstimationRepository implements EstimationRepository {
         v.put("ba", r.baId());
         v.put("bal", r.balId());
         v.put("jm", r.jmId());
+        v.put("task", r.taskKey());
         return v;
     }
 
@@ -102,6 +87,6 @@ class JdbcEstimationRepository implements EstimationRepository {
         Integer s = r.wasNull() ? null : steps;
         return new EstimationRow(r.getLong("id"), r.getString("epic_key"), r.getInt("position"), r.getString("phase"), r.getString("subphase"),
                 r.getString("function_name"), s, r.getDouble("effort_h"), r.getString("ba_id"), r.getString("bal_id"), r.getString("jm_id"),
-                r.getString("pushed_at"));
+                r.getString("task_key"), r.getString("pushed_at"));
     }
 }

@@ -235,7 +235,8 @@ public class SettingsApi {
     // --- name rules -------------------------------------------------------------------------------------------------
 
     /** @param aliases step key ("create", "balr", …) → comma-separated names */
-    public record NameRulesIn(@NotNull String rule, @NotNull Map<String, @NotNull String> aliases) {
+    /** @param taskRule null keeps the saved Task name rule */
+    public record NameRulesIn(@NotNull String rule, @NotNull Map<String, @NotNull String> aliases, @Nullable String taskRule) {
     }
 
     /** @param aliases null uses the saved aliases */
@@ -251,7 +252,7 @@ public class SettingsApi {
     @Open(Rule.ADMIN)
     @PutMapping("/settings/name-rules")
     public NameRulesView saveNameRules(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid NameRulesIn body) {
-        return jiraSettings.saveNameRules(anken, body.rule(), body.aliases());
+        return jiraSettings.saveNameRules(anken, body.rule(), body.aliases(), body.taskRule());
     }
 
     @Open(Rule.ADMIN)

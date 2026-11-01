@@ -665,7 +665,7 @@ class ServiceReadsTest {
         assertThat(jiraSettings.previewNameRule(null, "[{phase}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase}");
         assertThat(jiraSettings.previewNameRule(null, "[{prefix}] {step}", null, "[X] Create").error())
                 .isEqualTo("Pattern must contain {function_id} or {function_name}");
-        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{prefix}] {step}", Map.of("create", "Create")))
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{prefix}] {step}", Map.of("create", "Create"), null))
                 .isInstanceOf(Invalid.class);
     }
 

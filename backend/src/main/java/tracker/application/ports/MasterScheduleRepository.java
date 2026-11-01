@@ -11,4 +11,6 @@ public interface MasterScheduleRepository {
 
     /** Stores a new version (its id is ignored) and returns it with its id. */
     ScheduleVersion add(ScheduleVersion v);
+
+    void deleteByEpic(String epic);
 }
