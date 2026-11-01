@@ -964,6 +964,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/step-weights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stepWeights"];
+        put: operations["saveStepWeights"];
+        post?: never;
+        delete: operations["resetStepWeights"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/structure": {
         parameters: {
             query?: never;
@@ -2214,6 +2230,17 @@ export interface components {
         StepOverride: {
             end?: string | null;
             start?: string | null;
+        };
+        StepWeightsIn: {
+            weights: {
+                [key: string]: number;
+            };
+        };
+        StepWeightsView: {
+            own: boolean;
+            weights: {
+                [key: string]: number;
+            };
         };
         StructureIn: {
             phases: string[];
@@ -4121,6 +4148,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusRow"][];
+                };
+            };
+        };
+    };
+    stepWeights: {
+        parameters: {
+            query?: {
+                anken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepWeightsView"];
+                };
+            };
+        };
+    };
+    saveStepWeights: {
+        parameters: {
+            query?: {
+                anken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepWeightsIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepWeightsView"];
+                };
+            };
+        };
+    };
+    resetStepWeights: {
+        parameters: {
+            query: {
+                anken: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepWeightsView"];
                 };
             };
         };

@@ -36,6 +36,7 @@ import tracker.application.service.JiraSettingsService.JiraSettingsView;
 import tracker.application.service.JiraSettingsService.NameRulePreview;
 import tracker.application.service.JiraSettingsService.NameRulesView;
 import tracker.application.service.JiraSettingsService.StatusRow;
+import tracker.application.service.JiraSettingsService.StepWeightsView;
 import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.JiraSettingsService;
 import tracker.application.service.TeamSettingsService;
@@ -257,6 +258,28 @@ public class SettingsApi {
     @PostMapping("/settings/name-rules/preview")
     public NameRulePreview previewNameRule(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid NameRulePreviewIn body) {
         return jiraSettings.previewNameRule(anken, body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
+    }
+
+    /** @param weights step key ("create", "balr", "fixb", "jmr", "fixj") → weight */
+    public record StepWeightsIn(@NotNull Map<String, @NotNull Double> weights) {
+    }
+
+    @Open(Rule.ADMIN)
+    @GetMapping("/settings/step-weights")
+    public StepWeightsView stepWeights(@RequestParam(required = false) @Nullable String anken) {
+        return jiraSettings.stepWeights(anken);
+    }
+
+    @Open(Rule.ADMIN)
+    @PutMapping("/settings/step-weights")
+    public StepWeightsView saveStepWeights(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StepWeightsIn body) {
+        return jiraSettings.saveStepWeights(anken, body.weights());
+    }
+
+    @Open(Rule.ADMIN)
+    @DeleteMapping("/settings/step-weights")
+    public StepWeightsView resetStepWeights(@RequestParam String anken) {
+        return jiraSettings.resetStepWeights(anken);
     }
 
     public record CopyIn(@NotBlank String from) {

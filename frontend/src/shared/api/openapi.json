@@ -2119,6 +2119,90 @@
         "tags" : [ "settings-api" ]
       }
     },
+    "/api/v1/settings/step-weights" : {
+      "delete" : {
+        "operationId" : "resetStepWeights",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StepWeightsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      },
+      "get" : {
+        "operationId" : "stepWeights",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StepWeightsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      },
+      "put" : {
+        "operationId" : "saveStepWeights",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StepWeightsIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StepWeightsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      }
+    },
     "/api/v1/settings/structure" : {
       "get" : {
         "operationId" : "structure",
@@ -5745,6 +5829,35 @@
             "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
           }
         }
+      },
+      "StepWeightsIn" : {
+        "type" : "object",
+        "properties" : {
+          "weights" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          }
+        },
+        "required" : [ "weights" ]
+      },
+      "StepWeightsView" : {
+        "type" : "object",
+        "properties" : {
+          "own" : {
+            "type" : "boolean"
+          },
+          "weights" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          }
+        },
+        "required" : [ "own", "weights" ]
       },
       "StructureIn" : {
         "type" : "object",

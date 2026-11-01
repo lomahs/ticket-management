@@ -12,6 +12,11 @@ export const nameRulesQuery = (anken: string | null) => ({
   queryKey: ['settings', 'name-rules', anken] as const,
   queryFn: () => unwrap(http.GET('/api/v1/settings/name-rules', { params: { query: ankenParam(anken) } })),
 });
+/** `anken` null: the default weights. */
+export const stepWeightsQuery = (anken: string | null) => ({
+  queryKey: ['settings', 'step-weights', anken] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/settings/step-weights', { params: { query: ankenParam(anken) } })),
+});
 export const holidaysQuery = { queryKey: ['settings', 'holidays'] as const, queryFn: () => unwrap(http.GET('/api/v1/holidays')) };
 export const extraDaysQuery = { queryKey: ['settings', 'extra-days'] as const, queryFn: () => unwrap(http.GET('/api/v1/extra-days')) };
 export const hoursQuery = { queryKey: ['settings', 'hours'] as const, queryFn: () => unwrap(http.GET('/api/v1/settings/working-hours')) };
@@ -56,6 +61,10 @@ export const useSaveStructure = (anken: string | null) => useSettingsWrite((b: S
   unwrap(http.PUT('/api/v1/settings/structure', { body: b, params: { query: ankenParam(anken) } })));
 export const useSaveNameRules = (anken: string | null) => useSettingsWrite((b: Schemas['NameRulesIn']) =>
   unwrap(http.PUT('/api/v1/settings/name-rules', { body: b, params: { query: ankenParam(anken) } })));
+export const useSaveStepWeights = (anken: string | null) => useSettingsWrite((weights: Record<string, number>) =>
+  unwrap(http.PUT('/api/v1/settings/step-weights', { body: { weights }, params: { query: ankenParam(anken) } })));
+export const useResetStepWeights = (anken: string) => useSettingsWrite(() =>
+  unwrap(http.DELETE('/api/v1/settings/step-weights', { params: { query: { anken } } })));
 /** Copies another anken's (or the default's) structure and name rules into `epic`; runs a full sync. */
 export const useCopyAnkenSettings = (epic: string) => useSettingsWrite((from: string) =>
   unwrap(http.POST('/api/v1/settings/anken/{epic}/copy', { params: { path: { epic } }, body: { from } })));

@@ -6,10 +6,11 @@ import { FieldMappingTab, StatusMappingTab } from './MappingTabs';
 import { JiraLogTab } from './JiraLogTab';
 import { JiraTab } from './JiraTab';
 import { NameRulesTab } from './NameRulesTab';
+import { StepWeightsTab } from './StepWeightsTab';
 import { StructureTab } from './StructureTab';
 
 const PANELS: Record<SettingsTab, ComponentType> = {
-  jira: JiraTab, 'field-mapping': FieldMappingTab, 'status-mapping': StatusMappingTab, structure: StructureTab, 'name-rules': NameRulesTab,
+  jira: JiraTab, 'field-mapping': FieldMappingTab, 'status-mapping': StatusMappingTab, structure: StructureTab, 'name-rules': NameRulesTab, 'step-weights': StepWeightsTab,
   holidays: HolidaysTab, hours: HoursTab, 'extra-days': ExtraDaysTab, alerts: AlertsTab, 'jira-log': JiraLogTab,
 };
 

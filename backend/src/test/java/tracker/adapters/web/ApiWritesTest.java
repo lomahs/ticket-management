@@ -46,6 +46,32 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void putStepWeightsForAnAnkenKeepsTheDefault() throws Exception {
+        Map<String, Object> w = Map.of("create", 1.0, "balr", 0.5, "fixb", 0.3, "jmr", 0.25, "fixj", 0.2);
+        JsonNode saved = call(json(put("/api/v1/settings/step-weights").param("anken", "PAY-1100"), Map.of("weights", w))).json();
+        assertThat(saved.get("own").asBoolean()).isTrue();
+        JsonNode mine = call(get("/api/v1/settings/step-weights").param("anken", "PAY-1100")).json();
+        assertThat(mine.get("weights").get("balr").asDouble()).isEqualTo(0.5);
+        JsonNode def = call(get("/api/v1/settings/step-weights")).json();
+        assertThat(def.get("weights").get("balr").asDouble()).isEqualTo(0.25);
+        assertThat(def.get("own").asBoolean()).isFalse();
+        JsonNode reset = call(delete("/api/v1/settings/step-weights").param("anken", "PAY-1100")).json();
+        assertThat(reset.get("own").asBoolean()).isFalse();
+        assertThat(reset.get("weights").get("balr").asDouble()).isEqualTo(0.25);
+    }
+
+    @Test
+    void stepWeightsRejectMissingOrNegative() throws Exception {
+        JsonNode missing = problem(call(json(put("/api/v1/settings/step-weights"),
+                Map.of("weights", Map.of("create", 1.0, "balr", 0.25, "fixb", 0.3, "jmr", 0.25)))), 422, "invalid");
+        assertThat(missing.toString()).contains("weights.fixj");
+        JsonNode negative = problem(call(json(put("/api/v1/settings/step-weights"),
+                Map.of("weights", Map.of("create", 1.0, "balr", -1, "fixb", 0.3, "jmr", 0.25, "fixj", 0.2)))), 422, "invalid");
+        assertThat(negative.toString()).contains("weights.balr");
+        problem(call(get("/api/v1/settings/step-weights").param("anken", "NOPE-1")), 404, "not_found");
+    }
+
+    @Test
     void createFunction() throws Exception {
         Res r = call(json(post("/api/v1/anken/PAY-1100/functions"), Map.of("parent_key", "PAY-1102", "name", "Installment",
                 "ba", "an", "bal", "minh", "jm", "tanaka", "create_hours", 8)));

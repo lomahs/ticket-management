@@ -3,6 +3,7 @@ package tracker.application.service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +40,7 @@ import tracker.domain.Naming;
 import tracker.domain.RuleError;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.StepWeights;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
 import tracker.domain.WorkStructure;
@@ -396,6 +398,59 @@ public class JiraSettingsService {
         });
         sync.run(true);
         return structure(e);
+    }
+
+    /** @param weights step key ("create", "balr", …) → weight; {@code own}: the anken has its own, not the default */
+    public record StepWeightsView(Map<String, Double> weights, boolean own) {
+    }
+
+    private StepWeightsView stepWeightsView(TrackerSettings s, @Nullable String epic) {
+        Map<String, Double> w = new LinkedHashMap<>();
+        StepWeights sw = s.stepWeightsOf(epic);
+        for (StepKind k : StepKind.values()) {
+            w.put(k.value(), sw.of(k));
+        }
+        TrackerSettings.AnkenSettings a = epic == null ? null : s.anken.get(epic);
+        return new StepWeightsView(w, a != null && a.stepWeights != null);
+    }
+
+    /** The default when {@code epic} is null or blank. */
+    public StepWeightsView stepWeights(@Nullable String epic) {
+        return stepWeightsView(settings.load(), tracked(epic));
+    }
+
+    /** @param raw every step key → a weight of 0 or more */
+    public StepWeightsView saveStepWeights(@Nullable String epic, Map<String, Double> raw) {
+        String scope = tracked(epic);
+        Map<StepKind, Double> w = new EnumMap<>(StepKind.class);
+        for (StepKind k : StepKind.values()) {
+            Double v = raw.get(k.value());
+            if (v == null || !(v >= 0)) {
+                throw new Invalid("Every step needs a weight of 0 or more", "weights." + k.value());
+            }
+            w.put(k, v);
+        }
+        StepWeights sw = new StepWeights(w);
+        TrackerSettings saved = settings.update(s -> {
+            if (scope == null) {
+                s.stepWeights = sw;
+            } else {
+                ankenSettings(s, scope).stepWeights = sw;
+            }
+        });
+        return stepWeightsView(saved, scope);
+    }
+
+    /** The anken uses the default weights again. */
+    public StepWeightsView resetStepWeights(String epic) {
+        String scope = tracked(epic);
+        TrackerSettings saved = settings.update(s -> {
+            TrackerSettings.AnkenSettings a = scope == null ? null : s.anken.get(scope);
+            if (a != null) {
+                a.stepWeights = null;
+            }
+        });
+        return stepWeightsView(saved, scope);
     }
 
     private static TrackerSettings.AnkenSettings ankenSettings(TrackerSettings s, String epic) {
