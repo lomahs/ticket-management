@@ -1,5 +1,6 @@
 package tracker.adapters.web;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,13 +24,18 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Open;
+import tracker.application.AppError.Invalid;
 import tracker.application.service.JiraSettingsService.AnkenSettingsView;
 import tracker.application.service.JiraSettingsService.FieldMappingCheck;
 import tracker.application.service.JiraSettingsService.FieldMappingView;
@@ -42,6 +49,7 @@ import tracker.application.service.JiraSettingsService;
 import tracker.application.service.TeamSettingsService;
 import tracker.domain.Holiday;
 import tracker.domain.Status;
+import tracker.domain.StructureImport.StructureImportRow;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Thresholds;
 import tracker.domain.WorkingHours;
@@ -230,6 +238,24 @@ public class SettingsApi {
     @PostMapping("/settings/structure/preview")
     public StructureView previewStructure(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StructureIn body) {
         return jiraSettings.previewStructure(anken, body.domain());
+    }
+
+    /** The multipart body of a Phases & tasks import. */
+    public record StructureUpload(@Nullable @Schema(type = "string", format = "binary") MultipartFile file) {
+    }
+
+    /** Reads a .xlsx or .csv (Phase, Task name, Prefix, Type, Workflow) and checks every row; nothing is saved. */
+    @Open(Rule.ADMIN)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(implementation = StructureUpload.class), encoding = @Encoding(name = "file")))
+    @PostMapping(value = "/settings/structure/import", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
+    public List<StructureImportRow> importStructure(@RequestParam(required = false) @Nullable String anken,
+                                           @RequestPart(name = "file", required = false) @Nullable MultipartFile file) throws IOException {
+        if (file == null) {
+            throw new Invalid("Choose a .xlsx or .csv file", "file");
+        }
+        String name = file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty() ? "upload" : file.getOriginalFilename();
+        return jiraSettings.importStructure(anken, LeaveFiles.readTable(name, file.getBytes()));
     }
 
     // --- name rules -------------------------------------------------------------------------------------------------

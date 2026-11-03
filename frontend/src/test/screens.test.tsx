@@ -283,6 +283,48 @@ describe('screens render API data at their URLs', () => {
     await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks.map((t) => ({ ...t, type: '' })) }));
   });
 
+  it('imports phases and Tasks from a file, highlights the new rows and saves them merged', async () => {
+    const view = {
+      phases: ['UC', 'FUT'],
+      tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
+      seen: [],
+    };
+    const row = (line: number, phase: string, match: string, prefix: string, type: string, workflow: boolean, errors: string[] = []) =>
+      ({ line, phase, task: match, match, prefix, type, workflow, errors });
+    let saved: unknown;
+    server.use(
+      http.get('*/api/v1/settings/structure', () => HttpResponse.json(view)),
+      http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(view)),
+      http.post('*/api/v1/settings/structure/import', () => HttpResponse.json([
+        row(2, 'fut', 'fut  CREATE test case', 'FTC', '', true),
+        row(3, 'ITA', '[*][LocalTask] ITA Prepare', 'ITAP', '', true),
+        row(4, 'UC', '[*][LocalTask] Q&A', 'QA', 'qna', false),
+        row(5, 'UC', '[*][LocalTask] Bugs', '', '', true, ['Type must be Task, QnA or WorkRequest']),
+      ])),
+      http.put('*/api/v1/settings/structure', async ({ request }) => { saved = await request.json(); return HttpResponse.json(view); }),
+    );
+    renderApp('/settings/structure');
+    const input = await screen.findByLabelText('Phases and tasks file');
+    expect([...(screen.getByLabelText('Task 1 type') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Task', 'QnA', 'WorkRequest']);
+    fireEvent.change(input, { target: { files: [new File(['x'], 'phases.csv', { type: 'text/csv' })] } });
+    expect(await screen.findByText(/phases\.csv: 2 added · 1 updated · skipped line 5/)).toBeTruthy();
+    expect((screen.getByLabelText('Phase 3') as HTMLInputElement).value).toBe('ITA');
+    expect(screen.getByLabelText('Phase 3').closest('[data-imported]')).toBeTruthy();
+    expect(screen.getByLabelText('Phase 1').closest('[data-imported]')).toBeNull();
+    expect(screen.getByLabelText('Task 1 name').closest('[data-imported]')).toBeNull(); // updated, not new
+    expect(screen.getByLabelText('Task 2 name').closest('[data-imported]')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved).toEqual({
+      phases: ['UC', 'FUT', 'ITA'],
+      tasks: [
+        { match: 'FUT create test case', phase: 'FUT', prefix: 'FTC', workflow: true, type: '' },
+        { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', prefix: 'ITAP', workflow: true, type: '' },
+        { match: '[*][LocalTask] Q&A', phase: 'UC', prefix: 'QA', workflow: false, type: 'qna' },
+      ],
+    }));
+    await waitFor(() => expect(document.querySelector('[data-imported]')).toBeNull());
+  });
+
   describe('per-anken settings', () => {
     const structure = {
       phases: ['UC', 'FUT'],

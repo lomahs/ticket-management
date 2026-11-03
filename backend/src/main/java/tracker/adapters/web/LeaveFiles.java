@@ -75,6 +75,21 @@ final class LeaveFiles {
         throw new Invalid("Choose a .xlsx or .csv file", "file");
     }
 
+    /**
+     * Data rows (header and blank rows skipped) of the first sheet of an .xlsx, or of a .csv separated by "," or by ";" (as
+     * Excel saves it in some locales): whichever the header line has more of.
+     */
+    static List<List<String>> readTable(String name, byte[] raw) {
+        if (!name.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            return readRows(name, raw);
+        }
+        String text = decodeUtf8Sig(raw);
+        String header = text.lines().findFirst().orElse("");
+        char separator = header.chars().filter(c -> c == ';').count() > header.chars().filter(c -> c == ',').count() ? ';' : ',';
+        return Csv.parse(text, separator).stream().filter(r -> r.stream().anyMatch(x -> !x.strip().isEmpty())).skip(1)
+                .map(r -> r.stream().map(String::strip).toList()).toList();
+    }
+
     /** UTF-8 with an optional BOM; undecodable bytes become U+FFFD. */
     private static String decodeUtf8Sig(byte[] raw) {
         CharsetDecoder dec = StandardCharsets.UTF_8.newDecoder()
@@ -129,6 +144,10 @@ final class LeaveFiles {
         }
 
         static List<List<String>> parse(String text) {
+            return parse(text, ',');
+        }
+
+        static List<List<String>> parse(String text, char separator) {
             List<List<String>> rows = new ArrayList<>();
             List<String> row = new ArrayList<>();
             StringBuilder field = new StringBuilder();
@@ -153,7 +172,7 @@ final class LeaveFiles {
                     i++;
                     continue;
                 }
-                if (ch == ',') {
+                if (ch == separator) {
                     row.add(field.toString());
                     field.setLength(0);
                     fieldStarted = true;

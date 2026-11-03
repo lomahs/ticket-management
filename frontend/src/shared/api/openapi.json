@@ -3047,6 +3047,47 @@
         "tags" : [ "settings-api" ]
       }
     },
+    "/api/v1/settings/structure/import" : {
+      "post" : {
+        "operationId" : "importStructure",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "encoding" : {
+                "file" : { }
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/StructureUpload"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/StructureImportRow"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      }
+    },
     "/api/v1/settings/structure/preview" : {
       "post" : {
         "operationId" : "previewStructure",
@@ -7457,6 +7498,40 @@
         },
         "required" : [ "own", "weights" ]
       },
+      "StructureImportRow" : {
+        "type" : "object",
+        "properties" : {
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "line" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "match" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "prefix" : {
+            "type" : "string"
+          },
+          "task" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "workflow" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "errors", "line", "match", "phase", "prefix", "task", "type", "workflow" ]
+      },
       "StructureIn" : {
         "type" : "object",
         "properties" : {
@@ -7474,6 +7549,15 @@
           }
         },
         "required" : [ "phases" ]
+      },
+      "StructureUpload" : {
+        "type" : "object",
+        "properties" : {
+          "file" : {
+            "type" : [ "string", "null" ],
+            "format" : "binary"
+          }
+        }
       },
       "StructureView" : {
         "type" : "object",

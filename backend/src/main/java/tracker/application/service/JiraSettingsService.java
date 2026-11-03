@@ -42,6 +42,8 @@ import tracker.domain.RuleError;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
+import tracker.domain.StructureImport;
+import tracker.domain.StructureImport.StructureImportRow;
 import tracker.domain.TaskNames;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
@@ -398,6 +400,12 @@ public class JiraSettingsService {
     /** Classifies the Tasks with unsaved settings, so the screen can show matches while the admin types. */
     public StructureView previewStructure(@Nullable String epic, WorkStructure draft) {
         return structureView(draft, tracked(epic));
+    }
+
+    /** Checks the rows of a Phases & tasks file, naming the Tasks by the anken's Task name rule; nothing is saved. */
+    public List<StructureImportRow> importStructure(@Nullable String epic, List<List<String>> cells) {
+        TrackerSettings.NameRules nr = settings.load().nameRulesOf(tracked(epic));
+        return StructureImport.rows(cells, Text.orElse(nr.taskRule, TaskNames.DEFAULT_RULE));
     }
 
     /** @param epic the anken to save for; null or blank saves the default for new anken */

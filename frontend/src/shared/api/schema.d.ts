@@ -1284,6 +1284,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/structure/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importStructure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/structure/preview": {
         parameters: {
             query?: never;
@@ -2788,9 +2804,24 @@ export interface components {
                 [key: string]: number;
             };
         };
+        StructureImportRow: {
+            errors: string[];
+            /** Format: int32 */
+            line: number;
+            match: string;
+            phase: string;
+            prefix: string;
+            task: string;
+            type: string;
+            workflow: boolean;
+        };
         StructureIn: {
             phases: string[];
             tasks?: components["schemas"]["TaskTemplateIn"][] | null;
+        };
+        StructureUpload: {
+            /** Format: binary */
+            file?: string | null;
         };
         StructureView: {
             phases: string[];
@@ -5446,6 +5477,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StructureView"];
+                };
+            };
+        };
+    };
+    importStructure: {
+        parameters: {
+            query?: {
+                anken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["StructureUpload"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureImportRow"][];
                 };
             };
         };

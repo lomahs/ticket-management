@@ -59,6 +59,16 @@ export const useCheckFieldMapping = () => useMutation({ mutationFn: (b: Schemas[
 export const useSaveStatusMapping = () => useSettingsWrite((mapping: Schemas['StatusMappingIn']['mapping']) => unwrap(http.PUT('/api/v1/settings/status-mapping', { body: { mapping } })));
 export const useSaveStructure = (anken: string | null) => useSettingsWrite((b: Schemas['StructureIn']) =>
   unwrap(http.PUT('/api/v1/settings/structure', { body: b, params: { query: ankenParam(anken) } })));
+/** Reads a Phases & tasks .csv into rows for the form; nothing is saved. */
+export const useImportStructure = (anken: string | null) => useMutation({
+  mutationFn: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return unwrap(http.POST('/api/v1/settings/structure/import', {
+      body: fd as never, bodySerializer: (b) => b as FormData, params: { query: ankenParam(anken) },
+    }));
+  },
+});
 export const useSaveNameRules = (anken: string | null) => useSettingsWrite((b: Schemas['NameRulesIn']) =>
   unwrap(http.PUT('/api/v1/settings/name-rules', { body: b, params: { query: ankenParam(anken) } })));
 export const useSaveStepWeights = (anken: string | null) => useSettingsWrite((weights: Record<string, number>) =>
