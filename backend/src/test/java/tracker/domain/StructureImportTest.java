@@ -10,12 +10,16 @@ import tracker.domain.StructureImport.StructureImportRow;
 
 class StructureImportTest {
     @Test
-    void taskNameBecomesTheRuleWithAStarForTheAnkenPrefix() {
+    void taskNameBecomesTheRuleWithStarsForTheAnkenPrefixAndLocalTask() {
         List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "ITA Prepare", "ITAP", "Task", "5 steps")), TaskNames.DEFAULT_RULE);
-        assertThat(rows).containsExactly(new StructureImportRow(2, "ITA", "ITA Prepare", "[*][LocalTask] ITA Prepare", "ITAP", "", true, List.of()));
+        assertThat(rows).containsExactly(new StructureImportRow(2, "ITA", "ITA Prepare", "[*][*] ITA Prepare", "ITAP", "", true, List.of()));
         TaskTemplate t = new TaskTemplate(rows.get(0).match(), "ITA", "ITAP");
         assertThat(TaskNames.task(t)).isEqualTo("ITA Prepare");
-        assertThat(new WorkStructure(List.of("ITA"), List.of(t)).taskTemplate("[BookUI][LocalTask] ITA Prepare")).isEqualTo(t);
+        WorkStructure ws = new WorkStructure(List.of("ITA"), List.of(t));
+        assertThat(ws.taskTemplate("[BookUI][LocalTask] ITA Prepare")).isEqualTo(t);
+        assertThat(ws.taskTemplate("[BookUI][Client] ITA Prepare")).isEqualTo(t);
+        assertThat(TaskNames.propose(TaskNames.DEFAULT_RULE, "BookUI", t, ws)).isEqualTo("[BookUI][LocalTask] ITA Prepare"); // onboarding names
+        assertThat(TaskNames.match("[{anken_prefix}][localtask] {task}", "ITA", "ITA Execute")).isEqualTo("[*][*] ITA Execute");
         assertThat(StructureImport.rows(List.of(List.of("UC", "QnA  management", "", "QnA")), "[{phase}][{anken_prefix}] {task}").get(0).match())
                 .isEqualTo("[UC][*] QnA management");
     }

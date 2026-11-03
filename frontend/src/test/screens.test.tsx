@@ -297,9 +297,9 @@ describe('screens render API data at their URLs', () => {
       http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(view)),
       http.post('*/api/v1/settings/structure/import', () => HttpResponse.json([
         row(2, 'fut', 'fut  CREATE test case', 'FTC', '', true),
-        row(3, 'ITA', '[*][LocalTask] ITA Prepare', 'ITAP', '', true),
-        row(4, 'UC', '[*][LocalTask] Q&A', 'QA', 'qna', false),
-        row(5, 'UC', '[*][LocalTask] Bugs', '', '', true, ['Type must be Task, QnA or WorkRequest']),
+        row(3, 'ITA', '[*][*] ITA Prepare', 'ITAP', '', true),
+        row(4, 'UC', '[*][*] Q&A', 'QA', 'qna', false),
+        row(5, 'UC', '[*][*] Bugs', '', '', true, ['Type must be Task, QnA or WorkRequest']),
       ])),
       http.put('*/api/v1/settings/structure', async ({ request }) => { saved = await request.json(); return HttpResponse.json(view); }),
     );
@@ -318,8 +318,8 @@ describe('screens render API data at their URLs', () => {
       phases: ['UC', 'FUT', 'ITA'],
       tasks: [
         { match: 'FUT create test case', phase: 'FUT', prefix: 'FTC', workflow: true, type: '' },
-        { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', prefix: 'ITAP', workflow: true, type: '' },
-        { match: '[*][LocalTask] Q&A', phase: 'UC', prefix: 'QA', workflow: false, type: 'qna' },
+        { match: '[*][*] ITA Prepare', phase: 'ITA', prefix: 'ITAP', workflow: true, type: '' },
+        { match: '[*][*] Q&A', phase: 'UC', prefix: 'QA', workflow: false, type: 'qna' },
       ],
     }));
     await waitFor(() => expect(document.querySelector('[data-imported]')).toBeNull());

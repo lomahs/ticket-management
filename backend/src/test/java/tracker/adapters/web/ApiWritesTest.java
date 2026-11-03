@@ -257,7 +257,7 @@ class ApiWritesTest extends ApiTestSupport {
                 "file", "phases.csv", "text/csv", "﻿Phase;Task name;Prefix;Type;Workflow\nITA;ITA Prepare;ITAP;Task;5 steps\n;;;;\nUC;Q&A;;Bug;None\n"
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)))).json();
         assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).get("match").asText()).isEqualTo("[*][LocalTask] ITA Prepare");
+        assertThat(rows.get(0).get("match").asText()).isEqualTo("[*][*] ITA Prepare");
         assertThat(rows.get(0).get("workflow").asBoolean()).isTrue();
         assertThat(rows.get(0).get("errors")).isEmpty();
         assertThat(rows.get(1).get("line").asInt()).isEqualTo(3);
@@ -277,7 +277,7 @@ class ApiWritesTest extends ApiTestSupport {
         JsonNode fromExcel = call(multipart("/api/v1/settings/structure/import").file(new org.springframework.mock.web.MockMultipartFile(
                 "file", "phases.xlsx", "application/octet-stream", xlsx.toByteArray()))).json();
         assertThat(fromExcel).hasSize(1);
-        assertThat(fromExcel.get(0).get("match").asText()).isEqualTo("[*][LocalTask] Q&A");
+        assertThat(fromExcel.get(0).get("match").asText()).isEqualTo("[*][*] Q&A");
         assertThat(fromExcel.get(0).get("type").asText()).isEqualTo("qna");
         assertThat(fromExcel.get(0).get("workflow").asBoolean()).isFalse();
         problem(call(multipart("/api/v1/settings/structure/import").file(new org.springframework.mock.web.MockMultipartFile(

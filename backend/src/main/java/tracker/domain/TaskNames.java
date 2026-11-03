@@ -16,6 +16,7 @@ public final class TaskNames {
     public static final String DEFAULT_RULE = "[{anken_prefix}][LocalTask] {task}";
     public static final List<String> TOKENS = List.of("anken_prefix", "phase", "task");
     private static final Pattern TOKEN = Pattern.compile("\\{([^}]*)}");
+    private static final Pattern LOCAL_TASK = Pattern.compile("\\[LocalTask]", Pattern.CASE_INSENSITIVE);
     private static final Pattern SPACES = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     /** @throws RuleError when the rule has an unknown token or no {@code {task}} */
@@ -39,9 +40,13 @@ public final class TaskNames {
         return clean(rule.replace("{anken_prefix}", ankenPrefix.strip()).replace("{phase}", t.phase()).replace("{task}", task(t)));
     }
 
-    /** The template match that recognises the rule's name of {@code task} in every anken: {@code {anken_prefix}} becomes {@code *}. */
+    /**
+     * The template match that recognises the rule's name of {@code task} in every anken: {@code {anken_prefix}} becomes {@code *},
+     * and so does the {@code LocalTask} in {@code [LocalTask]}.
+     */
     public static String match(String rule, String phase, String task) {
-        return clean(rule.replace("{anken_prefix}", "*").replace("{phase}", phase.strip()).replace("{task}", task.strip()));
+        String m = rule.replace("{anken_prefix}", "*").replace("{phase}", phase.strip()).replace("{task}", task.strip());
+        return clean(LOCAL_TASK.matcher(m).replaceAll("[*]"));
     }
 
     /** The rule's name when the template recognises it; otherwise the template's match with each {@code *} as the prefix. */
