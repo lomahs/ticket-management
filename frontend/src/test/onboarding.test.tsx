@@ -10,9 +10,10 @@ afterAll(() => server.close());
 const ONB = { epic_key: 'PAY-1100', title: 'Payment flow revision', anken_prefix: 'PAY', step: 3, started_at: '2026-10-05T09:00:00Z',
   started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null };
 const PEOPLE = [
-  { member_id: 'an', name: 'An', role: 'BA', country: 'VN', in_anken: true, hours_per_day: 8 },
-  { member_id: 'minh', name: 'Minh', role: 'BAL', country: 'VN', in_anken: true, hours_per_day: null },
-  { member_id: 'tanaka', name: 'Tanaka', role: 'JM', country: 'JP', in_anken: false, hours_per_day: null },
+  { member_id: 'an', name: 'An', role: 'BA', country: 'VN', in_anken: true, hours_per_day: 8, elsewhere: [], working_day_h: 8 },
+  { member_id: 'minh', name: 'Minh', role: 'BAL', country: 'VN', in_anken: true, hours_per_day: null,
+    elsewhere: [{ epic_key: 'PAY-1300', title: 'Refund', hours: 4 }], working_day_h: 8 },
+  { member_id: 'tanaka', name: 'Tanaka', role: 'JM', country: 'JP', in_anken: false, hours_per_day: null, elsewhere: [], working_day_h: 8 },
 ];
 const TASK = { key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Create test case', name: 'ITA Create test case', phase: 'ITA' };
 const EXECUTE = { key: 'PAY-1103', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' };
@@ -170,9 +171,62 @@ describe('onboarding', () => {
     expect(within(screen.getByRole('region', { name: 'Team totals' })).getByText('1h')).toBeTruthy(); // JM hours
     server.use(http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: [], current: null, versions: [], shifts: [] })));
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Master schedule' }));
-    await waitFor(() => expect(saved).toEqual({ members: [{ member_id: 'tanaka', in_anken: true, hours_per_day: 1 }] }));
+    await waitFor(() => expect(saved).toEqual({ members: [{ member_id: 'tanaka', in_anken: true, hours_per_day: 1 }], allow_over_the_day: false }));
     await waitFor(() => expect(progress).toContainEqual({ step: 5 }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/PAY-1100/schedule'));
+  });
+
+  it('adds a new member by name and role, keeping the other edits', async () => {
+    let created: unknown = null;
+    let people = PEOPLE;
+    onboarding({ step: 4 });
+    server.use(
+      http.get('*/api/v1/onboarding/PAY-1100/members', () => HttpResponse.json(people)),
+      http.post('*/api/v1/people', async ({ request }) => {
+        created = await request.json();
+        people = [...PEOPLE, { member_id: 'hoa', name: 'Hoa', role: 'JM', country: 'VN', in_anken: true, hours_per_day: null, elsewhere: [], working_day_h: 8 }];
+        return HttpResponse.json({ id: 'hoa', name: 'Hoa' }, { status: 201 });
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/members');
+    fireEvent.change(await screen.findByLabelText('Hours per day, An'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'New member' }));
+    const dialog = screen.getByRole('dialog', { name: 'New member' });
+    expect((within(dialog).getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: ' Hoa ' } });
+    fireEvent.change(within(dialog).getByLabelText('Role'), { target: { value: 'JM' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(created).toEqual({ name: 'Hoa', role: 'JM', email: null, epics: ['PAY-1100'] }));
+    expect(await screen.findByLabelText('Include Hoa')).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'New member' })).toBeNull();
+    expect((screen.getByLabelText('Hours per day, An') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('shows the hours already allocated on other anken on hover', async () => {
+    onboarding({ step: 4 });
+    renderApp('/onboarding/PAY-1100/members');
+    fireEvent.mouseEnter(await screen.findByLabelText('Already allocated, Minh'));
+    const pop = screen.getByRole('dialog', { name: 'Allocation · Minh' });
+    expect(within(pop).getByText('PAY-1300').closest('div')?.textContent).toBe('PAY-1300 Refund4h');
+  });
+
+  it('warns about members over the working day and saves only once confirmed', async () => {
+    let saved: { allow_over_the_day: boolean } | null = null;
+    const progress = onboarding({ step: 4 });
+    server.use(http.put('*/api/v1/onboarding/PAY-1100/members', async ({ request }) => { saved = await request.json() as typeof saved; return HttpResponse.json(PEOPLE); }));
+    renderApp('/onboarding/PAY-1100/members');
+    fireEvent.change(await screen.findByLabelText('Hours per day, Minh'), { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    const ask = await screen.findByRole('dialog', { name: 'Hours over the working day' });
+    expect(within(ask).getByText('Minh')).toBeTruthy();
+    expect(screen.getByText('10h a day with other anken, more than the 8h working day')).toBeTruthy();
+    fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Hours over the working day' })).toBeNull());
+    expect(saved).toBeNull();
+    expect(progress).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Hours over the working day' })).getByRole('button', { name: 'Save anyway' }));
+    await waitFor(() => expect(saved).toEqual({ members: [{ member_id: 'minh', in_anken: true, hours_per_day: 6 }], allow_over_the_day: true }));
   });
 
   it('chains the phases from one start date and saves the baseline', async () => {
@@ -195,6 +249,11 @@ describe('onboarding', () => {
     await waitFor(() => expect(previews).toContainEqual(body));
     const gantt = await screen.findByRole('region', { name: 'Gantt by phase' });
     expect(within(gantt).getByText('16/10 – 16/10')).toBeTruthy();
+    // one column per day, Monday 12 to the Sunday after the last end, the weekend shaded
+    const days = within(gantt).getByRole('row', { name: 'Days' });
+    expect([...days.querySelectorAll('[title]')].map((d) => d.getAttribute('title'))).toEqual(
+      ['Mon 12/10', 'Tue 13/10', 'Wed 14/10', 'Thu 15/10', 'Fri 16/10', 'Sat 17/10', 'Sun 18/10']);
+    expect([...days.querySelectorAll('[data-weekend]')].map((d) => d.getAttribute('title'))).toEqual(['Sat 17/10', 'Sun 18/10']);
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Detail plan' }));
     await waitFor(() => expect(saved).toEqual({ ...body, reason: 'Kick-off' }));
   });
@@ -242,6 +301,23 @@ describe('onboarding', () => {
     expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();
     expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Finish onboarding' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('auto allocates the empty slots and shows the plan that follows', async () => {
+    let posts = 0;
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.post('*/api/v1/planning/PAY-1100/detail/auto-allocate', () => {
+        posts++;
+        return HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'an' }, { ...RUN, ba_id: 'an' }], ...planned }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
+    expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();
+    expect(posts).toBe(1);
+    expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('an');
   });
 
   it('blocks the push while a member is over budget', async () => {

@@ -60,7 +60,8 @@ export function Stepper({ epic, title, savedAt, current, reached, onExit }: {
 
 /**
  * One step of an anken's onboarding: the progress band, the step's title, its content and the footer. {@code onSave} saves
- * what the step holds (Save draft, Save & exit and Continue call it first); Continue then records the next step.
+ * what the step holds (Save draft, Save & exit and Continue call it first; it returns false when the user called the save
+ * off); Continue then records the next step.
  */
 export function StepShell({ epic, step, title, sub, onSave, canContinue = true, continueLabel, children, footer }: {
   epic: string; step: StepKey; title: string; sub: string; onSave?: () => Promise<unknown>; canContinue?: boolean; continueLabel?: string;
@@ -77,7 +78,7 @@ export function StepShell({ epic, step, title, sub, onSave, canContinue = true, 
   const run = async (to: number, then?: () => void) => {
     setBusy(true);
     try {
-      await onSave?.();
+      if ((await onSave?.()) === false) return;
       await progress.mutateAsync({ step: to });
       then?.();
     } catch (e) {

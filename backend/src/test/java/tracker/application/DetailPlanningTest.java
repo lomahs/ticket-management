@@ -237,6 +237,29 @@ class DetailPlanningTest {
     }
 
     @Test
+    void autoAllocateFillsEmptySlotsWithWhoFinishesSoonestAndKeepsPicks() {
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(),
+                List.of(new RowAssign(rows.get(0).id(), "an", null, null))));
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        assertThat(v.rows()).extracting(r -> r.functionName() + "=" + r.baId() + "/" + r.balId() + "/" + r.jmId())
+                .containsExactly("Login=an/minh/tanaka", // an was picked; the BAL and JM come from the phase team and the anken
+                        "Run=binh/null/null", // an is busy with Login, so Bình finishes sooner
+                        "Pay=an/minh/null"); // the only BA of the ITB team; a 3-step function has no JM
+        assertThat(v.problems()).isEmpty();
+        assertThat(v.plan()).hasSize(3);
+    }
+
+    @Test
+    void autoAllocateNeedsAMasterSchedule() {
+        estimate();
+        assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessage("Save a master schedule first");
+    }
+
+    @Test
     void reorderingRowsChangesTheirDates() {
         List<EstimationRow> rows = planned();
         DetailPlanView v = detail.view(ALL, EPIC);

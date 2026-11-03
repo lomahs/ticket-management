@@ -62,8 +62,11 @@ public class AnkenMembersService {
                                    List<Member> candidates) {
     }
 
-    /** @param epics the ankens the new person joins */
-    public record NewPerson(String email, String name, @Nullable Role role, List<String> epics) {
+    /**
+     * @param email null or blank: a person without an e-mail, who cannot sign in until one is set (no access request is filed)
+     * @param epics the ankens the new person joins
+     */
+    public record NewPerson(@Nullable String email, String name, @Nullable Role role, List<String> epics) {
     }
 
     private String now() {
@@ -112,18 +115,18 @@ public class AnkenMembersService {
         }
     }
 
-    /** A new person in the ankens {@code p.epics()}; they are asked to sign in. */
+    /** A new person in the ankens {@code p.epics()}; one with an e-mail is asked to sign in. */
     @Transactional
     public Member addPerson(Viewer v, NewPerson p) {
         requireAdminForPmRoles(v, p.role());
-        String email = p.email().strip().toLowerCase(Locale.ROOT);
-        if (email.isEmpty()) {
-            throw new Invalid("E-mail is required", "email");
+        String email = p.email() == null ? "" : p.email().strip().toLowerCase(Locale.ROOT);
+        if (p.name().isBlank()) {
+            throw new Invalid("Name is required", "name");
         }
         if (email.equals(AccessService.BREAKGLASS_EMAIL)) {
             throw new Invalid("This e-mail belongs to the break-glass login", "email");
         }
-        if (!members.findAllByEmail(email).isEmpty()) {
+        if (!email.isEmpty() && !members.findAllByEmail(email).isEmpty()) {
             throw new Conflict("A member with this e-mail already exists", "email");
         }
         if (p.epics().isEmpty() && !v.admin()) {

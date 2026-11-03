@@ -3,6 +3,8 @@ package tracker.application.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,6 +35,7 @@ import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.DetailScheduler.Step;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
+import tracker.domain.Member;
 import tracker.domain.Onboarding;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
@@ -124,6 +127,89 @@ public class DetailPlanService {
         }
         estimation.save(epic, next);
         return view(scope, epic);
+    }
+
+    /**
+     * Fills the empty slots of the unpushed rows, row after row in their order: each gets the member who finishes the row
+     * soonest, given the allocations and what the rows before it already take; on a tie, the one with fewer hours planned.
+     * A BA slot (and a row's one member) is filled from the BAs of the phase's team in the master schedule, a BAL slot from its
+     * BALs, a JM slot from the anken's JMs. People already picked stay; a row with a slot nobody can fill keeps its slots as they
+     * were and takes no hours.
+     */
+    public DetailPlanView autoAllocate(AnkenScope scope, String epic) {
+        TrackerContext ctx = EstimationService.load(context, scope, epic);
+        List<EstimationRow> open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).toList();
+        List<ScheduleVersion> saved = versions.findByEpic(epic);
+        if (saved.isEmpty()) {
+            throw new Invalid("Save a master schedule first", "plan");
+        }
+        Map<String, PhaseRow> phases = phases(saved.getLast());
+        Allocations a = allocations.counted(scope).allocations();
+        StepWeights w = ctx.settings.stepWeightsOf(epic);
+        double jmDay = ctx.settings.workingHours.hoursPerDay();
+        List<String> jms = ctx.members.values().stream().filter(m -> m.role() == Role.JM && ctx.isMember(epic, m.id())).map(Member::id)
+                .sorted().toList();
+        Map<String, Map<String, Double>> ledger = loads(ctx, epic, Set.of());
+        List<RowAssign> assigns = new ArrayList<>();
+        for (EstimationRow r : open) {
+            PhaseRow phase = phases.get(r.phase());
+            if (phase == null) {
+                assigns.add(new RowAssign(r.id(), r.baId(), r.balId(), r.jmId()));
+                continue;
+            }
+            List<String> team = phase.memberIds().stream().filter(id -> ctx.isMember(epic, id)).sorted().toList();
+            List<String> bas = slot(r.baId(), team, ctx, Role.BA);
+            List<String> bals = r.steps() == null ? Collections.singletonList(r.balId()) : slot(r.balId(), team, ctx, Role.BAL);
+            List<String> jmIds = !Objects.equals(r.steps(), Steps.COUNT) ? Collections.singletonList(r.jmId())
+                    : Text.hasText(r.jmId()) ? List.of(r.jmId()) : jms;
+            EstimationRow best = null;
+            DetailScheduler.Result bestRes = null;
+            String bestEnd = null;
+            double bestLoad = 0;
+            for (String ba : bas) {
+                for (String bal : bals) {
+                    for (String jm : jmIds) {
+                        EstimationRow t = new EstimationRow(r.id(), epic, r.position(), r.phase(), r.subphase(), r.functionName(), r.steps(),
+                                r.effortH(), ba, bal, jm, r.taskKey(), null);
+                        DetailScheduler.Result res;
+                        try {
+                            res = DetailScheduler.schedule(epic, List.of(chain(t, w, phase.start())), ledger, a, ctx.cal, jmDay);
+                        } catch (RuleError e) {
+                            continue;
+                        }
+                        String end = res.placed().stream().map(Placed::end).max(Comparator.naturalOrder()).orElse(phase.start());
+                        double load = planned(ledger, ba) + planned(ledger, bal) + planned(ledger, jm);
+                        if (best == null || end.compareTo(bestEnd) < 0 || end.equals(bestEnd) && load < bestLoad) {
+                            best = t;
+                            bestRes = res;
+                            bestEnd = end;
+                            bestLoad = load;
+                        }
+                    }
+                }
+            }
+            if (best == null) {
+                // a slot nobody can fill: keep what was picked, the row is not scheduled
+                assigns.add(new RowAssign(r.id(), bas.size() == 1 ? bas.getFirst() : r.baId(),
+                        bals.size() == 1 ? bals.getFirst() : r.balId(), jmIds.size() == 1 ? jmIds.getFirst() : r.jmId()));
+                continue;
+            }
+            ledger = bestRes.ledger();
+            assigns.add(new RowAssign(r.id(), best.baId(), best.balId(), best.jmId()));
+        }
+        return saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns));
+    }
+
+    /** The person picked, else the phase team's members with the role. */
+    private static List<String> slot(@Nullable String picked, List<String> team, TrackerContext ctx, Role role) {
+        if (Text.hasText(picked)) {
+            return List.of(picked);
+        }
+        return team.stream().filter(id -> ctx.members.get(id) != null && ctx.members.get(id).role() == role).toList();
+    }
+
+    private static double planned(Map<String, Map<String, Double>> ledger, @Nullable String memberId) {
+        return memberId == null ? 0 : ledger.getOrDefault(memberId, Map.of()).values().stream().mapToDouble(Double::doubleValue).sum();
     }
 
     private static @Nullable String blank(@Nullable String s) {

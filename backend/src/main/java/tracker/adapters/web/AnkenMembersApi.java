@@ -42,7 +42,8 @@ public class AnkenMembersApi {
     public record AddMemberIn(@NotBlank String memberId) {
     }
 
-    public record NewPersonIn(@NotBlank String email, @NotBlank String name, @Nullable Role role, @NotNull List<String> epics) {
+    /** @param email optional: without one, the person cannot sign in until it is set */
+    public record NewPersonIn(@Nullable String email, @NotBlank String name, @Nullable Role role, @NotNull List<String> epics) {
     }
 
     /** {@code clearRole} removes the role; otherwise a role is required. */

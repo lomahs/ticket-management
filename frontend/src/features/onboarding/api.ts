@@ -87,12 +87,23 @@ export const onboardingMembersQuery = (epic: string) => ({
 export function useSaveMembers(epic: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (members: Schemas['MemberBody'][]) => unwrap(http.PUT('/api/v1/onboarding/{epic}/members', { params: { path: { epic } }, body: { members } })),
+    mutationFn: (body: Schemas['MembersIn']) => unwrap(http.PUT('/api/v1/onboarding/{epic}/members', { params: { path: { epic } }, body })),
     onSuccess: (v) => {
       qc.setQueryData(onboardingMembersQuery(epic).queryKey, v);
       // members and allocations feed the master schedule and the plan
       void qc.invalidateQueries({ queryKey: ['planning'] });
       void qc.invalidateQueries({ queryKey: ['members'] });
+    },
+  });
+}
+
+/** A new person who joins this anken; the admin gets the access request when they have an e-mail (a JM needs none). */
+export function useCreateMember(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: Omit<Schemas['NewPersonIn'], 'epics'>) => unwrap(http.POST('/api/v1/people', { body: { ...b, epics: [epic] } })),
+    onSuccess: async () => {
+      await Promise.all([onboardingMembersQuery(epic).queryKey, ['members'], ['anken'], ['admin']].map((queryKey) => qc.invalidateQueries({ queryKey })));
     },
   });
 }

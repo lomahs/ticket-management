@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { Schemas } from '../../../shared/api/types';
-import { add, dayDiff, dm, hrs, mondayOf } from '../../../shared/format/dates';
+import { add, dayDiff, dm, dow, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn, type PhaseRow } from '../../planning';
 import { onboardingMembersQuery, type MemberHours } from '../api';
@@ -117,32 +117,50 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
   );
 }
 
-/** The phases as bars over the weeks from the start's Monday. */
+const DAY_W = 26;
+const LABEL_W = 140;
+
+/** The phases as bars over one column per day, Saturdays and Sundays shaded, from the start's Monday to the last end's Sunday. */
 function Gantt({ rows }: { rows: PhaseRow[] }) {
   const from = mondayOf(rows[0].start);
   const last = rows.reduce((a, r) => (r.end > a ? r.end : a), rows[0].end);
-  const weeks = Math.ceil((dayDiff(from, last) + 1) / 7) + 1;
-  const total = weeks * 7;
+  const n = dayDiff(from, add(mondayOf(last), 6)) + 1;
+  const dates = Array.from({ length: n }, (_, i) => add(from, i));
+  const weekend = (d: string) => dow(d) === 0 || dow(d) === 6;
+  const cols = `${LABEL_W}px repeat(${n},${DAY_W}px)`;
+  const label: CSSProperties = { position: 'sticky', left: 0, zIndex: 2, background: 'var(--surface-card)', paddingRight: 8 };
+  const cell = (d: string, i: number): CSSProperties => ({
+    gridRow: 1, gridColumn: i + 2, alignSelf: 'stretch', borderLeft: `1px solid ${dow(d) === 1 ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
+    background: weekend(d) ? 'var(--surface-hover)' : undefined,
+  });
   return (
     <section className="card card-clip" aria-label="Gantt by phase">
-      <div style={{ padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'baseline' }}><span className="title">Gantt by phase</span><span className="eyebrow">Weeks from the start date</span></div>
-      <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 720, padding: '0 16px 14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', fontSize: 11, color: 'var(--text-muted)' }}>
-            <span />
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${weeks},1fr)` }}>
-              {Array.from({ length: weeks }, (_, i) => <span key={i} style={{ borderLeft: '1px solid var(--border-subtle)', paddingLeft: 4 }}>{dm(add(from, i * 7))}</span>)}
-            </div>
+      <div style={{ padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'baseline' }}><span className="title">Gantt by phase</span><span className="eyebrow">One column per day; weekends shaded</span></div>
+      <div style={{ overflowX: 'auto', padding: '0 16px 14px' }}>
+        <div style={{ width: LABEL_W + n * DAY_W }}>
+          <div role="row" aria-label="Weeks" style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={label} />
+            {dates.map((d, i) => dow(d) === 1 && (
+              <span key={d} style={{ gridColumn: `${i + 2} / span 7`, borderLeft: '1px solid var(--border-strong)', paddingLeft: 4, fontWeight: 600 }}>{dm(d)}</span>
+            ))}
           </div>
-          {rows.map((r, i) => (
-            <div key={r.phase} style={{ display: 'grid', gridTemplateColumns: '140px 1fr', alignItems: 'center', height: 34 }}>
-              <b className="heading ellipsis" style={{ fontSize: 12 }}>{r.phase}</b>
-              <div style={{ position: 'relative', height: 22, background: `repeating-linear-gradient(90deg, transparent 0 calc(${100 / weeks}% - 1px), var(--border-subtle) calc(${100 / weeks}% - 1px) ${100 / weeks}%)` }}>
-                <span title={`${r.phase} ${dm(r.start)} – ${dm(r.end)}`} style={{
-                  position: 'absolute', top: 0, bottom: 0, left: `${(dayDiff(from, r.start) / total) * 100}%`, width: `${((dayDiff(r.start, r.end) + 1) / total) * 100}%`,
-                  background: COLORS[i % COLORS.length], borderRadius: 6, color: '#fff', font: '600 11px/22px var(--font-text)', padding: '0 6px', overflow: 'hidden', whiteSpace: 'nowrap',
-                }}>{`${dm(r.start)} – ${dm(r.end)}`}</span>
-              </div>
+          <div role="row" aria-label="Days" style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <span style={{ ...label, gridRow: 1, gridColumn: 1 }} />
+            {dates.map((d, i) => (
+              <span key={d} title={`${WDN[dow(d)]} ${dm(d)}`} data-weekend={weekend(d) || undefined}
+                style={{ ...cell(d, i), padding: '2px 0', lineHeight: 1.3, color: weekend(d) ? 'var(--text-disabled)' : undefined }}>
+                <div>{WDN[dow(d)][0]}</div><div>{d.slice(8, 10)}</div>
+              </span>
+            ))}
+          </div>
+          {rows.map((r, k) => (
+            <div key={r.phase} role="row" aria-label={r.phase} style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', height: 34 }}>
+              <b className="heading ellipsis" style={{ ...label, gridRow: 1, gridColumn: 1, fontSize: 12, alignSelf: 'center' }}>{r.phase}</b>
+              {dates.map((d, i) => <span key={d} style={cell(d, i)} />)}
+              <span title={`${r.phase} ${dm(r.start)} – ${dm(r.end)}`} style={{
+                gridRow: 1, gridColumn: `${dayDiff(from, r.start) + 2} / span ${dayDiff(r.start, r.end) + 1}`, zIndex: 1, height: 22, margin: '0 1px',
+                background: COLORS[k % COLORS.length], borderRadius: 6, color: '#fff', font: '600 11px/22px var(--font-text)', padding: '0 6px', overflow: 'hidden', whiteSpace: 'nowrap',
+              }}>{`${dm(r.start)} – ${dm(r.end)}`}</span>
             </div>
           ))}
         </div>

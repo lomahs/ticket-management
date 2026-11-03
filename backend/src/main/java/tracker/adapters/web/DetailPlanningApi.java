@@ -197,6 +197,13 @@ public class DetailPlanningApi {
         return detail.saveDraft(epicScope(viewer, epic), epic, body.draft());
     }
 
+    /** Fills the empty BA / BAL / JM slots with the member who finishes each row soonest; saves the draft and returns the plan. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/auto-allocate")
+    public DetailPlanView autoAllocate(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.autoAllocate(epicScope(viewer, epic), epic);
+    }
+
     /** The review of the push: every sub-task, with the requests; refused while the plan has problems or overruns. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push/preview")

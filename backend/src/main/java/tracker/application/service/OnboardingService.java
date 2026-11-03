@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,12 +59,14 @@ public class OnboardingService {
     private final EstimationRepository estimation;
     private final MasterScheduleRepository versions;
     private final TicketService tickets;
+    private final TeamSettingsService team;
     private final Clock clock;
 
     public OnboardingService(OnboardingRepository repo, JiraSettingsService jira, TrackerContextLoader context, AnkenRepository anken,
                              AnkenMemberRepository ankenMembers, AnkenMembersService membersService, MemberRepository members,
                              AllocationRepository allocationRows, AllocationService allocations, EstimationRepository estimation,
-                             MasterScheduleRepository versions, TicketService tickets, Clock clock) {
+                             MasterScheduleRepository versions, TicketService tickets, TeamSettingsService team,
+                             Clock clock) {
         this.repo = repo;
         this.jira = jira;
         this.context = context;
@@ -76,6 +79,7 @@ public class OnboardingService {
         this.estimation = estimation;
         this.versions = versions;
         this.tickets = tickets;
+        this.team = team;
         this.clock = clock;
     }
 
@@ -105,9 +109,17 @@ public class OnboardingService {
     public record NewTaskIn(String match, String name) {
     }
 
-    /** @param hoursPerDay on this anken today; null without an allocation */
+    /** Hours a day a member gives another anken today. */
+    public record AnkenHours(String epicKey, String title, double hours) {
+    }
+
+    /**
+     * @param hoursPerDay  on this anken today; null without an allocation
+     * @param elsewhere    the other anken the member's hours count on today (tracked, still a member), with hours
+     * @param workingDayH  the working day the member's hours over every anken may not go above
+     */
     public record MemberHours(String memberId, String name, @Nullable String role, String country, boolean inAnken,
-                              @Nullable Double hoursPerDay) {
+                              @Nullable Double hoursPerDay, List<AnkenHours> elsewhere, double workingDayH) {
     }
 
     /** @param hoursPerDay null leaves the allocation as it is */
@@ -272,24 +284,43 @@ public class OnboardingService {
 
     // --- step 4: members ---------------------------------------------------------------------------------------------------
 
-    /** Every person, members of the anken first, with their hours a day on it today. */
+    /** Every person, members of the anken first, with their hours a day on it today and on the other anken. */
     public List<MemberHours> members(String epic) {
         TrackerContext ctx = load(epic);
         Allocations a = new Allocations(allocationRows.findAll());
+        Allocations counted = allocations.counted(new AnkenScope(Set.of())).allocations();
+        List<String> tracked = ctx.settings.jira.epics;
+        Map<String, String> titles = new HashMap<>();
+        anken.findAll().forEach(k -> titles.put(k.key(), k.title()));
+        double day = team.workingHours().hoursPerDay();
         Set<String> in = Set.copyOf(ankenMembers.findByEpic(epic).stream().map(tracker.domain.AnkenMember::memberId).toList());
         return members.findAll().stream()
                 .sorted(Comparator.comparing((Member m) -> !in.contains(m.id())).thenComparing(Member::name, String.CASE_INSENSITIVE_ORDER))
-                .map(m -> new MemberHours(m.id(), m.name(), m.role() == null ? null : m.role().value(), Objects.requireNonNullElse(m.country(), ""),
-                        in.contains(m.id()), a.hoursOn(m.id(), epic, ctx.today)))
+                .map(m -> {
+                    List<AnkenHours> elsewhere = new ArrayList<>();
+                    for (String e : tracked) {
+                        Double h = e.equals(epic) ? null : counted.hoursOn(m.id(), e, ctx.today);
+                        if (h != null && h > 0) {
+                            elsewhere.add(new AnkenHours(e, titles.getOrDefault(e, ""), h));
+                        }
+                    }
+                    return new MemberHours(m.id(), m.name(), m.role() == null ? null : m.role().value(), Objects.requireNonNullElse(m.country(), ""),
+                            in.contains(m.id()), a.hoursOn(m.id(), epic, ctx.today), elsewhere, day);
+                })
                 .toList();
     }
 
     /**
      * Adds and removes members, and writes the hours that changed as allocations from today; nothing is kept when a check fails
-     * (a member's hours over all ankens above the working day).
+     * (a member's hours over all ankens above the working day, unless {@code allowOverTheDay}: the user confirmed it).
      */
     @Transactional
     public List<MemberHours> saveMembers(Viewer actor, String epic, List<MemberIn> in) {
+        return saveMembers(actor, epic, in, false);
+    }
+
+    @Transactional
+    public List<MemberHours> saveMembers(Viewer actor, String epic, List<MemberIn> in, boolean allowOverTheDay) {
         require(epic);
         TrackerContext ctx = load(epic);
         Allocations a = new Allocations(allocationRows.findAll());
@@ -306,7 +337,7 @@ public class OnboardingService {
             Double now = a.hoursOn(m.memberId(), epic, ctx.today);
             if (m.inAnken() && m.hoursPerDay() != null && !m.hoursPerDay().equals(now)) {
                 try {
-                    allocations.set(actor, m.memberId(), new AllocationChange(ctx.today, Map.of(epic, m.hoursPerDay())));
+                    allocations.set(actor, m.memberId(), new AllocationChange(ctx.today, Map.of(epic, m.hoursPerDay())), allowOverTheDay);
                 } catch (Invalid e) {
                     throw new Invalid(e.getMessage(), at + "hours_per_day");
                 }

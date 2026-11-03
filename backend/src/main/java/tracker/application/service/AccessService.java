@@ -159,7 +159,7 @@ public class AccessService {
     }
 
     Member createMember(String email, String name, @Nullable Role role, Permission permission) {
-        String base = MemberIds.slugify(email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
+        String base = MemberIds.slugify(email.isBlank() ? name : email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
         String memberId = MemberIds.newId(base, members.findAll().stream().map(Member::id).collect(Collectors.toSet()));
         String display = name.isBlank() ? email : name.strip();
         Member m = new Member(memberId, display, display, role, settings.load().defaultCountry, MemberIds.color(memberId), email,

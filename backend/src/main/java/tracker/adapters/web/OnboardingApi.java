@@ -138,13 +138,15 @@ public class OnboardingApi {
     public record MemberBody(@NotBlank String memberId, boolean inAnken, @Nullable Double hoursPerDay) {
     }
 
-    public record MembersIn(@NotNull List<@NotNull @Valid MemberBody> members) {
+    /** @param allowOverTheDay the user confirmed members whose hours over every anken go above the working day */
+    public record MembersIn(@NotNull List<@NotNull @Valid MemberBody> members, boolean allowOverTheDay) {
     }
 
     /** Adds and removes members and writes the changed hours as allocations from today. */
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}/members")
     public List<MemberHours> saveMembers(@PathVariable("epic") String epic, @RequestBody @Valid MembersIn body, Viewer viewer) {
-        return onboarding.saveMembers(viewer, epic, body.members().stream().map(m -> new MemberIn(m.memberId(), m.inAnken(), m.hoursPerDay())).toList());
+        return onboarding.saveMembers(viewer, epic, body.members().stream().map(m -> new MemberIn(m.memberId(), m.inAnken(), m.hoursPerDay())).toList(),
+                body.allowOverTheDay());
     }
 }

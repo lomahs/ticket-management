@@ -900,6 +900,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/auto-allocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["autoAllocate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/push": {
         parameters: {
             query?: never;
@@ -1561,6 +1577,12 @@ export interface components {
             card: components["schemas"]["AnkenCard"];
             not_members: components["schemas"]["NotMember"][];
             tasks: components["schemas"]["PhaseTask"][];
+        };
+        AnkenHours: {
+            epic_key: string;
+            /** Format: double */
+            hours: number;
+            title: string;
         };
         AnkenMemberRow: {
             /** @enum {string} */
@@ -2346,12 +2368,15 @@ export interface components {
         };
         MemberHours: {
             country: string;
+            elsewhere: components["schemas"]["AnkenHours"][];
             /** Format: double */
             hours_per_day: number | null;
             in_anken: boolean;
             member_id: string;
             name: string;
             role: string | null;
+            /** Format: double */
+            working_day_h: number;
         };
         MemberLane: {
             days: components["schemas"]["DayCell"][];
@@ -2359,6 +2384,7 @@ export interface components {
             member_id: string;
         };
         MembersIn: {
+            allow_over_the_day?: boolean;
             members: components["schemas"]["MemberBody"][];
         };
         MergeIn: {
@@ -2426,7 +2452,7 @@ export interface components {
             total: number;
         };
         NewPersonIn: {
-            email: string;
+            email?: string | null;
             epics: string[];
             name: string;
             /** @enum {string|null} */
@@ -4637,6 +4663,28 @@ export interface operations {
                 "application/json": components["schemas"]["DraftBody"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    autoAllocate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

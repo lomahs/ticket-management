@@ -2039,6 +2039,32 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/auto-allocate" : {
+      "post" : {
+        "operationId" : "autoAllocate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/detail/push" : {
       "post" : {
         "operationId" : "pushDetailPlan",
@@ -3693,6 +3719,22 @@
           }
         },
         "required" : [ "attention", "card", "not_members", "tasks" ]
+      },
+      "AnkenHours" : {
+        "type" : "object",
+        "properties" : {
+          "epic_key" : {
+            "type" : "string"
+          },
+          "hours" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "epic_key", "hours", "title" ]
       },
       "AnkenMemberRow" : {
         "type" : "object",
@@ -6140,6 +6182,12 @@
           "country" : {
             "type" : "string"
           },
+          "elsewhere" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AnkenHours"
+            }
+          },
           "hours_per_day" : {
             "type" : [ "number", "null" ],
             "format" : "double"
@@ -6155,9 +6203,13 @@
           },
           "role" : {
             "type" : [ "string", "null" ]
+          },
+          "working_day_h" : {
+            "type" : "number",
+            "format" : "double"
           }
         },
-        "required" : [ "country", "hours_per_day", "in_anken", "member_id", "name", "role" ]
+        "required" : [ "country", "elsewhere", "hours_per_day", "in_anken", "member_id", "name", "role", "working_day_h" ]
       },
       "MemberLane" : {
         "type" : "object",
@@ -6183,6 +6235,9 @@
       "MembersIn" : {
         "type" : "object",
         "properties" : {
+          "allow_over_the_day" : {
+            "type" : "boolean"
+          },
           "members" : {
             "type" : "array",
             "items" : {
@@ -6387,8 +6442,7 @@
         "type" : "object",
         "properties" : {
           "email" : {
-            "type" : "string",
-            "minLength" : 1
+            "type" : [ "string", "null" ]
           },
           "epics" : {
             "type" : "array",
@@ -6405,7 +6459,7 @@
             "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
           }
         },
-        "required" : [ "email", "epics", "name" ]
+        "required" : [ "epics", "name" ]
       },
       "NewTaskBody" : {
         "type" : "object",

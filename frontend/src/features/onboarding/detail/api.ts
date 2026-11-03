@@ -19,6 +19,15 @@ export function useSaveDraft(epic: string) {
   });
 }
 
+/** Fills the empty slots with who finishes each row soonest; the draft is saved and the plan that follows comes back. */
+export function useAutoAllocate(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/auto-allocate', { params: { path: { epic } } })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
 export const usePushPreview = (epic: string) => useMutation({
   mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } } })),
 });

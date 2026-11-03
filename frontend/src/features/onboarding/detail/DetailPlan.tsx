@@ -7,7 +7,7 @@ import { Button, IconButton } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { detailPlanQuery, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
+import { detailPlanQuery, useAutoAllocate, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
 
 /** A person who can be given a row: a member of the anken. */
 export interface Person { id: string; name: string }
@@ -33,6 +33,7 @@ function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Pe
   const save = useSaveDraft(epic);
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
+  const auto = useAutoAllocate(epic);
   const open = v.rows.filter((r) => !r.pushed_at);
   const draft = (p: Partial<DraftIn>) => save.mutate({
     order: open.map((r) => r.id),
@@ -77,6 +78,14 @@ function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Pe
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span className="title">Rows</span>
           <span className="eyebrow">Scheduled in this order from the phase's Start; each member's day is filled up to their allocation.</span>
+          <span className="spacer" />
+          {admin && open.length > 0 && (
+            <Button appearance="secondary" size="sm" disabled={auto.isPending || save.isPending}
+              title="Fills the empty BA / BAL / JM slots, row by row, with the member of the phase's team who finishes the row soonest. People already picked stay."
+              onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
+              Auto allocate
+            </Button>
+          )}
         </div>
         {open.length === 0 && <div style={{ padding: 16, color: 'var(--text-muted)' }}>Every estimation row is in Jira.</div>}
         <div style={{ overflowX: 'auto' }}>

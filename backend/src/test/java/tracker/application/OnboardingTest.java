@@ -142,7 +142,19 @@ class OnboardingTest {
         assertThat(after.stream().filter(m -> m.memberId().equals("minh")).findFirst().orElseThrow().inAnken()).isFalse();
         assertThat(loader.load(SCOPE).isMember(EPIC, "tanaka")).isTrue();
         // an already gives 8h a day to PAY-1100 and PAY-1300
+        MemberHours an = after.stream().filter(m -> m.memberId().equals("an")).findFirst().orElseThrow();
+        assertThat(an.elsewhere()).extracting(h -> h.epicKey() + "=" + h.hours()).containsExactlyInAnyOrder("PAY-1100=5.0", "PAY-1300=3.0");
+        assertThat(an.workingDayH()).isEqualTo(8.0);
         assertThatThrownBy(() -> onboarding.saveMembers(PIM, EPIC, List.of(new MemberIn("an", true, 2.0)))).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void membersStepSavesHoursOverTheDayOnceConfirmed() {
+        onboarding.start(PIM, EPIC);
+        List<MemberHours> after = onboarding.saveMembers(PIM, EPIC, List.of(new MemberIn("an", true, 2.0)), true);
+        assertThat(after.stream().filter(m -> m.memberId().equals("an")).findFirst().orElseThrow().hoursPerDay()).isEqualTo(2.0);
+        assertThatThrownBy(() -> onboarding.saveMembers(PIM, EPIC, List.of(new MemberIn("an", true, 25.0)), true))
+                .isInstanceOf(Invalid.class).hasMessageContaining("between 0 and 24");
     }
 
     @Test

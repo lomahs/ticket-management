@@ -133,6 +133,12 @@ public class AllocationService {
     /** Writes one row per epic in {@code c.hours()} from {@code c.from()}; nothing is saved when any check fails. */
     @Transactional
     public AllocationTimeline set(Viewer v, String memberId, AllocationChange c) {
+        return set(v, memberId, c, false);
+    }
+
+    /** @param allowOverTheDay the user confirmed hours over the working day: that check is skipped, the others stay */
+    @Transactional
+    public AllocationTimeline set(Viewer v, String memberId, AllocationChange c, boolean allowOverTheDay) {
         Member m = requireVisibleMember(v, memberId);
         Set<String> visible = scopes.visible(v);
         for (Map.Entry<String, Double> e : c.hours().entrySet()) {
@@ -150,15 +156,17 @@ public class AllocationService {
             next.removeIf(a -> a.epicKey().equals(e.getKey()) && a.effectiveFrom().equals(c.from()));
             next.add(new Allocation(memberId, e.getKey(), c.from(), e.getValue()));
         }
-        List<Allocation> counted = counting(next, Set.copyOf(settings.load().jira.epics));
-        Allocations after = new Allocations(counted);
-        double day = team.workingHours().hoursPerDay();
-        TreeSet<String> dates = new TreeSet<>(after.datesOf(memberId).stream().filter(d -> d.compareTo(c.from()) >= 0).toList());
-        dates.add(c.from());
-        for (String date : dates) {
-            double total = Numbers.round(after.totalOn(memberId, date), 2);
-            if (total > day) {
-                throw overTheDay(after, counted, visible, memberId, date, total, day);
+        if (!allowOverTheDay) {
+            List<Allocation> counted = counting(next, Set.copyOf(settings.load().jira.epics));
+            Allocations after = new Allocations(counted);
+            double day = team.workingHours().hoursPerDay();
+            TreeSet<String> dates = new TreeSet<>(after.datesOf(memberId).stream().filter(d -> d.compareTo(c.from()) >= 0).toList());
+            dates.add(c.from());
+            for (String date : dates) {
+                double total = Numbers.round(after.totalOn(memberId, date), 2);
+                if (total > day) {
+                    throw overTheDay(after, counted, visible, memberId, date, total, day);
+                }
             }
         }
         String now = Instant.now(clock).toString();

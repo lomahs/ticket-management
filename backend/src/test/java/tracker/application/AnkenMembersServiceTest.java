@@ -105,6 +105,19 @@ class AnkenMembersServiceTest {
     }
 
     @Test
+    void personWithoutAnEmailGetsAnIdFromTheNameAndNoRequest() {
+        Member m = service.addPerson(pim, new NewPerson(null, "Lê Văn Hòa", Role.JM, List.of("PAY-1100")));
+        assertThat(m.id()).isEqualTo("le-van-hoa");
+        assertThat(m.email()).isEmpty();
+        assertThat(ankenMembers.exists("PAY-1100", m.id())).isTrue();
+        Member other = service.addPerson(pim, new NewPerson(" ", "Lê Văn Hòa", Role.BA, List.of("PAY-1100")));
+        assertThat(other.id()).isEqualTo("le-van-hoa-2");
+        assertThat(access.requests(RequestStatus.PENDING)).noneMatch(r -> m.id().equals(r.memberId()) || other.id().equals(r.memberId()));
+        assertThatThrownBy(() -> service.addPerson(pim, new NewPerson(null, " ", Role.BA, List.of("PAY-1100"))))
+                .isInstanceOf(Invalid.class).hasMessage("Name is required");
+    }
+
+    @Test
     void personWithoutAnkenNeedsTheAdmin() {
         assertThatThrownBy(() -> service.addPerson(pim, new NewPerson("none@acme.vn", "None", Role.BA, List.of())))
                 .isInstanceOf(Invalid.class).satisfies(e -> assertThat(((Invalid) e).field()).isEqualTo("epics"));
