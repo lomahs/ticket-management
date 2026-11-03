@@ -245,13 +245,17 @@ public final class Dataset {
         }
     }
 
-    static String summary(String phase, String fid, String name, String stepLabel) {
+    /** The demo's Sub-task pattern: "– {step?}" makes a sub-task without a step a single ticket (the study tickets). */
+    public static final String SUBTASK_RULE = "[{sub_phase_prefix}] {function} – {step?}";
+    /** The demo's Task pattern: its Tasks open with a bracket, like "[Implement_Coding] Payment flow revision". */
+    public static final String TASK_RULE = "[{anken_prefix}] {sub_phase}";
+
+    static String summary(String phase, String name, String stepLabel) {
         Map<String, String> values = new HashMap<>();
-        values.put("phase_name", phase);
-        values.put("function_id", fid);
-        values.put("function_name", name);
+        values.put("sub_phase_prefix", phase);
+        values.put("function", name);
         values.put("step", stepLabel);
-        return Naming.renderSummary(Naming.DEFAULT_RULE, values);
+        return Naming.renderSummary(SUBTASK_RULE, values);
     }
 
     // --- PAY-1100: the anken shown in the Function Matrix of ui-mock-v0 ------------------------------------------------
@@ -379,7 +383,7 @@ public final class Dataset {
                 String worker = step.review() ? who : f.ba();
                 String fixReviewer = kind.equals("fixj") ? "tanaka" : "minh";
                 out.add(new FakeIssue(
-                        "PAY-" + k, summary("Implement_Coding", f.fid(), f.name(), step.label()), "PAY-1102", o.status(), who, ps, pe,
+                        "PAY-" + k, summary("Implement_Coding", f.name(), step.label()), "PAY-1102", o.status(), who, ps, pe,
                         o.est(), Dates.addDays(f.start(), -3),
                         step.fix() ? fixLogs(f.ba(), "minh", o.logged(), orZero(o.r()), pe, STEP_NOTES.get(kind))
                                 : splitLogs(worker, o.logged(), pe, STEP_NOTES.get(kind)),
@@ -424,7 +428,7 @@ public final class Dataset {
                 new FakeIssue("PAY-1166", "[Prepare] Work requests", "PAY-1100", "W", "minh", "2026-10-05", "2026-10-30")));
         List<String> bas = List.of("an", "binh", "chi", "dung");
         for (int i = 0; i < bas.size(); i++) {
-            out.add(new FakeIssue("PAY-116" + (i + 1), "[Prepare][ST] Requirement study", "PAY-1160", "C", bas.get(i), "2026-09-03",
+            out.add(new FakeIssue("PAY-116" + (i + 1), "[Prepare] Requirement study", "PAY-1160", "C", bas.get(i), "2026-09-03",
                     "2026-09-04", 8, "2026-08-28", splitLogs(bas.get(i), 8, "2026-09-04", "Work on task"), List.of()));
         }
         out.add(new FakeIssue("PAY-1168", "Q10 · Timeout message wording", "PAY-1165", "C", "an", "2026-09-24", "2026-09-30", 1, "2026-09-24",
@@ -513,7 +517,7 @@ public final class Dataset {
                 int rounds = fixed != null ? fixed.r() : (step.fix() && !st.equals("N") ? 1 : 0);
                 int held = fixed != null ? fixed.d() : 0;
                 FakeIssue issue = new FakeIssue(
-                        fixed != null ? fixed.key() : keys.next(), summary(phase, f.fid(), f.name(), step.label()), parent, st, who,
+                        fixed != null ? fixed.key() : keys.next(), summary(phase, f.name(), step.label()), parent, st, who,
                         ps, pe, est, Dates.addDays(start, -3), step.fix() ? fixLogs(f.ba(), reviewer, logged, rounds, pe, STEP_NOTES.get(kind))
                                 : splitLogs(worker, logged, pe, STEP_NOTES.get(kind)),
                         handoverEvents(st, who, f.ba(), kind.equals("fixj") ? jm : reviewer, step.fix(), rounds, held, ps));

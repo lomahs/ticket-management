@@ -46,6 +46,14 @@ class GoldenTest {
     List<Function> fns;
     Map<String, IssueFlags> flags = new LinkedHashMap<>();
     static final Map<String, Member> MEMBERS = Dataset.demoMembers().stream().collect(Collectors.toMap(Member::id, m -> m));
+    /** golden.json knows the functions by the ids ui-mock-v0 gave them (F01…F12); the app knows them by name. */
+    static final List<String> NAMES = List.of("Payment method selection", "OTP verification", "Domestic card payment", "E-wallet payment",
+            "Partial refund", "Transaction history", "Payment result notification", "End-of-day reconciliation",
+            "Payment gateway timeout handling", "Transaction fee configuration", "Payment report export", "Retry failed payment");
+
+    static String fid(Function f) {
+        return String.format("F%02d", NAMES.indexOf(f.id()) + 1);
+    }
 
     /** The demo profile seeded and synced the data at start-up. */
     @SuppressWarnings("unchecked")
@@ -77,7 +85,7 @@ class GoldenTest {
 
     @Test
     void allTwelveFunctionsWithFiveSteps() {
-        assertThat(fns).extracting(Function::id).containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10",
+        assertThat(fns).extracting(GoldenTest::fid).containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10",
                 "F11", "F12");
         assertThat(fns).allMatch(f -> f.cells().stream().allMatch(java.util.Objects::nonNull));
     }
@@ -90,7 +98,7 @@ class GoldenTest {
         for (Function f : fns) {
             for (Issue c : f.cells()) {
                 Map<String, Object> row = new TreeMap<>();
-                row.put("fid", f.id());
+                row.put("fid", fid(f));
                 row.put("step", c.step().value());
                 row.put("status", c.status().value());
                 row.put("assignee", c.assigneeId());
@@ -115,7 +123,7 @@ class GoldenTest {
     @Test
     void currentStepLateOverAndToneMatchGolden() {
         Map<String, Object> current = new LinkedHashMap<>();
-        fns.forEach(f -> current.put(f.id(), f.current()));
+        fns.forEach(f -> current.put(fid(f), f.current()));
         assertThat(current).isEqualTo(section("current_step"));
         Map<String, Object> late = new LinkedHashMap<>();
         flags.forEach((k, v) -> {
@@ -152,6 +160,6 @@ class GoldenTest {
         List<String> summaries = fns.stream().flatMap(f -> f.cells().stream()).map(Issue::summary).toList();
         // ui-mock-v0 matched 50/60 (F04, F08 split at their hyphen); {step} now only matches aliases.
         assertThat(((Number) section("name_rule_coverage").get("total")).intValue()).isEqualTo(summaries.size());
-        assertThat(Naming.coverage(Naming.compileRule(Naming.DEFAULT_RULE, Naming.DEFAULT_ALIASES), summaries)).isEqualTo(60);
+        assertThat(Naming.coverage(Naming.compileRule(Dataset.SUBTASK_RULE, Naming.DEFAULT_ALIASES), summaries)).isEqualTo(60);
     }
 }

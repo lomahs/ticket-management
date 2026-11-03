@@ -5007,18 +5007,15 @@
             "type" : "integer",
             "format" : "int32"
           },
-          "phase" : {
-            "type" : "string"
-          },
           "steps" : {
             "type" : [ "integer", "null" ],
             "format" : "int32"
           },
-          "subphase" : {
+          "task" : {
             "type" : "string"
           }
         },
-        "required" : [ "effort_h", "errors", "function", "line", "phase", "steps", "subphase" ]
+        "required" : [ "effort_h", "errors", "function", "line", "steps", "task" ]
       },
       "EstimationIn" : {
         "type" : "object",
@@ -5104,21 +5101,15 @@
           "jm_id" : {
             "type" : [ "string", "null" ]
           },
-          "phase" : {
-            "type" : "string"
-          },
           "steps" : {
             "type" : [ "integer", "null" ],
             "format" : "int32"
-          },
-          "subphase" : {
-            "type" : "string"
           },
           "task_key" : {
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "function_name", "phase", "subphase" ]
+        "required" : [ "function_name" ]
       },
       "EstimationUpload" : {
         "type" : "object",
@@ -5309,10 +5300,6 @@
             "maximum" : 1000,
             "minimum" : 0
           },
-          "function_id" : {
-            "type" : [ "string", "null" ],
-            "pattern" : "^[A-Za-z]+\\d+$"
-          },
           "jm" : {
             "type" : [ "string", "null" ]
           },
@@ -5388,9 +5375,6 @@
       "FunctionPreview" : {
         "type" : "object",
         "properties" : {
-          "function_id" : {
-            "type" : "string"
-          },
           "phase" : {
             "type" : "string"
           },
@@ -5404,7 +5388,7 @@
             }
           }
         },
-        "required" : [ "function_id", "phase", "prefix", "steps" ]
+        "required" : [ "phase", "prefix", "steps" ]
       },
       "FunctionRow" : {
         "type" : "object",
@@ -6008,9 +5992,6 @@
               "type" : "string"
             }
           },
-          "next_function_id" : {
-            "type" : "string"
-          },
           "parents" : {
             "type" : "array",
             "items" : {
@@ -6039,7 +6020,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "epic_key", "functions", "member_ids", "next_function_id", "parents", "phase", "stats", "task_keys", "tickets", "title" ]
+        "required" : [ "epic_key", "functions", "member_ids", "parents", "phase", "stats", "task_keys", "tickets", "title" ]
       },
       "Me" : {
         "type" : "object",
@@ -7720,6 +7701,9 @@
           "key" : {
             "type" : "string"
           },
+          "name" : {
+            "type" : "string"
+          },
           "phase" : {
             "type" : "string"
           },
@@ -7727,7 +7711,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "key", "phase", "summary" ]
+        "required" : [ "key", "name", "phase", "summary" ]
       },
       "TaskTemplate" : {
         "type" : "object",
@@ -7787,9 +7771,12 @@
           },
           "phase" : {
             "type" : "string"
+          },
+          "recognised" : {
+            "type" : "boolean"
           }
         },
-        "required" : [ "existing_key", "match", "name", "phase" ]
+        "required" : [ "existing_key", "match", "name", "phase", "recognised" ]
       },
       "TemplateTasksView" : {
         "type" : "object",

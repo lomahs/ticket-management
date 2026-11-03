@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -84,11 +85,11 @@ public class DetailPlanningApi {
         return new AnkenScope(Set.of(epic));
     }
 
-    /** @param id 0 for a new row */
-    public record EstimationRowIn(long id, @NotNull String phase, @NotNull String subphase, @NotNull String functionName, @Nullable Integer steps,
-                                  double effortH, @Nullable String baId, @Nullable String balId, @Nullable String jmId, @Nullable String taskKey) {
+    /** @param id 0 for a new row; the phase and subphase come from the Task */
+    public record EstimationRowIn(long id, @NotNull String functionName, @Nullable Integer steps, double effortH, @Nullable String baId,
+                                  @Nullable String balId, @Nullable String jmId, @Nullable String taskKey) {
         EstimationRow row(String epic, int position) {
-            return new EstimationRow(id, epic, position, phase, subphase, functionName, steps, effortH, baId, balId, jmId, taskKey, null);
+            return new EstimationRow(id, epic, position, "", "", functionName, steps, effortH, baId, balId, jmId, taskKey, null);
         }
     }
 
@@ -115,7 +116,7 @@ public class DetailPlanningApi {
     public record EstimationUpload(@Nullable @Schema(type = "string", format = "binary") MultipartFile file) {
     }
 
-    /** Reads a filled template (.xlsx or .csv) and checks every row; nothing is saved. */
+    /** Reads a filled template (.xlsx or .csv) and checks every row, its Task against the anken's; nothing is saved. */
     @Open(Rule.ADMIN)
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schema = @Schema(implementation = EstimationUpload.class), encoding = @Encoding(name = "file")))
@@ -123,12 +124,13 @@ public class DetailPlanningApi {
     public List<EstimationImportRow> importEstimation(@PathVariable("epic") String epic,
                                             @RequestPart(name = "file", required = false) @Nullable MultipartFile file, Viewer viewer)
             throws IOException {
-        scopes.requireVisible(viewer, epic);
+        AnkenScope scope = epicScope(viewer, epic);
         if (file == null) {
             throw new Invalid("Choose a .xlsx or .csv file", "file");
         }
         String name = file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty() ? "upload" : file.getOriginalFilename();
-        return EstimationFiles.parse(name, file.getBytes());
+        Set<String> tasks = estimation.view(scope, epic).tasks().stream().map(EstimationService.TaskOption::key).collect(Collectors.toSet());
+        return EstimationFiles.parse(name, file.getBytes(), tasks);
     }
 
     @Requires(feature = Feature.PLANNING, level = Level.READ)

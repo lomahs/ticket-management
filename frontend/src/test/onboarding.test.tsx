@@ -14,7 +14,8 @@ const PEOPLE = [
   { member_id: 'minh', name: 'Minh', role: 'BAL', country: 'VN', in_anken: true, hours_per_day: null },
   { member_id: 'tanaka', name: 'Tanaka', role: 'JM', country: 'JP', in_anken: false, hours_per_day: null },
 ];
-const TASK = { key: 'PAY-1102', summary: '[ITA] Create test case', phase: 'ITA' };
+const TASK = { key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Create test case', name: 'ITA Create test case', phase: 'ITA' };
+const EXECUTE = { key: 'PAY-1103', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' };
 const LOGIN = { id: 1, epic_key: 'PAY-1100', position: 0, phase: 'ITA', subphase: 'Create test case', function_name: 'Login', steps: 5, effort_h: 8,
   ba_id: null, bal_id: null, jm_id: null, task_key: 'PAY-1102', pushed_at: null };
 const RUN = { ...LOGIN, id: 2, position: 1, subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16, ba_id: 'an' };
@@ -58,7 +59,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/onboarding/lookup', ({ request }) => HttpResponse.json({ key: new URL(request.url).searchParams.get('key'), title: 'Refund automation', project: 'PAY', tracked: false, onboarding: false })),
       http.post('*/api/v1/onboarding', async ({ request }) => { started = await request.json(); return HttpResponse.json({ ...ONB, epic_key: 'PAY-1500', step: 2 }); }),
       http.get('*/api/v1/onboarding/PAY-1500', () => HttpResponse.json({ ...ONB, epic_key: 'PAY-1500', step: 2 })),
-      http.get('*/api/v1/onboarding/PAY-1500/tasks', () => HttpResponse.json({ anken_prefix: '', task_rule: '[{anken_prefix}][LocalTask] {task}', tasks: [] })),
+      http.get('*/api/v1/onboarding/PAY-1500/tasks', () => HttpResponse.json({ anken_prefix: '', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [] })),
       http.get('*/api/v1/onboarding/PAY-1500/members', () => HttpResponse.json(PEOPLE)),
     );
     const { router } = renderApp('/onboarding/new');
@@ -77,9 +78,9 @@ describe('onboarding', () => {
     server.use(
       http.get('*/api/v1/onboarding/PAY-1100/tasks', ({ request }) => {
         const prefix = new URL(request.url).searchParams.get('anken_prefix') ?? '';
-        return HttpResponse.json({ anken_prefix: prefix, task_rule: '[{anken_prefix}][LocalTask] {task}', tasks: [
-          { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', existing_key: null, name: `[${prefix}][LocalTask] ITA Prepare` },
-          { match: '[Prepare] QnA management', phase: 'Prepare', existing_key: 'PAY-1101', name: '[Prepare] QnA management' },
+        return HttpResponse.json({ anken_prefix: prefix, task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [
+          { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', existing_key: null, name: `[${prefix}][LocalTask] ITA Prepare`, recognised: true },
+          { match: '[Prepare] QnA management', phase: 'Prepare', existing_key: 'PAY-1101', name: '[Prepare] QnA management', recognised: true },
         ] });
       }),
       http.post('*/api/v1/onboarding/PAY-1100/tasks/preview', () => HttpResponse.json({ updates: [], creates: [
@@ -89,7 +90,10 @@ describe('onboarding', () => {
     );
     renderApp('/onboarding/PAY-1100/tasks');
     expect(await screen.findByDisplayValue('[PAY][LocalTask] ITA Prepare')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Setting Phase' })).toBeTruthy();
+    expect(screen.getByText('Task pattern: [{anken_prefix}][{os_task}] {sub_phase}')).toBeTruthy();
     expect(screen.getByText('1 found · 1 missing')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Review 1 Tasks' }));
     const review = await screen.findByRole('region', { name: 'Tasks to create' });
     fireEvent.click(within(review).getByRole('button', { name: 'Create in Jira' }));
@@ -97,29 +101,40 @@ describe('onboarding', () => {
     expect(await screen.findByText('Created 1 Tasks in Jira')).toBeTruthy();
   });
 
+  it('warns when the template would not recognise the Task pattern\'s name', async () => {
+    onboarding({ step: 2 });
+    server.use(http.get('*/api/v1/onboarding/PAY-1100/tasks', () => HttpResponse.json({ anken_prefix: 'PAY', task_rule: '{sub_phase} ({anken_prefix})', tasks: [
+      { match: '[Prepare] QnA management', phase: 'Prepare', existing_key: null, name: 'QnA management (PAY)', recognised: false },
+    ] })));
+    renderApp('/onboarding/PAY-1100/tasks');
+    expect(await screen.findByDisplayValue('QnA management (PAY)')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('The template does not recognise this name');
+  });
+
   it('saves the estimation with the Task of each row, then the progress', async () => {
     let saved: { rows: Record<string, unknown>[] } | null = null;
     const progress = onboarding();
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/estimation', () => HttpResponse.json({ rows: [LOGIN], phases: [{ phase: 'ITA', total_effort_h: 14 }], tasks: [TASK] })),
+      http.get('*/api/v1/planning/PAY-1100/estimation', () => HttpResponse.json({ rows: [LOGIN], phases: [{ phase: 'ITA', total_effort_h: 14 }], tasks: [TASK, EXECUTE] })),
       http.put('*/api/v1/planning/PAY-1100/estimation', async ({ request }) => {
         saved = await request.json() as typeof saved;
-        return HttpResponse.json({ rows: [LOGIN], phases: [{ phase: 'ITA', total_effort_h: 30 }], tasks: [TASK] });
+        return HttpResponse.json({ rows: [LOGIN], phases: [{ phase: 'ITA', total_effort_h: 30 }], tasks: [TASK, EXECUTE] });
       }),
     );
     renderApp('/onboarding/PAY-1100/estimation');
     const totals = await screen.findByRole('region', { name: 'Effort per phase' });
     expect(within(totals).getByText('14h')).toBeTruthy();
+    expect(screen.getByLabelText('Task name, row 1').textContent).toBe('ITA Create test case');
     fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
-    fireEvent.change(screen.getByLabelText('Task, row 2'), { target: { value: 'PAY-1102' } });
-    expect((screen.getByLabelText('Phase, row 2') as HTMLInputElement).value).toBe('ITA'); // filled from the Task
-    fireEvent.change(screen.getByLabelText('Subphase, row 2'), { target: { value: 'Execute' } });
+    expect(screen.getByLabelText('Task name, row 2').textContent).toBe('–');
+    fireEvent.change(screen.getByLabelText('Task, row 2'), { target: { value: 'PAY-1103' } });
+    expect(screen.getByLabelText('Task name, row 2').textContent).toBe('ITA Execute'); // the Task's Summary without its [...]
     fireEvent.change(screen.getByLabelText('Function, row 2'), { target: { value: 'Run' } });
     fireEvent.change(screen.getByLabelText('Steps, row 2'), { target: { value: '' } });
     fireEvent.change(screen.getByLabelText('Effort (h), row 2'), { target: { value: '16' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(saved?.rows).toHaveLength(2));
-    expect(saved!.rows[1]).toMatchObject({ id: 0, phase: 'ITA', subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16, task_key: 'PAY-1102' });
+    expect(saved!.rows[1]).toMatchObject({ id: 0, function_name: 'Run', steps: null, effort_h: 16, task_key: 'PAY-1103' });
     await waitFor(() => expect(progress).toContainEqual({ step: 3 }));
   });
 
@@ -130,8 +145,8 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/estimation', () => HttpResponse.json({ rows: [], phases: [], tasks: [TASK] })),
       http.put('*/api/v1/planning/PAY-1100/estimation', () => { puts++; return HttpResponse.json({ rows: [], phases: [], tasks: [] }); }),
       http.post('*/api/v1/planning/PAY-1100/estimation/import', () => HttpResponse.json([
-        { line: 2, phase: 'ITA', subphase: 'Create test case', function: 'Login', steps: 5, effort_h: 8, errors: [] },
-        { line: 3, phase: 'ITA', subphase: 'Create test case', function: '', steps: 5, effort_h: 8, errors: ['Function is required'] },
+        { line: 2, task: 'PAY-1102', function: 'Login', steps: 5, effort_h: 8, errors: [] },
+        { line: 3, task: 'PAY-1102', function: '', steps: 5, effort_h: 8, errors: ['Function is required'] },
       ])),
     );
     renderApp('/onboarding/PAY-1100/estimation');
@@ -140,6 +155,8 @@ describe('onboarding', () => {
     expect(await screen.findByText('Line 3: Function is required')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Add 1 row' }));
     expect((screen.getByLabelText('Function, row 1') as HTMLInputElement).value).toBe('Login');
+    expect((screen.getByLabelText('Task, row 1') as HTMLSelectElement).value).toBe('PAY-1102');
+    expect(screen.getByLabelText('Task name, row 1').textContent).toBe('ITA Create test case');
     expect(puts).toBe(0);
   });
 
@@ -219,7 +236,7 @@ describe('onboarding', () => {
     );
     renderApp('/onboarding/PAY-1100/detail');
     expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
-    expect(screen.getAllByText('PAY-1102 · [ITA] Create test case')).toHaveLength(2);
+    expect(screen.getAllByText('PAY-1102 · [PAY][LocalTask] ITA Create test case')).toHaveLength(2);
     fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
     expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();

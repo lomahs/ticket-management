@@ -26,6 +26,7 @@ import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraRejected;
 import tracker.application.ports.JiraWriteLog;
+import tracker.application.ports.OnboardingRepository;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService;
 import tracker.application.service.CalendarService;
@@ -46,6 +47,7 @@ import tracker.application.settings.TrackerSettings;
 import tracker.domain.AccessStatus;
 import tracker.domain.AnkenScope;
 import tracker.domain.Issue;
+import tracker.domain.Naming;
 import tracker.domain.IssueKind;
 import tracker.domain.LeaveType;
 import tracker.domain.Permissions;
@@ -68,6 +70,8 @@ class ServiceWritesTest {
 
     @Autowired
     AnkenService anken;
+    @Autowired
+    OnboardingRepository onboardingRows;
     @Autowired
     PlanningService planning;
     @Autowired
@@ -92,14 +96,12 @@ class ServiceWritesTest {
     @Test
     void createFunctionWritesToJiraAndSyncsBack() {
         FunctionDraft d = draft("PAY-1102", "Installment payment", 8);
-        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d);
         assertThat(keys).containsExactly("PAY-1501", "PAY-1502", "PAY-1503", "PAY-1504", "PAY-1505");
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
-        AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
-        assertThat(last.id()).isEqualTo("F13");
-        assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
-        assertThat(m.nextFunctionId()).isEqualTo("F14");
-        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d, "F13")).isInstanceOf(Conflict.class);
+        AnkenService.FunctionRow made = m.functions().stream().filter(f -> f.id().equals("Installment payment")).findFirst().orElseThrow();
+        assertThat(made.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
+        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d)).isInstanceOf(Conflict.class); // same name, same Task
     }
 
     @Test
@@ -108,11 +110,11 @@ class ServiceWritesTest {
                 new ArrayList<>(Collections.nCopies(3, null)), 3);
         assertThat(anken.previewFunction(ALL, "PAY-1100", d).steps()).extracting(AnkenService.PreviewStep::step)
                 .containsExactly("create", "balr", "fixb");
-        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d);
         assertThat(keys).hasSize(3);
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
-        AnkenService.FunctionRow last = m.functions().get(m.functions().size() - 1);
-        assertThat(last.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
+        AnkenService.FunctionRow made = m.functions().stream().filter(f -> f.id().equals("Execute test case")).findFirst().orElseThrow();
+        assertThat(made.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
         FunctionDraft four = new FunctionDraft("PAY-1102", "Bad", "an", "minh", "tanaka", 8, List.of(), 4);
         assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", four)).isInstanceOf(Invalid.class)
                 .extracting("field").isEqualTo("steps");
@@ -121,12 +123,12 @@ class ServiceWritesTest {
                 .extracting("field").isEqualTo("jm");
     }
 
-    /** The company's naming: Tasks recognised by name, sub-tasks named [prefix][function name]_Step without a function ID. */
+    /** The company's naming: Tasks recognised by name, sub-tasks named [anken prefix][LocalTask][sub-phase prefix]_function_Step. */
     @Test
     void createFunctionWithCompanyNaming(@Autowired SettingsStore settings, @Autowired SyncService sync) {
         settings.update(s -> {
             TrackerSettings.AnkenSettings a = s.anken.computeIfAbsent("PAY-1100", e -> TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules));
-            a.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+            a.nameRules.rule = Naming.DEFAULT_RULE;
             a.nameRules.aliases = new java.util.EnumMap<>(Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
                     StepKind.FIX_BAL, "FixCommentBAL", StepKind.JM_REVIEW, "JMReview", StepKind.FIX_JM, "FixCommentJM"));
             a.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"),
@@ -136,14 +138,16 @@ class ServiceWritesTest {
         sync.run(true);
         FunctionDraft d = draft("PAY-1102", "Login", 8);
         AnkenService.FunctionPreview p = anken.previewFunction(ALL, "PAY-1100", d);
-        assertThat(List.of(p.phase(), p.prefix(), p.functionId())).containsExactly("Implement_Coding", "UCI", "");
-        assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[UCI][Login]_Create",
-                "[UCI][Login]_BALReview", "[UCI][Login]_FixCommentBAL", "[UCI][Login]_JMReview", "[UCI][Login]_FixCommentJM");
-        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d, null);
+        assertThat(List.of(p.phase(), p.prefix())).containsExactly("Implement_Coding", "UCI");
+        // no Onboarding: the anken prefix is the Task pattern's in "[Implement_Coding] Payment flow revision"
+        assertThat(p.steps()).extracting(AnkenService.PreviewStep::summary).containsExactly("[Implement_Coding][LocalTask][UCI]_Login_Create",
+                "[Implement_Coding][LocalTask][UCI]_Login_BALReview", "[Implement_Coding][LocalTask][UCI]_Login_FixCommentBAL",
+                "[Implement_Coding][LocalTask][UCI]_Login_JMReview", "[Implement_Coding][LocalTask][UCI]_Login_FixCommentJM");
+        List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d);
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", List.of("PAY-1102"), null, null); // the demo's own functions no longer match the rule
         assertThat(m.functions()).extracting(f -> f.id() + "/" + f.name()).containsExactly("Login/Login");
         assertThat(m.functions().get(0).cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
-        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d, null)).isInstanceOf(Conflict.class); // same name, same Task
+        assertThatThrownBy(() -> anken.createFunction(ADMIN, ALL, "PAY-1100", d)).isInstanceOf(Conflict.class); // same name, same Task
         assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1101", "X", 8))).isInstanceOf(Invalid.class);
     }
 
@@ -184,7 +188,7 @@ class ServiceWritesTest {
                              @Autowired JiraWriteLog log, @Autowired java.time.Clock clock,
                              @Autowired tracker.application.service.AllocationService allocations) {
         JiraCalls none = new JiraCalls(Optional.empty(), log, clock);
-        assertThatThrownBy(() -> new AnkenService(context, none, reader, sync).createFunction(ADMIN, ALL, "PAY-1100", draft("PAY-1102", "X", 8), null))
+        assertThatThrownBy(() -> new AnkenService(context, none, reader, sync, onboardingRows).createFunction(ADMIN, ALL, "PAY-1100", draft("PAY-1102", "X", 8)))
                 .isInstanceOf(CapabilityDisabled.class);
         assertThatThrownBy(() -> new PlanningService(context, none, new SystemService.Mode("demo"), sync, allocations)
                 .push(ADMIN, ALL, List.of(new PlanChange("PAY-1262", "2026-10-12", "binh")))).isInstanceOf(CapabilityDisabled.class);

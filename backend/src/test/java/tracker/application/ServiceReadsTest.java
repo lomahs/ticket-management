@@ -65,6 +65,10 @@ import tracker.domain.Worklog;
 class ServiceReadsTest {
     /** Every tracked epic of the demo: the scope of a viewer who sees all anken. */
     static final AnkenScope ALL = new AnkenScope(Set.copyOf(Dataset.TRACKED_EPICS));
+    /** The demo's twelve functions of PAY-1100, in plan order: a function is known by its name. */
+    static final List<String> DEMO_FUNCTIONS = List.of("Payment method selection", "OTP verification", "Domestic card payment",
+            "E-wallet payment", "Partial refund", "Transaction history", "Payment result notification", "End-of-day reconciliation",
+            "Payment gateway timeout handling", "Transaction fee configuration", "Payment report export", "Retry failed payment");
 
     @Autowired
     AnkenService anken;
@@ -202,7 +206,7 @@ class ServiceReadsTest {
     void matrixRowsStatsAndParents() {
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         assertThat(m.functions()).extracting(AnkenService.FunctionRow::id)
-                .containsExactly("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12");
+                .containsExactlyElementsOf(DEMO_FUNCTIONS);
         AnkenService.MatrixStats s = m.stats();
         assertThat(List.of(s.progressPct(), s.functionsDone(), s.lateFunctions(), s.lateSubtasks(), s.overSubtasks()))
                 .containsExactly(54, 1, 6, 6, 6); // progress over the team steps
@@ -218,7 +222,6 @@ class ServiceReadsTest {
         assertThat(f03.cells().get(2).heldDays()).isEqualTo(2);
         assertThat(f03.cells().get(2).late()).isTrue();
         assertThat(m.phase()).isEqualTo("Implement_Coding");
-        assertThat(m.nextFunctionId()).isEqualTo("F13");
         assertThat(m.parents()).extracting(AnkenService.ParentOption::key).containsExactly("PAY-1101", "PAY-1160", "PAY-1165", "PAY-1166", "PAY-1102", "PAY-1103");
     }
 
@@ -235,7 +238,7 @@ class ServiceReadsTest {
         AnkenService.FunctionRow row = anken.matrix(ALL, "PAY-1100", null, null, null).functions().get(2);
         AnkenService.FunctionSteps f = anken.functionOf(ALL, row.cells().get(2).key());
         assertThat(List.of(f.epicKey(), f.taskKey(), f.phase(), f.functionId(), f.name()))
-                .containsExactly("PAY-1100", row.taskKey(), "Implement_Coding", "F03", row.name());
+                .containsExactly("PAY-1100", row.taskKey(), "Implement_Coding", "Domestic card payment", row.name());
         assertThat(f.steps()).extracting(c -> c == null ? null : c.key())
                 .containsExactlyElementsOf(row.cells().stream().map(c -> c == null ? null : c.key()).toList());
         assertThatThrownBy(() -> anken.functionOf(ALL, "PAY-1101")).isInstanceOf(NotFound.class); // a Task, not a step
@@ -261,10 +264,9 @@ class ServiceReadsTest {
     void functionPreviewSuggestsDatesAndSummaries() {
         AnkenService.FunctionPreview p = anken.previewFunction(ALL, "PAY-1100", draft("PAY-1102", "Installment", 8));
         assertThat(p.phase()).isEqualTo("Implement_Coding");
-        assertThat(p.functionId()).isEqualTo("F13");
         assertThat(p.steps()).extracting(s -> s.start() + "/" + s.end()).containsExactly("2026-10-08/2026-10-09",
                 "2026-10-10/2026-10-10", "2026-10-12/2026-10-12", "2026-10-13/2026-10-13", "2026-10-14/2026-10-14");
-        assertThat(p.steps().get(0).summary()).isEqualTo("[Implement_Coding][F13] Installment – Create");
+        assertThat(p.steps().get(0).summary()).isEqualTo("[Implement_Coding] Installment – Create");
         assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1102", "X", 0))).isInstanceOf(Invalid.class);
         assertThatThrownBy(() -> anken.previewFunction(ALL, "PAY-1100", draft("PAY-1300", "X", 8))).isInstanceOf(Invalid.class);
     }
@@ -502,7 +504,7 @@ class ServiceReadsTest {
     @Test
     void ticketDetailWithWarningsHistoryAndWorklogs() {
         TicketService.TicketDetail t = tickets.detail(ALL, "PAY-1213");
-        assertThat(t.card().functionId()).isEqualTo("F03");
+        assertThat(t.card().functionId()).isEqualTo("Domestic card payment");
         assertThat(t.baId()).isEqualTo("binh");
         assertThat(t.warnings()).containsExactly(new TicketService.TicketWarning("late", 1),
                 new TicketService.TicketWarning("over", 3.5), new TicketService.TicketWarning("rounds", 3));
@@ -656,17 +658,20 @@ class ServiceReadsTest {
 
     @Test
     void nameRulePreviewAndValidation() {
-        JiraSettingsService.NameRulePreview p = jiraSettings.previewNameRule(null, tracker.domain.Naming.DEFAULT_RULE, null,
-                "[Implement_Coding][F03] Domestic card payment – Fix comment BAL");
+        JiraSettingsService.NameRulePreview p = jiraSettings.previewNameRule(null, Dataset.SUBTASK_RULE, null,
+                "[Implement_Coding] Domestic card payment – Fix comment BAL");
         assertThat(p.error()).isNull();
         assertThat(p.step()).isEqualTo(StepKind.FIX_BAL.value());
-        assertThat(p.values().get("function_id")).isEqualTo("F03");
+        assertThat(p.values().get("function")).isEqualTo("Domestic card payment");
         assertThat(p.matched()).isGreaterThanOrEqualTo(60).isLessThan(p.total());
-        assertThat(jiraSettings.previewNameRule(null, "[{phase}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase}");
-        assertThat(jiraSettings.previewNameRule(null, "[{prefix}] {step}", null, "[X] Create").error())
-                .isEqualTo("Pattern must contain {function_id} or {function_name}");
-        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{prefix}] {step}", Map.of("create", "Create"), null))
+        assertThat(jiraSettings.previewNameRule(null, tracker.domain.Naming.DEFAULT_RULE, null, "x").matched()).isZero();
+        assertThat(jiraSettings.previewNameRule(null, "[{phase_name}] {step}", null, "x").error()).isEqualTo("Unknown placeholder {phase_name}");
+        assertThat(jiraSettings.previewNameRule(null, "[{sub_phase_prefix}] {step}", null, "[X] Create").error())
+                .isEqualTo("Pattern must contain {function}");
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, "[{sub_phase_prefix}] {step}", Map.of("create", "Create"), null))
                 .isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, Dataset.SUBTASK_RULE, Map.of("create", "Create"), "[{anken_prefix}] {task}"))
+                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("task_rule");
     }
 
     @Test

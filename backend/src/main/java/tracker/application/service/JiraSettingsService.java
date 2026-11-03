@@ -508,7 +508,7 @@ public class JiraSettingsService {
     // --- name rules -------------------------------------------------------------------------------------------------
 
     /** @param matched sub-task summaries the rule reads */
-    /** @param taskRule how onboarding names the template Tasks it creates */
+    /** @param taskRule the Task pattern (Name rules › Phase): how Tasks are named */
     public record NameRulesView(String rule, Map<String, String> aliases, int matched, int total, String taskRule) {
     }
 
@@ -569,7 +569,7 @@ public class JiraSettingsService {
     }
 
     /** @param rule "" restores the default rule */
-    /** @param taskRule null keeps the saved Task name rule */
+    /** @param taskRule null keeps the saved Task pattern */
     public NameRulesView saveNameRules(@Nullable String epic, String rule, Map<String, String> rawAliases, @Nullable String taskRule) {
         String scope = tracked(epic);
         Map<StepKind, String> al = aliases(rawAliases, Map.of());

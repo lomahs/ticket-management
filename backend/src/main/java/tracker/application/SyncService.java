@@ -274,7 +274,7 @@ public class SyncService {
                 String key = p != null ? Naming.functionKey(p) : null;
                 if (workflow && key != null && p.step() != null) {
                     functionId = key;
-                    functionName = p.values().get("function_name");
+                    functionName = p.values().get("function");
                     step = p.step();
                 } else if (p != null || !workflow) {
                     functionName = p != null ? Naming.itemName(p, snap.summary()) : snap.summary().strip();

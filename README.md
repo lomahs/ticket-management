@@ -49,18 +49,19 @@ Other settings (environment variables): `SPRING_DATASOURCE_URL` (JDBC URL), `TRA
    sub-tasks are the work items.
 3. Field mapping: the custom field ids for Planned Start / Planned End and the effort field; **Check** against a ticket.
 4. Phases & tasks: the phases in project order, and one row per Task of the fixed set — the Task name (matched against
-   the Task Summary, ignoring case; `*` matches any text), its phase, the prefix its sub-tasks use (`{prefix}`), and
+   the Task Summary, ignoring case; `*` matches any text), its phase, the prefix its sub-tasks use (`{sub_phase_prefix}`), and
    whether its sub-tasks follow the 5-step review workflow (turn it off for Q&A, Work Request, Change Request…). The
    "Tasks in Jira" table shows how the synced Tasks are classified before you save. A Task no row matches takes its
    phase from a leading `[Phase]` in its Summary. Functions are grouped per Task, so the Function Matrix shows one Task
    at a time.
-5. Name rules: how sub-task Summaries encode the function and the step, for example
-   `[{prefix}][{function_name}]_{step}` with the step aliases `Create`, `BALReview`, `FixCommentBAL`, `JMReview`,
-   `FixCommentJM` (default `[{phase_name}][{function_id}] {function_name} – {step}`). Without `{function_id}` the
-   function name identifies the function; the first alias of each step is used when the tracker creates sub-tasks.
-   The Task name rule names the template Tasks that Onboarding creates, from `{anken_prefix}`, `{phase}` and `{task}`
-   (default `[{anken_prefix}][LocalTask] {task}`).
-   The preview shows how many synced sub-tasks match.
+5. Name rules, two patterns. **Phase** is the Task pattern, default `[{anken_prefix}][{os_task}] {sub_phase}`: Onboarding
+   names the Tasks it creates by it, and Estimation lists the Tasks that match it. **Sub-task** is the Sub-task pattern,
+   how sub-task Summaries encode the function and the step, default `[{anken_prefix}][{os_task}][{sub_phase_prefix}]_{function}_{step?}`,
+   with the step aliases (`Create`, `BALReview`, `FixCommentBAL`, `JMReview`, `FixCommentJM`…). `{os_task}` is
+   `LocalTask`; `{sub_phase}` is the template Task's name without its leading `[...]` and `*`; `{sub_phase_prefix}` is the
+   template Task's prefix; `{anken_prefix}` is the one entered at Onboarding, else read from the parent Task's Summary by the
+   Task pattern; `{anken_name}` is the epic's title. The function name identifies the function; the first alias of each step
+   is used when the tracker creates sub-tasks. The preview shows how many synced sub-tasks match.
 
    Steps 4 and 5 are set per anken: pick the anken in the **Settings for** picker at the top of each page. The picker only
    affects Settings; it does not change the sidebar anken switcher. **Default for new anken** is the template: it is
@@ -151,8 +152,10 @@ work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1
 with most of their open sub-tasks).
 
 **Onboarding a new anken** (Onboarding, admins only) takes an anken from its epic to its detail plan in six steps, each
-saved so the PIM can stop and resume: 1 look the epic up in Jira and track it; 2 create the missing template Tasks, named
-by the Task name rule with the anken prefix; 3 the estimation, each row under a Task of the epic; 4 the members and their
+saved so the PIM can stop and resume: 1 look the epic up in Jira and track it; 2 Setting Phase: create the missing template
+Tasks, named by the Task pattern with the anken prefix (a name its template would not recognise is flagged); 3 the estimation,
+each row under a Task of the epic that matches the Task pattern (its phase and subphase are the Task's; the import file has
+the columns Task (a Jira key), Function, Steps, Effort (h)); 4 the members and their
 hours a day on the anken (allocations from today); 5 the master schedule from one Start date, each phase starting the
 working day after the previous one ends, with a Gantt by phase; 6 the detail plan, pushed to Jira, then Finish. The
 overview lists the ankens in progress at the furthest step reached; Discard drops the progress and the rows not in Jira,

@@ -119,7 +119,7 @@ class ApiReadsTest extends ApiTestSupport {
                 "bal", "minh", "jm", "tanaka", "create_hours", 8));
         body.put("overrides", Arrays.asList(null, null, null, null, null));
         JsonNode p = call(json(post("/api/v1/anken/PAY-1100/functions/preview"), body)).json();
-        assertThat(p.get("function_id").asText()).isEqualTo("F13");
+        assertThat(p.has("function_id")).isFalse();
         assertThat(p.get("steps").get(0).get("start").asText()).isEqualTo("2026-10-08");
         body.put("create_hours", -1);
         JsonNode err = problem(call(json(post("/api/v1/anken/PAY-1100/functions/preview"), body)), 400, "invalid");

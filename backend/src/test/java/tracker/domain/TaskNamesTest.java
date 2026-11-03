@@ -2,6 +2,7 @@ package tracker.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.util.List;
 
@@ -13,34 +14,40 @@ class TaskNamesTest {
     static final WorkStructure ST = new WorkStructure(List.of("Prepare", "ITA"), List.of(PREPARE, QNA));
 
     @Test
-    void taskIsTheMatchWithoutLeadingBracketsAndStars() {
-        assertThat(TaskNames.task(PREPARE)).isEqualTo("ITA Prepare");
-        assertThat(TaskNames.task(QNA)).isEqualTo("QnA management");
-        assertThat(TaskNames.task(new TaskTemplate("*ITA  Execute*", "ITA", ""))).isEqualTo("ITA Execute");
+    void subPhaseIsTheMatchWithoutLeadingBracketsAndStars() {
+        assertThat(TaskNames.subPhase(PREPARE)).isEqualTo("ITA Prepare");
+        assertThat(TaskNames.subPhase(QNA)).isEqualTo("QnA management");
+        assertThat(TaskNames.subPhase(new TaskTemplate("*ITA  Execute*", "ITA", ""))).isEqualTo("ITA Execute");
     }
 
     @Test
-    void renderFillsTheTokens() {
-        assertThat(TaskNames.render("[{anken_prefix}][LocalTask] {task}", "BookUI", PREPARE)).isEqualTo("[BookUI][LocalTask] ITA Prepare");
-        assertThat(TaskNames.render("[{phase}][{anken_prefix}] {task}", "REV", QNA)).isEqualTo("[Prepare][REV] QnA management");
+    void renderFillsTheTokensWithLocalTaskAsTheOsTask() {
+        assertThat(TaskNames.render(TaskNames.DEFAULT_RULE, "BookUI", PREPARE)).isEqualTo("[BookUI][LocalTask] ITA Prepare");
+        assertThat(TaskNames.render("[{anken_prefix}] {sub_phase}", "REV", QNA)).isEqualTo("[REV] QnA management");
     }
 
     @Test
-    void proposalKeepsTheRuleWhenItMatchesItsTemplate() {
-        assertThat(TaskNames.propose(TaskNames.DEFAULT_RULE, "BookUI", PREPARE, ST)).isEqualTo("[BookUI][LocalTask] ITA Prepare");
+    void recognisedTellsWhetherTheTemplateReadsTheRulesName() {
+        assertThat(TaskNames.recognised(TaskNames.DEFAULT_RULE, "BookUI", PREPARE, ST)).isTrue();
+        // "[BookUI][LocalTask] QnA management" is not "[Prepare] QnA management"
+        assertThat(TaskNames.recognised(TaskNames.DEFAULT_RULE, "BookUI", QNA, ST)).isFalse();
     }
 
     @Test
-    void proposalFallsBackToTheMatchWithThePrefixForStars() {
-        // the rule's name would not be recognised as QnA management: the template's own name is used
-        assertThat(TaskNames.propose(TaskNames.DEFAULT_RULE, "BookUI", QNA, ST)).isEqualTo("[Prepare] QnA management");
-        assertThat(TaskNames.propose("{task}", "BookUI", PREPARE, ST)).isEqualTo("[BookUI][LocalTask] ITA Prepare");
+    void parseReadsThePlaceholdersOfATaskSummary() {
+        assertThat(TaskNames.parse(TaskNames.DEFAULT_RULE, "[BookUI][LocalTask]  ITA Prepare"))
+                .containsExactly(entry("anken_prefix", "BookUI"), entry("os_task", "LocalTask"), entry("sub_phase", "ITA Prepare"));
+        assertThat(TaskNames.ankenPrefix(TaskNames.DEFAULT_RULE, "[bookui][localtask] ITA Execute")).isEqualTo("bookui");
+        assertThat(TaskNames.matches(TaskNames.DEFAULT_RULE, "[Prepare] QnA management")).isFalse();
+        assertThat(TaskNames.ankenPrefix(TaskNames.DEFAULT_RULE, "WorkRequest")).isEmpty();
+        assertThat(TaskNames.ankenPrefix("{sub_phase}", "[BookUI][LocalTask] ITA Prepare")).isEmpty();
     }
 
     @Test
-    void ruleMustNameTheTask() {
-        assertThatThrownBy(() -> TaskNames.check("[{anken_prefix}] Prepare")).isInstanceOf(RuleError.class).hasMessageContaining("{task}");
-        assertThatThrownBy(() -> TaskNames.check("{task} {who}")).isInstanceOf(RuleError.class).hasMessageContaining("{who}");
+    void ruleMustNameTheSubPhase() {
+        assertThatThrownBy(() -> TaskNames.check("[{anken_prefix}] Prepare")).isInstanceOf(RuleError.class).hasMessageContaining("{sub_phase}");
+        assertThatThrownBy(() -> TaskNames.check("{sub_phase} {task}")).isInstanceOf(RuleError.class).hasMessageContaining("{task}");
+        assertThatThrownBy(() -> TaskNames.check("{sub_phase} {sub_phase}")).isInstanceOf(RuleError.class).hasMessageContaining("twice");
         TaskNames.check(TaskNames.DEFAULT_RULE);
     }
 }

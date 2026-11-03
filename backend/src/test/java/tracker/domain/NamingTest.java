@@ -12,66 +12,67 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class NamingTest {
     static final Naming.CompiledRule RULE = Naming.compileRule(Naming.DEFAULT_RULE, Naming.DEFAULT_ALIASES);
+    /** The demo's pattern: a dash before the step. */
+    static final Naming.CompiledRule DASH = Naming.compileRule("[{sub_phase_prefix}] {function} – {step?}", Naming.DEFAULT_ALIASES);
 
     @Test
     void parsesDefaultPatternWithAlias() {
-        Naming.Parsed p = Naming.parseSummary(RULE, "[Implement_Coding][F03] Domestic card payment – Fix comment BAL");
-        assertThat(p.values()).containsExactly(Map.entry("phase_name", "Implement_Coding"), Map.entry("function_id", "F03"),
-                Map.entry("function_name", "Domestic card payment"), Map.entry("step", "Fix comment BAL"));
+        Naming.Parsed p = Naming.parseSummary(RULE, "[BookUI][LocalTask][ITA_Exe]_Domestic card payment_Fix comment BAL");
+        assertThat(p.values()).containsExactly(Map.entry("anken_prefix", "BookUI"), Map.entry("os_task", "LocalTask"),
+                Map.entry("sub_phase_prefix", "ITA_Exe"), Map.entry("function", "Domestic card payment"), Map.entry("step", "Fix comment BAL"));
         assertThat(p.step()).isEqualTo(StepKind.FIX_BAL);
     }
 
     @Test
     void hyphenAndWhitespaceAreLenient() {
-        Naming.Parsed p = Naming.parseSummary(RULE, "[Prepare][K1]  Face match-Fix JM");
+        Naming.Parsed p = Naming.parseSummary(DASH, "[Prepare]  Face match-Fix JM");
         assertThat(p.step()).isEqualTo(StepKind.FIX_JM);
-        assertThat(p.values().get("function_name")).isEqualTo("Face match");
+        assertThat(p.values().get("function")).isEqualTo("Face match");
     }
 
     @Test
     void hyphenInsideFunctionNameIsKeptBecauseStepMustBeAnAlias() {
-        Naming.Parsed p = Naming.parseSummary(RULE, "[Implement_Coding][F04] E-wallet payment – Create");
-        assertThat(p.values().get("function_name")).isEqualTo("E-wallet payment");
+        Naming.Parsed p = Naming.parseSummary(DASH, "[Implement_Coding] E-wallet payment – Create");
+        assertThat(p.values().get("function")).isEqualTo("E-wallet payment");
         assertThat(p.step()).isEqualTo(StepKind.CREATE);
     }
 
-    static final Naming.CompiledRule OPTIONAL = Naming.compileRule("[{phase_name}][{function_id}] {function_name} – {step?}",
-            Naming.DEFAULT_ALIASES);
-
     @Test
     void anOptionalStepMayBeMissingTogetherWithTheTextBeforeIt() {
-        Naming.Parsed step = Naming.parseSummary(OPTIONAL, "[Implement_Coding][F04] E-wallet payment – Create");
-        assertThat(List.of(step.values().get("function_name"), step.step())).containsExactly("E-wallet payment", StepKind.CREATE);
-        Naming.Parsed single = Naming.parseSummary(OPTIONAL, "[Prepare][ST] Requirement study");
+        Naming.Parsed step = Naming.parseSummary(DASH, "[Implement_Coding] E-wallet payment – Create");
+        assertThat(List.of(step.values().get("function"), step.step())).containsExactly("E-wallet payment", StepKind.CREATE);
+        Naming.Parsed single = Naming.parseSummary(DASH, "[Prepare] Requirement study");
         assertThat(single.step()).isNull();
-        assertThat(single.values()).containsExactly(Map.entry("phase_name", "Prepare"), Map.entry("function_id", "ST"),
-                Map.entry("function_name", "Requirement study"));
-        assertThat(Naming.itemName(single, "[Prepare][ST] Requirement study")).isEqualTo("Requirement study");
+        assertThat(single.values()).containsExactly(Map.entry("sub_phase_prefix", "Prepare"), Map.entry("function", "Requirement study"));
+        assertThat(Naming.itemName(single, "[Prepare] Requirement study")).isEqualTo("Requirement study");
         // a dash that is no step separator stays in the name
-        assertThat(Naming.parseSummary(OPTIONAL, "[Prepare][ST] Study – payment flow").values().get("function_name"))
-                .isEqualTo("Study – payment flow");
-        assertThat(Naming.parseSummary(OPTIONAL, "Kick-off with JM")).isNull();
-        assertThat(Naming.coverage(OPTIONAL, List.of("[Prepare][ST] Requirement study", "[A][F1] X – JM Review", "Other"))).isEqualTo(2);
+        assertThat(Naming.parseSummary(DASH, "[Prepare] Study – payment flow").values().get("function")).isEqualTo("Study – payment flow");
+        assertThat(Naming.parseSummary(DASH, "Kick-off with JM")).isNull();
+        assertThat(Naming.coverage(DASH, List.of("[Prepare] Requirement study", "[A] X – JM Review", "Other"))).isEqualTo(2);
+        Naming.Parsed byDefault = Naming.parseSummary(RULE, "[BookUI][LocalTask][ITA_Prep]_Kick-off");
+        assertThat(List.of(byDefault.values().get("function"), String.valueOf(byDefault.step()))).containsExactly("Kick-off", "null");
     }
 
     @Test
     void onlyTheStepCanBeOptional() {
-        assertThatThrownBy(() -> Naming.compileRule("[{phase_name?}] {function_name} – {step}", Naming.DEFAULT_ALIASES))
+        assertThatThrownBy(() -> Naming.compileRule("[{sub_phase_prefix?}] {function} – {step}", Naming.DEFAULT_ALIASES))
                 .isInstanceOf(RuleError.class).hasMessageContaining("Only {step}");
-        assertThatThrownBy(() -> Naming.compileRule("{function_name} – {step?} {step}", Naming.DEFAULT_ALIASES))
+        assertThatThrownBy(() -> Naming.compileRule("{function} – {step?} {step}", Naming.DEFAULT_ALIASES))
                 .isInstanceOf(RuleError.class).hasMessageContaining("used twice");
-        assertThat(Naming.renderSummary("[{phase_name}] {function_name} – {step?}", Map.of("phase_name", "P", "function_name", "F", "step", "Create")))
+        assertThat(Naming.renderSummary("[{sub_phase_prefix}] {function} – {step?}", Map.of("sub_phase_prefix", "P", "function", "F", "step", "Create")))
                 .isEqualTo("[P] F – Create");
     }
 
     @Test
     void stepTextThatIsNoAliasDoesNotMatch() {
-        assertThat(Naming.parseSummary(RULE, "[Implement_Coding][F04] Payment – Deploy")).isNull();
+        assertThat(Naming.parseSummary(DASH, "[Implement_Coding] Payment – Deploy").step()).isNull(); // a single ticket, not a step
+        assertThat(Naming.parseSummary(Naming.compileRule("[{sub_phase_prefix}] {function} – {step}", Naming.DEFAULT_ALIASES),
+                "[Implement_Coding] Payment – Deploy")).isNull();
     }
 
     @Test
     void aliasesMatchCaseInsensitively() {
-        assertThat(Naming.parseSummary(RULE, "[P][F1] X – fix bal").step()).isEqualTo(StepKind.FIX_BAL);
+        assertThat(Naming.parseSummary(RULE, "[P][LocalTask][X]_Y_fix bal").step()).isEqualTo(StepKind.FIX_BAL);
     }
 
     @Test
@@ -82,16 +83,16 @@ class NamingTest {
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
             "[{phase}] {step}|Unknown placeholder {phase}",
+            "[{function_id}] {step}|Unknown placeholder {function_id}",
             "{step} {step}|{step} is used twice",
-            "[{function_id}] {function_name}|Pattern must contain {step}"})
+            "[{sub_phase_prefix}] {function}|Pattern must contain {step}"})
     void ruleErrors(String rule, String message) {
         assertThatThrownBy(() -> Naming.compileRule(rule, Naming.DEFAULT_ALIASES)).isInstanceOf(RuleError.class).hasMessage(message);
     }
 
     @Test
     void coverageCountsSummariesWithAKnownStep() {
-        assertThat(Naming.coverage(RULE, List.of("[P][F1] A – Create", "[P][F2] E-wallet – Create", "[P][F3] A – Deploy", "nonsense")))
-                .isEqualTo(2);
+        assertThat(Naming.coverage(RULE, List.of("[P][L][S]_A_Create", "[P][L][S]_E-wallet_Create", "nonsense"))).isEqualTo(2);
     }
 
     @Test
@@ -102,8 +103,8 @@ class NamingTest {
 
     @Test
     void renderSummaryFillsTheRule() {
-        assertThat(Naming.renderSummary(Naming.DEFAULT_RULE, Map.of("phase_name", "Implement_Coding", "function_id", "F13",
-                "function_name", "Installment", "step", "Create"))).isEqualTo("[Implement_Coding][F13] Installment – Create");
+        assertThat(Naming.renderSummary(Naming.DEFAULT_RULE, Map.of("anken_prefix", "BookUI", "os_task", "LocalTask", "sub_phase_prefix", "ITA_Exe",
+                "function", "Installment", "step", "Create"))).isEqualTo("[BookUI][LocalTask][ITA_Exe]_Installment_Create");
     }
 
     @Test
@@ -117,20 +118,20 @@ class NamingTest {
     void customAliasesWithUnicodeMatch() {
         Map<StepKind, String> aliases = new java.util.LinkedHashMap<>(Naming.DEFAULT_ALIASES);
         aliases.put(StepKind.CREATE, "Create, Tạo");
-        Naming.CompiledRule r = Naming.compileRule("{function_id}-{step}", aliases);
+        Naming.CompiledRule r = Naming.compileRule("{function}-{step}", aliases);
         assertThat(Naming.parseSummary(r, "F01-tạo").step()).isEqualTo(StepKind.CREATE);
-        assertThat(r.tokens()).containsExactly("function_id", "step");
+        assertThat(r.tokens()).containsExactly("function", "step");
     }
 
     static final Map<StepKind, String> COMPANY_ALIASES = Map.of(StepKind.CREATE, "Create", StepKind.BAL_REVIEW, "BALReview",
             StepKind.FIX_BAL, "FixCommentBAL", StepKind.JM_REVIEW, "JMReview", StepKind.FIX_JM, "FixCommentJM");
-    static final Naming.CompiledRule COMPANY = Naming.compileRule("[{prefix}][{function_name}]_{step}", COMPANY_ALIASES);
+    static final Naming.CompiledRule COMPANY = Naming.compileRule("[{sub_phase_prefix}][{function}]_{step}", COMPANY_ALIASES);
 
     @ParameterizedTest
     @CsvSource({"Create,create", "BALReview,balr", "FixCommentBAL,fixb", "JMReview,jmr", "FixCommentJM,fixj"})
-    void companyRuleWithPrefixAndNoFunctionId(String stepText, String step) {
+    void companyRuleWithPrefix(String stepText, String step) {
         Naming.Parsed p = Naming.parseSummary(COMPANY, "[FUTTC][Login]_" + stepText);
-        assertThat(p.values()).containsExactly(Map.entry("prefix", "FUTTC"), Map.entry("function_name", "Login"),
+        assertThat(p.values()).containsExactly(Map.entry("sub_phase_prefix", "FUTTC"), Map.entry("function", "Login"),
                 Map.entry("step", stepText));
         assertThat(p.step()).isEqualTo(StepKind.of(step));
         assertThat(Naming.functionKey(p)).isEqualTo("Login");
@@ -144,15 +145,15 @@ class NamingTest {
     }
 
     @Test
-    void functionKeyPrefersTheId() {
-        assertThat(Naming.functionKey(Naming.parseSummary(RULE, "[P][F1] Login – Create"))).isEqualTo("F1");
+    void functionKeyIsTheName() {
+        assertThat(Naming.functionKey(Naming.parseSummary(RULE, "[P][LocalTask][S]_Login_Create"))).isEqualTo("Login");
     }
 
     @Test
     void ruleMustNameTheFunction() {
         Naming.checkIdentity(COMPANY);
         Naming.checkIdentity(RULE);
-        assertThatThrownBy(() -> Naming.checkIdentity(Naming.compileRule("[{phase_name}] {step}", Naming.DEFAULT_ALIASES)))
-                .isInstanceOf(RuleError.class).hasMessage("Pattern must contain {function_id} or {function_name}");
+        assertThatThrownBy(() -> Naming.checkIdentity(Naming.compileRule("[{sub_phase_prefix}] {step}", Naming.DEFAULT_ALIASES)))
+                .isInstanceOf(RuleError.class).hasMessage("Pattern must contain {function}");
     }
 }

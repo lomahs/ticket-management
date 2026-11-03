@@ -67,7 +67,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     if (!form.name.trim()) { setNameErr('Function name is required'); return; }
     create.mutate({ ...draft, name: form.name.trim() }, {
       onSuccess: (r) => {
-        toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${preview.data?.function_id || form.name.trim()}`);
+        toast(`Written to Jira · created ${r.keys.length} sub-tasks for ${form.name.trim()}`);
         navigate({ to: '/anken/$epic/matrix', params: { epic }, search: { tasks: form.parent } });
       },
       onError: (e) => (e instanceof ApiError && e.field('name') ? setNameErr(e.field('name')) : toast(errorMessage(e), true)),
@@ -79,7 +79,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 13, padding: '20px 22px' }}>
       <div>
         <div style={{ font: '700 17px/1.3 var(--font-display)', color: 'var(--text-heading)' }}>Add new function</div>
-        <div className="eyebrow">Creates {steps} sequential sub-tasks under the chosen Task, named by the name rule in Settings</div>
+        <div className="eyebrow">Creates {steps} sequential sub-tasks under the chosen Task, named by the Sub-task pattern in Settings › Name rules</div>
       </div>
       <Seg outline items={[['5', '5 steps'], ['3', '3 steps']]} value={String(steps)} onPick={(v) => setSteps(v === '3' ? 3 : 5)} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 }}>
@@ -89,7 +89,6 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
             <span>Phase:</span>
             <span style={{ font: '600 11px/20px var(--font-text)', padding: '0 8px', borderRadius: 999, background: 'var(--surface-tint)', color: 'var(--text-heading)' }}>{preview.data?.phase ?? '…'}</span>
             <span>· Prefix: <b className="mono heading">{preview.data?.prefix ?? '…'}</b></span>
-            {preview.data?.function_id && <span>· Auto-generated function ID: <b className="mono heading">{preview.data.function_id}</b></span>}
           </div>
         </div>
         <div>

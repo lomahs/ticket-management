@@ -92,9 +92,10 @@ public class OnboardingService {
      * A Task of the anken's template.
      *
      * @param existingKey the Task of the epic that matches it; null while it is missing
-     * @param name        the Task's Summary when it exists, else the proposed name of the new Task
+     * @param name        the Task's Summary when it exists, else the new Task's name by the Task pattern
+     * @param recognised  whether the template recognises the name (always true for an existing Task)
      */
-    public record TemplateTask(String match, String phase, @Nullable String existingKey, String name) {
+    public record TemplateTask(String match, String phase, @Nullable String existingKey, String name, boolean recognised) {
     }
 
     public record TemplateTasksView(String ankenPrefix, String taskRule, List<TemplateTask> tasks) {
@@ -217,8 +218,9 @@ public class OnboardingService {
         List<TemplateTask> out = new ArrayList<>();
         for (TaskTemplate t : st.tasks()) {
             Issue found = parents.stream().filter(p -> t.equals(st.taskTemplate(p.summary()))).findFirst().orElse(null);
-            out.add(new TemplateTask(t.match(), t.phase(), found == null ? null : found.key(),
-                    found == null ? TaskNames.propose(rule, prefix, t, st) : found.summary()));
+            out.add(found == null
+                    ? new TemplateTask(t.match(), t.phase(), null, TaskNames.render(rule, prefix, t), TaskNames.recognised(rule, prefix, t, st))
+                    : new TemplateTask(t.match(), t.phase(), found.key(), found.summary(), true));
         }
         return new TemplateTasksView(prefix, rule, out);
     }

@@ -22,7 +22,7 @@ public final class Naming {
     }
 
     public static final Map<String, String> TOKENS = tokens();
-    public static final String DEFAULT_RULE = "[{phase_name}][{function_id}] {function_name} – {step}";
+    public static final String DEFAULT_RULE = "[{anken_prefix}][{os_task}][{sub_phase_prefix}]_{function}_{step?}";
     public static final Map<StepKind, String> DEFAULT_ALIASES = defaultAliases();
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{[a-z_]+\\??\\}");
@@ -32,11 +32,10 @@ public final class Naming {
     private static Map<String, String> tokens() {
         Map<String, String> t = new LinkedHashMap<>();
         t.put("anken_name", "Anken name");
+        t.put("anken_prefix", "Anken prefix");
         t.put("os_task", "OS task");
-        t.put("prefix", "Task prefix");
-        t.put("phase_name", "Phase");
-        t.put("function_id", "Function ID");
-        t.put("function_name", "Function name");
+        t.put("sub_phase_prefix", "Sub-phase prefix");
+        t.put("function", "Function name");
         t.put("step", "Step");
         return java.util.Collections.unmodifiableMap(t);
     }
@@ -76,7 +75,7 @@ public final class Naming {
         return Pattern.quote(new String(Character.toChars(ch)));
     }
 
-    private static String literals(String s) {
+    static String literals(String s) {
         StringBuilder sb = new StringBuilder();
         s.codePoints().forEach(ch -> sb.append(literal(ch)));
         return sb.toString();
@@ -191,26 +190,22 @@ public final class Naming {
         return new Parsed(values, step);
     }
 
-    /** What identifies the function: its ID when the rule has one, otherwise its name; null when neither is present. */
+    /** What identifies the function: its name; null when it is not present. */
     public static @Nullable String functionKey(Parsed p) {
-        String id = p.values().get("function_id");
-        String key = Text.hasText(id) ? id : p.values().get("function_name");
+        String key = p.values().get("function");
         return Text.hasText(key) ? key.strip() : null;
     }
 
-    /** The name a single ticket shows: its function name, else its function ID, else the whole Summary. */
+    /** The name a single ticket shows: its function name, else the whole Summary. */
     public static String itemName(Parsed p, String summary) {
-        String name = p.values().get("function_name");
-        if (!Text.hasText(name)) {
-            name = p.values().get("function_id");
-        }
+        String name = p.values().get("function");
         return Text.hasText(name) ? name.strip() : summary.strip();
     }
 
     /** Sub-tasks can only be grouped into functions when the rule names the function. */
     public static void checkIdentity(CompiledRule rule) {
-        if (!rule.tokens().contains("function_id") && !rule.tokens().contains("function_name")) {
-            throw new RuleError("Pattern must contain {function_id} or {function_name}");
+        if (!rule.tokens().contains("function")) {
+            throw new RuleError("Pattern must contain {function}");
         }
     }
 

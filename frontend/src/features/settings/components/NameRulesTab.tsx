@@ -10,8 +10,25 @@ import { namePreviewQuery, nameRulesQuery, useSaveNameRules } from '../api';
 import { AnkenPicker, useSettingsTarget } from './AnkenPicker';
 import { ErrText, Section, useDebounced } from './common';
 
-const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['os_task', 'OS task'], ['prefix', 'Task prefix'], ['phase_name', 'Phase'], ['function_id', 'Function ID'], ['function_name', 'Function name'], ['step', 'Step']];
-const DEFAULT_RULE = '[{phase_name}][{function_id}] {function_name} – {step}';
+const TOKENS: [string, string][] = [['anken_name', 'Anken name'], ['anken_prefix', 'Anken prefix'], ['os_task', 'OS task'], ['sub_phase_prefix', 'Sub-phase prefix'], ['function', 'Function name'], ['step', 'Step']];
+const DEFAULT_RULE = '[{anken_prefix}][{os_task}][{sub_phase_prefix}]_{function}_{step?}';
+const TASK_TOKENS: [string, string][] = [['anken_prefix', 'Anken prefix'], ['os_task', 'OS task'], ['sub_phase', 'Sub-phase']];
+const DEFAULT_TASK_RULE = '[{anken_prefix}][{os_task}] {sub_phase}';
+
+/** Placeholder chips that append to a pattern; the ones it uses already are dimmed. */
+function Insert({ tokens, used, onInsert }: { tokens: [string, string][]; used: (k: string) => boolean; onInsert: (token: string) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span className="eyebrow">Insert</span>
+      {tokens.map(([k, l]) => (
+        <button key={k} className="hv-bg" title={l} onClick={() => onInsert('{' + k + '}')} style={{
+          height: 26, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)',
+          opacity: used(k) ? 0.45 : 1, font: '500 12px/1 var(--font-mono)', color: 'var(--text-heading)', cursor: 'pointer',
+        }}>{'{' + k + '}'}</button>
+      ))}
+    </div>
+  );
+}
 
 export function NameRulesTab() {
   const t = useSettingsTarget();
@@ -34,70 +51,64 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
   const [rule, setRule] = useState(v.rule);
   const [aliases, setAliases] = useState<Record<string, string>>(v.aliases);
   const [taskRule, setTaskRule] = useState(v.task_rule);
-  const [sample, setSample] = useState('[Implement_Coding][F03] Domestic card payment – Fix comment BAL');
+  const [sample, setSample] = useState('[BookUI][LocalTask][ITA_Exe]_Domestic card payment_Fix comment BAL');
   const body = useDebounced({ rule, aliases, sample }, 250);
   const p = useQuery(namePreviewQuery(anken, body)).data;
   const parsedStepIndex = STEPS.findIndex((s) => s.k === p?.step);
   const used = p?.tokens ?? [];
   return (
-    <Section title="Ticket name rules" sub="Describe how sub-task Summaries are written. Placeholders are read as values; everything else must match literally. {step} must be one of the aliases below. Write {step?} when a sub-task may have no step: it may then be missing together with the text right before it, and such a sub-task is a single ticket (study, QnA…), not a function step.">
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-        <TextField mono label="Pattern" placeholder="[{anken_name}][{os_task}]_{phase_name}_{step}" value={rule} onChange={setRule} style={{ flex: 1 }} />
-        <Button appearance="subtle" onClick={() => setRule(DEFAULT_RULE)}>Reset</Button>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span className="eyebrow">Insert</span>
-        {TOKENS.map(([k, l]) => (
-          <button key={k} className="hv-bg" title={l} onClick={() => setRule((r) => r + '{' + k + '}')} style={{
-            height: 26, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)',
-            opacity: used.includes(k) ? 0.45 : 1, font: '500 12px/1 var(--font-mono)', color: 'var(--text-heading)', cursor: 'pointer',
-          }}>{'{' + k + '}'}</button>
-        ))}
-      </div>
-      {p?.error && <ErrText>{p.error}</ErrText>}
-      <TextField label="Test with a Summary" value={sample} onChange={setSample} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
-        {TOKENS.filter(([k]) => used.includes(k)).map(([k, label]) => {
-          const val = k === 'step' && p?.step ? `Step ${parsedStepIndex + 1} · ${p.values.step}`
-            : k === 'step' && p?.sample_matches ? 'None · single ticket' : p?.values[k];
-          return (
-            <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-hover)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
-              <div style={{ fontWeight: 700, color: val ? 'var(--text-heading)' : 'var(--hl-red-fg)' }}>{val || '—'}</div>
-            </div>
-          );
-        })}
-      </div>
-      {p && !p.error && !p.sample_matches && <ErrText>This Summary does not match the pattern.</ErrText>}
-      {p && (
-        <span style={{ fontSize: 12, fontWeight: 600, color: p.matched < p.total ? 'var(--hl-amber-fg)' : 'var(--text-muted)' }}>
-          {p.matched} / {p.total} synced sub-tasks match this pattern; the rest are shown as other tasks
-        </span>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-        <div>
-          <div className="title">Step aliases</div>
-          <div className="eyebrow">Comma-separated names that {'{step}'} may contain, in workflow order</div>
+    <>
+      <Section title="Phase" sub="The Task pattern: how Task Summaries are written. Onboarding names the Tasks it creates by it, and Estimation lists the Tasks that match it. {os_task} is LocalTask; {sub_phase} is the template Task's name without its leading [...] and *.">
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+          <TextField mono label="Task pattern" placeholder={DEFAULT_TASK_RULE} value={taskRule} onChange={setTaskRule} style={{ flex: 1 }} />
+          <Button appearance="subtle" aria-label="Reset Task pattern" onClick={() => setTaskRule(DEFAULT_TASK_RULE)}>Reset</Button>
         </div>
-        {STEPS.map((s, i) => (
-          <div key={s.k} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0,1fr)', gap: 12, alignItems: 'center' }}>
-            <b className="heading">Step {i + 1}</b>
-            <TextField aria-label={`Step ${i + 1} aliases`} value={aliases[s.k] ?? ''} onChange={(val) => setAliases((a) => ({ ...a, [s.k]: val }))} />
+        <Insert tokens={TASK_TOKENS} used={(k) => taskRule.includes('{' + k + '}')} onInsert={(t) => setTaskRule((r) => r + t)} />
+      </Section>
+      <Section title="Sub-task" sub="The Sub-task pattern: how sub-task Summaries are written. Placeholders are read as values; everything else must match literally. {step} must be one of the aliases below. Write {step?} when a sub-task may have no step: it may then be missing together with the text right before it, and such a sub-task is a single ticket (study, QnA…), not a function step.">
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+          <TextField mono label="Sub-task pattern" placeholder={DEFAULT_RULE} value={rule} onChange={setRule} style={{ flex: 1 }} />
+          <Button appearance="subtle" aria-label="Reset Sub-task pattern" onClick={() => setRule(DEFAULT_RULE)}>Reset</Button>
+        </div>
+        <Insert tokens={TOKENS} used={(k) => used.includes(k)} onInsert={(t) => setRule((r) => r + t)} />
+        {p?.error && <ErrText>{p.error}</ErrText>}
+        <TextField label="Test with a Summary" value={sample} onChange={setSample} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
+          {TOKENS.filter(([k]) => used.includes(k)).map(([k, label]) => {
+            const val = k === 'step' && p?.step ? `Step ${parsedStepIndex + 1} · ${p.values.step}`
+              : k === 'step' && p?.sample_matches ? 'None · single ticket' : p?.values[k];
+            return (
+              <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-hover)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
+                <div style={{ fontWeight: 700, color: val ? 'var(--text-heading)' : 'var(--hl-red-fg)' }}>{val || '—'}</div>
+              </div>
+            );
+          })}
+        </div>
+        {p && !p.error && !p.sample_matches && <ErrText>This Summary does not match the pattern.</ErrText>}
+        {p && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: p.matched < p.total ? 'var(--hl-amber-fg)' : 'var(--text-muted)' }}>
+            {p.matched} / {p.total} synced sub-tasks match this pattern; the rest are shown as other tasks
+          </span>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+          <div>
+            <div className="title">Step aliases</div>
+            <div className="eyebrow">Comma-separated names that {'{step}'} may contain, in workflow order</div>
           </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-        <div>
-          <div className="title">Task name rule</div>
-          <div className="eyebrow">How Onboarding names the template Tasks it creates: {'{anken_prefix}'}, {'{phase}'} and {'{task}'} (the template's name without its leading [...] and *). A name its template would not recognise falls back to the template with * as the prefix.</div>
+          {STEPS.map((s, i) => (
+            <div key={s.k} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0,1fr)', gap: 12, alignItems: 'center' }}>
+              <b className="heading">Step {i + 1}</b>
+              <TextField aria-label={`Step ${i + 1} aliases`} value={aliases[s.k] ?? ''} onChange={(val) => setAliases((a) => ({ ...a, [s.k]: val }))} />
+            </div>
+          ))}
         </div>
-        <TextField mono label="Task pattern" placeholder="[{anken_prefix}][LocalTask] {task}" value={taskRule} onChange={setTaskRule} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button disabled={save.isPending || !!p?.error} onClick={() => save.mutate({ rule, aliases, task_rule: taskRule }, {
-          onSuccess: () => toast('Name rules saved · synced'), onError: (e) => toast(errorMessage(e), true),
-        })}>Save</Button>
-      </div>
-    </Section>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button disabled={save.isPending || !!p?.error} onClick={() => save.mutate({ rule, aliases, task_rule: taskRule }, {
+            onSuccess: () => toast('Name rules saved · synced'), onError: (e) => toast(errorMessage(e), true),
+          })}>Save</Button>
+        </div>
+      </Section>
+    </>
   );
 }

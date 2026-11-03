@@ -8,8 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
@@ -32,6 +30,7 @@ import tracker.application.dto.JiraRequest;
 import tracker.application.dto.JiraResponse;
 import tracker.application.ports.JiraError;
 import tracker.application.ports.JiraReader;
+import tracker.application.ports.OnboardingRepository;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
 import tracker.domain.DateReason;
@@ -44,6 +43,7 @@ import tracker.domain.Issue;
 import tracker.domain.IssueSchedule;
 import tracker.domain.Naming;
 import tracker.domain.Numbers;
+import tracker.domain.Onboarding;
 import tracker.domain.Role;
 import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.Overview.ScheduleRollup;
@@ -54,6 +54,7 @@ import tracker.domain.StartState;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
+import tracker.domain.TaskNames;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
 import tracker.domain.Viewer;
@@ -66,12 +67,14 @@ public class AnkenService {
     private final JiraCalls calls;
     private final JiraReader reader;
     private final SyncService sync;
+    private final OnboardingRepository onboarding;
 
-    public AnkenService(TrackerContextLoader context, JiraCalls calls, JiraReader reader, SyncService sync) {
+    public AnkenService(TrackerContextLoader context, JiraCalls calls, JiraReader reader, SyncService sync, OnboardingRepository onboarding) {
         this.context = context;
         this.calls = calls;
         this.reader = reader;
         this.sync = sync;
+        this.onboarding = onboarding;
     }
 
     /** @param slipDays working days the forecast is past the plan */
@@ -305,47 +308,12 @@ public class AnkenService {
      * @param tickets   the single tickets of the shown Tasks (sub-tasks outside the 5-step workflow), Task by Task
      */
     public record MatrixView(String epicKey, String title, String phase, MatrixStats stats, List<FunctionRow> functions,
-                             List<ParentOption> parents, String nextFunctionId, List<String> taskKeys,
+                             List<ParentOption> parents, List<String> taskKeys,
                              List<String> memberIds, List<MatrixTicket> tickets) {
     }
 
     /** A single ticket on the matrix: one row of its own, identified by its key (several may share a name). */
     public record MatrixTicket(String taskKey, String name, TaskCard card) {
-    }
-
-    private static final Pattern FUNCTION_ID = Pattern.compile("([A-Za-z]+)(\\d+)");
-
-    /** The most common key among {@code items}; ties go to the one seen first. */
-    static String mostCommon(List<String> items) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        items.forEach(x -> counts.merge(x, 1, Integer::sum));
-        String best = null;
-        int max = 0;
-        for (Map.Entry<String, Integer> e : counts.entrySet()) {
-            if (e.getValue() > max) {
-                best = e.getKey();
-                max = e.getValue();
-            }
-        }
-        return best;
-    }
-
-    static String nextFunctionId(List<Function> fns) {
-        List<String[]> ids = new ArrayList<>();
-        for (Function f : fns) {
-            Matcher m = FUNCTION_ID.matcher(f.id());
-            if (m.matches()) {
-                ids.add(new String[]{m.group(1), m.group(2)});
-            }
-        }
-        if (ids.isEmpty()) {
-            return "F01";
-        }
-        String prefix = mostCommon(ids.stream().map(x -> x[0]).toList());
-        List<String> nums = ids.stream().filter(x -> x[0].equals(prefix)).map(x -> x[1]).toList();
-        int width = nums.stream().mapToInt(String::length).max().orElse(0);
-        long next = nums.stream().mapToLong(Long::parseLong).max().orElse(0) + 1;
-        return prefix + String.format("%0" + width + "d", next);
     }
 
     /** The epic's Tasks by phase group, then the earliest planned start of their sub-tasks, each with its template's prefix and workflow. */
@@ -452,7 +420,7 @@ public class AnkenService {
                     .forEach(i -> tickets.add(new MatrixTicket(t, i.functionName(), ctx.card(i))));
         }
         String shownPhase = String.join(", ", picked.stream().map(ParentOption::group).distinct().toList());
-        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, nextFunctionId(fns), taskKeys,
+        return new MatrixView(epic, anken(ctx, epic).title(), shownPhase, stats, rows, parents, taskKeys,
                 ctx.ankenMembers.getOrDefault(epic, Set.of()).stream().sorted().toList(), tickets);
     }
 
@@ -499,8 +467,7 @@ public class AnkenService {
                               String note, List<DateReason> reasons) {
     }
 
-    /** @param functionId "" when the name rule has no {function_id} */
-    public record FunctionPreview(String phase, String functionId, List<PreviewStep> steps, String prefix) {
+    public record FunctionPreview(String phase, List<PreviewStep> steps, String prefix) {
     }
 
     /** How a step is written in new sub-task Summaries: its first alias in the name rules. */
@@ -510,27 +477,31 @@ public class AnkenService {
     }
 
     /**
-     * A sub-task's Summary by the anken's name rule. A ticket without steps ({@code step} null) leaves {step} and an empty
-     * {function_id} out, with the brackets and separators they leave behind.
+     * The {anken_prefix} of the names under a Task: the one entered at Onboarding, else the Task pattern's in the Task's Summary.
      */
-    static String subtaskSummary(TrackerContext ctx, String epic, String phase, String prefix, String functionId, String functionName,
+    static String ankenPrefix(TrackerContext ctx, String epic, @Nullable String onboarded, String taskSummary) {
+        return Text.hasText(onboarded) ? onboarded.strip()
+                : TaskNames.ankenPrefix(Text.orElse(ctx.settings.nameRulesOf(epic).taskRule, TaskNames.DEFAULT_RULE), taskSummary);
+    }
+
+    /**
+     * A sub-task's Summary by the anken's Sub-task pattern. A ticket without steps ({@code step} null) leaves {step} out, with the
+     * brackets and separators it leaves behind.
+     */
+    static String subtaskSummary(TrackerContext ctx, String epic, String ankenPrefix, String subPhasePrefix, String functionName,
                                  @Nullable StepKind step) {
         Map<String, String> values = new HashMap<>();
-        values.put("phase_name", phase);
-        values.put("prefix", prefix);
-        values.put("function_id", functionId);
-        values.put("function_name", functionName);
-        values.put("step", step == null ? "" : stepText(ctx, epic, step));
         values.put("anken_name", anken(ctx, epic).title());
+        values.put("anken_prefix", ankenPrefix);
+        values.put("os_task", TaskNames.OS_TASK);
+        values.put("sub_phase_prefix", subPhasePrefix);
+        values.put("function", functionName);
+        values.put("step", step == null ? "" : stepText(ctx, epic, step));
         String s = Naming.renderSummary(ctx.settings.nameRulesOf(epic).rule, values);
         return step != null ? s : s.replace("[]", "").replaceAll("[\\s\\u2013_:-]+$", "").strip();
     }
 
-    static boolean ruleHasId(TrackerContext ctx, String epic) {
-        return ctx.settings.nameRulesOf(epic).rule.contains("{function_id}");
-    }
-
-    private static FunctionPreview plan(TrackerContext ctx, String epic, FunctionDraft draft, @Nullable String functionId) {
+    private FunctionPreview plan(TrackerContext ctx, String epic, FunctionDraft draft) {
         ParentOption parent = parentOptions(ctx, epic).stream().filter(p -> p.key().equals(draft.parentKey())).findFirst().orElse(null);
         if (parent == null) {
             throw new Invalid(draft.parentKey() + " is not a parent ticket of " + epic, "parent");
@@ -562,32 +533,32 @@ public class AnkenService {
             overrides.add(null);
         }
         overrides = overrides.subList(0, draft.steps());
-        String fid = Text.hasText(functionId) ? functionId
-                : ruleHasId(ctx, epic) ? nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parent.key())).toList()) : "";
+        String prefix = ankenPrefix(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), parent.summary());
         List<Scheduling.PlannedStep> plan = Scheduling.suggestFunctionPlan(Dates.addDays(ctx.today, 1), draft.createHours(),
                 five ? List.of(draft.ba(), draft.bal(), draft.ba(), draft.jm(), draft.ba()) : List.of(draft.ba(), draft.bal(), draft.ba()),
                 ctx.settings.stepWeightsOf(epic), ctx.cal, overrides);
         List<PreviewStep> steps = new ArrayList<>();
         for (int i = 0; i < plan.size(); i++) {
             Scheduling.PlannedStep p = plan.get(i);
-            steps.add(new PreviewStep(p.step().value(), subtaskSummary(ctx, epic, parent.phase(), parent.prefix(), fid,
+            steps.add(new PreviewStep(p.step().value(), subtaskSummary(ctx, epic, prefix,
+                    Text.hasText(parent.prefix()) ? parent.prefix() : parent.phase(),
                     Text.orElse(draft.name(), "(function name)"), p.step()), p.assigneeId(), p.estimateH(), p.start(), p.end(), p.note(), p.reasons()));
         }
-        return new FunctionPreview(parent.phase(), fid, steps, parent.prefix());
+        return new FunctionPreview(parent.phase(), steps, parent.prefix());
     }
 
     /** {@code epic} must be in the scope; BA, BAL and (for 5 steps) JM must be members of its anken. */
     public FunctionPreview previewFunction(AnkenScope scope, String epic, FunctionDraft draft) {
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
-        return plan(ctx, epic, draft, null);
+        return plan(ctx, epic, draft);
     }
 
     /**
      * Creates the step sub-tasks (3 or 5) in Jira, one logged request each, and reads them back; the rules of
      * {@link #previewFunction} apply.
      */
-    public List<String> createFunction(Viewer actor, AnkenScope scope, String epic, FunctionDraft draft, @Nullable String functionId) {
+    public List<String> createFunction(Viewer actor, AnkenScope scope, String epic, FunctionDraft draft) {
         calls.requireEnabled();
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
@@ -596,14 +567,11 @@ public class AnkenService {
         }
         List<Function> inTask = ctx.functions.stream()
                 .filter(f -> f.epicKey().equals(epic) && f.parentKey().equals(draft.parentKey())).toList();
-        if (Text.hasText(functionId) && inTask.stream().anyMatch(f -> f.id().equals(functionId))) {
-            throw new Conflict("Function " + functionId + " already exists in " + draft.parentKey(), "function_id");
-        }
         String name = draft.name().strip();
-        if (!ruleHasId(ctx, epic) && inTask.stream().anyMatch(f -> f.id().equals(name))) {
+        if (inTask.stream().anyMatch(f -> f.id().equals(name))) {
             throw new Conflict("Function " + name + " already exists in " + draft.parentKey(), "name");
         }
-        FunctionPreview p = plan(ctx, epic, draft, functionId);
+        FunctionPreview p = plan(ctx, epic, draft);
         String project = draft.parentKey().split("-", -1)[0];
         for (PreviewStep s : p.steps()) {
             if (!Text.hasText(ctx.members.get(s.assigneeId()).jiraAccountId())) {

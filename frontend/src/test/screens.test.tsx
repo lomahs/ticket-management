@@ -299,7 +299,7 @@ describe('screens render API data at their URLs', () => {
         row(2, 'fut', 'fut  CREATE test case', 'FTC', '', true),
         row(3, 'ITA', '[*][*] ITA Prepare', 'ITAP', '', true),
         row(4, 'UC', '[*][*] Q&A', 'QA', 'qna', false),
-        row(5, 'UC', '[*][*] Bugs', '', '', true, ['Type must be Task, QnA or WorkRequest']),
+        row(5, 'UC', '[*][*] Bugs', '', '', true, ['Task name is required']),
       ])),
       http.put('*/api/v1/settings/structure', async ({ request }) => { saved = await request.json(); return HttpResponse.json(view); }),
     );
@@ -331,6 +331,28 @@ describe('screens render API data at their URLs', () => {
       tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
       seen: [],
     };
+
+    it('name rules have a Phase (Task) pattern and a Sub-task pattern, saved together', async () => {
+      let saved: Record<string, unknown> | null = null;
+      const rules = { rule: '[{anken_prefix}][{os_task}][{sub_phase_prefix}]_{function}_{step?}', aliases: {}, matched: 0, total: 0,
+        task_rule: '[{anken_prefix}][{os_task}] {sub_phase}' };
+      server.use(
+        http.get('*/api/v1/settings/name-rules', () => HttpResponse.json(rules)),
+        http.post('*/api/v1/settings/name-rules/preview', () => HttpResponse.json({ error: null, tokens: [], values: {}, step: null,
+          sample_matches: false, matched: 0, total: 0 })),
+        http.put('*/api/v1/settings/name-rules', async ({ request }) => { saved = await request.json() as typeof saved; return HttpResponse.json(rules); }),
+      );
+      renderApp('/settings/name-rules');
+      expect(await screen.findByRole('region', { name: 'Phase' })).toBeTruthy();
+      expect(screen.getByRole('region', { name: 'Sub-task' })).toBeTruthy();
+      expect((screen.getByLabelText('Sub-task pattern') as HTMLInputElement).value).toBe(rules.rule);
+      fireEvent.change(screen.getByLabelText('Task pattern'), { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Reset Task pattern' }));
+      fireEvent.click(within(screen.getByRole('region', { name: 'Phase' })).getByRole('button', { name: '{os_task}' }));
+      expect((screen.getByLabelText('Task pattern') as HTMLInputElement).value).toBe('[{anken_prefix}][{os_task}] {sub_phase}{os_task}');
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(saved).toMatchObject({ rule: rules.rule, task_rule: '[{anken_prefix}][{os_task}] {sub_phase}{os_task}' }));
+    });
 
     it('structure tab edits the selected anken', async () => {
       const puts: (string | null)[] = [];
@@ -410,7 +432,7 @@ describe('screens render API data at their URLs', () => {
       server.use(
         http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
         http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
-        http.get('*/api/v1/settings/name-rules', ({ request }) => { gets.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json({ rule: '[{phase_name}] {function_name} – {step}', aliases: {} }); }),
+        http.get('*/api/v1/settings/name-rules', ({ request }) => { gets.push(new URL(request.url).searchParams.get('anken')); return HttpResponse.json({ rule: '[{sub_phase_prefix}] {function} – {step}', aliases: {} }); }),
       );
       renderApp('/settings/structure');
       await screen.findByText('New anken start with these rules. Existing anken keep their own.');
@@ -430,7 +452,7 @@ describe('screens render API data at their URLs', () => {
     });
 
     it('copying the template is toasted by its label', async () => {
-      const nameRules = { rule: '[{phase_name}] {function_name} – {step}', aliases: {} };
+      const nameRules = { rule: '[{sub_phase_prefix}] {function} – {step}', aliases: {} };
       server.use(
         http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
         http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),
@@ -446,7 +468,7 @@ describe('screens render API data at their URLs', () => {
     it('copy from another anken', async () => {
       let body: unknown;
       let path = '';
-      const nameRules = { rule: '[{phase_name}] {function_name} – {step}', aliases: {} };
+      const nameRules = { rule: '[{sub_phase_prefix}] {function} – {step}', aliases: {} };
       server.use(
         http.get('*/api/v1/settings/structure', () => HttpResponse.json(structure)),
         http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(structure)),

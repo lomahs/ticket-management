@@ -25,6 +25,7 @@ import tracker.application.ports.JiraRejected;
 import tracker.application.ports.JiraWriteLog;
 import tracker.application.ports.JiraWriter;
 import tracker.application.ports.MasterScheduleRepository;
+import tracker.application.ports.OnboardingRepository;
 import tracker.application.service.ReplanService;
 import tracker.application.service.ReplanService.ReplanIn;
 import tracker.application.service.ReplanService.ReplanItem;
@@ -87,23 +88,26 @@ class DetailPlanningTest {
     IssueRepository issues;
     @Autowired
     TicketService tickets;
+    @Autowired
+    OnboardingRepository onboardingRows;
 
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
 
-    /** Tasks created in Jira for the plan: name → key. */
+    /** Tasks created in Jira for the plan, named by the demo's Task pattern "[{anken_prefix}] {sub_phase}": name → key. */
     Map<String, String> tasks = new java.util.HashMap<>();
 
     String task(String name) {
         return tasks.computeIfAbsent(name, n -> tickets.applyBatch(ADMIN, ALL, EPIC, List.of(),
-                List.of(new NewTicket("t", false, null, null, n, "an", null, null, null, null))).created().get("t"));
+                List.of(new NewTicket("t", false, null, null, "[PAY] " + n, "an", null, null, null, null))).created().get("t"));
     }
 
-    /** Login and Run under new ITA Tasks, Pay under a new ITB Task. */
+    /** Login and Run under new ITA Tasks, Pay under a new ITB Task (ITB Execute makes ITB a phase group: two Tasks share it). */
     void estimate() {
-        estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).withTask(task("ITA Create test case")),
-                row(0, 1, "ITA", "Execute", "Run", null, 16).withTask(task("ITA Execute")),
-                row(0, 2, "ITB", "Create test case", "Pay", 3, 8).withTask(task("ITB Create test case"))));
+        task("ITB Execute");
+        estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(task("ITA Create test case")),
+                row(0, 1, "Run", null, 16).withTask(task("ITA Execute")),
+                row(0, 2, "Pay", 3, 8).withTask(task("ITB Create test case"))));
     }
 
     record Row(EstimationRow r) {
@@ -113,36 +117,45 @@ class DetailPlanningTest {
         }
     }
 
-    static Row row(long id, int pos, String phase, String subphase, String fn, Integer steps, double effort) {
-        return new Row(new EstimationRow(id, EPIC, pos, phase, subphase, fn, steps, effort, null, null, null, null, null));
+    /** A row as the screen sends it: no phase or subphase, they come from its Task. */
+    static Row row(long id, int pos, String fn, Integer steps, double effort) {
+        return new Row(new EstimationRow(id, EPIC, pos, "", "", fn, steps, effort, null, null, null, null, null));
     }
 
     @Test
     void estimationTotalsPerPhaseUseWeightsWithoutJmReview() {
-        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).r(),
-                row(0, 1, "ITA", "Execute", "Run", null, 16).r(), row(0, 2, "ITB", "Create test case", "Pay", 3, 8).r()));
+        estimate();
+        EstimationView v = estimation.view(ALL, EPIC);
         assertThat(v.rows()).hasSize(3);
+        assertThat(v.rows()).extracting(r -> r.phase() + "/" + r.subphase())
+                .containsExactly("ITA/ITA Create test case", "ITA/ITA Execute", "ITB/ITB Create test case");
         assertThat(v.phases()).containsExactly(new PhaseEffort("ITA", 30.0), new PhaseEffort("ITB", 12.5));
-        assertThat(estimation.view(ALL, EPIC).phases()).isEqualTo(v.phases());
+        assertThat(v.tasks()).extracting(t -> t.name()).contains("ITA Create test case", "ITA Execute");
     }
 
     @Test
-    void estimationRefusesStepsFour() {
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 4, 8).r())))
+    void estimationRefusesStepsFourAndRowsWithoutATask() {
+        String t = task("ITA Create test case");
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 4, 8).withTask(t))))
                 .isInstanceOf(Invalid.class).hasMessageContaining("3 or 5").extracting("field").isEqualTo("rows.0.steps");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "", "Login", 5, 8).r())))
-                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.subphase");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Execute", "Run", null, 0).r())))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).r())))
+                .isInstanceOf(Invalid.class).hasMessage("Task is required").extracting("field").isEqualTo("rows.0.task_key");
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Run", null, 0).withTask(t))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.effort_h");
+        tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("t", false, null, null, "Kick-off", "an", null, null, null, null)));
+        String other = loader.load(ALL).parents().stream().filter(p -> p.summary().equals("Kick-off")).findFirst().orElseThrow().key();
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(other))))
+                .isInstanceOf(Invalid.class).hasMessageContaining("Task pattern"); // a Task the Task pattern does not read
     }
 
     @Test
     void estimationKeepsPushedRowsOutOfReach() {
-        EstimationRow saved = estimation.save(ALL, EPIC, List.of(row(0, 0, "ITA", "Create test case", "Login", 5, 8).r())).rows().get(0);
+        String t = task("ITA Create test case");
+        EstimationRow saved = estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(t))).rows().get(0);
         estimationRows.markPushed(List.of(saved.id()), "2026-10-07T09:00:00Z");
-        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(saved.id(), 0, "ITA", "Create test case", "Login 2", 5, 8).r())))
+        assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(saved.id(), 0, "Login 2", 5, 8).withTask(t))))
                 .isInstanceOf(Invalid.class).hasMessageContaining("pushed");
-        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 1, "ITA", "Execute", "Run", null, 16).r()));
+        EstimationView v = estimation.save(ALL, EPIC, List.of(row(0, 1, "Run", null, 16).withTask(task("ITA Execute"))));
         assertThat(v.rows()).extracting(EstimationRow::functionName).containsExactly("Login", "Run");
     }
 
@@ -290,8 +303,9 @@ class DetailPlanningTest {
         assertThat(run.plannedStart()).isEqualTo(runPlan.start());
         assertThat(run.plannedEnd()).isEqualTo(runPlan.end());
         assertThat(run.estimateH()).isEqualTo(16.0);
-        assertThat(run.summary()).isEqualTo("[ITA] Run"); // no step and no function id: their brackets and separator go
-        assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[ITA][F01] Login – Create");
+        // no template: the sub-phase prefix is the Task's bracket; no step: the separator before it goes
+        assertThat(run.summary()).isEqualTo("[PAY] Run");
+        assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[PAY] Login – Create");
         Issue jm = ctx.issue(r.created().get(rows.get(0).id() + ":jmr")).orElseThrow();
         assertThat(jm.estimateH()).isEqualTo(2.0);
         assertThat(jm.parentKey()).isEqualTo(task("ITA Create test case"));
@@ -321,7 +335,7 @@ class DetailPlanningTest {
             return jira.send(req);
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
-        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, clock);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, clock);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
@@ -416,6 +430,6 @@ class DetailPlanningTest {
 
     String runKey() {
         TrackerContext ctx = loader.load(ALL);
-        return ctx.subtasks().stream().filter(i -> i.summary().equals("[ITA] Run")).findFirst().orElseThrow().key();
+        return ctx.subtasks().stream().filter(i -> i.summary().equals("[PAY] Run")).findFirst().orElseThrow().key();
     }
 }

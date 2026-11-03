@@ -12,9 +12,12 @@ import { ESTIMATION_TEMPLATE_URL, estimationQuery, useImportEstimation, useSaveE
 export type SaveRef = MutableRefObject<(() => Promise<unknown>) | null>;
 
 const CELL: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 13px/1 var(--font-text)', width: '100%' };
-const COLS = 'minmax(80px,1fr) minmax(120px,1.5fr) minmax(160px,3fr) 70px 80px minmax(200px,2.5fr) 36px';
+const COLS = 'minmax(200px,2.5fr) minmax(140px,2fr) minmax(160px,3fr) 70px 80px 36px';
 
-/** The estimation of an anken: one row per function or ticket, each under a Task of the epic; {@code save} saves the rows. */
+/**
+ * The estimation of an anken: one row per function or ticket, each under a Task of the epic that matches the Task pattern
+ * (the row's phase and subphase are the Task's); {@code save} saves the rows.
+ */
 export function EstimationEditor({ epic, save }: { epic: string; save: SaveRef }) {
   const q = useQuery(estimationQuery(epic));
   if (q.isPending) return <Loading />;
@@ -36,11 +39,8 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
   const edit = (i: number, p: Partial<EstimationRow>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...p } : r)));
   saveRef.current = () => save.mutateAsync(rows.map((r, i) => ({ ...r, position: i })));
   const unlinked = rows.filter((r) => !r.pushed_at && !r.task_key).length;
-  // picking a Task fills an empty Phase with the Task's phase group
-  const pickTask = (i: number, key: string) => {
-    const t = tasks.find((x) => x.key === key);
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, task_key: key || null, phase: r.phase || (t && t.phase !== 'Other' ? t.phase : '') } : r)));
-  };
+  const taskName = (r: EstimationRow) => tasks.find((t) => t.key === r.task_key)?.name ?? (r.pushed_at ? r.subphase : '');
+  const pickTask = (i: number, key: string) => edit(i, { task_key: key || null });
   const good = (preview ?? []).filter((r) => r.errors.length === 0);
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -48,7 +48,7 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
     e.target.value = '';
   };
   const addImported = () => {
-    setRows((rs) => [...rs, ...good.map((r) => ({ ...blank(epic), phase: r.phase, subphase: r.subphase, function_name: r.function, steps: r.steps ?? null, effort_h: r.effort_h ?? 0 }))]);
+    setRows((rs) => [...rs, ...good.map((r) => ({ ...blank(epic), task_key: r.task, function_name: r.function, steps: r.steps ?? null, effort_h: r.effort_h ?? 0 }))]);
     setPreview(null);
   };
   return (
@@ -95,25 +95,25 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
         <div style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 960, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>Phase</span><span>Subphase</span><span>Function</span><span>Steps</span><span>Effort (h)</span><span>Task in Jira</span><span />
+              <span>Task</span><span>Task name</span><span>Function name</span><span>Steps</span><span>Effort (h)</span><span />
             </div>
             {rows.map((r, i) => {
               const ro = !admin || !!r.pushed_at;
               const n = i + 1;
               return (
                 <div key={r.id || `new-${i}`} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '4px 16px', borderTop: '1px solid var(--border-subtle)' }}>
-                  <input aria-label={`Phase, row ${n}`} disabled={ro} value={r.phase} onChange={(e) => edit(i, { phase: e.target.value })} style={CELL} />
-                  <input aria-label={`Subphase, row ${n}`} disabled={ro} value={r.subphase} onChange={(e) => edit(i, { subphase: e.target.value })} style={CELL} />
+                  <select aria-label={`Task, row ${n}`} disabled={ro} value={r.task_key ?? ''} onChange={(e) => pickTask(i, e.target.value)}
+                    style={{ ...CELL, borderColor: r.task_key || ro ? 'var(--border-strong)' : 'var(--hl-red-fg)' }}>
+                    <option value="">Choose Task…</option>
+                    {r.task_key && !tasks.some((t) => t.key === r.task_key) && <option value={r.task_key}>{r.task_key}</option>}
+                    {tasks.map((t) => <option key={t.key} value={t.key}>{`${t.key} · ${t.summary}`}</option>)}
+                  </select>
+                  <span aria-label={`Task name, row ${n}`} className="ellipsis" title={taskName(r)} style={{ fontSize: 13, color: 'var(--text-heading)' }}>{taskName(r) || '–'}</span>
                   <input aria-label={`Function, row ${n}`} disabled={ro} value={r.function_name} onChange={(e) => edit(i, { function_name: e.target.value })} style={CELL} />
                   <select aria-label={`Steps, row ${n}`} disabled={ro} value={r.steps ?? ''} onChange={(e) => edit(i, { steps: e.target.value ? Number(e.target.value) : null })} style={CELL}>
                     <option value="">–</option><option value="3">3</option><option value="5">5</option>
                   </select>
                   <input aria-label={`Effort (h), row ${n}`} disabled={ro} type="number" min={0} step={0.5} value={r.effort_h || ''} onChange={(e) => edit(i, { effort_h: Number(e.target.value) })} style={CELL} />
-                  <select aria-label={`Task, row ${n}`} disabled={ro} value={r.task_key ?? ''} onChange={(e) => pickTask(i, e.target.value)}
-                    style={{ ...CELL, borderColor: r.task_key || ro ? 'var(--border-strong)' : 'var(--hl-red-fg)' }}>
-                    <option value="">Choose Task…</option>
-                    {tasks.map((t) => <option key={t.key} value={t.key}>{`${t.key} · ${t.summary}`}</option>)}
-                  </select>
                   {r.pushed_at ? <span className="eyebrow" title="Already in Jira">In Jira</span>
                     : admin ? <IconButton icon="trash-2" label={`Remove row ${n}`} size="sm" appearance="subtle" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} /> : <span />}
                 </div>

@@ -7,7 +7,8 @@ import java.util.Map;
 
 /**
  * Rows of a Phases &amp; tasks import (Phase, Task name, Prefix, Type, Workflow), each checked on its own. The Task name becomes
- * a template match by the Task name rule ({@link TaskNames#match}); the Workflow column is not read: the type decides it.
+ * a template match by the Task pattern ({@link TaskNames#match}); the Workflow column is not read: the type decides it. Prefix
+ * and Type are not checked: an empty or unknown Type is Task.
  */
 public final class StructureImport {
     private StructureImport() {
@@ -31,7 +32,7 @@ public final class StructureImport {
         for (int i = 0; i < cells.size(); i++) {
             List<String> r = cells.get(i);
             String phase = at(r, 0), task = at(r, 1), prefix = at(r, 2);
-            String type = TYPES.get(at(r, 3).toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", ""));
+            String type = TYPES.getOrDefault(at(r, 3).toLowerCase(Locale.ROOT).replaceAll("[\\s_-]", ""), "");
             List<String> errors = new ArrayList<>();
             if (phase.isEmpty()) {
                 errors.add("Phase is required");
@@ -39,11 +40,8 @@ public final class StructureImport {
             if (task.isEmpty()) {
                 errors.add("Task name is required");
             }
-            if (type == null) {
-                errors.add("Type must be Task, QnA or WorkRequest");
-            }
-            out.add(new StructureImportRow(i + 2, phase, task, task.isEmpty() ? "" : TaskNames.match(taskRule, phase, task), prefix,
-                    type == null ? "" : type, "".equals(type), errors));
+            out.add(new StructureImportRow(i + 2, phase, task, task.isEmpty() ? "" : TaskNames.match(taskRule, task), prefix,
+                    type, type.isEmpty(), errors));
         }
         return out;
     }

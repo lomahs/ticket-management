@@ -77,13 +77,11 @@ public class AnkenApi {
                                   @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides, @Nullable Integer steps) {
     }
 
-    /** A function to create in Jira; the function id is generated when left out. */
+    /** A function to create in Jira. */
     public record FunctionCreateIn(@NotNull String parentKey, @NotEmpty String name, @NotNull String ba, @NotNull String bal,
                                    @Nullable String jm,
                                    @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1000") Double createHours,
-                                   @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides,
-                                   @Nullable @Pattern(regexp = "^[A-Za-z]+\\d+$", message = "must be letters then digits, like K20")
-                                   String functionId, @Nullable Integer steps) {
+                                   @Nullable @Size(max = 5) List<@Nullable @Valid StepOverride> overrides, @Nullable Integer steps) {
         FunctionDraftIn draft() {
             return new FunctionDraftIn(parentKey, name, ba, bal, jm, createHours, overrides, steps);
         }
@@ -159,6 +157,6 @@ public class AnkenApi {
     @PostMapping("/{epic}/functions")
     @ResponseStatus(HttpStatus.CREATED)
     public KeysOut createFunction(@PathVariable("epic") String epic, @RequestBody @Valid FunctionCreateIn body, Viewer viewer) {
-        return new KeysOut(anken.createFunction(viewer, epicScope(viewer, epic), epic, draft(body.draft()), body.functionId()));
+        return new KeysOut(anken.createFunction(viewer, epicScope(viewer, epic), epic, draft(body.draft())));
     }
 }

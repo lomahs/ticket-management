@@ -2,6 +2,7 @@ package tracker.adapters.web;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 
@@ -10,34 +11,34 @@ final class EstimationFiles {
     private EstimationFiles() {
     }
 
-    static final String TEMPLATE_CSV = "﻿Phase,Subphase,Function,Steps,Effort (h)\n"
-            + "ITA,Create test case,Login,5,8\nITA,Execute,Execute test,,16\n";
+    static final String TEMPLATE_CSV = "﻿Task,Function,Steps,Effort (h)\n"
+            + "BARO-13,Login,5,8\nBARO-14,Execute test,,16\n";
 
     /**
      * @param line    the line in the file (the header is line 1)
+     * @param task    the Jira key of the Task the row goes under
      * @param steps   3, 5 or null (a row without steps)
      * @param effortH Create hours of a function; hours of a row without steps
      */
-    public record EstimationImportRow(int line, String phase, String subphase, String function, @Nullable Integer steps, @Nullable Double effortH,
+    public record EstimationImportRow(int line, String task, String function, @Nullable Integer steps, @Nullable Double effortH,
                      List<String> errors) {
     }
 
-    static List<EstimationImportRow> parse(String fileName, byte[] raw) {
+    /** @param taskKeys the Tasks a row may name */
+    static List<EstimationImportRow> parse(String fileName, byte[] raw, Set<String> taskKeys) {
         List<List<String>> rows = LeaveFiles.readRows(fileName, raw);
         List<EstimationImportRow> out = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             List<String> r = rows.get(i);
-            String phase = at(r, 0);
-            String subphase = at(r, 1);
-            String function = at(r, 2);
-            String stepsText = at(r, 3);
-            String effortText = at(r, 4).replace(',', '.');
+            String task = at(r, 0).toUpperCase(java.util.Locale.ROOT);
+            String function = at(r, 1);
+            String stepsText = at(r, 2);
+            String effortText = at(r, 3).replace(',', '.');
             List<String> errors = new ArrayList<>();
-            if (phase.isEmpty()) {
-                errors.add("Phase is required");
-            }
-            if (subphase.isEmpty()) {
-                errors.add("Subphase is required");
+            if (task.isEmpty()) {
+                errors.add("Task is required");
+            } else if (!taskKeys.contains(task)) {
+                errors.add(task + " is not a Task of the anken that matches the Task pattern");
             }
             if (function.isEmpty()) {
                 errors.add("Function is required");
@@ -59,7 +60,7 @@ final class EstimationFiles {
             } catch (NumberFormatException e) {
                 errors.add("Effort must be a number of hours");
             }
-            out.add(new EstimationImportRow(i + 2, phase, subphase, function, steps, effort, errors));
+            out.add(new EstimationImportRow(i + 2, task, function, steps, effort, errors));
         }
         return out;
     }

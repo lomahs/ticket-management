@@ -1977,10 +1977,9 @@ export interface components {
             function: string;
             /** Format: int32 */
             line: number;
-            phase: string;
             /** Format: int32 */
             steps: number | null;
-            subphase: string;
+            task: string;
         };
         EstimationIn: {
             rows: components["schemas"]["EstimationRowIn"][];
@@ -2013,10 +2012,8 @@ export interface components {
             /** Format: int64 */
             id?: number;
             jm_id?: string | null;
-            phase: string;
             /** Format: int32 */
             steps?: number | null;
-            subphase: string;
             task_key?: string | null;
         };
         EstimationUpload: {
@@ -2076,7 +2073,6 @@ export interface components {
             bal: string;
             /** Format: double */
             create_hours: number;
-            function_id?: string | null;
             jm?: string | null;
             name: string;
             overrides?: (components["schemas"]["StepOverride"] | null)[] | null;
@@ -2097,7 +2093,6 @@ export interface components {
             steps?: number | null;
         };
         FunctionPreview: {
-            function_id: string;
             phase: string;
             prefix: string;
             steps: components["schemas"]["PreviewStep"][];
@@ -2303,7 +2298,6 @@ export interface components {
             epic_key: string;
             functions: components["schemas"]["FunctionRow"][];
             member_ids: string[];
-            next_function_id: string;
             parents: components["schemas"]["ParentOption"][];
             phase: string;
             stats: components["schemas"]["MatrixStats"];
@@ -2880,6 +2874,7 @@ export interface components {
         };
         TaskOption: {
             key: string;
+            name: string;
             phase: string;
             summary: string;
         };
@@ -2903,6 +2898,7 @@ export interface components {
             match: string;
             name: string;
             phase: string;
+            recognised: boolean;
         };
         TemplateTasksView: {
             anken_prefix: string;

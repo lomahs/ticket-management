@@ -73,27 +73,28 @@ class ApiWritesTest extends ApiTestSupport {
 
     @Test
     void estimationReadWriteAndImport() throws Exception {
-        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
-                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
         JsonNode saved = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json();
+        assertThat(saved.get("phases").get(0).get("phase").asText()).isEqualTo("Implement_Coding"); // the Task's
+        assertThat(saved.get("rows").get(0).get("subphase").asText()).isEqualTo("Payment flow revision");
         assertThat(saved.get("phases").get(0).get("total_effort_h").asDouble()).isEqualTo(16.0);
         assertThat(call(get("/api/v1/planning/PAY-1100/estimation")).json().get("rows")).hasSize(1);
         problem(call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row))).with(as("an.nguyen@acme.vn"))),
                 403, "forbidden");
         JsonNode imported = call(multipart("/api/v1/planning/PAY-1100/estimation/import").file(new org.springframework.mock.web.MockMultipartFile(
-                "file", "e.csv", "text/csv", "Phase,Subphase,Function,Steps,Effort (h)\nITA,Create test case,Login,5,8\nITA,X,,4,8\n"
+                "file", "e.csv", "text/csv", "Task,Function,Steps,Effort (h)\nPAY-1102,Login,5,8\nPAY-9999,,4,8\n"
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)))).json();
         assertThat(imported.get(0).get("errors")).isEmpty();
-        assertThat(imported.get(1).get("errors")).hasSize(2);
-        assertThat(call(get("/api/v1/planning/estimation/template")).text()).contains("Phase,Subphase,Function,Steps,Effort (h)");
+        assertThat(imported.get(0).get("task").asText()).isEqualTo("PAY-1102");
+        assertThat(imported.get(1).get("errors")).hasSize(3);
+        assertThat(call(get("/api/v1/planning/estimation/template")).text()).contains("Task,Function,Steps,Effort (h)");
     }
 
     @Test
     void masterScheduleSavesVersions() throws Exception {
-        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
-                "subphase", "Execute", "function_name", "Run", "effort_h", 16));
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
         call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row))));
-        Map<String, Object> ita = Map.of("phase", "ITA", "start", "2026-10-12", "member_ids", List.of("an"));
+        Map<String, Object> ita = Map.of("phase", "Implement_Coding", "start", "2026-10-12", "member_ids", List.of("an"));
         JsonNode pv = call(json(post("/api/v1/planning/PAY-1100/master-schedule/preview"), Map.of("phases", List.of(ita)))).json();
         assertThat(pv.get(0).get("total_effort_h").asDouble()).isEqualTo(16.0);
         JsonNode saved = call(json(post("/api/v1/planning/PAY-1100/master-schedule"), Map.of("phases", List.of(ita), "reason", "Kick-off"))).json();
@@ -101,7 +102,7 @@ class ApiWritesTest extends ApiTestSupport {
         problem(call(json(post("/api/v1/planning/PAY-1100/master-schedule"), Map.of("phases", List.of(ita), "reason", "x"))
                 .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
         problem(call(json(post("/api/v1/planning/PAY-1100/master-schedule/preview"),
-                Map.of("phases", List.of(Map.of("phase", "ITA", "start", "12/10", "member_ids", List.of("an")))))), 400, "invalid");
+                Map.of("phases", List.of(Map.of("phase", "Implement_Coding", "start", "12/10", "member_ids", List.of("an")))))), 400, "invalid");
     }
 
     @Test
@@ -122,8 +123,7 @@ class ApiWritesTest extends ApiTestSupport {
 
     @Test
     void detailPlanDraftRoundTrip() throws Exception {
-        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "epic_key", "PAY-1100", "position", 0, "phase", "ITA",
-                "subphase", "Execute", "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
         JsonNode est = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json();
         long id = est.get("rows").get(0).get("id").asLong();
         assertThat(est.get("rows").get(0).get("task_key").asText()).isEqualTo("PAY-1102");
@@ -216,7 +216,7 @@ class ApiWritesTest extends ApiTestSupport {
         problem(call(json(post("/api/v1/extra-days"), Map.of("date", "2026-10-07", "note", ""))), 422, "invalid");
         assertThat(call(json(put("/api/v1/settings/alerts"), Map.of("soon_days", 3, "effort_warn_pct", 80, "held_days", 3,
                 "review_rounds", 3, "capacity_pct", 100, "effort_diff_h", 1))).json().get("soon_days").asDouble()).isEqualTo(3);
-        JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function_name}] {step}", "sample", "[X] Create"))).json();
+        JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function}] {step}", "sample", "[X] Create"))).json();
         assertThat(pv.get("sample_matches").asBoolean()).isTrue();
         assertThat(pv.get("step").asText()).isEqualTo("create");
     }
@@ -257,11 +257,12 @@ class ApiWritesTest extends ApiTestSupport {
                 "file", "phases.csv", "text/csv", "﻿Phase;Task name;Prefix;Type;Workflow\nITA;ITA Prepare;ITAP;Task;5 steps\n;;;;\nUC;Q&A;;Bug;None\n"
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)))).json();
         assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).get("match").asText()).isEqualTo("[*][*] ITA Prepare");
+        assertThat(rows.get(0).get("match").asText()).isEqualTo("[*] ITA Prepare"); // the demo's Task pattern "[{anken_prefix}] {sub_phase}"
         assertThat(rows.get(0).get("workflow").asBoolean()).isTrue();
         assertThat(rows.get(0).get("errors")).isEmpty();
         assertThat(rows.get(1).get("line").asInt()).isEqualTo(3);
-        assertThat(rows.get(1).get("errors").get(0).asText()).isEqualTo("Type must be Task, QnA or WorkRequest");
+        assertThat(rows.get(1).get("errors")).isEmpty(); // an unknown Type is Task
+        assertThat(rows.get(1).get("type").asText()).isEmpty();
         java.io.ByteArrayOutputStream xlsx = new java.io.ByteArrayOutputStream();
         try (org.apache.poi.xssf.usermodel.XSSFWorkbook wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
             org.apache.poi.ss.usermodel.Sheet ws = wb.createSheet();
@@ -277,7 +278,7 @@ class ApiWritesTest extends ApiTestSupport {
         JsonNode fromExcel = call(multipart("/api/v1/settings/structure/import").file(new org.springframework.mock.web.MockMultipartFile(
                 "file", "phases.xlsx", "application/octet-stream", xlsx.toByteArray()))).json();
         assertThat(fromExcel).hasSize(1);
-        assertThat(fromExcel.get(0).get("match").asText()).isEqualTo("[*][*] Q&A");
+        assertThat(fromExcel.get(0).get("match").asText()).isEqualTo("[*] Q&A");
         assertThat(fromExcel.get(0).get("type").asText()).isEqualTo("qna");
         assertThat(fromExcel.get(0).get("workflow").asBoolean()).isFalse();
         problem(call(multipart("/api/v1/settings/structure/import").file(new org.springframework.mock.web.MockMultipartFile(
@@ -291,9 +292,9 @@ class ApiWritesTest extends ApiTestSupport {
     void savingAnAnkensRulesLeavesOthersAlone() throws Exception {
         String before1300 = call(get("/api/v1/settings/name-rules?anken=PAY-1300")).text();
         String beforeDefault = call(get("/api/v1/settings/name-rules")).text();
-        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{function_id}] {function_name} - {step}", "aliases", Map.of("create", "Make"))));
+        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{sub_phase_prefix}] {function} - {step}", "aliases", Map.of("create", "Make"))));
         JsonNode own = call(get("/api/v1/settings/name-rules?anken=PAY-1100")).json();
-        assertThat(own.get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(own.get("rule").asText()).isEqualTo("[{sub_phase_prefix}] {function} - {step}");
         assertThat(own.get("aliases").get("create").asText()).isEqualTo("Make");
         assertThat(call(get("/api/v1/settings/name-rules?anken=PAY-1300")).text()).isEqualTo(before1300);
         assertThat(call(get("/api/v1/settings/name-rules")).text()).isEqualTo(beforeDefault);
@@ -318,13 +319,13 @@ class ApiWritesTest extends ApiTestSupport {
 
     @Test
     void copyFromAnotherAnken() throws Exception {
-        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{function_id}] {function_name} - {step}", "aliases", Map.of("create", "Make"))));
+        call(json(put("/api/v1/settings/name-rules?anken=PAY-1100"), Map.of("rule", "[{sub_phase_prefix}] {function} - {step}", "aliases", Map.of("create", "Make"))));
         JsonNode view = call(json(post("/api/v1/settings/anken/PAY-1300/copy"), Map.of("from", "PAY-1100"))).json();
-        assertThat(view.get("name_rules").get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(view.get("name_rules").get("rule").asText()).isEqualTo("[{sub_phase_prefix}] {function} - {step}");
         assertThat(view.get("structure").get("phases").toString()).isEqualTo(
                 call(get("/api/v1/settings/structure?anken=PAY-1100")).json().get("phases").toString());
         JsonNode copied = call(get("/api/v1/settings/name-rules?anken=PAY-1300")).json();
-        assertThat(copied.get("rule").asText()).isEqualTo("[{function_id}] {function_name} - {step}");
+        assertThat(copied.get("rule").asText()).isEqualTo("[{sub_phase_prefix}] {function} - {step}");
         assertThat(copied.get("aliases").get("create").asText()).isEqualTo("Make");
         call(json(post("/api/v1/settings/anken/PAY-1300/copy"), Map.of("from", "default")));
         assertThat(call(get("/api/v1/settings/name-rules?anken=PAY-1300")).json().get("aliases").get("create").asText()).isEqualTo("Create");

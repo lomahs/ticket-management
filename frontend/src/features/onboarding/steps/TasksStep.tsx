@@ -14,7 +14,7 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-/** Step 2: the anken's template Tasks; the missing ones are named by the Task name rule and created in one go. */
+/** Step 2, Setting Phase: the anken's template Tasks; the missing ones are named by the Task pattern and created in one go. */
 export function TasksStep({ epic }: { epic: string }) {
   const o = useQuery(onboardingQuery(epic));
   if (o.isPending) return <Loading />;
@@ -38,13 +38,13 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
   const missing = rows.filter((t) => !t.existing_key);
   const body = () => ({ anken_prefix: prefix.trim(), assignee_id: who, tasks: missing.map((t) => ({ match: t.match, name: names[t.match] ?? t.name })) });
   return (
-    <StepShell epic={epic} step="tasks" title="Template Tasks"
-      sub="Every anken carries the Tasks of its template (Settings › Phases & tasks). Create the missing ones in one go."
+    <StepShell epic={epic} step="tasks" title="Setting Phase"
+      sub="Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go."
       onSave={() => progress.mutateAsync({ step: 2, anken_prefix: prefix.trim() })}>
-      <section className="card card-clip" aria-label="Template Tasks">
+      <section className="card card-clip" aria-label="Setting Phase">
         <div style={{ padding: '12px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16, borderBottom: '1px solid var(--border-subtle)' }}>
           <TextField mono label="Anken prefix" placeholder="e.g. BookUI" value={prefix} onChange={setPrefix} style={{ width: 180 }} />
-          <span className="eyebrow" style={{ paddingBottom: 10 }}>{q.data ? `Task name rule: ${q.data.task_rule}` : ''}</span>
+          <span className="eyebrow" style={{ paddingBottom: 10 }}>{q.data ? `Task pattern: ${q.data.task_rule}` : ''}</span>
           <span className="spacer" />
           <span className="eyebrow" style={{ paddingBottom: 10 }}>{`${rows.length - missing.length} found · ${missing.length} missing`}</span>
         </div>
@@ -70,8 +70,15 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
                       : <span className="status-pill" style={{ background: 'var(--hl-red-bg)', color: 'var(--hl-red-fg)' }}>Missing</span>}</td>
                     <td style={{ padding: '6px 16px' }}>
                       {t.existing_key ? <span className="muted">{t.name}</span> : (
-                        <input aria-label={`Name, ${t.match}`} value={names[t.match] ?? t.name} onChange={(e) => setNames((n) => ({ ...n, [t.match]: e.target.value }))}
-                          style={{ height: 30, width: '100%', boxSizing: 'border-box', padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, font: '500 13px/1 var(--font-text)', background: 'var(--surface-card)', color: 'var(--text-heading)' }} />
+                        <>
+                          <input aria-label={`Name, ${t.match}`} value={names[t.match] ?? t.name} onChange={(e) => setNames((n) => ({ ...n, [t.match]: e.target.value }))}
+                            style={{ height: 30, width: '100%', boxSizing: 'border-box', padding: '0 8px', border: `1px solid ${t.recognised ? 'var(--border-strong)' : 'var(--hl-red-fg)'}`, borderRadius: 6, font: '500 13px/1 var(--font-text)', background: 'var(--surface-card)', color: 'var(--text-heading)' }} />
+                          {!t.recognised && (
+                            <div role="alert" style={{ fontSize: 12, marginTop: 4, color: 'var(--hl-red-fg)' }}>
+                              The template does not recognise this name: fix the template or the name before creating.
+                            </div>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>

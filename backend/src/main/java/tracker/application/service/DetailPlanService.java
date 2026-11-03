@@ -20,6 +20,7 @@ import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.MasterScheduleRepository;
+import tracker.application.ports.OnboardingRepository;
 import tracker.domain.Allocations;
 import tracker.domain.AnkenScope;
 import tracker.domain.Capacity;
@@ -32,6 +33,7 @@ import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.DetailScheduler.Step;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
+import tracker.domain.Onboarding;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.RuleError;
@@ -56,15 +58,17 @@ public class DetailPlanService {
     private final MasterScheduleRepository versions;
     private final AllocationService allocations;
     private final TicketService tickets;
+    private final OnboardingRepository onboarding;
     private final Clock clock;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
-                             AllocationService allocations, TicketService tickets, Clock clock) {
+                             AllocationService allocations, TicketService tickets, OnboardingRepository onboarding, Clock clock) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
         this.allocations = allocations;
         this.tickets = tickets;
+        this.onboarding = onboarding;
         this.clock = clock;
     }
 
@@ -288,7 +292,7 @@ public class DetailPlanService {
     /** The review of the push: every sub-task, with the request that creates it. */
     public BatchPreview pushPreview(AnkenScope scope, String epic) {
         Computed c = pushable(scope, epic);
-        return tickets.previewBatch(scope, epic, List.of(), newTickets(c, epic));
+        return tickets.previewBatch(scope, epic, List.of(), newTickets(c, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null)));
     }
 
     /**
@@ -297,7 +301,7 @@ public class DetailPlanService {
      */
     public BatchResult push(Viewer actor, AnkenScope scope, String epic) {
         Computed c = pushable(scope, epic);
-        List<NewTicket> creates = newTickets(c, epic);
+        List<NewTicket> creates = newTickets(c, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null));
         return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
             List<Long> done = new ArrayList<>();
             for (EstimationRow r : c.rows()) {
@@ -336,46 +340,25 @@ public class DetailPlanService {
     }
 
     /** Each step's sub-task under its row's Task. */
-    private static List<NewTicket> newTickets(Computed c, String epic) {
+    private static List<NewTicket> newTickets(Computed c, String epic, @Nullable String onboardedPrefix) {
         TrackerContext ctx = c.ctx();
         List<NewTicket> out = new ArrayList<>();
         Map<String, ParentOption> parents = new HashMap<>();
         AnkenService.parentOptions(ctx, epic).forEach(p -> parents.put(p.key(), p));
-        boolean ids = AnkenService.ruleHasId(ctx, epic);
-        Map<String, String> lastId = new HashMap<>();
         for (EstimationRow r : c.rows()) {
             String parentKey = Objects.requireNonNull(r.taskKey());
             ParentOption p = parents.get(parentKey);
-            // the phase and prefix of the names: the Task's, else its phase group, else the row's phase
+            // the sub-phase prefix of the names: the Task's, else its phase, else its phase group, else the row's phase
             String phase = Text.hasText(p.phase()) ? p.phase() : !PhaseGroups.OTHER.equals(p.group()) ? p.group() : r.phase();
             String prefix = Text.hasText(p.prefix()) ? p.prefix() : phase;
-            String fid = "";
-            if (r.steps() != null && ids) {
-                String prev = lastId.get(parentKey);
-                fid = prev == null ? AnkenService.nextFunctionId(ctx.functions.stream().filter(f -> f.parentKey().equals(parentKey)).toList())
-                        : nextId(prev);
-                lastId.put(parentKey, fid);
-            }
+            String ankenPrefix = AnkenService.ankenPrefix(ctx, epic, onboardedPrefix, p.summary());
             for (Placed s : c.placed()) {
                 if (rowOf(s.ref()) == r.id()) {
-                    out.add(new NewTicket(s.ref(), true, parentKey, null, AnkenService.subtaskSummary(ctx, epic, phase, prefix, fid,
+                    out.add(new NewTicket(s.ref(), true, parentKey, null, AnkenService.subtaskSummary(ctx, epic, ankenPrefix, prefix,
                             r.functionName(), s.kind()), s.memberId(), null, s.start(), s.end(), s.hours()));
                 }
             }
         }
         return out;
-    }
-
-    /** The id after {@code id}: its trailing number plus one, as wide as before ("F09" → "F10"). */
-    static String nextId(String id) {
-        int i = id.length();
-        while (i > 0 && Character.isDigit(id.charAt(i - 1))) {
-            i--;
-        }
-        if (i == id.length()) {
-            return id + "2";
-        }
-        String num = id.substring(i);
-        return id.substring(0, i) + String.format("%0" + num.length() + "d", Long.parseLong(num) + 1);
     }
 }

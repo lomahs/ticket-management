@@ -16,7 +16,10 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
+import tracker.domain.PhaseGroups;
 import tracker.domain.StepWeights;
+import tracker.domain.TaskNames;
+import tracker.domain.Text;
 
 /** Step 1 of planning: the estimation of an anken, one row per function or ticket, and its effort per phase. */
 @Service
@@ -33,17 +36,22 @@ public class EstimationService {
     public record PhaseEffort(String phase, double totalEffortH) {
     }
 
-    /** @param phase the Task's phase group */
-    public record TaskOption(String key, String summary, String phase) {
+    /**
+     * @param name  the Summary without its leading "[...]" groups: a row's subphase
+     * @param phase the Task's phase group: a row's phase
+     */
+    public record TaskOption(String key, String summary, String name, String phase) {
     }
 
-    /** @param tasks the Tasks of the epic a row's sub-tasks can go under */
+    /** @param tasks the Tasks of the epic a row's sub-tasks can go under: those that match the Task pattern */
     public record EstimationView(List<EstimationRow> rows, List<PhaseEffort> phases, List<TaskOption> tasks) {
     }
 
-    /** The Tasks of the epic, in the order Add function lists them. */
-    static List<TaskOption> tasks(TrackerContext ctx, String epic) {
-        return AnkenService.parentOptions(ctx, epic).stream().map(p -> new TaskOption(p.key(), p.summary(), p.group())).toList();
+    /** The Tasks of the epic that match the Task pattern, in the order Add function lists them. */
+    public static List<TaskOption> tasks(TrackerContext ctx, String epic) {
+        String rule = Text.orElse(ctx.settings.nameRulesOf(epic).taskRule, TaskNames.DEFAULT_RULE);
+        return AnkenService.parentOptions(ctx, epic).stream().filter(p -> TaskNames.matches(rule, p.summary()))
+                .map(p -> new TaskOption(p.key(), p.summary(), PhaseGroups.taskName(p.summary()), p.group())).toList();
     }
 
     /** {@code epic} must be a tracked anken of the scope. */
@@ -74,12 +82,15 @@ public class EstimationService {
         return out;
     }
 
-    /** Replaces the anken's unpushed rows with {@code next} (in order); a pushed row cannot be changed and stays even when left out. */
+    /**
+     * Replaces the anken's unpushed rows with {@code next} (in order); a pushed row cannot be changed and stays even when left out.
+     * Each new row needs a Task: its phase and subphase are the Task's ({@link TaskOption}).
+     */
     public EstimationView save(AnkenScope scope, String epic, List<EstimationRow> next) {
         TrackerContext ctx = load(context, scope, epic);
         Map<Long, EstimationRow> current = rows.findByEpic(epic).stream().collect(Collectors.toMap(EstimationRow::id, r -> r));
         Set<Long> pushed = current.values().stream().filter(EstimationRow::pushed).map(EstimationRow::id).collect(Collectors.toSet());
-        Set<String> taskKeys = tasks(ctx, epic).stream().map(TaskOption::key).collect(Collectors.toSet());
+        Map<String, TaskOption> tasks = tasks(ctx, epic).stream().collect(Collectors.toMap(TaskOption::key, t -> t));
         List<EstimationRow> out = new ArrayList<>();
         int position = pushed.size(); // pushed rows keep their place first, the others follow in the order given
         for (int n = 0; n < next.size(); n++) {
@@ -96,29 +107,26 @@ public class EstimationService {
                 continue;
             }
             check(r, at);
-            String task = r.taskKey() == null || r.taskKey().isBlank() ? null : r.taskKey().strip();
-            if (task != null && !taskKeys.contains(task)) {
-                throw new Invalid(task + " is not a Task of " + epic, at + "task_key");
+            String key = r.taskKey() == null ? "" : r.taskKey().strip();
+            if (key.isEmpty()) {
+                throw new Invalid("Task is required", at + "task_key");
             }
-            out.add(new EstimationRow(r.id(), epic, position++, r.phase().strip(), r.subphase().strip(), r.functionName().strip(), r.steps(),
-                    r.effortH(), r.baId(), r.balId(), r.jmId(), task, null));
+            TaskOption task = tasks.get(key);
+            if (task == null) {
+                throw new Invalid(key + " is not a Task of " + epic + " that matches the Task pattern", at + "task_key");
+            }
+            out.add(new EstimationRow(r.id(), epic, position++, task.phase(), task.name(), r.functionName().strip(), r.steps(),
+                    r.effortH(), r.baId(), r.balId(), r.jmId(), key, null));
         }
         rows.save(epic, out);
         return view(ctx, epic);
     }
 
     private static boolean sameEstimate(EstimationRow a, EstimationRow b) {
-        return a.phase().equals(b.phase()) && a.subphase().equals(b.subphase()) && a.functionName().equals(b.functionName())
-                && java.util.Objects.equals(a.steps(), b.steps()) && a.effortH() == b.effortH();
+        return a.functionName().equals(b.functionName()) && java.util.Objects.equals(a.steps(), b.steps()) && a.effortH() == b.effortH();
     }
 
     private static void check(EstimationRow r, String at) {
-        if (r.phase() == null || r.phase().isBlank()) {
-            throw new Invalid("Phase is required", at + "phase");
-        }
-        if (r.subphase() == null || r.subphase().isBlank()) {
-            throw new Invalid("Subphase is required", at + "subphase");
-        }
         if (r.functionName() == null || r.functionName().isBlank()) {
             throw new Invalid("Function is required", at + "function_name");
         }

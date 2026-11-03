@@ -57,15 +57,15 @@ class OnboardingTest {
     tracker.application.service.JiraSettingsService jiraSettings;
 
     @Test
-    void taskNameRuleIsSavedWithTheNameRulesAndChecked() {
+    void taskPatternIsSavedWithTheNameRulesAndChecked() {
         var nr = jiraSettings.nameRules(null);
-        assertThat(nr.taskRule()).isEqualTo(tracker.domain.TaskNames.DEFAULT_RULE);
-        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{anken_prefix}] {task} {who}"))
+        assertThat(nr.taskRule()).isEqualTo(tracker.adapters.fake.Dataset.TASK_RULE);
+        assertThatThrownBy(() -> jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{anken_prefix}] {sub_phase} {who}"))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("task_rule");
-        jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{phase}][{anken_prefix}] {task}");
-        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo("[{phase}][{anken_prefix}] {task}");
+        jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), "[{anken_prefix}][{os_task}] {sub_phase}");
+        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo(tracker.domain.TaskNames.DEFAULT_RULE);
         jiraSettings.saveNameRules(null, nr.rule(), nr.aliases(), null); // null keeps it
-        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo("[{phase}][{anken_prefix}] {task}");
+        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo(tracker.domain.TaskNames.DEFAULT_RULE);
     }
 
     @Test
@@ -105,11 +105,11 @@ class OnboardingTest {
     void templateTasksProposeNamesAndCreateTheMissingOnes() {
         onboarding.start(PIM, EPIC);
         List<TemplateTask> before = onboarding.tasks(EPIC, "RFD").tasks();
-        assertThat(before).extracting(TemplateTask::match).containsExactly("[Prepare] QnA management", "[Prepare] Work requests");
-        assertThat(before).allMatch(t -> t.existingKey() == null);
-        // the default rule's name would not be recognised by a template without *, so the template's own name is proposed
-        assertThat(before).extracting(TemplateTask::name).containsExactly("[Prepare] QnA management", "[Prepare] Work requests");
-        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh", List.of(new NewTaskIn("[Prepare] QnA management", "QnA"))))
+        assertThat(before).extracting(TemplateTask::match).containsExactly("[*] QnA management", "[*] Work requests");
+        assertThat(before).allMatch(t -> t.existingKey() == null && t.recognised());
+        // the names follow the demo's Task pattern "[{anken_prefix}] {sub_phase}"
+        assertThat(before).extracting(TemplateTask::name).containsExactly("[RFD] QnA management", "[RFD] Work requests");
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh", List.of(new NewTaskIn("[*] QnA management", "QnA"))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("tasks.0.name");
         List<NewTaskIn> in = before.stream().map(t -> new NewTaskIn(t.match(), t.name())).toList();
         assertThat(onboarding.previewTasks(PIM, EPIC, "RFD", "minh", in).creates()).hasSize(2);
@@ -118,6 +118,18 @@ class OnboardingTest {
         assertThat(onboarding.get(EPIC).ankenPrefix()).isEqualTo("RFD");
         assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh", in)).isInstanceOf(Invalid.class)
                 .hasMessageContaining("already");
+    }
+
+    @Test
+    void aNameItsTemplateWouldNotRecogniseIsStillTheTaskPatternsAndFlagged() {
+        onboarding.start(PIM, EPIC);
+        var nr = jiraSettings.nameRules(EPIC);
+        jiraSettings.saveNameRules(EPIC, nr.rule(), nr.aliases(), "{sub_phase} ({anken_prefix})");
+        List<TemplateTask> tasks = onboarding.tasks(EPIC, "RFD").tasks();
+        assertThat(tasks).extracting(t -> t.name() + "/" + t.recognised())
+                .containsExactly("QnA management (RFD)/false", "Work requests (RFD)/false");
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh",
+                List.of(new NewTaskIn(tasks.get(0).match(), tasks.get(0).name())))).isInstanceOf(Invalid.class).hasMessageContaining("recognised");
     }
 
     @Test

@@ -14,13 +14,13 @@ class StructureImportTest {
         List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "ITA Prepare", "ITAP", "Task", "5 steps")), TaskNames.DEFAULT_RULE);
         assertThat(rows).containsExactly(new StructureImportRow(2, "ITA", "ITA Prepare", "[*][*] ITA Prepare", "ITAP", "", true, List.of()));
         TaskTemplate t = new TaskTemplate(rows.get(0).match(), "ITA", "ITAP");
-        assertThat(TaskNames.task(t)).isEqualTo("ITA Prepare");
+        assertThat(TaskNames.subPhase(t)).isEqualTo("ITA Prepare");
         WorkStructure ws = new WorkStructure(List.of("ITA"), List.of(t));
         assertThat(ws.taskTemplate("[BookUI][LocalTask] ITA Prepare")).isEqualTo(t);
         assertThat(ws.taskTemplate("[BookUI][Client] ITA Prepare")).isEqualTo(t);
-        assertThat(TaskNames.propose(TaskNames.DEFAULT_RULE, "BookUI", t, ws)).isEqualTo("[BookUI][LocalTask] ITA Prepare"); // onboarding names
-        assertThat(TaskNames.match("[{anken_prefix}][localtask] {task}", "ITA", "ITA Execute")).isEqualTo("[*][*] ITA Execute");
-        assertThat(StructureImport.rows(List.of(List.of("UC", "QnA  management", "", "QnA")), "[{phase}][{anken_prefix}] {task}").get(0).match())
+        assertThat(TaskNames.recognised(TaskNames.DEFAULT_RULE, "BookUI", t, ws)).isTrue(); // onboarding names
+        assertThat(TaskNames.match("[{anken_prefix}][localtask] {sub_phase}", "ITA Execute")).isEqualTo("[*][*] ITA Execute");
+        assertThat(StructureImport.rows(List.of(List.of("UC", "QnA  management", "", "QnA")), "[UC][{anken_prefix}] {sub_phase}").get(0).match())
                 .isEqualTo("[UC][*] QnA management");
     }
 
@@ -33,11 +33,20 @@ class StructureImportTest {
     }
 
     @Test
-    void flagsEachBadRow() {
-        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("", "Execute", "", "Task"), List.of("ITA", "", "", "Task"),
-                List.of("ITA", "Bugs", "", "Bug"), List.of("ITA", "Execute")), TaskNames.DEFAULT_RULE);
-        assertThat(rows).extracting(StructureImportRow::errors).containsExactly(List.of("Phase is required"), List.of("Task name is required"),
-                List.of("Type must be Task, QnA or WorkRequest"), List.of("Type must be Task, QnA or WorkRequest"));
-        assertThat(rows).extracting(StructureImportRow::line).containsExactly(2, 3, 4, 5);
+    void flagsRowsWithoutAPhaseOrATaskName() {
+        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("", "Execute", "", "Task"), List.of("ITA", "", "", "Task")),
+                TaskNames.DEFAULT_RULE);
+        assertThat(rows).extracting(StructureImportRow::errors).containsExactly(List.of("Phase is required"), List.of("Task name is required"));
+        assertThat(rows).extracting(StructureImportRow::line).containsExactly(2, 3);
+    }
+
+    @Test
+    void emptyOrUnknownTypeIsTaskAndPrefixMayBeEmpty() {
+        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "Execute"), List.of("ITA", "Bugs", "", "Bug")),
+                TaskNames.DEFAULT_RULE);
+        assertThat(rows).extracting(StructureImportRow::errors).containsExactly(List.of(), List.of());
+        assertThat(rows).extracting(StructureImportRow::type).containsExactly("", "");
+        assertThat(rows).extracting(StructureImportRow::workflow).containsExactly(true, true);
+        assertThat(rows).extracting(StructureImportRow::prefix).containsExactly("", "");
     }
 }

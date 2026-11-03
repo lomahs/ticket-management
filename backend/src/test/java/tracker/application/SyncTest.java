@@ -67,11 +67,11 @@ class SyncTest {
     }
 
     static final IssueSnapshot PARENT = snap("PAY-1102", "[Implement_Coding] Payment flow revision", "PAY-1100");
-    static final IssueSnapshot CREATE = snap("PAY-1201", "[Implement_Coding][F01] Payment method selection – Create", "PAY-1102",
+    static final IssueSnapshot CREATE = snap("PAY-1201", "[PAY][LocalTask][Implement_Coding]_Payment method selection_Create", "PAY-1102",
             "In Progress", "indeterminate", AN,
             Map.of("customfield_10020", "2026-09-14", "customfield_10016", "2026-09-15T00:00:00.000+0700", "timeoriginalestimate", 36000),
             List.of(new WorklogSnapshot(AN, "2026-09-15", 2.5, "spec")), List.of());
-    static final IssueSnapshot REVIEW = snap("PAY-1202", "[Implement_Coding][F01] Payment method selection – BAL Review", "PAY-1102",
+    static final IssueSnapshot REVIEW = snap("PAY-1202", "[PAY][LocalTask][Implement_Coding]_Payment method selection_BAL Review", "PAY-1102",
             "Resolved", "done", MINH, Map.of(), List.of(),
             List.of(new ChangeSnapshot("2026-09-16", "assignee", "acc-an", "acc-minh", AN, MINH),
                     new ChangeSnapshot("2026-09-17", "status", "In Progress", "Resolved")));
@@ -183,7 +183,7 @@ class SyncTest {
         assertThat(p.phase()).isEqualTo("Implement_Coding");
         assertThat(p.epicKey()).isEqualTo("PAY-1100");
         assertThat(List.of(c.kind(), c.epicKey(), c.phase(), c.functionId(), c.functionName(), c.step())).containsExactly(
-                IssueKind.SUBTASK, "PAY-1100", "Implement_Coding", "F01", "Payment method selection", StepKind.CREATE);
+                IssueKind.SUBTASK, "PAY-1100", "Implement_Coding", "Payment method selection", "Payment method selection", StepKind.CREATE);
         assertThat(List.of(c.plannedStart(), c.plannedEnd(), c.estimateH(), c.status())).containsExactly(
                 "2026-09-14", "2026-09-15", 10.0, Status.WIP);
         assertThat(c.assigneeId()).isEqualTo("an");
@@ -235,7 +235,7 @@ class SyncTest {
 
     @Test
     void taskPhaseAndFunctionStepsFollowTheConfiguredStructure() {
-        configure("[{prefix}][{function_name}]_{step}");
+        configure("[{sub_phase_prefix}][{function}]_{step}");
         run(new StubReader(List.of(UC_TASK, FUT_TASK, QNA_TASK, snap("PAY-1201", "[UCI][Login]_Create", "PAY-1110"),
                 snap("PAY-1202", "[FUTTC][Login]_Create", "PAY-1111"), snap("PAY-1203", "[FUTTC][Login]_BALReview", "PAY-1111"),
                 snap("PAY-1204", "[FUTTC][Login]_Create", "PAY-1112"))), true);
@@ -269,17 +269,17 @@ class SyncTest {
     @Test
     void eachEpicIsParsedWithItsOwnRule() {
         TrackerSettings.AnkenSettings e1 = TrackerSettings.AnkenSettings.copyOf(settings.load().structure, settings.load().nameRules);
-        e1.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        e1.nameRules.rule = "[{sub_phase_prefix}][{function}]_{step}";
         twoEpicSettings(e1);
         run(new StubReader(List.of(snap("PAY-1102", "[Implement_Coding] Payment flow revision", "PAY-1100"), E2_EPIC_TASK,
                 snap("PAY-1201", "[Implement_Coding][Login]_Create", "PAY-1102"),
                 snap("PAY-1202", "[Implement_Coding][Login]_BAL Review", "PAY-1102"),
-                snap("PAY-2201", "[Implement_Coding][F07] Search – Create", "PAY-2102"),
-                snap("PAY-2202", "[Implement_Coding][F07] Search – BAL Review", "PAY-2102")), twoEpics(), null), true);
+                snap("PAY-2201", "[PAY][LocalTask][Implement_Coding]_Search_Create", "PAY-2102"),
+                snap("PAY-2202", "[PAY][LocalTask][Implement_Coding]_Search_BAL Review", "PAY-2102")), twoEpics(), null), true);
         Map<String, Issue> got = issues();
         assertThat(List.of(got.get("PAY-1201").functionId(), got.get("PAY-1201").step())).containsExactly("Login", StepKind.CREATE);
         assertThat(got.get("PAY-1202").step()).isEqualTo(StepKind.BAL_REVIEW);
-        assertThat(List.of(got.get("PAY-2201").functionId(), got.get("PAY-2201").step())).containsExactly("F07", StepKind.CREATE);
+        assertThat(List.of(got.get("PAY-2201").functionId(), got.get("PAY-2201").step())).containsExactly("Search", StepKind.CREATE);
         assertThat(got.get("PAY-2202").step()).isEqualTo(StepKind.BAL_REVIEW);
     }
 
@@ -298,13 +298,13 @@ class SyncTest {
     @Test
     void workflowSwitchIsPerEpic() {
         TrackerSettings.AnkenSettings e1 = TrackerSettings.AnkenSettings.copyOf(settings.load().structure, settings.load().nameRules);
-        e1.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        e1.nameRules.rule = "[{sub_phase_prefix}][{function}]_{step}";
         e1.structure = new WorkStructure(List.of("ITA"), List.of(new TaskTemplate("ITA *", "ITA", "ITA", false)));
         TrackerSettings s = settings.load();
         s.jira.epics = new ArrayList<>(List.of("PAY-1100", "PAY-2000"));
         s.anken.put("PAY-1100", e1);
         TrackerSettings.AnkenSettings e2 = TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules);
-        e2.nameRules.rule = "[{prefix}][{function_name}]_{step}";
+        e2.nameRules.rule = "[{sub_phase_prefix}][{function}]_{step}";
         e2.structure = new WorkStructure(List.of("ITA"), List.of(new TaskTemplate("ITA *", "ITA", "ITA", true)));
         s.anken.put("PAY-2000", e2);
         settings.save(s);
@@ -318,7 +318,7 @@ class SyncTest {
 
     @Test
     void taskWithoutATemplateKeepsTheBracketPhase() {
-        configure("[{prefix}][{function_name}]_{step}");
+        configure("[{sub_phase_prefix}][{function}]_{step}");
         run(new StubReader(List.of(PARENT, WR_TASK)), true);
         Map<String, Issue> got = issues();
         assertThat(got.get("PAY-1102").phase()).isEqualTo("Implement_Coding");
@@ -355,7 +355,7 @@ class SyncTest {
 
     @Test
     void ruleWithoutFunctionIdentitySyncsWithoutFunctions() {
-        configure("[{prefix}] {step}");
+        configure("[{sub_phase_prefix}] {step}");
         SyncResult r = run(new StubReader(List.of(FUT_TASK, snap("PAY-1202", "[FUTTC] Create", "PAY-1111"))), true);
         assertThat(r.status()).isEqualTo("ok");
         assertThat(issues().get("PAY-1202").functionId()).isNull();
