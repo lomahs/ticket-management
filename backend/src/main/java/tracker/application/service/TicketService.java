@@ -376,7 +376,10 @@ public class TicketService {
      */
     public record NewTicket(String ref, boolean subtask, @Nullable String parentKey, @Nullable String parentRef, String summary,
                             String assigneeId, @Nullable String reporterId, @Nullable String plannedStart, @Nullable String plannedEnd,
-                            @Nullable Double estimateH) {
+                            @Nullable Double estimateH, List<String> labels) {
+        public NewTicket {
+            labels = labels == null ? List.of() : List.copyOf(labels);
+        }
     }
 
     /** @param parent the Task (or epic) key, or {@code <new:ref>} for a Task created in the same batch */
@@ -467,8 +470,12 @@ public class TicketService {
                 }
                 values.put(TicketField.ESTIMATE, c.estimateH());
             }
+            List<String> labels = c.labels().stream().map(String::strip).distinct().toList();
+            if (labels.stream().anyMatch(l -> l.isEmpty() || l.chars().anyMatch(Character::isWhitespace))) {
+                throw new Invalid("A label cannot be empty or contain spaces", at + "labels");
+            }
             out.add(new NewTicketPreview(c.ref(), c.subtask(), parent, c.summary().strip(),
-                    JiraRequests.createIssue(a.project(), c.subtask() ? subtaskType : taskType, parent, c.summary().strip(), values, fm)));
+                    JiraRequests.createIssue(a.project(), c.subtask() ? subtaskType : taskType, parent, c.summary().strip(), values, labels, fm)));
         }
         return out;
     }

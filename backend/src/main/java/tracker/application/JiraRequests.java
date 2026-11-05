@@ -1,6 +1,7 @@
 package tracker.application;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -25,6 +26,9 @@ public final class JiraRequests {
     public static final String ISSUE = "/rest/api/3/issue";
     /** Jira's own estimate field: written through time tracking, not by its id. */
     static final String ORIGINAL_ESTIMATE = "timeoriginalestimate";
+    /** Jira's own Due date: an update writes Planned End here as well. */
+    public static final String DUE_DATE = "duedate";
+    public static final String LABELS = "labels";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** The Jira field a ticket field is written to, as a review shows it. */
@@ -42,12 +46,16 @@ public final class JiraRequests {
     /**
      * One PUT holding exactly these fields; empty when there are none. Values: a Jira account id for people, YYYY-MM-DD
      * for dates, hours (a Number) for the estimate; null clears the field. A status goes through {@link #transition}.
+     * Planned End is also written to Jira's Due date.
      */
     public static Optional<JiraRequest> update(String key, Map<TicketField, @Nullable Object> values, FieldMapping fm) {
         ObjectNode fields = JSON.createObjectNode();
         Map<TicketField, @Nullable Object> ordered = new EnumMap<>(TicketField.class);
         ordered.putAll(values);
         ordered.forEach((f, v) -> put(fields, f, v, fm));
+        if (ordered.containsKey(TicketField.PLANNED_END)) {
+            fields.put(DUE_DATE, (String) ordered.get(TicketField.PLANNED_END));
+        }
         if (fields.isEmpty()) {
             return Optional.empty();
         }
@@ -76,15 +84,16 @@ public final class JiraRequests {
         if (estimateH > 0) {
             values.put(TicketField.ESTIMATE, estimateH);
         }
-        return createIssue(project, issueTypeId, parentKey, summary, values, fm);
+        return createIssue(project, issueTypeId, parentKey, summary, values, List.of(), fm);
     }
 
     /**
      * A new issue of the project with the given parent (an epic for a Task, a Task for a sub-task) and summary, plus exactly
-     * {@code values} (as for {@link #update}; a status cannot be set on a new issue).
+     * {@code values} (as for {@link #update}; a status cannot be set on a new issue) and the labels when there are any.
+     * Planned End is also written to Jira's Due date.
      */
     public static JiraRequest createIssue(String project, String issueTypeId, String parentKey, String summary,
-                                          Map<TicketField, @Nullable Object> values, FieldMapping fm) {
+                                          Map<TicketField, @Nullable Object> values, List<String> labels, FieldMapping fm) {
         ObjectNode fields = JSON.createObjectNode();
         fields.putObject("project").put("key", project);
         fields.putObject("issuetype").put("id", issueTypeId);
@@ -93,6 +102,12 @@ public final class JiraRequests {
         Map<TicketField, @Nullable Object> ordered = new EnumMap<>(TicketField.class);
         ordered.putAll(values);
         ordered.forEach((f, v) -> put(fields, f, v, fm));
+        if (ordered.containsKey(TicketField.PLANNED_END)) {
+            fields.put(DUE_DATE, (String) ordered.get(TicketField.PLANNED_END));
+        }
+        if (!labels.isEmpty()) {
+            labels.forEach(fields.putArray(LABELS)::add);
+        }
         ObjectNode body = JSON.createObjectNode();
         body.set("fields", fields);
         return new JiraRequest("POST", ISSUE, body.toString());

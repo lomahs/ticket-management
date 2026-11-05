@@ -73,8 +73,8 @@ describe('onboarding', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/PAY-1500/tasks'));
   });
 
-  it('creates the missing template Tasks with their reviewed names', async () => {
-    let created: { anken_prefix: string; assignee_id: string; tasks: unknown[] } | null = null;
+  it('creates the missing template Tasks with their reviewed names, dates and labels', async () => {
+    let created: Record<string, unknown> | null = null;
     onboarding({ step: 2 });
     server.use(
       http.get('*/api/v1/onboarding/PAY-1100/tasks', ({ request }) => {
@@ -95,10 +95,17 @@ describe('onboarding', () => {
     expect(screen.getByText('Task pattern: [{anken_prefix}][{os_task}] {sub_phase}')).toBeTruthy();
     expect(screen.getByText('1 found · 1 missing')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Planned Start'), { target: { value: '2026-10-12' } });
+    fireEvent.change(screen.getByLabelText('Planned End (Due date)'), { target: { value: '2026-10-30' } });
+    fireEvent.change(screen.getByLabelText('Labels'), { target: { value: 'PAY, phase' } });
     fireEvent.click(screen.getByRole('button', { name: 'Review 1 Tasks' }));
     const review = await screen.findByRole('region', { name: 'Tasks to create' });
+    expect(within(review).getByText('Planned 2026-10-12 → 2026-10-30 · Due date 2026-10-30 · Labels PAY, phase')).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Create in Jira' }));
-    await waitFor(() => expect(created).toEqual({ anken_prefix: 'PAY', assignee_id: 'minh', tasks: [{ match: '[*][LocalTask] ITA Prepare', name: '[PAY][LocalTask] ITA Prepare' }] }));
+    await waitFor(() => expect(created).toEqual({
+      anken_prefix: 'PAY', assignee_id: 'minh', planned_start: '2026-10-12', planned_end: '2026-10-30', labels: ['PAY', 'phase'],
+      tasks: [{ match: '[*][LocalTask] ITA Prepare', name: '[PAY][LocalTask] ITA Prepare' }],
+    }));
     expect(await screen.findByText('Created 1 Tasks in Jira')).toBeTruthy();
   });
 

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import tracker.application.JiraRequests;
 import tracker.application.dto.ChangeSnapshot;
 import tracker.application.dto.EpicSnapshot;
 import tracker.application.dto.IssueSnapshot;
@@ -228,6 +229,9 @@ public final class FakeJira implements JiraReader, JiraWriter {
                 }
                 case "reporter" -> i.reporter = v.isNull() ? null : removeAccPrefix(v.path("accountId").asText());
                 case "timetracking" -> i.estH = minutes(v.path("originalEstimate")) / 60.0;
+                case JiraRequests.DUE_DATE -> {
+                    // Accepted like Jira does; the app does not read an issue's due date back.
+                }
                 default -> {
                     if (e.getKey().equals(FIELDS.plannedStart)) {
                         i.ps = v.isNull() ? null : v.asText();
@@ -290,6 +294,11 @@ public final class FakeJira implements JiraReader, JiraWriter {
                 f.hasNonNull(FIELDS.plannedEnd) ? f.get(FIELDS.plannedEnd).asText() : null,
                 minutes(f.path("timetracking").path("originalEstimate")) / 60.0, LocalDate.now(clock).toString());
         issue.reporter = f.path("reporter").isObject() ? removeAccPrefix(f.path("reporter").path("accountId").asText()) : "minh";
+        if (f.path(JiraRequests.LABELS).isArray()) {
+            List<String> labels = new ArrayList<>();
+            f.get(JiraRequests.LABELS).forEach(l -> labels.add(l.asText()));
+            issue.labels = labels;
+        }
         issues.put(key, issue);
         touch(issue);
         return key;

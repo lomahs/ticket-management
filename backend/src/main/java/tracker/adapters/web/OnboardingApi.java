@@ -5,6 +5,8 @@ import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
@@ -26,6 +28,7 @@ import tracker.application.service.OnboardingService.EpicLookup;
 import tracker.application.service.OnboardingService.MemberHours;
 import tracker.application.service.OnboardingService.MemberIn;
 import tracker.application.service.OnboardingService.NewTaskIn;
+import tracker.application.service.OnboardingService.NewTasksCommon;
 import tracker.application.service.OnboardingService.OnboardingView;
 import tracker.application.service.OnboardingService.TemplateTasksView;
 import tracker.application.service.TicketService.BatchPreview;
@@ -108,9 +111,18 @@ public class OnboardingApi {
     public record NewTaskBody(@NotNull String match, @NotNull String name) {
     }
 
-    public record NewTasksIn(@NotNull String ankenPrefix, @NotBlank String assigneeId, @NotNull List<@NotNull @Valid NewTaskBody> tasks) {
+    /** @param plannedStart, plannedEnd and labels go on every new Task; Planned End is its Due date too */
+    public record NewTasksIn(@NotNull String ankenPrefix, @NotBlank String assigneeId,
+                             @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
+                             @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
+                             @Nullable @Size(max = 20) List<@NotNull @Size(max = 255) String> labels,
+                             @NotNull List<@NotNull @Valid NewTaskBody> tasks) {
         List<NewTaskIn> in() {
             return tasks.stream().map(t -> new NewTaskIn(t.match(), t.name())).toList();
+        }
+
+        NewTasksCommon common() {
+            return new NewTasksCommon(assigneeId, plannedStart, plannedEnd, labels == null ? List.of() : labels);
         }
     }
 
@@ -118,14 +130,14 @@ public class OnboardingApi {
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/tasks/preview")
     public BatchPreview previewTasks(@PathVariable("epic") String epic, @RequestBody @Valid NewTasksIn body, Viewer viewer) {
-        return onboarding.previewTasks(viewer, epic, body.ankenPrefix(), body.assigneeId(), body.in());
+        return onboarding.previewTasks(viewer, epic, body.ankenPrefix(), body.common(), body.in());
     }
 
     /** Creates the missing template Tasks in Jira and keeps the anken prefix. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/tasks")
     public BatchResult createTasks(@PathVariable("epic") String epic, @RequestBody @Valid NewTasksIn body, Viewer viewer) {
-        return onboarding.createTasks(viewer, epic, body.ankenPrefix(), body.assigneeId(), body.in());
+        return onboarding.createTasks(viewer, epic, body.ankenPrefix(), body.common(), body.in());
     }
 
     /** Every person, the anken's members first, with their hours a day on it. */

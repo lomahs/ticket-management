@@ -276,7 +276,7 @@ class ServiceWritesTest {
                 .containsExactly("status:status:R", "assignee:assignee:minh", "planned_end:customfield_10016:2026-10-08");
         assertThat(p.changes().get(0).before()).isEqualTo(c.status());
         assertThat(p.requests()).extracting(r -> r.method() + " " + r.path() + " " + r.body()).containsExactly(
-                "PUT /rest/api/3/issue/PAY-1213 {\"fields\":{\"assignee\":{\"accountId\":\"acc-minh\"},\"customfield_10016\":\"2026-10-08\"}}",
+                "PUT /rest/api/3/issue/PAY-1213 {\"fields\":{\"assignee\":{\"accountId\":\"acc-minh\"},\"customfield_10016\":\"2026-10-08\",\"duedate\":\"2026-10-08\"}}",
                 "POST /rest/api/3/issue/PAY-1213/transitions {\"transition\":{\"id\":\"31\"}}");
         assertThat(List.of(p.transition(), p.jiraStatus())).containsExactly("Resolve", "Resolved");
         assertThatThrownBy(() -> tickets.preview(ALL, "PAY-1213", want(null, null, null, "2026-10-20", null, null))).isInstanceOf(Invalid.class);
@@ -326,11 +326,11 @@ class ServiceWritesTest {
     }
 
     static TicketService.NewTicket newTask(String ref, String summary) {
-        return new TicketService.NewTicket(ref, false, null, null, summary, "an", "minh", "2026-10-12", "2026-10-23", null);
+        return new TicketService.NewTicket(ref, false, null, null, summary, "an", "minh", "2026-10-12", "2026-10-23", null, List.of());
     }
 
     static TicketService.NewTicket newSub(String ref, String parentKey, String parentRef, String summary) {
-        return new TicketService.NewTicket(ref, true, parentKey, parentRef, summary, "an", null, "2026-10-12", "2026-10-13", 4.0);
+        return new TicketService.NewTicket(ref, true, parentKey, parentRef, summary, "an", null, "2026-10-12", "2026-10-13", 4.0, List.of());
     }
 
     /** One review for updates and new tickets; a sub-task under a new Task gets the key its Task was given. */

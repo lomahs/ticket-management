@@ -22,6 +22,7 @@ import tracker.application.service.OnboardingService.EpicLookup;
 import tracker.application.service.OnboardingService.MemberHours;
 import tracker.application.service.OnboardingService.MemberIn;
 import tracker.application.service.OnboardingService.NewTaskIn;
+import tracker.application.service.OnboardingService.NewTasksCommon;
 import tracker.application.service.OnboardingService.OnboardingView;
 import tracker.application.service.OnboardingService.TemplateTask;
 import tracker.application.settings.SettingsStore;
@@ -40,6 +41,7 @@ class OnboardingTest {
     static final AnkenScope SCOPE = new AnkenScope(Set.of(EPIC));
     static final Viewer PIM = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
+    static final NewTasksCommon COMMON = new NewTasksCommon("minh", "2026-10-12", "2026-10-30", List.of("RFD", " phase "));
 
     @Autowired
     OnboardingService onboarding;
@@ -109,14 +111,24 @@ class OnboardingTest {
         assertThat(before).allMatch(t -> t.existingKey() == null && t.recognised());
         // the names follow the demo's Task pattern "[{anken_prefix}] {sub_phase}"
         assertThat(before).extracting(TemplateTask::name).containsExactly("[RFD] QnA management", "[RFD] Work requests");
-        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh", List.of(new NewTaskIn("[*] QnA management", "QnA"))))
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", COMMON, List.of(new NewTaskIn("[*] QnA management", "QnA"))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("tasks.0.name");
         List<NewTaskIn> in = before.stream().map(t -> new NewTaskIn(t.match(), t.name())).toList();
-        assertThat(onboarding.previewTasks(PIM, EPIC, "RFD", "minh", in).creates()).hasSize(2);
-        assertThat(onboarding.createTasks(PIM, EPIC, "RFD", "minh", in).created()).hasSize(2);
+        var creates = onboarding.previewTasks(PIM, EPIC, "RFD", COMMON, in).creates();
+        assertThat(creates).hasSize(2);
+        // under the epic, with the labels, Planned Start and End, and Planned End as the Due date
+        assertThat(creates.get(0).request().body()).contains("\"parent\":{\"key\":\"PAY-1500\"}", "\"2026-10-12\"",
+                "\"duedate\":\"2026-10-30\"", "\"labels\":[\"RFD\",\"phase\"]");
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", new NewTasksCommon("minh", null, null, List.of("two words")), in))
+                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("creates.0.labels");
+        var created = onboarding.createTasks(PIM, EPIC, "RFD", COMMON, in).created();
+        assertThat(created).hasSize(2);
+        tracker.domain.Issue task = loader.load(SCOPE).issue(created.get("task:0")).orElseThrow();
+        assertThat(List.of(task.plannedStart(), task.plannedEnd())).containsExactly("2026-10-12", "2026-10-30");
+        assertThat(task.labels()).containsExactly("RFD", "phase");
         assertThat(onboarding.tasks(EPIC, "RFD").tasks()).allMatch(t -> t.existingKey() != null);
         assertThat(onboarding.get(EPIC).ankenPrefix()).isEqualTo("RFD");
-        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh", in)).isInstanceOf(Invalid.class)
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", COMMON, in)).isInstanceOf(Invalid.class)
                 .hasMessageContaining("already");
     }
 
@@ -128,7 +140,7 @@ class OnboardingTest {
         List<TemplateTask> tasks = onboarding.tasks(EPIC, "RFD").tasks();
         assertThat(tasks).extracting(t -> t.name() + "/" + t.recognised())
                 .containsExactly("QnA management (RFD)/false", "Work requests (RFD)/false");
-        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", "minh",
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", COMMON,
                 List.of(new NewTaskIn(tasks.get(0).match(), tasks.get(0).name())))).isInstanceOf(Invalid.class).hasMessageContaining("recognised");
     }
 

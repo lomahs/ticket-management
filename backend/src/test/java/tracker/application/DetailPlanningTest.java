@@ -107,7 +107,7 @@ class DetailPlanningTest {
 
     String task(String name) {
         return tasks.computeIfAbsent(name, n -> tickets.applyBatch(ADMIN, ALL, EPIC, List.of(),
-                List.of(new NewTicket("t", false, null, null, "[PAY] " + n, "an", null, null, null, null))).created().get("t"));
+                List.of(new NewTicket("t", false, null, null, "[PAY] " + n, "an", null, null, null, null, List.of()))).created().get("t"));
     }
 
     /** Login and Run under new ITA Tasks, Pay under a new ITB Task (ITB Execute makes ITB a phase group: two Tasks share it). */
@@ -153,7 +153,7 @@ class DetailPlanningTest {
                 .isInstanceOf(Invalid.class).hasMessage("Task is required").extracting("field").isEqualTo("rows.0.task_key");
         assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Run", null, 0).withTask(t))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.effort_h");
-        tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("t", false, null, null, "Kick-off", "an", null, null, null, null)));
+        tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("t", false, null, null, "Kick-off", "an", null, null, null, null, List.of())));
         String other = loader.load(ALL).parents().stream().filter(p -> p.summary().equals("Kick-off")).findFirst().orElseThrow().key();
         assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(other))))
                 .isInstanceOf(Invalid.class).hasMessageContaining("Task pattern"); // a Task the Task pattern does not read

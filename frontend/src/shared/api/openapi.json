@@ -6685,6 +6685,24 @@
             "type" : "string",
             "minLength" : 1
           },
+          "labels" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string",
+              "maxLength" : 255,
+              "minLength" : 0
+            },
+            "maxItems" : 20,
+            "minItems" : 0
+          },
+          "planned_end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "planned_start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
           "tasks" : {
             "type" : "array",
             "items" : {

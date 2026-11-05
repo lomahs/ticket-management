@@ -2534,6 +2534,9 @@ export interface components {
         NewTasksIn: {
             anken_prefix: string;
             assignee_id: string;
+            labels?: string[] | null;
+            planned_end?: string | null;
+            planned_start?: string | null;
             tasks: components["schemas"]["NewTaskBody"][];
         };
         NewTicketIn: {

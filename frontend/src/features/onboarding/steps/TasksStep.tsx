@@ -30,13 +30,20 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
   const q = useQuery(templateTasksQuery(epic, useDebounced(prefix.trim(), 250)));
   const people = (useQuery(onboardingMembersQuery(epic)).data ?? []).filter((m) => m.in_anken);
   const [assignee, setAssignee] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [labels, setLabels] = useState('');
   const who = assignee || (people.some((m) => m.member_id === me?.member_id) ? me!.member_id! : people[0]?.member_id ?? '');
   const progress = useSaveProgress(epic);
   const preview = usePreviewTasks(epic);
   const create = useCreateTasks(epic);
   const rows = q.data?.tasks ?? [];
   const missing = rows.filter((t) => !t.existing_key);
-  const body = () => ({ anken_prefix: prefix.trim(), assignee_id: who, tasks: missing.map((t) => ({ match: t.match, name: names[t.match] ?? t.name })) });
+  const labelList = labels.split(/[\s,]+/).filter(Boolean);
+  const body = () => ({
+    anken_prefix: prefix.trim(), assignee_id: who, planned_start: start || null, planned_end: end || null, labels: labelList,
+    tasks: missing.map((t) => ({ match: t.match, name: names[t.match] ?? t.name })),
+  });
   return (
     <StepShell epic={epic} step="tasks" title="Setting Phase"
       sub="Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go."
@@ -91,6 +98,9 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, padding: '12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
             <Select label="Assignee of the new Tasks" value={who} onChange={setAssignee} style={{ minWidth: 200 }}
               options={people.length ? people.map((m) => ({ value: m.member_id, label: m.name })) : [{ value: '', label: 'No member yet' }]} />
+            <TextField type="date" label="Planned Start" value={start} onChange={setStart} max={end || undefined} style={{ width: 160 }} />
+            <TextField type="date" label="Planned End (Due date)" value={end} onChange={setEnd} min={start || undefined} style={{ width: 160 }} />
+            <TextField mono label="Labels" placeholder="e.g. BookUI" value={labels} onChange={setLabels} style={{ width: 200 }} />
             <span className="eyebrow" style={{ paddingBottom: 10 }}>Nothing reaches Jira until you review and create.</span>
             <span className="spacer" />
             <Button appearance="secondary" iconBefore="eye" disabled={!prefix.trim() || !who || preview.isPending}
@@ -100,6 +110,9 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
         {preview.data && (
           <div role="region" aria-label="Tasks to create" style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--surface-hover)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <b className="heading">{`${preview.data.creates.length} Tasks to create under ${epic}`}</b>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {`Planned ${start || '—'} → ${end || '—'} · Due date ${end || '—'} · Labels ${labelList.length ? labelList.join(', ') : '—'}`}
+            </span>
             {preview.data.creates.map((c) => <span key={c.ref} style={{ fontSize: 13 }}>{c.summary}</span>)}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Button appearance="subtle" size="sm" onClick={() => preview.reset()}>Cancel</Button>

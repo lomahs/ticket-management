@@ -83,7 +83,7 @@ public class TicketsApi {
                               @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
                               @Nullable @PositiveOrZero Double estimateH) {
         NewTicket ticket() {
-            return new NewTicket(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH);
+            return new NewTicket(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, List.of());
         }
     }
 

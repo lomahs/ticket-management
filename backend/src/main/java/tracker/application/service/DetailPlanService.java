@@ -608,7 +608,7 @@ public class DetailPlanService {
                 String assignee = Objects.requireNonNull(PlanRows.assignee(st, r.baId(), r.balId(), c.weights()));
                 String reporter = st.kind() == StepKind.CREATE ? r.balId() : null;
                 out.add(new NewTicket(st.ref(), true, parentKey, null, c.names().getOrDefault(st.ref(), r.functionName()), assignee, reporter,
-                        start, end, st.hours()));
+                        start, end, st.hours(), List.of()));
             }
         }
         return out;

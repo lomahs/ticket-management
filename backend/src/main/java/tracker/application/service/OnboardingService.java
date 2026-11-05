@@ -109,6 +109,10 @@ public class OnboardingService {
     public record NewTaskIn(String match, String name) {
     }
 
+    /** What every new Task gets: the assignee, Planned Start and End (Due date too) and the labels. */
+    public record NewTasksCommon(String assigneeId, @Nullable String plannedStart, @Nullable String plannedEnd, List<String> labels) {
+    }
+
     /** Hours a day a member gives another anken today. */
     public record AnkenHours(String epicKey, String title, double hours) {
     }
@@ -238,7 +242,7 @@ public class OnboardingService {
     }
 
     /** The new Tasks, checked: each names a missing template Task and is recognised by it. */
-    private List<NewTicket> newTasks(String epic, String ankenPrefix, String assigneeId, List<NewTaskIn> in) {
+    private List<NewTicket> newTasks(String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
         if (ankenPrefix == null || ankenPrefix.isBlank()) {
             throw new Invalid("Enter the anken prefix", "anken_prefix");
         }
@@ -263,21 +267,22 @@ public class OnboardingService {
                 throw new Invalid("\"" + name + "\" would not be recognised as the Task " + tpl.match() + ": keep the template's pattern",
                         at + "name");
             }
-            out.add(new NewTicket("task:" + n, false, null, null, name, assigneeId, null, null, null, null));
+            out.add(new NewTicket("task:" + n, false, null, null, name, common.assigneeId(), null, common.plannedStart(), common.plannedEnd(),
+                    null, common.labels()));
         }
         return out;
     }
 
     /** The review of the Tasks to create, with the requests. */
-    public BatchPreview previewTasks(Viewer actor, String epic, String ankenPrefix, String assigneeId, List<NewTaskIn> in) {
+    public BatchPreview previewTasks(Viewer actor, String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
         require(epic);
-        return tickets.previewBatch(new AnkenScope(Set.of(epic)), epic, List.of(), newTasks(epic, ankenPrefix, assigneeId, in));
+        return tickets.previewBatch(new AnkenScope(Set.of(epic)), epic, List.of(), newTasks(epic, ankenPrefix, common, in));
     }
 
     /** Creates the Tasks in Jira and keeps the anken prefix. */
-    public BatchResult createTasks(Viewer actor, String epic, String ankenPrefix, String assigneeId, List<NewTaskIn> in) {
+    public BatchResult createTasks(Viewer actor, String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
         require(epic);
-        List<NewTicket> creates = newTasks(epic, ankenPrefix, assigneeId, in);
+        List<NewTicket> creates = newTasks(epic, ankenPrefix, common, in);
         save(actor, epic, 2, ankenPrefix);
         return tickets.applyBatch(actor, new AnkenScope(Set.of(epic)), epic, List.of(), creates);
     }
