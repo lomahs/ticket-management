@@ -7,7 +7,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); vi.restoreAllMocks(); });
 afterAll(() => server.close());
 
-const ONB = { epic_key: 'PAY-1100', title: 'Payment flow revision', anken_prefix: 'PAY', step: 3, started_at: '2026-10-05T09:00:00Z',
+const ONB = { epic_key: 'PAY-1100', title: 'Payment flow revision', anken_prefix: 'PAY', labels: [] as string[], step: 3, started_at: '2026-10-05T09:00:00Z',
   started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null };
 const PEOPLE = [
   { member_id: 'an', name: 'An', role: 'BA', country: 'VN', in_anken: true, hours_per_day: 8, elsewhere: [], working_day_h: 8 },
@@ -75,7 +75,7 @@ describe('onboarding', () => {
 
   it('creates the missing template Tasks with their reviewed names, dates and labels', async () => {
     let created: Record<string, unknown> | null = null;
-    onboarding({ step: 2 });
+    const progress = onboarding({ step: 2, labels: ['PAY'] });
     server.use(
       http.get('*/api/v1/onboarding/PAY-1100/tasks', ({ request }) => {
         const prefix = new URL(request.url).searchParams.get('anken_prefix') ?? '';
@@ -97,7 +97,10 @@ describe('onboarding', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.change(screen.getByLabelText('Planned Start'), { target: { value: '2026-10-12' } });
     fireEvent.change(screen.getByLabelText('Planned End (Due date)'), { target: { value: '2026-10-30' } });
+    expect((screen.getByLabelText('Labels') as HTMLInputElement).value).toBe('PAY'); // the saved ones
     fireEvent.change(screen.getByLabelText('Labels'), { target: { value: 'PAY, phase' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(progress).toContainEqual({ step: 2, anken_prefix: 'PAY', labels: ['PAY', 'phase'] }));
     fireEvent.click(screen.getByRole('button', { name: 'Review 1 Tasks' }));
     const review = await screen.findByRole('region', { name: 'Tasks to create' });
     expect(within(review).getByText('Planned 2026-10-12 → 2026-10-30 · Due date 2026-10-30 · Labels PAY, phase')).toBeTruthy();
@@ -336,6 +339,34 @@ describe('onboarding', () => {
     expect(screen.getByRole('button', { name: 'Finish onboarding' }).getAttribute('title')).toBe('Push every row to Jira first');
   });
 
+  it('sends a date set by hand once it is left, not while it is typed', async () => {
+    const sent: Record<string, unknown>[] = [];
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
+      http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
+        sent.push(await request.json() as Record<string, unknown>);
+        return HttpResponse.json(detailView({ ...planned, steps: [...LINES.slice(0, 2), { ...line('2', 2, null, '[PAY] Run', 16, ['2026-10-15', '2026-10-15']), manual: true }] }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const start = await screen.findByLabelText('Plan start, [PAY] Run') as HTMLInputElement;
+    fireEvent.change(start, { target: { value: '0002-10-15' } }); // the year half typed
+    fireEvent.change(start, { target: { value: '2026-10-15' } });
+    expect(sent).toEqual([]);
+    fireEvent.blur(start);
+    await waitFor(() => expect(sent).toEqual([{ row_id: 2, step: null, effort_h: null, start: '2026-10-15', end: '2026-10-15', removed: false }]));
+    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-15'));
+    // set by hand: the line is highlighted with a lock
+    expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByRole('img', { name: 'Dates set by hand' })).toBeTruthy();
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).queryByRole('img', { name: 'Dates set by hand' })).toBeNull();
+    const end =screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
+    fireEvent.change(end, { target: { value: '0020-10-20' } });
+    fireEvent.blur(end); // not a date of the plan: put back
+    expect(end.value).toBe('2026-10-15');
+    expect(sent).toHaveLength(1);
+  });
+
   it('auto allocates the empty slots and shows the plan that follows', async () => {
     let posts = 0;
     onboarding({ step: 6 });
@@ -428,7 +459,7 @@ describe('onboarding', () => {
   it('pushes the plan, then finishes the onboarding', async () => {
     let finished = false;
     let pushedRows = false;
-    onboarding({ step: 6 });
+    onboarding({ step: 6, labels: ['PAY', 'phase'] });
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(pushedRows
         ? detailView({ rows: [{ ...LOGIN, pushed_at: '2026-10-07T09:00:00Z' }, { ...RUN, pushed_at: '2026-10-07T09:00:00Z' }] }) : detailView(planned))),
@@ -443,6 +474,7 @@ describe('onboarding', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
     const review = await screen.findByRole('region', { name: 'Push review' });
     expect(within(review).getByText('[ITA] Run')).toBeTruthy();
+    expect(within(review).getByText('Labels PAY, phase (Setting Phase)')).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
     expect(await screen.findByText('Created 1 sub-tasks in Jira')).toBeTruthy();
     const finish = screen.getByRole('button', { name: 'Finish onboarding' }) as HTMLButtonElement;

@@ -2577,6 +2577,7 @@ export interface components {
             anken_prefix: string;
             epic_key: string;
             finished_at: string | null;
+            labels: string[];
             saved_at: string;
             saved_by: string;
             started_at: string;
@@ -2727,6 +2728,7 @@ export interface components {
         };
         ProgressIn: {
             anken_prefix?: string | null;
+            labels?: string[] | null;
             /** Format: int32 */
             step?: number;
         };

@@ -75,15 +75,15 @@ public class OnboardingApi {
         return onboarding.get(epic);
     }
 
-    /** @param ankenPrefix null keeps the saved one */
-    public record ProgressIn(int step, @Nullable String ankenPrefix) {
+    /** @param ankenPrefix null keeps the saved one; {@code labels} too */
+    public record ProgressIn(int step, @Nullable String ankenPrefix, @Nullable @Size(max = 20) List<@NotNull @Size(max = 255) String> labels) {
     }
 
     /** Records how far the onboarding got: the furthest of the saved step and this one. */
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}")
     public OnboardingView save(@PathVariable("epic") String epic, @RequestBody @Valid ProgressIn body, Viewer viewer) {
-        return onboarding.save(viewer, epic, body.step(), body.ankenPrefix());
+        return onboarding.save(viewer, epic, body.step(), body.ankenPrefix(), body.labels());
     }
 
     /** Stops the onboarding; the epic stays tracked and what is in Jira stays. */

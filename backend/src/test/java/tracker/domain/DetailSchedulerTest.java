@@ -74,6 +74,18 @@ class DetailSchedulerTest {
     }
 
     @Test
+    void stepsSetByHandTakeTheirDaysFirstAndTheOthersArePlacedAroundThem() {
+        // a later row's step is set by hand on Tue–Wed (6h a day): an earlier row of 12h skips those days instead of taking them
+        Step pinned = new Step("p", "ITA", StepKind.CREATE, List.of(new DetailScheduler.Share("an", 12)), "an", 12, "2026-10-06", "2026-10-07");
+        Result r = run(Map.of(), single("t", "an", 12), new Chain(MON, List.of(pinned)));
+        assertThat(r.placed()).extracting(p -> p.ref() + " " + p.start() + "/" + p.end())
+                .containsExactlyInAnyOrder("p 2026-10-06/2026-10-07", "t 2026-10-05/2026-10-08");
+        assertThat(r.ledger().get("an")).containsEntry("2026-10-05", 6.0).containsEntry("2026-10-06", 6.0).containsEntry("2026-10-07", 6.0)
+                .containsEntry("2026-10-08", 6.0);
+        assertThat(r.overDay()).isEmpty();
+    }
+
+    @Test
     void jmReviewLastsHoursOverWorkingHoursAndTakesNoAllocation() {
         Chain f = new Chain(MON, List.of(new Step("c", "ITA", StepKind.CREATE, "an", 2, null), new Step("j", "ITA", StepKind.JM_REVIEW, "tanaka", 10, null),
                 new Step("x", "ITA", StepKind.FIX_JM, "an", 1, null)));

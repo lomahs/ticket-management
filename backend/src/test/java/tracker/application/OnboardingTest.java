@@ -95,12 +95,16 @@ class OnboardingTest {
     @Test
     void progressIsTheFurthestStepReached() {
         onboarding.start(PIM, EPIC);
-        assertThat(onboarding.save(PIM, EPIC, 4, "RFD").step()).isEqualTo(4);
-        OnboardingView v = onboarding.save(PIM, EPIC, 3, null);
+        assertThat(onboarding.save(PIM, EPIC, 4, "RFD", List.of(" RFD", "phase", "RFD")).step()).isEqualTo(4);
+        OnboardingView v = onboarding.save(PIM, EPIC, 3, null, null);
         assertThat(v.step()).isEqualTo(4);
         assertThat(v.ankenPrefix()).isEqualTo("RFD");
-        assertThatThrownBy(() -> onboarding.save(PIM, EPIC, 7, null)).isInstanceOf(Invalid.class).extracting("field").isEqualTo("step");
-        assertThatThrownBy(() -> onboarding.save(PIM, "PAY-1300", 3, null)).isInstanceOf(NotFound.class);
+        assertThat(v.labels()).containsExactly("RFD", "phase");
+        assertThat(onboarding.save(PIM, EPIC, 3, null, List.of()).labels()).isEmpty();
+        assertThatThrownBy(() -> onboarding.save(PIM, EPIC, 3, null, List.of("two words"))).isInstanceOf(Invalid.class).extracting("field")
+                .isEqualTo("labels");
+        assertThatThrownBy(() -> onboarding.save(PIM, EPIC, 7, null, null)).isInstanceOf(Invalid.class).extracting("field").isEqualTo("step");
+        assertThatThrownBy(() -> onboarding.save(PIM, "PAY-1300", 3, null, null)).isInstanceOf(NotFound.class);
     }
 
     @Test
@@ -128,6 +132,7 @@ class OnboardingTest {
         assertThat(task.labels()).containsExactly("RFD", "phase");
         assertThat(onboarding.tasks(EPIC, "RFD").tasks()).allMatch(t -> t.existingKey() != null);
         assertThat(onboarding.get(EPIC).ankenPrefix()).isEqualTo("RFD");
+        assertThat(onboarding.get(EPIC).labels()).containsExactly("RFD", "phase"); // for the sub-tasks of the detail plan
         assertThatThrownBy(() -> onboarding.previewTasks(PIM, EPIC, "RFD", COMMON, in)).isInstanceOf(Invalid.class)
                 .hasMessageContaining("already");
     }

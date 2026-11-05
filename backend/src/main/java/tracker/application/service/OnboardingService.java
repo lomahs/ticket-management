@@ -84,7 +84,7 @@ public class OnboardingService {
     }
 
     /** @param step the furthest step reached (1–6) */
-    public record OnboardingView(String epicKey, String title, String ankenPrefix, int step, String startedAt, String startedBy,
+    public record OnboardingView(String epicKey, String title, String ankenPrefix, List<String> labels, int step, String startedAt, String startedBy,
                                  String savedAt, String savedBy, @Nullable String finishedAt) {
     }
 
@@ -136,7 +136,7 @@ public class OnboardingService {
 
     private OnboardingView view(Onboarding o) {
         String title = anken.findAll().stream().filter(a -> a.key().equals(o.epicKey())).map(Anken::title).findFirst().orElse("");
-        return new OnboardingView(o.epicKey(), title, o.ankenPrefix(), o.step(), o.startedAt(), o.startedBy(), o.savedAt(), o.savedBy(),
+        return new OnboardingView(o.epicKey(), title, o.ankenPrefix(), o.labels(), o.step(), o.startedAt(), o.startedBy(), o.savedAt(), o.savedBy(),
                 o.finishedAt());
     }
 
@@ -175,19 +175,19 @@ public class OnboardingService {
         if (actor.memberId() != null && members.findById(actor.memberId()).isPresent()) {
             ankenMembers.add(e.key(), actor.memberId(), actor.email(), at);
         }
-        Onboarding o = new Onboarding(e.key(), "", 2, at, actor.email(), at, actor.email(), null);
+        Onboarding o = new Onboarding(e.key(), "", List.of(), 2, at, actor.email(), at, actor.email(), null);
         repo.save(o);
         return view(o);
     }
 
-    /** Records progress: the furthest of the saved step and {@code step}; a null prefix keeps the saved one. */
-    public OnboardingView save(Viewer actor, String epic, int step, @Nullable String ankenPrefix) {
+    /** Records progress: the furthest of the saved step and {@code step}; a null prefix or null labels keep the saved ones. */
+    public OnboardingView save(Viewer actor, String epic, int step, @Nullable String ankenPrefix, @Nullable List<String> labels) {
         if (step < 1 || step > Onboarding.STEPS) {
             throw new Invalid("Step must be between 1 and " + Onboarding.STEPS, "step");
         }
         Onboarding o = require(epic);
-        Onboarding next = new Onboarding(epic, ankenPrefix == null ? o.ankenPrefix() : ankenPrefix.strip(), Math.max(o.step(), step), o.startedAt(),
-                o.startedBy(), now(), actor.email(), o.finishedAt());
+        Onboarding next = new Onboarding(epic, ankenPrefix == null ? o.ankenPrefix() : ankenPrefix.strip(), labels == null ? o.labels() : labels(labels),
+                Math.max(o.step(), step), o.startedAt(), o.startedBy(), now(), actor.email(), o.finishedAt());
         repo.save(next);
         return view(next);
     }
@@ -213,7 +213,7 @@ public class OnboardingService {
         if (open > 0) {
             throw new Invalid("Push the detail plan first: " + open + " row" + (open == 1 ? " is" : "s are") + " not in Jira", "plan");
         }
-        Onboarding done = new Onboarding(epic, o.ankenPrefix(), Onboarding.STEPS, o.startedAt(), o.startedBy(), now(), actor.email(), now());
+        Onboarding done = new Onboarding(epic, o.ankenPrefix(), o.labels(), Onboarding.STEPS, o.startedAt(), o.startedBy(), now(), actor.email(), now());
         repo.save(done);
         return view(done);
     }
@@ -279,11 +279,20 @@ public class OnboardingService {
         return tickets.previewBatch(new AnkenScope(Set.of(epic)), epic, List.of(), newTasks(epic, ankenPrefix, common, in));
     }
 
-    /** Creates the Tasks in Jira and keeps the anken prefix. */
+    /** Labels as Jira takes them: trimmed, once each; none empty or with a space. */
+    private static List<String> labels(List<String> in) {
+        List<String> out = in.stream().map(String::strip).distinct().toList();
+        if (out.stream().anyMatch(l -> l.isEmpty() || l.chars().anyMatch(Character::isWhitespace))) {
+            throw new Invalid("A label cannot be empty or contain spaces", "labels");
+        }
+        return out;
+    }
+
+    /** Creates the Tasks in Jira and keeps the anken prefix and the labels (the detail plan's sub-tasks get them too). */
     public BatchResult createTasks(Viewer actor, String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
         require(epic);
         List<NewTicket> creates = newTasks(epic, ankenPrefix, common, in);
-        save(actor, epic, 2, ankenPrefix);
+        save(actor, epic, 2, ankenPrefix, common.labels());
         return tickets.applyBatch(actor, new AnkenScope(Set.of(epic)), epic, List.of(), creates);
     }
 

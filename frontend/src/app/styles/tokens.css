@@ -106,6 +106,8 @@
   --hl-red: #fbe0dc; --hl-red-fg: #b3261e;
   --hl-amber: #fbefd0; --hl-amber-fg: #8a5a00;
   --hl-ok: #e4f1e8; --hl-ok-fg: #1e6b3a;
+  /* a plan value set by hand: kept when the plan is computed or allocated again */
+  --hl-manual: #ebe6fc; --hl-manual-fg: #5b3fc9;
   /* Daily Overview (do): status chips read across a shared screen, and where a ticket is (with JM or with the team) */
   --do-nys: #4f555d; --do-nys-bg: #eceef1;
   --do-wip: #1858b8; --do-wip-bg: #e2ecfc;
@@ -140,6 +142,7 @@
   --tn-delay: #ff9b92; --tn-delay-bg: #45211f; --tn-res: #3cc4b7; --tn-res-bg: #163634;
   --tn-clo: #d0d4da; --tn-clo-bg: #454a52;
   --hl-red: #45211f; --hl-red-fg: #ff9b92; --hl-amber: #3f3214; --hl-amber-fg: #f2c66b; --hl-ok: #1b2d21; --hl-ok-fg: #7fd69a;
+  --hl-manual: #2a2347; --hl-manual-fg: #a993f5;
   --shadow-overlay: 0 0 0 1px rgba(233, 235, 238, .1), 0 8px 24px rgba(0, 0, 0, .5);
   --do-nys: #c3c8cf; --do-nys-bg: #2a2e34; --do-wip: #8db8ff; --do-wip-bg: #1c2c46;
   --do-res: #f2c66b; --do-res-bg: #3f3214; --do-clo: #7fd69a; --do-clo-bg: #1b3324;

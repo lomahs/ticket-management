@@ -63,6 +63,7 @@ import tracker.domain.IssueKind;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.MasterSchedule;
+import tracker.domain.Onboarding;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.Status;
@@ -329,6 +330,7 @@ class DetailPlanningTest {
     @Test
     void pushCreatesEachRowsSubTasksUnderItsTask() {
         List<EstimationRow> rows = pushable();
+        onboardingRows.save(new Onboarding(EPIC, "", List.of("PAY", "detail"), 6, "2026-10-07T09:00:00Z", "test", "2026-10-07T09:00:00Z", "test", null));
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overBudget()).isEmpty();
         assertThat(v.overDay()).isEmpty();
@@ -342,6 +344,7 @@ class DetailPlanningTest {
         assertThat(run.plannedStart()).isEqualTo(runPlan.start());
         assertThat(run.plannedEnd()).isEqualTo(runPlan.end());
         assertThat(run.estimateH()).isEqualTo(16.0);
+        assertThat(run.labels()).containsExactly("PAY", "detail"); // the labels entered at the onboarding's Setting Phase
         // no template: the sub-phase prefix is the Task's bracket; no step: the separator before it goes
         assertThat(run.summary()).isEqualTo("[PAY] Run");
         assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[PAY] Login – Create");

@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton } from '../../../shared/ds';
+import { Button, Icon, IconButton } from '../../../shared/ds';
 import { f1 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -16,6 +16,10 @@ const COLS = '84px minmax(240px,3fr) 76px repeat(3,minmax(130px,1fr)) 138px 138p
 const CELL: CSSProperties = { minWidth: 0 };
 const INPUT: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 12px/1 var(--font-text)', width: '100%' };
 const stepLabel = (k?: string | null) => STEPS.find((s) => s.k === k)?.label ?? 'Ticket';
+/** A value set by hand: kept when the plan is computed or allocated again. */
+const byHand = (set: boolean): CSSProperties => (set
+  ? { background: 'var(--hl-manual)', borderColor: 'var(--hl-manual-fg)', color: 'var(--hl-manual-fg)', fontWeight: 700 }
+  : {});
 
 /**
  * The plan's sub-tasks, one line per step (one per ticket), under their function. BA and BAL are the function's, each with the
@@ -50,15 +54,22 @@ export function StepsTable({ epic, v, people, admin, assign, move }: {
       </span>
     );
   };
+  // Sent on blur or Enter, not on change: the browser reports a "valid" date at every keystroke of the year (0002-10-12, …)
   const date = (s: Step, which: 'start' | 'end') => (
-    <input type="date" aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || !s.start} value={s[which] ?? ''}
-      onChange={(e) => {
+    <input type="date" aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || !s.start} defaultValue={s[which] ?? ''}
+      key={`${s.ref}:${which}:${s[which] ?? ''}`} min="2000-01-01" max="2099-12-31"
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      onBlur={(e) => {
         const d = e.target.value;
-        if (!d || !s.start || !s.end) return;
+        if (!s.start || !s.end || d === s[which]) return;
+        if (!/^20\d\d-\d\d-\d\d$/.test(d)) {
+          e.target.value = s[which] ?? '';
+          return;
+        }
         const start = which === 'start' ? d : s.start;
-        const end = which === 'end' ? d : s.end < d && which === 'start' ? d : s.end;
+        const end = which === 'end' ? d : s.end < d ? d : s.end;
         send(s, { start, end: end < start ? start : end });
-      }} style={{ ...INPUT, borderColor: s.manual ? 'var(--surface-accent)' : 'var(--border-strong)' }} />
+      }} style={{ ...INPUT, ...byHand(s.manual) }} />
   );
   return (
     <section className="card card-clip" aria-label="Detail plan sub-tasks">
@@ -81,14 +92,19 @@ export function StepsTable({ epic, v, people, admin, assign, move }: {
                   </span>
                 </div>
                 {lines.map((s) => (
-                  <div key={s.ref} role="row" aria-label={s.summary} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '6px 16px' }}>
+                  <div key={s.ref} role="row" aria-label={s.summary} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '6px 16px',
+                    background: s.manual ? 'var(--hl-manual)' : undefined, boxShadow: s.manual ? 'inset 3px 0 0 var(--hl-manual-fg)' : undefined }}>
                     <span className="ellipsis" style={CELL}>{s.phase}</span>
-                    <span className="ellipsis heading" style={CELL} title={s.summary}>{s.summary}</span>
+                    <span className="heading" style={{ ...CELL, display: 'flex', alignItems: 'center', gap: 6 }} title={s.summary}>
+                      {s.manual && <span role="img" aria-label="Dates set by hand" title="Dates set by hand: Auto allocate keeps them and plans the rest around them"
+                        style={{ display: 'flex', color: 'var(--hl-manual-fg)' }}><Icon name="lock" size={13} /></span>}
+                      <span className="ellipsis">{s.summary}</span>
+                    </span>
                     <input type="number" min={0} step={0.5} aria-label={`Effort, ${s.summary}`} disabled={!admin} defaultValue={s.effort_h}
                       key={`${s.ref}:${s.effort_h}`} onBlur={(e) => {
                         const h = Number(e.target.value);
                         if (e.target.value.trim() !== '' && h >= 0 && h !== s.effort_h) send(s, { effort_h: h });
-                      }} style={{ ...INPUT, borderColor: s.edited ? 'var(--surface-accent)' : 'var(--border-strong)' }} />
+                      }} style={{ ...INPUT, ...byHand(s.edited) }} />
                     {person(r, s, 'ba_id', s.ba_h)}
                     {r.steps ? person(r, s, 'bal_id', s.bal_h) : <span className="muted">–</span>}
                     {r.steps ? person(r, s, 'jm_id', s.step === 'jmr' ? 0 : null) : <span className="muted">–</span>}
@@ -121,8 +137,8 @@ export function StepsTable({ epic, v, people, admin, assign, move }: {
         </div>
       )}
       {v.plan.length > 0 && <div className="eyebrow" style={{ padding: '8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
-        Scheduled in this order from each phase&apos;s Start; each member&apos;s day is filled up to their allocation. Blue fields were set by hand
-        and stay when the plan is allocated again; <b>↶</b> computes them again.
+        Scheduled in this order from each phase&apos;s Start; each member&apos;s day is filled up to their allocation. Highlighted lines and fields
+        were set by hand: they keep their dates and hours, and the rest is planned around them, Auto allocate included; <b>↶</b> computes them again.
       </div>}
     </section>
   );

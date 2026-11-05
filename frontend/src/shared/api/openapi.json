@@ -6828,6 +6828,12 @@
           "finished_at" : {
             "type" : [ "string", "null" ]
           },
+          "labels" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "saved_at" : {
             "type" : "string"
           },
@@ -6848,7 +6854,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "anken_prefix", "epic_key", "finished_at", "saved_at", "saved_by", "started_at", "started_by", "step", "title" ]
+        "required" : [ "anken_prefix", "epic_key", "finished_at", "labels", "saved_at", "saved_by", "started_at", "started_by", "step", "title" ]
       },
       "Overrun" : {
         "type" : "object",
@@ -7277,6 +7283,16 @@
         "properties" : {
           "anken_prefix" : {
             "type" : [ "string", "null" ]
+          },
+          "labels" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string",
+              "maxLength" : 255,
+              "minLength" : 0
+            },
+            "maxItems" : 20,
+            "minItems" : 0
           },
           "step" : {
             "type" : "integer",

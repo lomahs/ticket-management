@@ -34,7 +34,7 @@ export function useStartOnboarding() {
 export function useSaveProgress(epic: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (b: { step: number; anken_prefix?: string | null }) =>
+    mutationFn: (b: { step: number; anken_prefix?: string | null; labels?: string[] | null }) =>
       unwrap(http.PUT('/api/v1/onboarding/{epic}', { params: { path: { epic } }, body: b })),
     onSuccess: (v) => {
       qc.setQueryData(onboardingQuery(epic).queryKey, v);

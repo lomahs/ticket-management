@@ -19,10 +19,10 @@ export function TasksStep({ epic }: { epic: string }) {
   const o = useQuery(onboardingQuery(epic));
   if (o.isPending) return <Loading />;
   if (o.isError) return <QueryError error={o.error} />;
-  return <Tasks epic={epic} savedPrefix={o.data.anken_prefix} />;
+  return <Tasks epic={epic} savedPrefix={o.data.anken_prefix} savedLabels={o.data.labels} />;
 }
 
-function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
+function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: string; savedLabels: string[] }) {
   const toast = useToast();
   const me = useMe().data;
   const [prefix, setPrefix] = useState(savedPrefix);
@@ -32,7 +32,7 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
   const [assignee, setAssignee] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
-  const [labels, setLabels] = useState('');
+  const [labels, setLabels] = useState(savedLabels.join(' '));
   const who = assignee || (people.some((m) => m.member_id === me?.member_id) ? me!.member_id! : people[0]?.member_id ?? '');
   const progress = useSaveProgress(epic);
   const preview = usePreviewTasks(epic);
@@ -46,11 +46,12 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
   });
   return (
     <StepShell epic={epic} step="tasks" title="Setting Phase"
-      sub="Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go."
-      onSave={() => progress.mutateAsync({ step: 2, anken_prefix: prefix.trim() })}>
+      sub="Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go. The labels go on the new Tasks and on the sub-tasks pushed from the Detail plan."
+      onSave={() => progress.mutateAsync({ step: 2, anken_prefix: prefix.trim(), labels: labelList })}>
       <section className="card card-clip" aria-label="Setting Phase">
         <div style={{ padding: '12px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16, borderBottom: '1px solid var(--border-subtle)' }}>
           <TextField mono label="Anken prefix" placeholder="e.g. BookUI" value={prefix} onChange={setPrefix} style={{ width: 180 }} />
+          <TextField mono label="Labels" placeholder="e.g. BookUI" value={labels} onChange={setLabels} style={{ width: 200 }} />
           <span className="eyebrow" style={{ paddingBottom: 10 }}>{q.data ? `Task pattern: ${q.data.task_rule}` : ''}</span>
           <span className="spacer" />
           <span className="eyebrow" style={{ paddingBottom: 10 }}>{`${rows.length - missing.length} found · ${missing.length} missing`}</span>
@@ -100,7 +101,6 @@ function Tasks({ epic, savedPrefix }: { epic: string; savedPrefix: string }) {
               options={people.length ? people.map((m) => ({ value: m.member_id, label: m.name })) : [{ value: '', label: 'No member yet' }]} />
             <TextField type="date" label="Planned Start" value={start} onChange={setStart} max={end || undefined} style={{ width: 160 }} />
             <TextField type="date" label="Planned End (Due date)" value={end} onChange={setEnd} min={start || undefined} style={{ width: 160 }} />
-            <TextField mono label="Labels" placeholder="e.g. BookUI" value={labels} onChange={setLabels} style={{ width: 200 }} />
             <span className="eyebrow" style={{ paddingBottom: 10 }}>Nothing reaches Jira until you review and create.</span>
             <span className="spacer" />
             <Button appearance="secondary" iconBefore="eye" disabled={!prefix.trim() || !who || preview.isPending}

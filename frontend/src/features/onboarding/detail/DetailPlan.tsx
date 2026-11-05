@@ -7,6 +7,7 @@ import { Button } from '../../../shared/ds';
 import { dm, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
+import { onboardingQuery } from '../api';
 import { AddRowDialog } from './AddRowDialog';
 import { AllocationMatrix } from './AllocationMatrix';
 import { EffortDays } from './EffortDays';
@@ -41,6 +42,7 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
   const auto = useAutoAllocate(epic);
+  const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   const open = v.rows.filter((r) => !r.pushed_at);
   const draft = (p: Partial<DraftIn>) => save.mutate({
     order: open.map((r) => r.id),
@@ -132,6 +134,7 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
         <section className="card card-clip" aria-label="Push review">
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className="title">{`${preview.data.creates.length} sub-tasks to create`}</span>
+            <span className="muted" style={{ fontSize: 12 }}>{`Labels ${labels.length ? labels.join(', ') : '—'} (Setting Phase)`}</span>
             <span className="spacer" />
             <Button appearance="subtle" size="sm" onClick={() => preview.reset()}>Cancel</Button>
             <Button size="sm" iconBefore="upload" disabled={push.isPending} onClick={() => push.mutate(allow, {

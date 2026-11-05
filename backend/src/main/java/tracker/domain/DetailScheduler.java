@@ -19,7 +19,8 @@ import tracker.domain.ScheduleVersion.PhaseRow;
  * Dates of a detail plan: each member's day is filled up to their allocation on the anken, task after task, and the steps
  * of a function follow each other. A step may be carried by two people (the BA and the BAL of a Fix comment step): each
  * share is placed from the same day and the step runs from the first to the last of their days. A step that counts for
- * nobody (JM Review) takes no allocation: it lasts its hours over the working hours of a day.
+ * nobody (JM Review) takes no allocation: it lasts its hours over the working hours of a day. Steps whose dates were set by
+ * hand keep them and take their hours first; the other steps fill the hours left around them.
  */
 public final class DetailScheduler {
     private DetailScheduler() {
@@ -121,20 +122,29 @@ public final class DetailScheduler {
         Map<String, Set<String>> touched = new HashMap<>();
         List<Placed> placed = new ArrayList<>();
         List<Part> parts = new ArrayList<>();
+        // steps set by hand take their days first, whatever their row: the others are placed in the hours left around them
+        for (Chain chain : chains) {
+            for (Step st : chain.steps()) {
+                if (!st.pinned()) {
+                    continue;
+                }
+                String s = st.fixedStart();
+                String last = Dates.max(st.fixedEnd(), s);
+                if (st.shares().isEmpty()) {
+                    placed.add(new Placed(st.ref(), st.phase(), st.kind(), st.who(), st.hours(), s, last, false));
+                }
+                for (Share sh : st.shares()) {
+                    spread(st.ref(), sh, s, last, ledger, own, touched, parts, cal, hours);
+                    placed.add(new Placed(st.ref(), st.phase(), st.kind(), sh.memberId(), sh.hours(), s, last, true));
+                }
+            }
+        }
         for (Chain chain : chains) {
             String cursor = chain.earliest();
             for (Step st : chain.steps()) {
                 String last;
                 if (st.pinned()) {
-                    String s = st.fixedStart();
-                    last = Dates.max(st.fixedEnd(), s);
-                    if (st.shares().isEmpty()) {
-                        placed.add(new Placed(st.ref(), st.phase(), st.kind(), st.who(), st.hours(), s, last, false));
-                    }
-                    for (Share sh : st.shares()) {
-                        spread(st.ref(), sh, s, last, ledger, own, touched, parts, cal, hours);
-                        placed.add(new Placed(st.ref(), st.phase(), st.kind(), sh.memberId(), sh.hours(), s, last, true));
-                    }
+                    last = Dates.max(st.fixedEnd(), st.fixedStart());
                 } else if (st.shares().isEmpty()) {
                     int days = Math.max(1, (int) Math.ceil(st.hours() / jmHoursPerDay - EPS));
                     String[] span = cal.span(cursor, days, st.who());

@@ -543,7 +543,7 @@ public class DetailPlanService {
      */
     public BatchPreview pushPreview(AnkenScope scope, String epic, boolean allowOverDay) {
         Computed c = pushable(scope, epic, allowOverDay);
-        return tickets.previewBatch(scope, epic, List.of(), newTickets(c));
+        return tickets.previewBatch(scope, epic, List.of(), newTickets(c, labels(epic)));
     }
 
     /**
@@ -552,7 +552,7 @@ public class DetailPlanService {
      */
     public BatchResult push(Viewer actor, AnkenScope scope, String epic, boolean allowOverDay) {
         Computed c = pushable(scope, epic, allowOverDay);
-        List<NewTicket> creates = newTickets(c);
+        List<NewTicket> creates = newTickets(c, labels(epic));
         return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
             List<Long> done = new ArrayList<>();
             for (EstimationRow r : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
@@ -565,6 +565,11 @@ public class DetailPlanService {
                 estimation.markPushed(done, Instant.now(clock).toString());
             }
         });
+    }
+
+    /** The labels entered at the onboarding's Setting Phase; none for an anken that was not onboarded. */
+    private List<String> labels(String epic) {
+        return onboarding.find(epic).map(Onboarding::labels).orElse(List.of());
     }
 
     /** The computed plan, refused when it cannot be pushed as it is; days over the allocation only once confirmed. */
@@ -592,9 +597,9 @@ public class DetailPlanService {
 
     /**
      * Each step's sub-task under its row's Task, assigned by the step's PIC (Settings › Step weights); the BAL reports the
-     * Create step, so the function's BAL is read back from Jira.
+     * Create step, so the function's BAL is read back from Jira. Each gets {@code labels}.
      */
-    private static List<NewTicket> newTickets(Computed c) {
+    private static List<NewTicket> newTickets(Computed c, List<String> labels) {
         List<NewTicket> out = new ArrayList<>();
         for (EstimationRow r : c.rows()) {
             String parentKey = Objects.requireNonNull(r.taskKey());
@@ -608,7 +613,7 @@ public class DetailPlanService {
                 String assignee = Objects.requireNonNull(PlanRows.assignee(st, r.baId(), r.balId(), c.weights()));
                 String reporter = st.kind() == StepKind.CREATE ? r.balId() : null;
                 out.add(new NewTicket(st.ref(), true, parentKey, null, c.names().getOrDefault(st.ref(), r.functionName()), assignee, reporter,
-                        start, end, st.hours(), List.of()));
+                        start, end, st.hours(), labels));
             }
         }
         return out;
