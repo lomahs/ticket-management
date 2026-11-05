@@ -334,6 +334,9 @@ class DetailPlanningTest {
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overBudget()).isEmpty();
         assertThat(v.overDay()).isEmpty();
+        // the list shows who each sub-task goes to, as the push assigns it (for the CSV export)
+        assertThat(v.steps()).filteredOn(st -> st.rowId() == rows.get(0).id()).extracting(st -> st.step() + " " + st.assigneeId() + " " + st.reporterId())
+                .containsExactly("create an minh", "balr an null", "fixb minh null", "jmr minh null", "fixj minh null");
         assertThat(detail.pushPreview(ALL, EPIC, false).creates()).hasSize(5 + 1 + 3);
         BatchResult r = detail.push(ADMIN, ALL, EPIC, false);
         TrackerContext ctx = loader.load(ALL);

@@ -7804,6 +7804,9 @@
       "StepRow" : {
         "type" : "object",
         "properties" : {
+          "assignee_id" : {
+            "type" : [ "string", "null" ]
+          },
           "ba_h" : {
             "type" : "number",
             "format" : "double"
@@ -7834,6 +7837,9 @@
           "removed" : {
             "type" : "boolean"
           },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
           "row_id" : {
             "type" : "integer",
             "format" : "int64"
@@ -7848,7 +7854,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "ba_h", "bal_h", "edited", "effort_h", "end", "manual", "phase", "ref", "removed", "row_id", "start", "step", "summary" ]
+        "required" : [ "assignee_id", "ba_h", "bal_h", "edited", "effort_h", "end", "manual", "phase", "ref", "removed", "reporter_id", "row_id", "start", "step", "summary" ]
       },
       "StepWeightsIn" : {
         "type" : "object",

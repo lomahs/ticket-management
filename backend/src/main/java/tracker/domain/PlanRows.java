@@ -2,7 +2,6 @@ package tracker.domain;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import org.jspecify.annotations.Nullable;
 
@@ -120,6 +119,6 @@ public final class PlanRows {
 
     /** The person Jira assigns a step to at push: the BA or the BAL by its PIC; a ticket's member. */
     public static @Nullable String assignee(RowStep st, @Nullable String ba, @Nullable String bal, StepWeights w) {
-        return st.kind() == null || w.picOf(st.kind()) == Role.BA ? ba : Objects.requireNonNullElse(bal, ba);
+        return st.kind() == null || w.picOf(st.kind()) == Role.BA ? ba : bal != null ? bal : ba;
     }
 }

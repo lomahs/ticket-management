@@ -16,7 +16,3 @@ export function downloadCsv(name: string, header: string[], rows: (string | numb
 
 /** Hours as Jira's importer takes an estimate: seconds. */
 export const seconds = (h: string | number | null | undefined) => (h === '' || h == null ? '' : Math.round(Number(h) * 3600));
-
-/** The Jira search of these tickets, ready for Jira's bulk change. */
-export const jqlUrl = (site: string, keys: string[]) =>
-  `${site.replace(/\/+$/, '')}/issues/?jql=${encodeURIComponent(`key in (${keys.join(', ')}) ORDER BY key`)}`;

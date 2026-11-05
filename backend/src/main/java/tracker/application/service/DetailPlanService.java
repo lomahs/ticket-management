@@ -121,9 +121,12 @@ public class DetailPlanService {
      * @param start   null while the plan cannot be computed, and for a removed step
      * @param manual  its dates were set by hand
      * @param edited  its effort was set by hand instead of Create × its weight
+     * @param assigneeId who the pushed sub-task is assigned to, by the step's PIC; null while the row has nobody
+     * @param reporterId the BAL on a Create step, else null (Jira's default)
      */
     public record StepRow(String ref, long rowId, @Nullable String step, String phase, String summary, double effortH, double baH,
-                          double balH, @Nullable String start, @Nullable String end, boolean manual, boolean edited, boolean removed) {
+                          double balH, @Nullable String start, @Nullable String end, boolean manual, boolean edited, boolean removed,
+                          @Nullable String assigneeId, @Nullable String reporterId) {
     }
 
     /**
@@ -301,7 +304,8 @@ public class DetailPlanService {
                 double[] h = st.kind() != null && !w.shareOf(st.kind()).counted() ? new double[]{0, 0} : PlanRows.split(st, w);
                 stepRows.add(new StepRow(st.ref(), r.id(), st.kind() == null ? null : st.kind().value(), r.phase(),
                         names.getOrDefault(st.ref(), r.functionName()), st.hours(), h[0], h[1], start, end, st.pinned(),
-                        st.edit() != null && st.edit().effortH() != null, st.removed()));
+                        st.edit() != null && st.edit().effortH() != null, st.removed(), PlanRows.assignee(st, r.baId(), r.balId(), w),
+                        reporter(st, r)));
             }
             if (!steps.isEmpty()) {
                 plan.add(new RowPlan(r.id(), steps));
@@ -611,12 +615,16 @@ public class DetailPlanService {
                 String start = ps.stream().map(Placed::start).min(String::compareTo).orElseThrow();
                 String end = ps.stream().map(Placed::end).max(String::compareTo).orElseThrow();
                 String assignee = Objects.requireNonNull(PlanRows.assignee(st, r.baId(), r.balId(), c.weights()));
-                String reporter = st.kind() == StepKind.CREATE ? r.balId() : null;
-                out.add(new NewTicket(st.ref(), true, parentKey, null, c.names().getOrDefault(st.ref(), r.functionName()), assignee, reporter,
+                out.add(new NewTicket(st.ref(), true, parentKey, null, c.names().getOrDefault(st.ref(), r.functionName()), assignee, reporter(st, r),
                         start, end, st.hours(), labels));
             }
         }
         return out;
+    }
+
+    /** The BAL reports the Create step, so the function's BAL is read back from Jira; the other steps keep Jira's default. */
+    private static @Nullable String reporter(PlanRows.RowStep st, EstimationRow r) {
+        return st.kind() == StepKind.CREATE ? r.balId() : null;
     }
 
     /** Changes one sub-task of the plan: its effort, its dates or whether it is in the plan. */

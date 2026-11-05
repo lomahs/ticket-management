@@ -2910,6 +2910,7 @@ export interface components {
             step: string | null;
         };
         StepRow: {
+            assignee_id: string | null;
             /** Format: double */
             ba_h: number;
             /** Format: double */
@@ -2922,6 +2923,7 @@ export interface components {
             phase: string;
             ref: string;
             removed: boolean;
+            reporter_id: string | null;
             /** Format: int64 */
             row_id: number;
             start: string | null;

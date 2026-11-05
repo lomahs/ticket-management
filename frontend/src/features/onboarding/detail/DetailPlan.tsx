@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
-import { useCan } from '../../../shared/api/queries';
+import { membersQuery, useCan } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { Button } from '../../../shared/ds';
+import { downloadCsv } from '../../../shared/format/csv';
 import { dm, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -12,6 +13,7 @@ import { AddRowDialog } from './AddRowDialog';
 import { AllocationMatrix } from './AllocationMatrix';
 import { EffortDays } from './EffortDays';
 import { StepsTable } from './StepsTable';
+import { jiraCsv, planCsv } from './csv';
 import { detailPlanQuery,useAutoAllocate, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
 
 /** A person who can be given a row: a member of the anken, with their role. */
@@ -43,6 +45,19 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
   const push = usePushPlan(epic);
   const auto = useAutoAllocate(epic);
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
+  const members = useQuery(membersQuery(epic)).data ?? [];
+  const label = (id?: string | null) => (id ? name(id) : '');
+  const email = (id?: string | null) => (id ? members.find((m) => m.id === id)?.email || name(id) : '');
+  const exportPlan = () => {
+    const c = planCsv(v, label);
+    downloadCsv(`detail-plan-${epic}.csv`, c.header, c.rows);
+    toast(`Exported ${c.rows.length} sub-tasks`);
+  };
+  const exportJira = () => {
+    const c = jiraCsv(v, email, labels);
+    downloadCsv(`jira-subtasks-${epic}.csv`, c.header, c.rows);
+    toast(`Exported ${c.rows.length} sub-tasks · Jira › Import work items from CSV; the rows stay unpushed here`);
+  };
   const open = v.rows.filter((r) => !r.pushed_at);
   const draft = (p: Partial<DraftIn>) => save.mutate({
     order: open.map((r) => r.id),
@@ -97,6 +112,9 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
         <span className="title">Sub-tasks</span>
         <span className="eyebrow">One line per sub-task, named by Settings › Name rules; who carries its hours follows Settings › Step weights.</span>
         <span className="spacer" />
+        <Button appearance="secondary" size="sm" iconBefore="download" disabled={open.length === 0} onClick={exportPlan}>Export plan</Button>
+        <Button appearance="secondary" size="sm" iconBefore="download" disabled={v.plan.length === 0}
+          title="The sub-tasks the push would create, for Jira › Import work items from CSV" onClick={exportJira}>Export for Jira</Button>
         {admin && open.length > 0 && (
           <Button appearance="secondary" size="sm" disabled={auto.isPending || save.isPending}
             title="Fills the empty BA / BAL / JM of each function from the phase's team (JMs from the anken), keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
