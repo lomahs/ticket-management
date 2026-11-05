@@ -123,7 +123,7 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/estimation');
-    const totals = await screen.findByRole('region', { name: 'Effort per phase' });
+    const totals = await screen.findByRole('region', { name: 'BA effort per phase' });
     expect(within(totals).getByText('14h')).toBeTruthy();
     expect(screen.getByLabelText('Task name, row 1').textContent).toBe('ITA Create test case');
     fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
@@ -241,7 +241,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async ({ request }) => { previews.push(await request.json()); return HttpResponse.json(rows); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', async ({ request }) => { saved = await request.json(); return HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] }); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], over_day: [], checks: [], problems: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [] })),
     );
     renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.change(await screen.findByLabelText('Start date'), { target: { value: '2026-10-12' } });
@@ -267,7 +267,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA'], current, versions: [current], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async () => { await new Promise((r) => setTimeout(r, 500)); return HttpResponse.json([phase]); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', () => { saves++; return HttpResponse.json({}); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], over_day: [], checks: [], problems: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [] })),
     );
     const { router } = renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.click(await screen.findByRole('button', { name: 'Continue to Detail plan' })); // before the preview is back
@@ -275,12 +275,23 @@ describe('onboarding', () => {
     expect(saves).toBe(0);
   });
 
+  const line = (ref: string, row: number, step: string | null, summary: string, h: number, dates: [string, string] | null = null) => ({
+    ref, row_id: row, step, phase: 'ITA', summary, effort_h: h, ba_h: step === 'balr' || step === 'jmr' ? 0 : h, bal_h: step === 'balr' ? h : 0,
+    start: dates?.[0] ?? null, end: dates?.[1] ?? null, manual: false, edited: false, removed: false,
+  });
+  const LINES = [line('1:create', 1, 'create', '[PAY] Login – Create', 8), line('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2),
+    line('2', 2, null, '[PAY] Run', 16)];
   const detailView = (over: Record<string, unknown> = {}) => ({
-    rows: [LOGIN, RUN], tasks: [TASK], plan: [], over_budget: [], over_day: [], checks: [], problems: [], ...over,
+    rows: [LOGIN, RUN], tasks: [TASK], plan: [], steps: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
+    stale_phases: [], problems: [], ...over,
   });
   const planned = {
     plan: [{ row_id: 2, steps: [{ ref: '2', step: null, member_id: 'an', hours: 16, start: '2026-10-12', end: '2026-10-14' }] }],
+    steps: [...LINES.slice(0, 2), line('2', 2, null, '[PAY] Run', 16, ['2026-10-12', '2026-10-14'])],
     checks: [{ phase: 'ITA', master_end: '2026-10-13', plan_end: '2026-10-14', days_late: 1 }],
+    days: [{ member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false }] },
+      { member_id: 'an', date: '2026-10-13', planned_h: 9, allocated_h: 8, off: null, other_h: 3, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false },
+        { key: 'PAY-1290', title: 'Refund – Create', hours: 1, other: false }, { key: 'PAY-1300', title: 'Refund', hours: 3, other: true }] }],
   };
 
   it('assigns members and shows computed dates', async () => {
@@ -294,13 +305,28 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
+    const ba = await screen.findByLabelText('BA, Login Create');
+    expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit
+    expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)', 'Minh (BAL)']);
+    expect([...screen.getByLabelText('JM, Login Create').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–']); // no BA or BAL
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
-    expect(screen.getAllByText('PAY-1102 · [PAY][LocalTask] ITA Create test case')).toHaveLength(2);
-    fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
+    expect(screen.getByText('[PAY] Login – BAL Review')).toBeTruthy(); // one line per step, named by the name rules
+    fireEvent.change(screen.getByLabelText('BA, Login Create'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
-    expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();
+    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-12'));
+    expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-14');
     expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Finish onboarding' }) as HTMLButtonElement).disabled).toBe(true);
+    const days = screen.getByRole('region', { name: 'Effort per member per day' });
+    expect(days.textContent).toContain('9 / 8'); // above the allocation
+    expect(days.textContent).toContain('+3 other');
+    fireEvent.mouseEnter(within(days).getByLabelText('An 2026-10-13'));
+    const tip = within(days).getByRole('tooltip');
+    expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
+    expect(tip.textContent).toContain('Other anken');
+    expect(tip.textContent).toContain('Refund3h'); // another anken: its name and hours
+    expect((screen.getByLabelText('BA, Login BAL Review') as HTMLSelectElement).value).toBe('an'); // BA and BAL are the function's
+    expect(screen.getByRole('button', { name: 'Finish onboarding' }).getAttribute('title')).toBe('Push every row to Jira first');
   });
 
   it('auto allocates the empty slots and shows the plan that follows', async () => {
@@ -315,18 +341,80 @@ describe('onboarding', () => {
     );
     renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
-    expect(await screen.findByText('12/10 – 14/10')).toBeTruthy();
+    await waitFor(() => expect((screen.getByLabelText('BA, Login Create') as HTMLSelectElement).value).toBe('an'));
     expect(posts).toBe(1);
-    expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('an');
+  });
+
+  it('edits, removes and restores a line, and adds a function to the estimation', async () => {
+    const steps: Record<string, unknown>[] = [];
+    let added: Record<string, unknown> | null = null;
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
+        const b = await request.json() as Record<string, unknown>;
+        steps.push(b);
+        return HttpResponse.json(detailView({ steps: LINES.map((l) => (l.ref === '1:balr' ? { ...l, removed: !!b.removed } : l)) }));
+      }),
+      http.post('*/api/v1/planning/PAY-1100/detail/rows', async ({ request }) => {
+        added = await request.json() as Record<string, unknown>;
+        return HttpResponse.json(detailView());
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const effort = await screen.findByLabelText('Effort, [PAY] Login – BAL Review');
+    fireEvent.change(effort, { target: { value: '3' } });
+    fireEvent.blur(effort);
+    await waitFor(() => expect(steps[0]).toEqual({ row_id: 1, step: 'balr', effort_h: 3, start: null, end: null, removed: false }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove [PAY] Login – BAL Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Removed (1)' }));
+    expect(screen.queryByRole('row', { name: '[PAY] Login – BAL Review' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    await waitFor(() => expect(steps.map((b) => b.removed)).toEqual([false, true, false]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add function' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add function' });
+    fireEvent.change(within(dialog).getByLabelText('Function'), { target: { value: 'Export' } });
+    fireEvent.change(within(dialog).getByLabelText('Create effort (h)'), { target: { value: '6' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(added).toEqual({ task_key: 'PAY-1102', function_name: 'Export', steps: 5, effort_h: 6 }));
+  });
+
+  it('warns about days above the allocation and pushes them once confirmed', async () => {
+    let allowed: string | null = null;
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
+        ...planned, over_day: [{ member_id: 'an', date: '2026-10-13', planned_h: 9, allocation_h: 8 }],
+      }))),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', ({ request }) => {
+        allowed = new URL(request.url).searchParams.get('allow_over_day');
+        return HttpResponse.json({ updates: [], creates: [] });
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm the push' });
+    const warn = screen.getByRole('region', { name: 'Over the allocation' });
+    expect(warn.textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
+    expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull(); // a warning, not a block
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(allowed).toBe('true'));
   });
 
   it('blocks the push while a member is over budget', async () => {
     onboarding({ step: 6 });
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
       ...planned, over_budget: [{ member_id: 'an', phase: 'ITA', planned_h: 40, budget_h: 36 }],
+      allocated: [{ member_id: 'an', phase: 'ITA', date: '2026-10-12', ankens: [
+        { epic_key: 'PAY-1100', title: 'Payment', hours_per_day: 3 }, { epic_key: 'CRM-400', title: 'CRM', hours_per_day: 5 }] }],
     }))));
     renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish onboarding' })); // not every row is in Jira: shows what stands before
     expect(await screen.findByText('An is over budget in ITA: 40h of 36h')).toBeTruthy();
+    const matrix = screen.getByRole('table', { name: 'Allocated per anken' });
+    expect(matrix.textContent).toContain('PAY-1100 (this)');
+    expect(screen.getByRole('row', { name: /An · ITA \(from 12\/10\)/ }).textContent).toBe('An · ITA (from 12/10)3h5h8h');
     expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
   });
 

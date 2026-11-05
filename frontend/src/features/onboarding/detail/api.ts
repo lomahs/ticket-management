@@ -28,15 +28,40 @@ export function useAutoAllocate(epic: string) {
   });
 }
 
+/** @param allow the PIM confirmed the days planned above a member's allocation */
 export const usePushPreview = (epic: string) => useMutation({
-  mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } } })),
+  mutationFn: (allow: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview',
+    { params: { path: { epic }, query: { allow_over_day: allow } } })),
 });
 
 export function usePushPlan(epic: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ['write', 'detail-plan'],
-    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic } } })),
+    mutationFn: (allow: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic }, query: { allow_over_day: allow } } })),
     onSettled: () => qc.invalidateQueries(),
+  });
+}
+
+export type StepBody = Schemas['StepBody'];
+
+/** Changes the effort, the dates or the removal of one sub-task; the plan that follows comes back. */
+export function useEditStep(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StepBody) => unwrap(http.PUT('/api/v1/planning/{epic}/detail/step', { params: { path: { epic } }, body })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
+/** Adds a function or a ticket to the estimation; the plan that follows comes back. */
+export function useAddRow(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas['NewRowBody']) => unwrap(http.POST('/api/v1/planning/{epic}/detail/rows', { params: { path: { epic } }, body })),
+    onSuccess: (v) => {
+      qc.setQueryData(detailPlanQuery(epic).queryKey, v);
+      void qc.invalidateQueries({ queryKey: ['planning'] });
+    },
   });
 }

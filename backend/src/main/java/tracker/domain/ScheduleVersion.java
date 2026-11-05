@@ -13,7 +13,7 @@ public record ScheduleVersion(long id, String epicKey, String savedAt, String sa
         phases = List.copyOf(phases);
     }
 
-    /** @param totalEffortH the phase's effort from the estimation (weights applied, without JM Review) */
+    /** @param totalEffortH the phase's BA effort from the estimation (weights applied, BAL and JM reviews aside) */
     public record PhaseRow(String phase, double totalEffortH, List<String> memberIds, String start, String end, int planMd) {
         public PhaseRow {
             memberIds = List.copyOf(memberIds);

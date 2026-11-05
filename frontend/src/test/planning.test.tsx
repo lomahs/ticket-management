@@ -10,20 +10,27 @@ afterAll(() => server.close());
 const WEIGHTS = { create: 1, balr: 0.25, fixb: 0.3, jmr: 0.25, fixj: 0.2 };
 
 describe('detail planning', () => {
-  it('edits step weights of an anken', async () => {
+  it('edits step weights, PIC and effort shares of an anken', async () => {
     let saved: unknown = null;
+    const PIC = { create: 'BA', balr: 'BA', fixb: 'BAL', jmr: 'BAL', fixj: 'BAL' };
+    const SHARES = { create: { ba: 100, bal: 0 }, balr: { ba: 0, bal: 100 }, fixb: { ba: 70, bal: 30 }, jmr: { ba: 0, bal: 0 }, fixj: { ba: 70, bal: 30 } };
     server.use(
-      http.get('*/api/v1/settings/step-weights', () => HttpResponse.json({ weights: WEIGHTS, own: false })),
+      http.get('*/api/v1/settings/step-weights', () => HttpResponse.json({ weights: WEIGHTS, pic: PIC, shares: SHARES, own: false })),
       http.put('*/api/v1/settings/step-weights', async ({ request }) => {
         saved = { anken: new URL(request.url).searchParams.get('anken'), body: await request.json() };
-        return HttpResponse.json({ weights: { ...WEIGHTS, balr: 0.5 }, own: true });
+        return HttpResponse.json({ weights: { ...WEIGHTS, balr: 0.5 }, pic: PIC, shares: SHARES, own: true });
       }),
     );
     renderApp('/settings/step-weights?for=PAY-1100');
-    const bal = await screen.findByLabelText('BAL Review');
-    fireEvent.change(bal, { target: { value: '0.5' } });
+    fireEvent.change(await screen.findByLabelText('BAL Review weight'), { target: { value: '0.5' } });
+    fireEvent.change(screen.getByLabelText('Fix comment BAL BA share'), { target: { value: '80' } });
+    fireEvent.change(screen.getByLabelText('Fix comment BAL BAL share'), { target: { value: '30' } });
+    expect(screen.getByText(/100 % at most together/)).toBeTruthy(); // 80 + 30
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Fix comment BAL BAL share'), { target: { value: '20' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(saved).toEqual({ anken: 'PAY-1100', body: { weights: { ...WEIGHTS, balr: 0.5 } } }));
+    await waitFor(() => expect(saved).toEqual({ anken: 'PAY-1100', body: { weights: { ...WEIGHTS, balr: 0.5 }, pic: PIC,
+      shares: { ...SHARES, fixb: { ba: 80, bal: 20 } } } }));
   });
 
   it('previews a master schedule and saves a version with a reason', async () => {

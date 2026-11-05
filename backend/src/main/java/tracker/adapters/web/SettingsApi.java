@@ -47,6 +47,8 @@ import tracker.application.service.JiraSettingsService.StepWeightsView;
 import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.JiraSettingsService;
 import tracker.application.service.TeamSettingsService;
+import tracker.domain.StepWeights;
+import tracker.domain.Role;
 import tracker.domain.Holiday;
 import tracker.domain.Status;
 import tracker.domain.StructureImport.StructureImportRow;
@@ -288,7 +290,9 @@ public class SettingsApi {
     }
 
     /** @param weights step key ("create", "balr", "fixb", "jmr", "fixj") → weight */
-    public record StepWeightsIn(@NotNull Map<String, @NotNull Double> weights) {
+    /** @param pic and {@code shares}: null keeps what the scope has */
+    public record StepWeightsIn(@NotNull Map<String, @NotNull Double> weights, @Nullable Map<String, @NotNull Role> pic,
+                                @Nullable Map<String, StepWeights.@NotNull Share> shares) {
     }
 
     @Open(Rule.ADMIN)
@@ -300,7 +304,7 @@ public class SettingsApi {
     @Open(Rule.ADMIN)
     @PutMapping("/settings/step-weights")
     public StepWeightsView saveStepWeights(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StepWeightsIn body) {
-        return jiraSettings.saveStepWeights(anken, body.weights());
+        return jiraSettings.saveStepWeights(anken, body.weights(), body.pic(), body.shares());
     }
 
     @Open(Rule.ADMIN)

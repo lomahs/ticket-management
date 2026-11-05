@@ -2075,6 +2075,14 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "allow_over_day",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2101,6 +2109,14 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "allow_over_day",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
         } ],
         "responses" : {
           "200" : {
@@ -2108,6 +2124,78 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/BatchPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/detail/rows" : {
+      "post" : {
+        "operationId" : "addDetailRow",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewRowBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/detail/step" : {
+      "put" : {
+        "operationId" : "editDetailStep",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StepBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
                 }
               }
             },
@@ -3628,6 +3716,22 @@
         },
         "required" : [ "epics", "hours_per_day", "member_id", "steps" ]
       },
+      "AnkenAllocation" : {
+        "type" : "object",
+        "properties" : {
+          "epic_key" : {
+            "type" : "string"
+          },
+          "hours_per_day" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "epic_key", "hours_per_day", "title" ]
+      },
       "AnkenCard" : {
         "type" : "object",
         "properties" : {
@@ -4807,6 +4911,58 @@
         },
         "required" : [ "date", "extra_note", "is_today" ]
       },
+      "DayItem" : {
+        "type" : "object",
+        "properties" : {
+          "hours" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "key" : {
+            "type" : [ "string", "null" ]
+          },
+          "other" : {
+            "type" : "boolean"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "hours", "key", "other", "title" ]
+      },
+      "DayLoad" : {
+        "type" : "object",
+        "properties" : {
+          "allocated_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayItem"
+            }
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "off" : {
+            "type" : [ "string", "null" ]
+          },
+          "other_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "allocated_h", "date", "items", "member_id", "off", "other_h", "planned_h" ]
+      },
       "DayOverrun" : {
         "type" : "object",
         "properties" : {
@@ -4840,10 +4996,22 @@
       "DetailPlanView" : {
         "type" : "object",
         "properties" : {
+          "allocated" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OverrunAllocation"
+            }
+          },
           "checks" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/PhaseCheck"
+            }
+          },
+          "days" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayLoad"
             }
           },
           "over_budget" : {
@@ -4876,6 +5044,18 @@
               "$ref" : "#/components/schemas/EstimationRow"
             }
           },
+          "stale_phases" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "steps" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StepRow"
+            }
+          },
           "tasks" : {
             "type" : "array",
             "items" : {
@@ -4883,7 +5063,7 @@
             }
           }
         },
-        "required" : [ "checks", "over_budget", "over_day", "plan", "problems", "rows", "tasks" ]
+        "required" : [ "allocated", "checks", "days", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
       },
       "DraftBody" : {
         "type" : "object",
@@ -6461,6 +6641,28 @@
         },
         "required" : [ "epics", "name" ]
       },
+      "NewRowBody" : {
+        "type" : "object",
+        "properties" : {
+          "effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "function_name" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "steps" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32"
+          },
+          "task_key" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "function_name", "task_key" ]
+      },
       "NewTaskBody" : {
         "type" : "object",
         "properties" : {
@@ -6649,6 +6851,27 @@
           }
         },
         "required" : [ "budget_h", "member_id", "phase", "planned_h" ]
+      },
+      "OverrunAllocation" : {
+        "type" : "object",
+        "properties" : {
+          "ankens" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AnkenAllocation"
+            }
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "member_id" : {
+            "type" : "string"
+          },
+          "phase" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "ankens", "date", "member_id", "phase" ]
       },
       "ParentOption" : {
         "type" : "object",
@@ -7410,6 +7633,19 @@
         },
         "required" : [ "epic_key", "key", "phase", "summary", "template" ]
       },
+      "Share" : {
+        "type" : "object",
+        "properties" : {
+          "ba" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "bal" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }
+      },
       "SnapshotOption" : {
         "type" : "object",
         "properties" : {
@@ -7466,6 +7702,33 @@
         },
         "required" : [ "category", "effective", "mapped", "name" ]
       },
+      "StepBody" : {
+        "type" : "object",
+        "properties" : {
+          "effort_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "removed" : {
+            "type" : "boolean"
+          },
+          "row_id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          }
+        }
+      },
       "StepOverride" : {
         "type" : "object",
         "properties" : {
@@ -7504,9 +7767,71 @@
         },
         "required" : [ "end", "hours", "member_id", "ref", "start", "step" ]
       },
+      "StepRow" : {
+        "type" : "object",
+        "properties" : {
+          "ba_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "bal_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "edited" : {
+            "type" : "boolean"
+          },
+          "effort_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
+          "manual" : {
+            "type" : "boolean"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "removed" : {
+            "type" : "boolean"
+          },
+          "row_id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "start" : {
+            "type" : [ "string", "null" ]
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "ba_h", "bal_h", "edited", "effort_h", "end", "manual", "phase", "ref", "removed", "row_id", "start", "step", "summary" ]
+      },
       "StepWeightsIn" : {
         "type" : "object",
         "properties" : {
+          "pic" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : {
+              "type" : "string",
+              "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+            }
+          },
+          "shares" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/Share"
+            }
+          },
           "weights" : {
             "type" : "object",
             "additionalProperties" : {
@@ -7523,6 +7848,19 @@
           "own" : {
             "type" : "boolean"
           },
+          "pic" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string",
+              "enum" : [ "BA", "PM", "PIM", "BAL", "JM" ]
+            }
+          },
+          "shares" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/Share"
+            }
+          },
           "weights" : {
             "type" : "object",
             "additionalProperties" : {
@@ -7531,7 +7869,7 @@
             }
           }
         },
-        "required" : [ "own", "weights" ]
+        "required" : [ "own", "pic", "shares", "weights" ]
       },
       "StructureImportRow" : {
         "type" : "object",

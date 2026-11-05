@@ -71,8 +71,8 @@ export const useImportStructure = (anken: string | null) => useMutation({
 });
 export const useSaveNameRules = (anken: string | null) => useSettingsWrite((b: Schemas['NameRulesIn']) =>
   unwrap(http.PUT('/api/v1/settings/name-rules', { body: b, params: { query: ankenParam(anken) } })));
-export const useSaveStepWeights = (anken: string | null) => useSettingsWrite((weights: Record<string, number>) =>
-  unwrap(http.PUT('/api/v1/settings/step-weights', { body: { weights }, params: { query: ankenParam(anken) } })));
+export const useSaveStepWeights = (anken: string | null) => useSettingsWrite((body: Schemas['StepWeightsIn']) =>
+  unwrap(http.PUT('/api/v1/settings/step-weights', { body, params: { query: ankenParam(anken) } })));
 export const useResetStepWeights = (anken: string) => useSettingsWrite(() =>
   unwrap(http.DELETE('/api/v1/settings/step-weights', { params: { query: { anken } } })));
 /** Copies another anken's (or the default's) structure and name rules into `epic`; runs a full sync. */

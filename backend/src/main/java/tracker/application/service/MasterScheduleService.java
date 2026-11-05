@@ -20,12 +20,18 @@ import tracker.domain.Allocations;
 import tracker.domain.AnkenScope;
 import tracker.domain.Dates;
 import tracker.domain.MasterSchedule;
+import tracker.domain.MasterSchedule.PhaseWork;
+import tracker.domain.Role;
 import tracker.domain.RuleError;
 import tracker.domain.ScheduleVersion;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Viewer;
 
-/** Step 2 of planning: start and members of each phase, its end computed from the estimation and the allocations; saved as versions. */
+/**
+ * Step 2 of planning: start and members of each phase, its End computed from the BA work of the estimation and the allocations of
+ * the team but its BALs ({@link MasterSchedule#endOf(String, String, PhaseWork, List, Allocations, tracker.domain.WorkCalendar)}); saved
+ * as versions.
+ */
 @Service
 public class MasterScheduleService {
     private final TrackerContextLoader context;
@@ -75,11 +81,12 @@ public class MasterScheduleService {
                         Dates.dayDiff(b.end(), p.end())));
             }
         }
-        return new MasterScheduleView(ctx.settings.structureOf(epic).orderedPhases(efforts(ctx, epic).keySet()), current, all, shifts);
+        return new MasterScheduleView(ctx.settings.structureOf(epic).orderedPhases(work(ctx, epic).keySet()), current, all, shifts);
     }
 
-    private Map<String, Double> efforts(TrackerContext ctx, String epic) {
-        return EstimationService.phaseEfforts(estimation.findByEpic(epic), ctx.settings.stepWeightsOf(epic));
+    private Map<String, PhaseWork> work(TrackerContext ctx, String epic) {
+        return MasterSchedule.work(estimation.findByEpic(epic), estimation.stepEdits(epic), ctx.settings.stepWeightsOf(epic),
+                ctx.settings.workingHours.hoursPerDay());
     }
 
     /** The rows as they would be saved; nothing is stored. */
@@ -89,14 +96,14 @@ public class MasterScheduleService {
     }
 
     private List<PhaseRow> compute(TrackerContext ctx, AnkenScope scope, String epic, List<PhaseRowIn> phases) {
-        Map<String, Double> efforts = efforts(ctx, epic);
+        Map<String, PhaseWork> work = work(ctx, epic);
         Allocations a = allocations.counted(scope).allocations();
         Set<String> seen = new HashSet<>();
         List<PhaseRow> out = new ArrayList<>();
         for (int n = 0; n < phases.size(); n++) {
             PhaseRowIn in = phases.get(n);
             String at = "phases." + n + ".";
-            if (!efforts.containsKey(in.phase())) {
+            if (!work.containsKey(in.phase())) {
                 throw new Invalid(in.phase() + " is not a phase of the estimation", at + "phase");
             }
             if (!seen.add(in.phase())) {
@@ -117,10 +124,15 @@ public class MasterScheduleService {
                 }
                 start = ctx.cal.nextWork(Dates.addDays(out.getLast().end(), 1), in.memberIds().getFirst());
             }
-            double effort = efforts.get(in.phase());
+            // the End comes from the BA work against the hours of the team but its BALs: a BAL only reviews
+            List<String> bas = in.memberIds().stream().filter(m -> ctx.members.get(m).role() != Role.BAL).toList();
+            if (bas.isEmpty()) {
+                throw new Invalid("Pick a BA for " + in.phase() + ": a BAL only reviews, so the End does not count their hours", at + "member_ids");
+            }
+            PhaseWork w = work.get(in.phase());
             try {
-                MasterSchedule.PhaseEnd end = MasterSchedule.endOf(epic, start, effort, in.memberIds(), a, ctx.cal);
-                out.add(new PhaseRow(in.phase(), effort, in.memberIds(), start, end.end(), end.planMd()));
+                MasterSchedule.PhaseEnd end = MasterSchedule.endOf(epic, start, w, bas, a, ctx.cal);
+                out.add(new PhaseRow(in.phase(), w.effortH(), in.memberIds(), start, end.end(), end.planMd()));
             } catch (RuleError e) {
                 throw new Invalid(e.getMessage(), at + "member_ids");
             }

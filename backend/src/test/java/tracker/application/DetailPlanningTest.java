@@ -2,6 +2,7 @@ package tracker.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 import java.time.Clock;
 import java.util.List;
@@ -41,6 +42,12 @@ import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
 import tracker.application.service.AllocationService;
 import tracker.application.service.DetailPlanService;
+import tracker.application.service.DetailPlanService.AnkenAllocation;
+import tracker.application.service.DetailPlanService.DayLoad;
+import tracker.application.service.DetailPlanService.NewRowIn;
+import tracker.application.service.DetailPlanService.StepIn;
+import tracker.application.service.DetailPlanService.StepRow;
+import tracker.application.service.DetailPlanService.OverrunAllocation;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.RowAssign;
@@ -52,6 +59,7 @@ import tracker.application.service.MasterScheduleService.PhaseShift;
 import tracker.domain.AccessStatus;
 import tracker.domain.Allocation;
 import tracker.domain.Issue;
+import tracker.domain.IssueKind;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.MasterSchedule;
@@ -123,13 +131,16 @@ class DetailPlanningTest {
     }
 
     @Test
-    void estimationTotalsPerPhaseUseWeightsWithoutJmReview() {
+    void estimationTotalsPerPhaseAreTheBaEffort() {
         estimate();
         EstimationView v = estimation.view(ALL, EPIC);
         assertThat(v.rows()).hasSize(3);
         assertThat(v.rows()).extracting(r -> r.phase() + "/" + r.subphase())
                 .containsExactly("ITA/ITA Create test case", "ITA/ITA Execute", "ITB/ITB Create test case");
-        assertThat(v.phases()).containsExactly(new PhaseEffort("ITA", 30.0), new PhaseEffort("ITB", 12.5));
+        // Login: Create 8 + 70 % of Fix BAL 2.5 and Fix JM 1.5, Run 16; Pay: Create 8 + 70 % of Fix BAL 2.5 (the reviews aside)
+        assertThat(v.phases()).extracting(PhaseEffort::phase).containsExactly("ITA", "ITB");
+        assertThat(v.phases().get(0).totalEffortH()).isCloseTo(26.8, within(1e-9));
+        assertThat(v.phases().get(1).totalEffortH()).isCloseTo(9.75, within(1e-9));
         assertThat(v.tasks()).extracting(t -> t.name()).contains("ITA Create test case", "ITA Execute");
     }
 
@@ -162,12 +173,17 @@ class DetailPlanningTest {
     @Test
     void masterScheduleComputesEffortEndAndMd() {
         estimate();
-        List<PhaseRow> rows = schedule.preview(ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh"))));
+        List<PhaseRow> rows = schedule.preview(ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh"))));
         TrackerContext ctx = loader.load(ALL);
-        MasterSchedule.PhaseEnd want = MasterSchedule.endOf(EPIC, "2026-10-12", 30, List.of("an", "binh"),
+        // Minh is a BAL: the End comes from An's and Bình's hours; the Creates and Run (24h), then Login's 4 review steps
+        double effort = rows.get(0).totalEffortH();
+        assertThat(effort).isCloseTo(26.8, within(1e-9));
+        MasterSchedule.PhaseEnd want = MasterSchedule.endOf(EPIC, "2026-10-12", new MasterSchedule.PhaseWork(effort, 24, 4), List.of("an", "binh"),
                 allocations.counted(ALL).allocations(), ctx.cal);
-        assertThat(rows).containsExactly(new PhaseRow("ITA", 30.0, List.of("an", "binh"), "2026-10-12", want.end(), want.planMd()));
+        assertThat(rows).containsExactly(new PhaseRow("ITA", effort, List.of("an", "binh", "minh"), "2026-10-12", want.end(), want.planMd()));
         assertThat(want.planMd()).isPositive();
+        assertThatThrownBy(() -> schedule.preview(ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("minh")))))
+                .isInstanceOf(Invalid.class).hasMessageContaining("Pick a BA for ITA").extracting("field").isEqualTo("phases.0.member_ids");
     }
 
     @Test
@@ -293,8 +309,8 @@ class DetailPlanningTest {
     }
 
     /**
-     * Allocations that keep every member within budget: ITA (Login + Run, 30h) by an 8h + minh 1h → 4 days, an given 28h of 32;
-     * ITB (Pay, 12.5h) by binh 8h.
+     * Allocations that keep every member within budget: ITA (Login + Run, 28h of BA work) by an 8h: the Creates and Run take 3
+     * days, Login's reviews 4 more, an given 28h of 56; ITB (Pay, 10.5h) by binh 8h.
      */
     List<EstimationRow> pushable() {
         for (String[] a : new String[][]{{"an", "8"}, {"minh", "1"}, {"binh", "8"}}) {
@@ -316,8 +332,8 @@ class DetailPlanningTest {
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overBudget()).isEmpty();
         assertThat(v.overDay()).isEmpty();
-        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(5 + 1 + 3);
-        BatchResult r = detail.push(ADMIN, ALL, EPIC);
+        assertThat(detail.pushPreview(ALL, EPIC, false).creates()).hasSize(5 + 1 + 3);
+        BatchResult r = detail.push(ADMIN, ALL, EPIC, false);
         TrackerContext ctx = loader.load(ALL);
         String execute = task("ITA Execute");
         Issue run = ctx.issue(r.created().get(String.valueOf(rows.get(1).id()))).orElseThrow();
@@ -330,6 +346,13 @@ class DetailPlanningTest {
         assertThat(run.summary()).isEqualTo("[PAY] Run");
         assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow().summary()).isEqualTo("[PAY] Login – Create");
         Issue jm = ctx.issue(r.created().get(rows.get(0).id() + ":jmr")).orElseThrow();
+        // assigned by the PIC of Settings › Step weights: Create and BAL Review to the BA, the others to the BAL
+        Issue create = ctx.issue(r.created().get(rows.get(0).id() + ":create")).orElseThrow();
+        assertThat(create.assigneeId()).isEqualTo("an");
+        assertThat(create.reporterId()).isEqualTo("minh"); // so the function's BAL is read back from Jira
+        assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":balr")).orElseThrow().assigneeId()).isEqualTo("an");
+        assertThat(ctx.issue(r.created().get(rows.get(0).id() + ":fixb")).orElseThrow().assigneeId()).isEqualTo("minh");
+        assertThat(jm.assigneeId()).isEqualTo("minh");
         assertThat(jm.estimateH()).isEqualTo(2.0);
         assertThat(jm.parentKey()).isEqualTo(task("ITA Create test case"));
         Issue pay = ctx.issue(r.created().get(rows.get(2).id() + ":create")).orElseThrow();
@@ -338,12 +361,108 @@ class DetailPlanningTest {
         assertThat(detail.view(ALL, EPIC).plan()).isEmpty();
     }
 
+    /** A 40h sub-task in Jira under ITA Execute. */
+    Issue subtask(String key, String who, Status status) {
+        return new Issue(key, "PAY", EPIC, task("ITA Execute"), IssueKind.SUBTASK, "[PAY] " + key, "", status, who, "2026-10-12", "2026-10-16",
+                40, status == Status.CLOSED ? 0 : 40, "2026-10-07", status.value(), null, null, null, List.of(), List.of(), who, List.of());
+    }
+
+    @Test
+    void onlyMembersOfTheAnkenHaveABudget() {
+        pushable();
+        issues.save(subtask("PAY-9001", "nhan", Status.WIP)); // Nhân is not a member of PAY-1100: it uses nobody's budget there
+        assertThat(detail.view(ALL, EPIC).overBudget()).isEmpty();
+    }
+
+    @Test
+    void closedSubTasksUseNoBudgetAndAnOverrunShowsTheAllocations() {
+        pushable();
+        issues.save(subtask("PAY-9002", "an", Status.CLOSED));
+        assertThat(detail.view(ALL, EPIC).overBudget()).isEmpty();
+        issues.save(subtask("PAY-9003", "an", Status.WIP)); // an: 26.8h planned (70 % of the Fix steps) + 40h open in Jira
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.overBudget()).extracting(o -> o.memberId() + "|" + o.phase() + "|" + o.plannedH()).containsExactly("an|ITA|66.8");
+        assertThat(v.allocated()).hasSize(1);
+        OverrunAllocation al = v.allocated().get(0);
+        assertThat(al.memberId()).isEqualTo("an");
+        assertThat(al.date()).isEqualTo("2026-10-12"); // the phase's Start
+        assertThat(al.ankens().get(0)).isEqualTo(new AnkenAllocation(EPIC, loader.load(ALL).anken(EPIC).orElseThrow().title(), 8.0));
+        assertThat(al.ankens().subList(1, al.ankens().size())).allMatch(x -> !x.epicKey().equals(EPIC) && x.hoursPerDay() > 0);
+    }
+
+    static StepRow step(DetailPlanView v, long rowId, String step) {
+        return v.steps().stream().filter(s -> s.rowId() == rowId && step.equals(s.step())).findFirst().orElseThrow();
+    }
+
+    @Test
+    void theListHasOneLinePerSubTaskWithItsNameAndWhoCarriesIt() {
+        List<EstimationRow> rows = pushable();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        long login = rows.get(0).id();
+        assertThat(v.steps().stream().filter(s -> s.rowId() == login)).extracting(StepRow::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
+        assertThat(step(v, login, "create").summary()).isEqualTo("[PAY] Login – Create");
+        assertThat(step(v, login, "balr")).extracting(StepRow::baH, StepRow::balH).containsExactly(0.0, 2.0);
+        assertThat(step(v, login, "fixb")).extracting(StepRow::baH, StepRow::balH).containsExactly(1.75, 0.75); // 70 / 30 of 2.5h
+        assertThat(step(v, login, "jmr")).extracting(StepRow::effortH, StepRow::baH, StepRow::balH).containsExactly(2.0, 0.0, 0.0);
+        assertThat(step(v, login, "fixb").start()).isNotNull();
+        assertThat(v.days()).extracting(DayLoad::memberId).contains("an", "minh").doesNotContain("tanaka"); // JM Review counts for nobody
+        DayLoad first = v.days().stream().filter(d -> d.memberId().equals("an") && d.plannedH() > 0).findFirst().orElseThrow();
+        assertThat(first.items()).filteredOn(i -> !i.other()).extracting(DetailPlanService.DayItem::title).contains("[PAY] Login – Create");
+        for (DayLoad d : v.days()) { // the day's hours are its items': this anken's, and the other anken's apart
+            assertThat(d.items().stream().filter(i -> !i.other()).mapToDouble(DetailPlanService.DayItem::hours).sum()).isCloseTo(d.plannedH(), within(1e-6));
+            assertThat(d.items().stream().filter(DetailPlanService.DayItem::other).mapToDouble(DetailPlanService.DayItem::hours).sum())
+                    .isCloseTo(d.otherH(), within(1e-6));
+        }
+        assertThat(v.days()).flatExtracting(DayLoad::items).filteredOn(DetailPlanService.DayItem::other)
+                .allMatch(i -> i.key() != null && !i.key().equals(EPIC));
+        assertThat(v.stalePhases()).isEmpty();
+    }
+
+    @Test
+    void stepsCanBeEditedRemovedAndAdded() {
+        List<EstimationRow> rows = pushable();
+        long login = rows.get(0).id();
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, null, null, true));
+        assertThat(step(v, login, "fixj")).extracting(StepRow::removed, StepRow::start).containsExactly(true, null);
+        assertThat(v.stalePhases()).containsExactly("ITA"); // its BA effort fell by 70 % of 1.5h
+        v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, "2026-10-27", "2026-10-28", false));
+        assertThat(step(v, login, "fixb")).extracting(StepRow::effortH, StepRow::edited, StepRow::manual, StepRow::start, StepRow::end)
+                .containsExactly(4.0, true, true, "2026-10-27", "2026-10-28");
+        assertThat(step(v, login, "jmr").start()).isEqualTo("2026-10-29"); // the next step follows the dates set by hand
+        v = detail.editStep(ALL, EPIC, new StepIn(login, "create", 10.0, null, null, false));
+        assertThat(v.rows().stream().filter(r -> r.id() == login).findFirst().orElseThrow().effortH()).isEqualTo(10.0);
+        assertThat(step(v, login, "create").edited()).isFalse(); // Create's effort is the row's: the other steps follow it
+        assertThat(step(v, login, "balr").effortH()).isEqualTo(2.5);
+        assertThat(detail.pushPreview(ALL, EPIC, false).creates()).extracting(c -> c.ref()).doesNotContain(login + ":fixj").contains(login + ":fixb");
+        assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, "2026-10-20", null, false)))
+                .isInstanceOf(Invalid.class).hasMessageContaining("both");
+        assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), "create", null, null, null, true)))
+                .isInstanceOf(Invalid.class).hasMessageContaining("not a step");
+
+        v = detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), "Export", null, 6));
+        assertThat(v.rows()).extracting(EstimationRow::functionName).endsWith("Export");
+        assertThat(v.problems()).contains("Row 4 (Export): pick a member");
+        assertThatThrownBy(() -> detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), " ", null, 6))).isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void aDayOverTheAllocationIsAWarningThePushGoesOnceConfirmed() {
+        List<EstimationRow> rows = pushable();
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-12", "2026-10-12", false)); // Run: 16h in a day
+        assertThat(v.overDay()).extracting(o -> o.memberId() + " " + o.date()).contains("an 2026-10-12");
+        assertThat(v.overBudget()).isEmpty();
+        assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC, false)).isInstanceOf(Invalid.class).hasMessageContaining("confirm")
+                .extracting("field").isEqualTo("allow_over_day");
+        assertThat(detail.pushPreview(ALL, EPIC, true).creates()).isNotEmpty();
+        assertThat(detail.push(ADMIN, ALL, EPIC, true).created()).isNotEmpty();
+    }
+
     @Test
     void pushIsBlockedOverBudget() {
         planned(); // ITA counted with an and binh, all of it given to an
         assertThat(detail.view(ALL, EPIC).overBudget()).isNotEmpty();
-        assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessageContaining("budget");
-        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(Invalid.class);
+        assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC, false)).isInstanceOf(Invalid.class).hasMessageContaining("budget");
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC, false)).isInstanceOf(Invalid.class);
     }
 
     @Test
@@ -358,18 +477,18 @@ class DetailPlanningTest {
             return jira.send(req);
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
-        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, clock);
-        assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, clock);
+        assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC, false)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
         assertThat(pushed).containsEntry(rows.get(0).id(), true).containsEntry(rows.get(1).id(), true).containsEntry(rows.get(2).id(), false);
-        assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(3); // only Pay's steps are left
+        assertThat(detail.pushPreview(ALL, EPIC, false).creates()).hasSize(3); // only Pay's steps are left
     }
 
     /** The pushed plan of {@link #pushable()}: row ref → Jira key. */
     Map<String, String> pushedPlan() {
         pushable();
-        return detail.push(ADMIN, ALL, EPIC).created();
+        return detail.push(ADMIN, ALL, EPIC, false).created();
     }
 
     void setStatus(String key, Status status, @org.jspecify.annotations.Nullable String plannedStart, double remaining) {
@@ -432,6 +551,20 @@ class DetailPlanningTest {
         ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of(run, "binh"))), run);
         assertThat(i.fromMember()).isEqualTo("an");
         assertThat(i.toMember()).isEqualTo("binh");
+    }
+
+    @Test
+    void replanSharesAStepByTheStepWeightsNotByItsAssignee() {
+        Map<String, String> keys = pushedPlan();
+        long login = estimationRows.findByEpic(EPIC).get(0).id();
+        String fixb = keys.get(login + ":fixb");
+        // Fix comment BAL is with Minh (its PIC) but 70 % of it is An's: moving its ticket to Bình (a BA) moves no effort to Bình
+        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of(fixb, "binh"))), fixb);
+        assertThat(i.fromMember()).isEqualTo("minh");
+        assertThat(i.toMember()).isEqualTo("binh");
+        TrackerContext ctx = loader.load(ALL);
+        assertThat(ctx.planShares(ctx.issue(fixb).orElseThrow())).extracting(sh -> sh.memberId() + " " + sh.fraction())
+                .containsExactly("an 0.7", "minh 0.3");
     }
 
     @Test

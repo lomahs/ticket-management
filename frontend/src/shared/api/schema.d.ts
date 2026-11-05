@@ -948,6 +948,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addDetailRow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/detail/step": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["editDetailStep"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/estimation": {
         parameters: {
             query?: never;
@@ -1550,6 +1582,12 @@ export interface components {
             member_id: string;
             steps: components["schemas"]["AllocationStep"][];
         };
+        AnkenAllocation: {
+            epic_key: string;
+            /** Format: double */
+            hours_per_day: number;
+            title: string;
+        };
         AnkenCard: {
             /** Format: double */
             estimate_h: number;
@@ -1923,6 +1961,25 @@ export interface components {
             extra_note: string | null;
             is_today: boolean;
         };
+        DayItem: {
+            /** Format: double */
+            hours: number;
+            key: string | null;
+            other: boolean;
+            title: string;
+        };
+        DayLoad: {
+            /** Format: double */
+            allocated_h: number;
+            date: string;
+            items: components["schemas"]["DayItem"][];
+            member_id: string;
+            off: string | null;
+            /** Format: double */
+            other_h: number;
+            /** Format: double */
+            planned_h: number;
+        };
         DayOverrun: {
             /** Format: double */
             allocation_h: number;
@@ -1936,12 +1993,16 @@ export interface components {
             days: number;
         };
         DetailPlanView: {
+            allocated: components["schemas"]["OverrunAllocation"][];
             checks: components["schemas"]["PhaseCheck"][];
+            days: components["schemas"]["DayLoad"][];
             over_budget: components["schemas"]["Overrun"][];
             over_day: components["schemas"]["DayOverrun"][];
             plan: components["schemas"]["RowPlan"][];
             problems: string[];
             rows: components["schemas"]["EstimationRow"][];
+            stale_phases: string[];
+            steps: components["schemas"]["StepRow"][];
             tasks: components["schemas"]["TaskOption"][];
         };
         DraftBody: {
@@ -2458,6 +2519,14 @@ export interface components {
             /** @enum {string|null} */
             role?: "BA" | "PM" | "PIM" | "BAL" | "JM" | null;
         };
+        NewRowBody: {
+            /** Format: double */
+            effort_h?: number;
+            function_name: string;
+            /** Format: int32 */
+            steps?: number | null;
+            task_key: string;
+        };
         NewTaskBody: {
             match: string;
             name: string;
@@ -2520,6 +2589,12 @@ export interface components {
             phase: string;
             /** Format: double */
             planned_h: number;
+        };
+        OverrunAllocation: {
+            ankens: components["schemas"]["AnkenAllocation"][];
+            date: string;
+            member_id: string;
+            phase: string;
         };
         ParentOption: {
             end: string | null;
@@ -2781,6 +2856,12 @@ export interface components {
             /** Format: int32 */
             template: number | null;
         };
+        Share: {
+            /** Format: double */
+            ba?: number;
+            /** Format: double */
+            bal?: number;
+        };
         SnapshotOption: {
             captured_at: string;
             captured_by: string;
@@ -2800,6 +2881,16 @@ export interface components {
             mapped: string | null;
             name: string;
         };
+        StepBody: {
+            /** Format: double */
+            effort_h?: number | null;
+            end?: string | null;
+            removed?: boolean;
+            /** Format: int64 */
+            row_id?: number;
+            start?: string | null;
+            step?: string | null;
+        };
         StepOverride: {
             end?: string | null;
             start?: string | null;
@@ -2813,13 +2904,44 @@ export interface components {
             start: string;
             step: string | null;
         };
+        StepRow: {
+            /** Format: double */
+            ba_h: number;
+            /** Format: double */
+            bal_h: number;
+            edited: boolean;
+            /** Format: double */
+            effort_h: number;
+            end: string | null;
+            manual: boolean;
+            phase: string;
+            ref: string;
+            removed: boolean;
+            /** Format: int64 */
+            row_id: number;
+            start: string | null;
+            step: string | null;
+            summary: string;
+        };
         StepWeightsIn: {
+            pic?: {
+                [key: string]: "BA" | "PM" | "PIM" | "BAL" | "JM";
+            } | null;
+            shares?: {
+                [key: string]: components["schemas"]["Share"];
+            } | null;
             weights: {
                 [key: string]: number;
             };
         };
         StepWeightsView: {
             own: boolean;
+            pic: {
+                [key: string]: "BA" | "PM" | "PIM" | "BAL" | "JM";
+            };
+            shares: {
+                [key: string]: components["schemas"]["Share"];
+            };
             weights: {
                 [key: string]: number;
             };
@@ -4699,7 +4821,9 @@ export interface operations {
     };
     pushDetailPlan: {
         parameters: {
-            query?: never;
+            query?: {
+                allow_over_day?: boolean;
+            };
             header?: never;
             path: {
                 epic: string;
@@ -4721,7 +4845,9 @@ export interface operations {
     };
     previewDetailPush: {
         parameters: {
-            query?: never;
+            query?: {
+                allow_over_day?: boolean;
+            };
             header?: never;
             path: {
                 epic: string;
@@ -4737,6 +4863,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchPreview"];
+                };
+            };
+        };
+    };
+    addDetailRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewRowBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    editDetailStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
                 };
             };
         };

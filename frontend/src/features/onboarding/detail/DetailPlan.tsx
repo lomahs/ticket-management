@@ -1,35 +1,42 @@
 import { useQuery } from '@tanstack/react-query';
-import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton } from '../../../shared/ds';
-import { dm, f1, hrs } from '../../../shared/format/dates';
+import { Button } from '../../../shared/ds';
+import { dm, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { detailPlanQuery, useAutoAllocate, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
+import { AddRowDialog } from './AddRowDialog';
+import { AllocationMatrix } from './AllocationMatrix';
+import { EffortDays } from './EffortDays';
+import { StepsTable } from './StepsTable';
+import { detailPlanQuery,useAutoAllocate, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
 
-/** A person who can be given a row: a member of the anken. */
-export interface Person { id: string; name: string }
+/** A person who can be given a row: a member of the anken, with their role. */
+export interface Person { id: string; name: string; role?: string | null }
 
-/** Who does each row and the dates that follow, checked against the master schedule; then the push to Jira. */
-export function DetailPlan({ epic, people }: { epic: string; people: Person[] }) {
+/**
+ * Who does each row and the dates that follow, checked against the master schedule; then the push to Jira.
+ *
+ * @param checked show what stands before the push (problems, budgets, days over the allocation): once the PIM saved,
+ *                tried to finish or reviewed the push, not on the first visit
+ */
+export function DetailPlan({ epic, people, checked = true, onCheck }: { epic: string; people: Person[]; checked?: boolean; onCheck?: () => void }) {
   const q = useQuery(detailPlanQuery(epic));
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
-  return <Plan epic={epic} v={q.data} people={people} />;
+  return <Plan epic={epic} v={q.data} people={people} checked={checked} onCheck={onCheck} />;
 }
 
-const SEL: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 12px/1 var(--font-text)', maxWidth: '100%' };
-const COLS = '56px minmax(160px,2fr) minmax(220px,3fr) 120px 70px';
 const days = (n: number) => `${n} day${Math.abs(n) === 1 ? '' : 's'}`;
 type Row = Schemas['EstimationRow'];
 
-function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Person[] }) {
+function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPlanView; people: Person[]; checked: boolean; onCheck?: () => void }) {
   const admin = useCan('planning', 'write');
   const toast = useToast();
   const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
-  const task = (key?: string | null) => v.tasks.find((t) => t.key === key);
+  const [adding, setAdding] = useState<'function' | 'task' | null>(null);
   const save = useSaveDraft(epic);
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
@@ -39,28 +46,32 @@ function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Pe
     order: open.map((r) => r.id),
     assigns: open.map((r) => ({ row_id: r.id, ba_id: r.ba_id ?? null, bal_id: r.bal_id ?? null, jm_id: r.jm_id ?? null })), ...p,
   }, { onError: (e) => toast(errorMessage(e), true) });
-  const assign = (r: Row, p: Partial<Row>) => draft({
-    assigns: open.map((x) => { const y = x.id === r.id ? { ...x, ...p } : x; return { row_id: y.id, ba_id: y.ba_id ?? null, bal_id: y.bal_id ?? null, jm_id: y.jm_id ?? null }; }),
+  const assign = (r: Row, slot: 'ba_id' | 'bal_id' | 'jm_id', id: string | null) => draft({
+    assigns: open.map((x) => { const y = x.id === r.id ? { ...x, [slot]: id } : x; return { row_id: y.id, ba_id: y.ba_id ?? null, bal_id: y.bal_id ?? null, jm_id: y.jm_id ?? null }; }),
   });
   const move = (i: number, d: -1 | 1) => {
     const ids = open.map((r) => r.id);
     [ids[i], ids[i + d]] = [ids[i + d], ids[i]];
     draft({ order: ids });
   };
-  const blocked = v.problems.length > 0 || v.over_budget.length > 0 || v.over_day.length > 0 || v.plan.length === 0;
-  const pick = (label: string, value: string | null | undefined, on: (id: string | null) => void) => (
-    <select aria-label={label} disabled={!admin} value={value ?? ''} onChange={(e) => on(e.target.value || null)} style={SEL}>
-      <option value="">–</option>
-      {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-    </select>
-  );
+  const blocked = v.problems.length > 0 || v.over_budget.length > 0 || v.plan.length === 0;
+  const overDay = (o: DetailPlanView['over_day'][number]) => `${name(o.member_id)} has ${hrs(o.planned_h)} planned on ${dm(o.date)}, above the ${hrs(o.allocation_h)} allocation`;
+  const [confirming, setConfirming] = useState(false);
+  const allow = v.over_day.length > 0;
+  const review = () => preview.mutate(allow, { onError: (e) => toast(errorMessage(e), true) });
   return (
     <>
-      {(v.problems.length > 0 || v.over_budget.length > 0 || v.over_day.length > 0) && (
+      {checked && (v.problems.length > 0 || v.over_budget.length > 0) && (
         <section className="card" aria-label="Before the push" role="alert" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {v.problems.map((p) => <span key={p} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{p}</span>)}
           {v.over_budget.map((o) => <span key={o.member_id + o.phase} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{`${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`}</span>)}
-          {v.over_day.map((o) => <span key={o.member_id + o.date} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{`${name(o.member_id)} has ${hrs(o.planned_h)} planned on ${dm(o.date)}, above the ${hrs(o.allocation_h)} allocation`}</span>)}
+          {v.allocated.length > 0 && <AllocationMatrix epic={epic} rows={v.allocated} name={name} />}
+        </section>
+      )}
+      {checked && v.over_day.length > 0 && (
+        <section className="card" aria-label="Over the allocation" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="eyebrow">Warnings: the push asks to confirm them.</span>
+          {v.over_day.map((o) => <span key={o.member_id + o.date} style={{ color: 'var(--hl-amber-fg)', fontSize: 13 }}>{overDay(o)}</span>)}
         </section>
       )}
       {v.checks.length > 0 && (
@@ -74,57 +85,47 @@ function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Pe
         </section>
       )}
 
-      <section className="card card-clip" aria-label="Detail plan rows">
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="title">Rows</span>
-          <span className="eyebrow">Scheduled in this order from the phase's Start; each member's day is filled up to their allocation.</span>
-          <span className="spacer" />
-          {admin && open.length > 0 && (
-            <Button appearance="secondary" size="sm" disabled={auto.isPending || save.isPending}
-              title="Fills the empty BA / BAL / JM slots, row by row, with the member of the phase's team who finishes the row soonest. People already picked stay."
-              onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
-              Auto allocate
-            </Button>
-          )}
-        </div>
-        {open.length === 0 && <div style={{ padding: 16, color: 'var(--text-muted)' }}>Every estimation row is in Jira.</div>}
-        <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 760 }}>
-            {open.map((r, i) => {
-              const steps = v.plan.find((p) => p.row_id === r.id)?.steps ?? [];
-              const span = steps.length ? `${dm(steps[0].start)} – ${dm(steps[steps.length - 1].end)}` : '–';
-              return (
-                <div key={r.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, alignItems: 'center', padding: '8px 16px', borderTop: i ? '1px solid var(--border-subtle)' : undefined }}>
-                  <div style={{ display: 'flex' }}>
-                    <IconButton icon="chevron-up" label={`Move ${r.function_name} up`} size="sm" appearance="subtle" disabled={!admin || i === 0} onClick={() => move(i, -1)} />
-                    <IconButton icon="chevron-down" label={`Move ${r.function_name} down`} size="sm" appearance="subtle" disabled={!admin || i === open.length - 1} onClick={() => move(i, 1)} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="heading ellipsis" style={{ fontWeight: 600 }}>{r.function_name}</div>
-                    <div className="eyebrow ellipsis">{`${r.phase} / ${r.subphase} · ${r.steps ? `${r.steps} steps · Create ${hrs(r.effort_h)}` : hrs(r.effort_h)}`}</div>
-                    <div className="eyebrow ellipsis" title={task(r.task_key)?.summary}>{r.task_key ? `${r.task_key} · ${task(r.task_key)?.summary ?? ''}` : 'No Task'}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {r.steps == null ? pick(`Member, ${r.function_name}`, r.ba_id, (id) => assign(r, { ba_id: id })) : (
-                      <>
-                        {pick(`BA, ${r.function_name}`, r.ba_id, (id) => assign(r, { ba_id: id }))}
-                        {pick(`BAL, ${r.function_name}`, r.bal_id, (id) => assign(r, { bal_id: id }))}
-                        {r.steps === 5 && pick(`JM, ${r.function_name}`, r.jm_id, (id) => assign(r, { jm_id: id }))}
-                      </>
-                    )}
-                  </div>
-                  <span title={steps.map((s) => `${s.step ?? 'Ticket'} · ${name(s.member_id)} · ${f1(s.hours)}h · ${dm(s.start)} – ${dm(s.end)}`).join('\n')}>{span}</span>
-                  <span className="muted">{steps.length ? hrs(steps.reduce((a, s) => a + s.hours, 0)) : ''}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      {v.stale_phases.length > 0 && (
+        <section className="card" aria-label="Master schedule out of date" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--hl-amber-fg)' }}>
+          {`The BA effort of ${v.stale_phases.join(', ')} changed since the master schedule was saved: save the master schedule again to compute ${v.stale_phases.length === 1 ? 'its' : 'their'} End.`}
+        </section>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span className="title">Sub-tasks</span>
+        <span className="eyebrow">One line per sub-task, named by Settings › Name rules; who carries its hours follows Settings › Step weights.</span>
+        <span className="spacer" />
+        {admin && open.length > 0 && (
+          <Button appearance="secondary" size="sm" disabled={auto.isPending || save.isPending}
+            title="Fills the empty BA / BAL / JM of each function from the phase's team (JMs from the anken), keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
+            onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
+            Auto allocate
+          </Button>
+        )}
+        {admin && <Button appearance="secondary" size="sm" iconBefore="plus" disabled={v.tasks.length === 0} onClick={() => setAdding('function')}>Add function</Button>}
+        {admin && <Button appearance="secondary" size="sm" iconBefore="plus" disabled={v.tasks.length === 0} onClick={() => setAdding('task')}>Add task</Button>}
+      </div>
+      <StepsTable epic={epic} v={v} people={people} admin={admin} assign={assign} move={move} />
+      <EffortDays v={v} name={name} />
+      {adding && <AddRowDialog epic={epic} kind={adding} tasks={v.tasks} close={() => setAdding(null)} />}
 
       {admin && (
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button disabled={blocked || preview.isPending} onClick={() => preview.mutate(undefined, { onError: (e) => toast(errorMessage(e), true) })}>Review push</Button>
+          <Button disabled={blocked || preview.isPending} onClick={() => { onCheck?.(); if (allow) setConfirming(true); else review(); }}>Review push</Button>
+        </div>
+      )}
+      {confirming && (
+        <div className="scrim" onClick={() => setConfirming(false)}>
+          <div className="dialog" role="dialog" aria-modal="true" aria-label="Confirm the push" onClick={(e) => e.stopPropagation()} style={{ width: 'min(520px,100%)' }}>
+            <span className="dialog-title">Some days go above the allocation</span>
+            {v.over_day.map((o) => <span key={o.member_id + o.date} style={{ fontSize: 13, color: 'var(--hl-amber-fg)' }}>{overDay(o)}</span>)}
+            <span className="eyebrow">The sub-tasks are created with these dates. Continue?</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="spacer" />
+              <Button appearance="subtle" onClick={() => setConfirming(false)}>Cancel</Button>
+              <Button onClick={() => { setConfirming(false); review(); }}>Continue</Button>
+            </div>
+          </div>
         </div>
       )}
       {preview.data && (
@@ -133,7 +134,7 @@ function Plan({ epic, v, people }: { epic: string; v: DetailPlanView; people: Pe
             <span className="title">{`${preview.data.creates.length} sub-tasks to create`}</span>
             <span className="spacer" />
             <Button appearance="subtle" size="sm" onClick={() => preview.reset()}>Cancel</Button>
-            <Button size="sm" iconBefore="upload" disabled={push.isPending} onClick={() => push.mutate(undefined, {
+            <Button size="sm" iconBefore="upload" disabled={push.isPending} onClick={() => push.mutate(allow, {
               onSuccess: (r) => { toast(`Created ${Object.keys(r.created).length} sub-tasks in Jira`); preview.reset(); },
               onError: (e) => toast(errorMessage(e), true),
             })}>Push to Jira</Button>

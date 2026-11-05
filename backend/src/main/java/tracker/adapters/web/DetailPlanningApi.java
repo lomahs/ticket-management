@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,7 +43,9 @@ import tracker.application.AppError.Invalid;
 import tracker.application.service.DetailPlanService;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
+import tracker.application.service.DetailPlanService.NewRowIn;
 import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.MasterScheduleService;
@@ -197,25 +202,57 @@ public class DetailPlanningApi {
         return detail.saveDraft(epicScope(viewer, epic), epic, body.draft());
     }
 
-    /** Fills the empty BA / BAL / JM slots with the member who finishes each row soonest; saves the draft and returns the plan. */
+    /** A change to one sub-task of the plan; {@code start} and {@code end} together (dates set by hand) or neither. */
+    public record StepBody(long rowId, @Nullable String step, @Nullable @PositiveOrZero Double effortH,
+                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
+                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end, boolean removed) {
+        StepIn in() {
+            return new StepIn(rowId, step, effortH, start, end, removed);
+        }
+    }
+
+    /** Changes the effort, the dates or the removal of one sub-task and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PutMapping("/{epic}/detail/step")
+    public DetailPlanView editDetailStep(@PathVariable("epic") String epic, @RequestBody @Valid StepBody body, Viewer viewer) {
+        return detail.editStep(epicScope(viewer, epic), epic, body.in());
+    }
+
+    /** @param steps 3 or 5 for a function; null for a ticket */
+    public record NewRowBody(@NotBlank String taskKey, @NotBlank String functionName, @Nullable Integer steps, @Positive double effortH) {
+    }
+
+    /** Adds a function or a ticket to the estimation from the plan and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/rows")
+    public DetailPlanView addDetailRow(@PathVariable("epic") String epic, @RequestBody @Valid NewRowBody body, Viewer viewer) {
+        return detail.addRow(epicScope(viewer, epic), epic, new NewRowIn(body.taskKey(), body.functionName(), body.steps(), body.effortH()));
+    }
+
+    /** Fills the empty BA / BAL / JM slots (docs/auto-allocation.md); saves the draft and returns the plan. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/auto-allocate")
     public DetailPlanView autoAllocate(@PathVariable("epic") String epic, Viewer viewer) {
         return detail.autoAllocate(epicScope(viewer, epic), epic);
     }
 
-    /** The review of the push: every sub-task, with the requests; refused while the plan has problems or overruns. */
+    /**
+     * The review of the push: every sub-task, with the requests; refused while the plan has problems or goes over a budget,
+     * and over a member's allocation on a day unless {@code allow_over_day} confirms it.
+     */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push/preview")
-    public BatchPreview previewDetailPush(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.pushPreview(epicScope(viewer, epic), epic);
+    public BatchPreview previewDetailPush(@PathVariable("epic") String epic,
+                                          @RequestParam(name = "allow_over_day", defaultValue = "false") boolean allowOverDay, Viewer viewer) {
+        return detail.pushPreview(epicScope(viewer, epic), epic, allowOverDay);
     }
 
     /** Creates the plan's sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push")
-    public BatchResult pushDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.push(viewer, epicScope(viewer, epic), epic);
+    public BatchResult pushDetailPlan(@PathVariable("epic") String epic,
+                                      @RequestParam(name = "allow_over_day", defaultValue = "false") boolean allowOverDay, Viewer viewer) {
+        return detail.push(viewer, epicScope(viewer, epic), epic, allowOverDay);
     }
 
     /** @param assignees sub-task key → the member it moves to */

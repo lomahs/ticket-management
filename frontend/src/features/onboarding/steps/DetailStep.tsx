@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { Button } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
@@ -12,20 +13,31 @@ import { DetailPlan } from '../detail/DetailPlan';
 export function DetailStep({ epic }: { epic: string }) {
   const toast = useToast();
   const navigate = useNavigate();
-  const people = (useQuery(onboardingMembersQuery(epic)).data ?? []).filter((m) => m.in_anken).map((m) => ({ id: m.member_id, name: m.name }));
+  const people = (useQuery(onboardingMembersQuery(epic)).data ?? []).filter((m) => m.in_anken)
+    .map((m) => ({ id: m.member_id, name: m.name, role: m.role ?? null }));
   const rows = useQuery(detailPlanQuery(epic)).data?.rows ?? [];
   const finish = useFinishOnboarding(epic);
   const done = rows.length > 0 && rows.every((r) => r.pushed_at);
+  // what stands before the push shows once the PIM saves or tries to finish, not on the first visit
+  const [checked, setChecked] = useState(false);
   return (
     <StepShell epic={epic} step="detail" title="Detail plan"
       sub="Who does each row and in which order; the dates follow from the phase start. Then push the sub-tasks to Jira."
+      onSave={async () => setChecked(true)}
       footer={(
-        <Button disabled={!done || finish.isPending} title={done ? undefined : 'Push every row to Jira first'} onClick={() => finish.mutate(undefined, {
-          onSuccess: () => { toast(`${epic} is onboarded`); void navigate({ to: '/anken/$epic', params: { epic } }); },
-          onError: (e) => toast(errorMessage(e), true),
-        })}>Finish onboarding</Button>
+        <Button disabled={finish.isPending} title={done ? undefined : 'Push every row to Jira first'} onClick={() => {
+          if (!done) {
+            setChecked(true);
+            toast('Push every row to Jira first', true);
+            return;
+          }
+          finish.mutate(undefined, {
+            onSuccess: () => { toast(`${epic} is onboarded`); void navigate({ to: '/anken/$epic', params: { epic } }); },
+            onError: (e) => toast(errorMessage(e), true),
+          });
+        }}>Finish onboarding</Button>
       )}>
-      <DetailPlan epic={epic} people={people} />
+      <DetailPlan epic={epic} people={people} checked={checked} onCheck={() => setChecked(true)} />
     </StepShell>
   );
 }

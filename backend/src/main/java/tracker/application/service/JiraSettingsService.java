@@ -40,6 +40,7 @@ import tracker.domain.IssueKind;
 import tracker.domain.Naming;
 import tracker.domain.RuleError;
 import tracker.domain.Status;
+import tracker.domain.Role;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
 import tracker.domain.StructureImport;
@@ -423,18 +424,27 @@ public class JiraSettingsService {
         return structure(e);
     }
 
-    /** @param weights step key ("create", "balr", …) → weight; {@code own}: the anken has its own, not the default */
-    public record StepWeightsView(Map<String, Double> weights, boolean own) {
+    /**
+     * @param weights step key ("create", "balr", …) → weight
+     * @param pic     step key → the role Jira assigns the sub-task to at push: BA or BAL
+     * @param shares  step key → percent of the step's planned hours the function's BA and BAL carry
+     * @param own     the anken has its own, not the default
+     */
+    public record StepWeightsView(Map<String, Double> weights, Map<String, Role> pic, Map<String, StepWeights.Share> shares, boolean own) {
     }
 
     private StepWeightsView stepWeightsView(TrackerSettings s, @Nullable String epic) {
         Map<String, Double> w = new LinkedHashMap<>();
+        Map<String, Role> pic = new LinkedHashMap<>();
+        Map<String, StepWeights.Share> shares = new LinkedHashMap<>();
         StepWeights sw = s.stepWeightsOf(epic);
         for (StepKind k : StepKind.values()) {
             w.put(k.value(), sw.of(k));
+            pic.put(k.value(), sw.picOf(k));
+            shares.put(k.value(), sw.shareOf(k));
         }
         TrackerSettings.AnkenSettings a = epic == null ? null : s.anken.get(epic);
-        return new StepWeightsView(w, a != null && a.stepWeights != null);
+        return new StepWeightsView(w, pic, shares, a != null && a.stepWeights != null);
     }
 
     /** The default when {@code epic} is null or blank. */
@@ -442,18 +452,40 @@ public class JiraSettingsService {
         return stepWeightsView(settings.load(), tracked(epic));
     }
 
-    /** @param raw every step key → a weight of 0 or more */
-    public StepWeightsView saveStepWeights(@Nullable String epic, Map<String, Double> raw) {
+    /**
+     * @param raw       every step key → a weight of 0 or more
+     * @param rawPic    step key → BA or BAL; null keeps what the scope has
+     * @param rawShares step key → BA and BAL percent, each 0–100 and together 100 at most; null keeps what the scope has
+     */
+    public StepWeightsView saveStepWeights(@Nullable String epic, Map<String, Double> raw, @Nullable Map<String, Role> rawPic,
+                                           @Nullable Map<String, StepWeights.Share> rawShares) {
         String scope = tracked(epic);
+        StepWeights now = settings.load().stepWeightsOf(scope);
         Map<StepKind, Double> w = new EnumMap<>(StepKind.class);
+        Map<StepKind, Role> pic = new EnumMap<>(now.pic());
+        Map<StepKind, StepWeights.Share> shares = new EnumMap<>(now.shares());
         for (StepKind k : StepKind.values()) {
             Double v = raw.get(k.value());
             if (v == null || !(v >= 0)) {
                 throw new Invalid("Every step needs a weight of 0 or more", "weights." + k.value());
             }
             w.put(k, v);
+            Role r = rawPic == null ? null : rawPic.get(k.value());
+            if (r != null) {
+                if (r != Role.BA && r != Role.BAL) {
+                    throw new Invalid("A step is assigned to the BA or the BAL", "pic." + k.value());
+                }
+                pic.put(k, r);
+            }
+            StepWeights.Share sh = rawShares == null ? null : rawShares.get(k.value());
+            if (sh != null) {
+                if (!(sh.ba() >= 0 && sh.ba() <= 100 && sh.bal() >= 0 && sh.bal() <= 100) || sh.ba() + sh.bal() > 100 + 1e-9) {
+                    throw new Invalid("The BA and BAL shares are 0 to 100 % and 100 % at most together", "shares." + k.value());
+                }
+                shares.put(k, sh);
+            }
         }
-        StepWeights sw = new StepWeights(w);
+        StepWeights sw = new StepWeights(w, pic, shares);
         TrackerSettings saved = settings.update(s -> {
             if (scope == null) {
                 s.stepWeights = sw;

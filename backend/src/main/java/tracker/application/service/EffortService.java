@@ -65,14 +65,11 @@ public class EffortService {
     public record DayDetailView(String memberId, String date, double loggedH, double plannedH, List<DayEntryView> entries) {
     }
 
-    /** Each sub-task's planned load for its plan owner (JM Review has none), handovers applied. */
+    /** Each sub-task's planned load, shared by its step's shares (JM Review has none), handovers applied. */
     private static Capacity.Plan plan(TrackerContext ctx) {
         List<PlanItem> items = new ArrayList<>();
         for (Issue i : ctx.subtasks()) {
-            PlanItem it = ctx.planItem(i);
-            if (it != null) {
-                items.add(it);
-            }
+            items.addAll(ctx.planItems(i));
         }
         return Capacity.dailyPlan(items, ctx.cal);
     }

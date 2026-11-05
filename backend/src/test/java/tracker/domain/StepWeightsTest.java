@@ -1,6 +1,7 @@
 package tracker.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.EnumMap;
@@ -22,10 +23,10 @@ class StepWeightsTest {
     }
 
     @Test
-    void functionTotalLeavesJmReviewOut() {
+    void baTotalIsTheBaShareOfEachStep() { // Create 8 + 70 % of Fix BAL 2.5 and Fix JM 1.5; the reviews are not the BA's
         StepWeights w = StepWeights.defaults();
-        assertThat(w.functionTotal(8, 5)).isEqualTo(14.0);
-        assertThat(w.functionTotal(8, 3)).isEqualTo(12.5);
+        assertThat(w.baTotal(8, 5)).isCloseTo(10.8, within(1e-9));
+        assertThat(w.baTotal(8, 3)).isCloseTo(9.75, within(1e-9));
         assertThat(w.stepHours(8, StepKind.JM_REVIEW)).isEqualTo(2.0);
     }
 

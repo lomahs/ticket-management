@@ -33,13 +33,16 @@ import tracker.domain.DetailScheduler.DayOverrun;
 import tracker.domain.DetailScheduler.Overrun;
 import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.DetailScheduler.Step;
+import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.PhaseGroups;
+import tracker.domain.Role;
 import tracker.domain.RuleError;
 import tracker.domain.ScheduleVersion;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.StepWeights;
 import tracker.domain.Steps;
 import tracker.domain.Text;
 import tracker.domain.TicketField;
@@ -103,7 +106,7 @@ public class ReplanService {
             return new ReplanView(List.of(), List.of(), List.of(), null, problems);
         }
         String earliest = Dates.max(phase.start(), ctx.today);
-        List<Chain> chains = chains(items, to, in.phase(), earliest, ctx.today);
+        List<Chain> chains = chains(ctx, ctx.settings.stepWeightsOf(epic), items, to, in.phase(), earliest);
         Set<String> keys = items.stream().map(Issue::key).collect(Collectors.toSet());
         Allocations a = allocations.counted(scope).allocations();
         try {
@@ -112,17 +115,22 @@ public class ReplanService {
             Map<String, Double> before = DetailPlanService.givenBefore(ctx, epic, keys);
             Map<String, Issue> byKey = new HashMap<>();
             items.forEach(i -> byKey.put(i.key(), i));
+            Map<String, List<Placed>> byRef = new LinkedHashMap<>();
+            res.placed().forEach(p -> byRef.computeIfAbsent(p.ref(), k -> new ArrayList<>()).add(p));
             for (Placed p : res.placed()) {
                 Issue i = byKey.get(p.ref());
-                if (started(i) && p.kind() != StepKind.JM_REVIEW) { // the part already done still counts in the phase
-                    before.merge(p.memberId() + "|" + p.phase(), Math.max(0, i.estimateH() - p.hours()), Double::sum);
+                double hours = hours(i);
+                if (started(i) && p.counted() && hours > 0) { // the part already done still counts in the phase, shared the same way
+                    before.merge(p.memberId() + "|" + p.phase(), Math.max(0, i.estimateH() - hours) * p.hours() / hours, Double::sum);
                 }
             }
             List<Overrun> over = DetailScheduler.overBudget(res.placed(), before, Map.of(in.phase(), phase), epic, a, ctx.cal);
-            List<ReplanItem> out = res.placed().stream().map(p -> {
-                Issue i = byKey.get(p.ref());
-                return new ReplanItem(i.key(), i.summary(), p.kind() == null ? null : p.kind().value(), i.assigneeId(), p.memberId(),
-                        i.plannedStart(), i.plannedEnd(), p.start(), p.end(), p.hours(), started(i));
+            List<ReplanItem> out = byRef.entrySet().stream().map(e -> {
+                Issue i = byKey.get(e.getKey());
+                List<Placed> ps = e.getValue();
+                return new ReplanItem(i.key(), i.summary(), ps.getFirst().kind() == null ? null : ps.getFirst().kind().value(), i.assigneeId(),
+                        to.get(i.key()), i.plannedStart(), i.plannedEnd(), ps.stream().map(Placed::start).min(String::compareTo).orElseThrow(),
+                        ps.stream().map(Placed::end).max(String::compareTo).orElseThrow(), hours(i), started(i));
             }).toList();
             String end = res.placed().stream().map(Placed::end).max(String::compareTo).orElse(null);
             PhaseCheck check = new PhaseCheck(in.phase(), phase.end(), end, end == null ? 0 : Dates.dayDiff(phase.end(), end));
@@ -136,8 +144,19 @@ public class ReplanService {
         return i.status() == Status.WIP || i.status() == Status.RESOLVED;
     }
 
-    /** A function's steps in step order, or a ticket alone; ordered by current Planned Start (none last), then key. */
-    private static List<Chain> chains(List<Issue> items, Map<String, String> to, String phase, String earliest, String today) {
+    /** A started step places its remaining estimate; the others their estimate. */
+    private static double hours(Issue i) {
+        return started(i) ? i.remainingH() : i.estimateH();
+    }
+
+    /**
+     * A function's steps in step order, or a ticket alone; ordered by current Planned Start (none last), then key. A step's
+     * hours go to the function's BA and BAL by the step's shares (Settings › Step weights): the BA is whoever gets its
+     * Create, the BAL whoever gets a step assigned to the BAL when that is a BAL, else the function's own. A step that counts
+     * for nobody follows its assignee's working days.
+     */
+    private static List<Chain> chains(TrackerContext ctx, StepWeights w, List<Issue> items, Map<String, String> to, String phase,
+                                      String earliest) {
         Map<String, List<Issue>> byFunction = new LinkedHashMap<>();
         for (Issue i : items) {
             boolean step = Steps.stepDef(i) != null;
@@ -149,13 +168,38 @@ public class ReplanService {
                 .orElse("9999")).thenComparing(g -> g.stream().map(Issue::key).min(String::compareTo).orElseThrow()));
         List<Chain> out = new ArrayList<>();
         for (List<Issue> g : groups) {
+            Function fn = ctx.function(g.getFirst());
+            String ba = g.stream().filter(i -> Steps.stepDef(i) != null && i.step() == StepKind.CREATE).map(i -> to.get(i.key())).findFirst()
+                    .orElse(fn == null ? null : fn.baId(ctx.members));
+            String bal = g.stream().filter(i -> Steps.stepDef(i) != null && w.picOf(i.step()) == Role.BAL).map(i -> to.get(i.key()))
+                    .filter(id -> ctx.members.get(id) != null && ctx.members.get(id).role() == Role.BAL).findFirst()
+                    .orElse(fn == null ? null : fn.balId(ctx.members));
             List<Step> steps = new ArrayList<>();
             for (Issue i : g) {
                 StepKind kind = Steps.stepDef(i) == null ? null : i.step();
-                boolean started = started(i);
-                double hours = started ? i.remainingH() : i.estimateH();
-                String fixed = started ? Text.orElse(i.plannedStart(), today) : null;
-                steps.add(new Step(i.key(), phase, kind, Objects.requireNonNull(to.get(i.key())), hours, fixed));
+                double hours = hours(i);
+                String fixed = started(i) ? Text.orElse(i.plannedStart(), ctx.today) : null;
+                String who = Objects.requireNonNull(to.get(i.key()));
+                if (kind == null) {
+                    steps.add(new Step(i.key(), phase, null, who, hours, fixed));
+                    continue;
+                }
+                StepWeights.Share s = w.shareOf(kind);
+                List<DetailScheduler.Share> shares = new ArrayList<>();
+                if (ba != null && s.ba() > 0) {
+                    shares.add(new DetailScheduler.Share(ba, hours * s.ba() / 100));
+                }
+                if (bal != null && s.bal() > 0) {
+                    if (bal.equals(ba)) {
+                        shares.set(0, new DetailScheduler.Share(ba, hours * (s.ba() + s.bal()) / 100));
+                    } else {
+                        shares.add(new DetailScheduler.Share(bal, hours * s.bal() / 100));
+                    }
+                }
+                if (s.counted() && shares.isEmpty()) { // nobody known to carry it: its assignee does
+                    shares.add(new DetailScheduler.Share(who, hours));
+                }
+                steps.add(new Step(i.key(), phase, kind, shares, who, hours, fixed, null));
             }
             out.add(new Chain(earliest, steps));
         }

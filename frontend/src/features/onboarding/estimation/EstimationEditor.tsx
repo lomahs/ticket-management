@@ -53,8 +53,8 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
   };
   return (
     <>
-      <section className="card" aria-label="Effort per phase" style={{ padding: '14px 18px', display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
-        <span className="title">Effort per phase</span>
+      <section className="card" aria-label="BA effort per phase" style={{ padding: '14px 18px', display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <span className="title">BA effort per phase</span>
         {phases.length === 0 && <span className="muted">No rows yet.</span>}
         {phases.map((p) => (
           <span key={p.phase} style={{ display: 'inline-flex', gap: 6, alignItems: 'baseline' }}>

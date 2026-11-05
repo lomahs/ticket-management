@@ -53,6 +53,27 @@ class DetailSchedulerTest {
     }
 
     @Test
+    void aSharedStepPlacesEachPartFromTheSameDayAndRunsUntilTheLastOne() {
+        // an has 6h on Monday already: a Fix comment of 10h, 7h for an and 3h for minh: an Tue 6h + Wed 1h, minh Tue 3h
+        Step fix = new Step("f", "ITA", StepKind.FIX_BAL, List.of(new DetailScheduler.Share("an", 7), new DetailScheduler.Share("minh", 3)),
+                "minh", 10, null, null);
+        Chain c = new Chain("2026-10-06", List.of(fix, new Step("n", "ITA", StepKind.FIX_JM, "an", 1, null)));
+        Result r = run(Map.of(), single("t", "an", 6), c);
+        assertThat(r.placed()).extracting(p -> p.memberId() + " " + p.hours() + " " + p.start() + "/" + p.end()).containsExactly(
+                "an 6.0 2026-10-05/2026-10-05", "an 7.0 2026-10-06/2026-10-07", "minh 3.0 2026-10-06/2026-10-06",
+                "an 1.0 2026-10-08/2026-10-08"); // the next step starts after the later part
+    }
+
+    @Test
+    void datesSetByHandSpreadTheHoursEvenAboveTheAllocation() {
+        Step pinned = new Step("p", "ITA", StepKind.CREATE, List.of(new DetailScheduler.Share("an", 16)), "an", 16, "2026-10-08", "2026-10-09");
+        Result r = run(Map.of(), new Chain(MON, List.of(pinned, new Step("b", "ITA", StepKind.BAL_REVIEW, "minh", 2, null))));
+        assertThat(spans(r)).containsExactly("2026-10-08/2026-10-09", "2026-10-12/2026-10-12");
+        assertThat(r.ledger().get("an")).containsEntry("2026-10-08", 8.0).containsEntry("2026-10-09", 8.0);
+        assertThat(r.overDay()).extracting(o -> o.date()).containsExactly("2026-10-08", "2026-10-09"); // 8h a day of 6h
+    }
+
+    @Test
     void jmReviewLastsHoursOverWorkingHoursAndTakesNoAllocation() {
         Chain f = new Chain(MON, List.of(new Step("c", "ITA", StepKind.CREATE, "an", 2, null), new Step("j", "ITA", StepKind.JM_REVIEW, "tanaka", 10, null),
                 new Step("x", "ITA", StepKind.FIX_JM, "an", 1, null)));

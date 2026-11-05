@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tracker.application.ports.EstimationRepository;
 import tracker.domain.EstimationRow;
+import tracker.domain.StepEdit;
+import tracker.domain.StepKind;
 
 @Repository
 class JdbcEstimationRepository implements EstimationRepository {
@@ -65,6 +67,34 @@ class JdbcEstimationRepository implements EstimationRepository {
     @Override
     public void deleteUnpushed(String epic) {
         jdbc.sql("DELETE FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL").param("epic", epic).update();
+    }
+
+    @Override
+    public List<StepEdit> stepEdits(String epic) {
+        return jdbc.sql("""
+                SELECT s.* FROM estimation_steps s JOIN estimation_rows r ON r.id = s.row_id WHERE r.epic_key = :epic
+                ORDER BY s.row_id, s.step
+                """).param("epic", epic).query((r, n) -> {
+            double effort = r.getDouble("effort_h");
+            Double e = r.wasNull() ? null : effort;
+            String step = r.getString("step");
+            return new StepEdit(r.getLong("row_id"), step.isEmpty() ? null : StepKind.of(step), e, r.getString("planned_start"),
+                    r.getString("planned_end"), r.getInt("removed") != 0);
+        }).list();
+    }
+
+    @Override
+    @Transactional
+    public void saveStepEdit(StepEdit e) {
+        String step = e.step() == null ? "" : e.step().value();
+        jdbc.sql("DELETE FROM estimation_steps WHERE row_id = :row AND step = :step").param("row", e.rowId()).param("step", step).update();
+        if (!e.empty()) {
+            jdbc.sql("""
+                    INSERT INTO estimation_steps (row_id, step, effort_h, planned_start, planned_end, removed)
+                    VALUES (:row, :step, :effort, :start, :end, :removed)
+                    """).param("row", e.rowId()).param("step", step).param("effort", e.effortH()).param("start", e.start())
+                    .param("end", e.end()).param("removed", e.removed() ? 1 : 0).update();
+        }
     }
 
     private static Map<String, Object> values(EstimationRow r) {

@@ -1,13 +1,16 @@
 package tracker.domain;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import org.jspecify.annotations.Nullable;
 
 /**
- * Who owns effort. Actual effort belongs to the worklog's author, classified by the author's role; planned effort belongs to
- * the role of the step. JM effort is not team effort and exists in no number.
+ * Who owns effort. Actual effort belongs to the worklog's author, classified by the author's role; planned effort is shared
+ * between the function's BA and BAL by the step's shares (Settings › Step weights). JM effort is not team effort and exists
+ * in no number.
  */
 public final class Effort {
     private Effort() {
@@ -42,20 +45,51 @@ public final class Effort {
         return i.withWorklogs(i.worklogs().stream().filter(w -> roleOf(w, members) != Role.JM).toList());
     }
 
+    /** A member's part of an issue's planned hours, 0–1. */
+    public record PlanShare(String memberId, double fraction) {
+    }
+
     /**
-     * Who the plan of {@code i} belongs to: on a function step, the function's BA for Create and the Fix comment steps, its BAL
-     * for BAL Review and nobody for JM Review; on any other issue, its assignee unless they are a JM (JM effort is in no number).
+     * Who carries the plan of {@code i}: on a function step, the function's BA and BAL by the step's shares (a share whose
+     * person is unknown is dropped; none on JM Review by default); on any other issue, its assignee unless they are a JM
+     * (JM effort is in no number).
      */
-    public static @Nullable String planOwner(@Nullable Function fn, Issue i, Map<String, Member> members) {
+    public static List<PlanShare> planShares(@Nullable Function fn, Issue i, Map<String, Member> members, StepWeights w) {
         if (fn == null || Steps.stepDef(i) == null) {
             Member m = i.assigneeId() != null ? members.get(i.assigneeId()) : null;
-            return m != null && m.role() == Role.JM ? null : i.assigneeId();
+            return i.assigneeId() == null || m != null && m.role() == Role.JM ? List.of() : List.of(new PlanShare(i.assigneeId(), 1));
         }
-        return switch (i.step()) {
-            case CREATE, FIX_BAL, FIX_JM -> fn.baId(members);
-            case BAL_REVIEW -> fn.balId(members);
-            case JM_REVIEW -> null;
-        };
+        StepWeights.Share s = w.shareOf(i.step());
+        String ba = fn.baId(members);
+        String bal = fn.balId(members);
+        List<PlanShare> out = new ArrayList<>();
+        if (ba != null && s.ba() > 0) {
+            out.add(new PlanShare(ba, s.ba() / 100));
+        }
+        if (bal != null && s.bal() > 0) {
+            if (bal.equals(ba)) {
+                out.set(0, new PlanShare(ba, (s.ba() + s.bal()) / 100));
+            } else {
+                out.add(new PlanShare(bal, s.bal() / 100));
+            }
+        }
+        return out;
+    }
+
+    /** The one person who stands for the plan of {@code i} where a screen shows one: the larger share, the BA on a tie. */
+    public static @Nullable String planOwner(@Nullable Function fn, Issue i, Map<String, Member> members, StepWeights w) {
+        PlanShare best = null;
+        for (PlanShare p : planShares(fn, i, members, w)) {
+            if (best == null || p.fraction() > best.fraction()) {
+                best = p;
+            }
+        }
+        return best == null ? null : best.memberId();
+    }
+
+    /** {@link #planOwner(Function, Issue, Map, StepWeights)} with the default step weights. */
+    public static @Nullable String planOwner(@Nullable Function fn, Issue i, Map<String, Member> members) {
+        return planOwner(fn, i, members, StepWeights.defaults());
     }
 
     /**
@@ -64,14 +98,19 @@ public final class Effort {
      * null without an owner or planned dates.
      */
     public static Capacity.@Nullable PlanItem planItem(Issue i, @Nullable String owner, @Nullable String handoverDay) {
+        return planItem(i, owner, handoverDay, 1);
+    }
+
+    /** As above, for a share of {@code fraction} of the hours. */
+    public static Capacity.@Nullable PlanItem planItem(Issue i, @Nullable String owner, @Nullable String handoverDay, double fraction) {
         if (!Text.hasText(owner) || !Text.hasText(i.plannedStart()) || !Text.hasText(i.plannedEnd())) {
             return null;
         }
         if (handoverDay != null && handoverDay.compareTo(i.plannedStart()) > 0) {
             String from = handoverDay.compareTo(i.plannedEnd()) > 0 ? i.plannedEnd() : handoverDay;
-            return new Capacity.PlanItem(i.key(), owner, from, i.plannedEnd(), i.remainingH());
+            return new Capacity.PlanItem(i.key(), owner, from, i.plannedEnd(), i.remainingH() * fraction);
         }
-        return new Capacity.PlanItem(i.key(), owner, i.plannedStart(), i.plannedEnd(), i.estimateH());
+        return new Capacity.PlanItem(i.key(), owner, i.plannedStart(), i.plannedEnd(), i.estimateH() * fraction);
     }
 
     /** Where a function step stands in a member's My Work. */

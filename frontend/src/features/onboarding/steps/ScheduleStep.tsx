@@ -69,13 +69,13 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
       <section className="card card-clip" aria-label="Master schedule phases">
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span className="title">Phases</span>
-          <span className="eyebrow">Effort comes from the estimation, hours per day from Add member. Each phase starts the working day after the previous one ends.</span>
+          <span className="eyebrow">BA effort comes from the estimation: Create, Fix BAL and Fix JM, and tickets (BAL and JM reviews aside). The End is the later of the day the team's members other than BALs have given that effort, and the day the longest function's reviews end after the Creates. Hours per day come from Add member. Each phase starts the working day after the previous one ends.</span>
         </div>
         {v.estimation_phases.length === 0 && <div style={{ padding: 16, color: 'var(--text-muted)' }}>The estimation has no rows yet.</div>}
         <div style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 760 }}>
             <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 10, padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>Phase</span><span>Effort</span><span>Members</span><span>Plan MD</span><span>Start</span><span>End</span>
+              <span>Phase</span><span>BA effort</span><span>Members</span><span>Plan MD</span><span>Start</span><span>End</span>
             </div>
             {v.estimation_phases.map((p, i) => {
               const c = rows.find((r) => r.phase === p);

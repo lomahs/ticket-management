@@ -66,6 +66,22 @@ class EffortTest {
     }
 
     @Test
+    void planHoursAreSharedByTheStepWeights() { // defaults: Fix comment steps 70 % BA, 30 % BAL; BAL Review all the BAL's
+        List<Issue> cells = FlagsTest.five("F1", "WNNNN");
+        Issue create = issue().key("PAY-F10").fid("F1").step(StepKind.CREATE).assignee("an").reporter("minh").build();
+        cells.set(0, create);
+        Function fn = Flags.buildFunctions(cells).get(0);
+        StepWeights w = StepWeights.defaults();
+        assertThat(cells).extracting(c -> Effort.planShares(fn, c, MEMBERS, w).toString()).containsExactly(
+                "[PlanShare[memberId=an, fraction=1.0]]", "[PlanShare[memberId=minh, fraction=1.0]]",
+                "[PlanShare[memberId=an, fraction=0.7], PlanShare[memberId=minh, fraction=0.3]]", "[]",
+                "[PlanShare[memberId=an, fraction=0.7], PlanShare[memberId=minh, fraction=0.3]]");
+        // the admin changes Fix comment BAL to the BAL alone: the one who stands for it is the BAL
+        StepWeights all = new StepWeights(w.weights(), null, java.util.Map.of(StepKind.FIX_BAL, new StepWeights.Share(0, 100)));
+        assertThat(Effort.planOwner(fn, cells.get(2), MEMBERS, all)).isEqualTo("minh");
+    }
+
+    @Test
     void myWorkPlacesStepsByRole() {
         // F1: BA an (Create's assignee), BAL minh (reporter); the Fix BAL sits with minh for a second review round
         List<Issue> cells = FlagsTest.five("F1", "CCWNN");

@@ -3,6 +3,7 @@ package tracker.application.ports;
 import java.util.List;
 
 import tracker.domain.EstimationRow;
+import tracker.domain.StepEdit;
 
 /** The estimation rows of each anken. */
 public interface EstimationRepository {
@@ -19,4 +20,10 @@ public interface EstimationRepository {
 
     /** Deletes the epic's unpushed rows. */
     void deleteUnpushed(String epic);
+
+    /** The step edits of the epic's rows. */
+    List<StepEdit> stepEdits(String epic);
+
+    /** Replaces the edit of that row and step; an empty edit is deleted. */
+    void saveStepEdit(StepEdit edit);
 }

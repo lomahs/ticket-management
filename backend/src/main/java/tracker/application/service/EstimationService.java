@@ -16,6 +16,8 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
+import tracker.domain.StepEdit;
+import tracker.domain.MasterSchedule;
 import tracker.domain.PhaseGroups;
 import tracker.domain.StepWeights;
 import tracker.domain.TaskNames;
@@ -32,7 +34,7 @@ public class EstimationService {
         this.rows = rows;
     }
 
-    /** @param totalEffortH Σ function totals (weights applied, without JM Review) and the hours of rows without steps */
+    /** @param totalEffortH the BA effort: Σ the functions' BA steps (weights applied; BAL and JM reviews aside) and the tickets */
     public record PhaseEffort(String phase, double totalEffortH) {
     }
 
@@ -68,17 +70,14 @@ public class EstimationService {
 
     private EstimationView view(TrackerContext ctx, String epic) {
         List<EstimationRow> all = rows.findByEpic(epic);
-        return new EstimationView(all, phaseEfforts(all, ctx.settings.stepWeightsOf(epic)).entrySet().stream()
+        return new EstimationView(all, phaseEfforts(all, rows.stepEdits(epic), ctx.settings.stepWeightsOf(epic)).entrySet().stream()
                 .map(e -> new PhaseEffort(e.getKey(), e.getValue())).toList(), tasks(ctx, epic));
     }
 
-    /** Phase → total effort, phases in the order of their first row. */
-    public static Map<String, Double> phaseEfforts(List<EstimationRow> rows, StepWeights weights) {
+    /** Phase → BA effort ({@link PhaseEffort#totalEffortH}), phases in the order of their first row. */
+    public static Map<String, Double> phaseEfforts(List<EstimationRow> rows, List<StepEdit> edits, StepWeights weights) {
         Map<String, Double> out = new LinkedHashMap<>();
-        for (EstimationRow r : rows) {
-            double h = r.steps() == null ? r.effortH() : weights.functionTotal(r.effortH(), r.steps());
-            out.merge(r.phase(), h, Double::sum);
-        }
+        MasterSchedule.work(rows, edits, weights, 1).forEach((phase, w) -> out.put(phase, w.effortH()));
         return out;
     }
 

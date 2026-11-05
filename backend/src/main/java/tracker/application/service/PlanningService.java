@@ -28,6 +28,7 @@ import tracker.domain.Capacity.WeekLoad;
 import tracker.domain.Capacity;
 import tracker.domain.DateReason;
 import tracker.domain.Dates;
+import tracker.domain.Effort;
 import tracker.domain.Holiday;
 import tracker.domain.Issue;
 import tracker.domain.IssueKind;
@@ -114,17 +115,22 @@ public class PlanningService {
                 && Text.hasText(i.plannedEnd())).toList();
     }
 
+    /**
+     * The weekly load of the people of the scope: each sub-task's planned hours shared by its step's shares (Settings › Step
+     * weights), as everywhere else. A pending move puts the hours on its new dates, and the share of the person it is taken
+     * from on the person it is given to.
+     */
     private List<MemberCapacity> capacity(TrackerContext ctx, AnkenScope scope, String start, Map<String, ChangePreview> moved) {
         List<PlanItem> items = new ArrayList<>();
         for (Issue i : planned(ctx)) {
             ChangePreview c = moved.get(i.key());
-            if (c != null) {
-                items.add(new PlanItem(i.key(), c.toMember(), c.toStart(), c.toEnd(), i.estimateH()));
-            } else {
-                String worker = ctx.worker(i);
-                if (Text.hasText(worker)) {
-                    items.add(new PlanItem(i.key(), worker, i.plannedStart(), i.plannedEnd(), i.estimateH()));
-                }
+            if (c == null) {
+                items.addAll(ctx.planItems(i));
+                continue;
+            }
+            for (Effort.PlanShare sh : ctx.planShares(i)) {
+                String who = sh.memberId().equals(c.fromMember()) ? c.toMember() : sh.memberId();
+                items.add(new PlanItem(i.key(), who, c.toStart(), c.toEnd(), i.estimateH() * sh.fraction()));
             }
         }
         AllocationService.Counted counted = allocations.counted(scope);

@@ -25,6 +25,7 @@ import tracker.domain.Numbers;
 import tracker.domain.ScheduleRules;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.StepWeights;
 import tracker.domain.WorkCalendar;
 
 /** The loaded team context: members, calendar, the issues of the anken in scope and the flags derived from them. */
@@ -47,6 +48,7 @@ public final class TrackerContext {
     /** The legacy worker identity (the Create step's assignee) by key: Planning and Capacity only (spec §4). */
     public final Map<String, String> owner = new LinkedHashMap<>();
     private final Map<String, String> planOwner = new LinkedHashMap<>();
+    private final Map<String, List<Effort.PlanShare>> planShares = new LinkedHashMap<>();
     private final Map<String, Function> functionOf = new LinkedHashMap<>();
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
@@ -94,9 +96,14 @@ public final class TrackerContext {
         return Flags.workerOf(i, owner.get(i.key()));
     }
 
-    /** Who the plan of {@code i} belongs to by the role of its step ({@link Effort#planOwner}); null on JM Review. */
+    /** The one person who stands for the plan of {@code i} ({@link Effort#planOwner}); null on JM Review. */
     public @Nullable String planOwner(Issue i) {
         return planOwner.get(i.key());
+    }
+
+    /** Who carries the planned hours of {@code i} and their parts ({@link Effort#planShares}); none on JM Review. */
+    public List<Effort.PlanShare> planShares(Issue i) {
+        return planShares.getOrDefault(i.key(), List.of());
     }
 
     /** The function {@code i} is a step of; null for any other issue. */
@@ -104,11 +111,18 @@ public final class TrackerContext {
         return functionOf.get(i.key());
     }
 
-    /** The planned load of {@code i}: its plan owner's, and after a BA handover the new BA's remaining estimate. */
-    public Capacity.@Nullable PlanItem planItem(Issue i) {
+    /** The planned load of {@code i}, one item per share; after a BA handover the BA's part is the remaining estimate. */
+    public List<Capacity.PlanItem> planItems(Issue i) {
         Function fn = function(i);
-        boolean baStep = fn != null && i.step() != StepKind.BAL_REVIEW && i.step() != StepKind.JM_REVIEW;
-        return Effort.planItem(i, planOwner(i), baStep ? fn.handoverDay(members) : null);
+        String ba = fn == null ? null : fn.baId(members);
+        List<Capacity.PlanItem> out = new ArrayList<>();
+        for (Effort.PlanShare s : planShares(i)) {
+            Capacity.PlanItem it = Effort.planItem(i, s.memberId(), s.memberId().equals(ba) ? fn.handoverDay(members) : null, s.fraction());
+            if (it != null) {
+                out.add(it);
+            }
+        }
+        return out;
     }
 
     public TaskCard card(Issue i) {
@@ -133,7 +147,9 @@ public final class TrackerContext {
                 Issue c = fn.cells().get(idx);
                 if (c != null) {
                     owner.put(c.key(), fn.ownerId());
-                    planOwner.put(c.key(), Effort.planOwner(fn, c, members));
+                    StepWeights w = settings.stepWeightsOf(c.epicKey());
+                    planOwner.put(c.key(), Effort.planOwner(fn, c, members, w));
+                    planShares.put(c.key(), Effort.planShares(fn, c, members, w));
                     functionOf.put(c.key(), fn);
                     flags.put(c.key(), Flags.issueFlags(c, idx == fn.current(), members, today, settings.thresholds, schedule(c)));
                 }
@@ -143,6 +159,7 @@ public final class TrackerContext {
             if (!flags.containsKey(i.key())) {
                 owner.put(i.key(), null);
                 planOwner.put(i.key(), Effort.planOwner(null, i, members));
+                planShares.put(i.key(), Effort.planShares(null, i, members, settings.stepWeightsOf(i.epicKey())));
                 flags.put(i.key(), Flags.issueFlags(i, i.status() != Status.CLOSED, members, today, settings.thresholds, schedule(i)));
             }
         }
