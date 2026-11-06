@@ -462,6 +462,47 @@ describe('onboarding', () => {
     await waitFor(() => expect(added).toEqual({ task_key: 'PAY-1102', function_name: 'Export', steps: 5, effort_h: 6 }));
   });
 
+  it('imports a filled template: shows what changes and what is wrong, then applies the good lines', async () => {
+    let applied: { lines: Record<string, unknown>[] } | null = null;
+    onboarding({ step: 6 });
+    const imported = [
+      { line: 2, ref: '1:create', function: 'Login', step: 'create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, start: null, end: null,
+        changes: [{ field: 'ba', before: 'an', after: 'minh' }, { field: 'effort_h', before: '8', after: '10' }], errors: [] },
+      { line: 3, ref: '1:balr', function: 'Login', step: 'balr', ba_id: null, bal_id: null, jm_id: null, effort_h: 2, start: null, end: null,
+        changes: [], errors: [] },
+      { line: 4, ref: '2', function: 'Run', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: 16, start: '2026-10-20', end: '2026-10-21',
+        changes: [{ field: 'start', before: '2026-10-12', after: '2026-10-20' }, { field: 'end', before: '2026-10-14', after: '2026-10-21' }], errors: [] },
+      { line: 5, ref: '9', function: 'Ghost', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: null, start: null, end: null,
+        changes: [], errors: ['9 is not a sub-task of the plan'] },
+    ];
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'an' }, RUN], ...planned }))),
+      http.post('*/api/v1/planning/PAY-1100/detail/import/preview', () => HttpResponse.json(imported)),
+      http.post('*/api/v1/planning/PAY-1100/detail/import', async ({ request }) => {
+        applied = await request.json() as typeof applied;
+        return HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'minh' }, RUN], ...planned }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    await screen.findByLabelText('BA, Login');
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitem', { name: 'Download template' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Import Excel / CSV' }));
+    fireEvent.change(screen.getByLabelText('Import file'), { target: { files: [new File(['x'], 'plan.xlsx')] } });
+    const dialog = await screen.findByRole('dialog', { name: 'Import the detail plan' });
+    expect(within(dialog).getByRole('status').textContent).toBe('plan.xlsx: 2 lines to change · 1 unchanged · 1 with errors, left out');
+    expect(within(dialog).getByText('Line 5 · Ghost: 9 is not a sub-task of the plan')).toBeTruthy();
+    expect(within(dialog).getByText('Line 2 · Login · Create')).toBeTruthy();
+    expect(within(dialog).getByText('BA An → Minh')).toBeTruthy();
+    expect(within(dialog).getByText('Effort 8h → 10h')).toBeTruthy();
+    expect(within(dialog).getByText('Plan 12/10–14/10 → 20/10–21/10 (set by hand)')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 2 lines' }));
+    await waitFor(() => expect(applied?.lines.map((l) => l.ref)).toEqual(['1:create', '2'])); // the unchanged and wrong lines stay out
+    expect(applied!.lines[0]).toEqual({ ref: '1:create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, start: null, end: null });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('minh');
+  });
+
   it('warns about days above the allocation and pushes them once confirmed', async () => {
     let allowed: string | null = null;
     onboarding({ step: 6 });

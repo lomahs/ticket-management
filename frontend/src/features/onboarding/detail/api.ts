@@ -74,3 +74,33 @@ export function useAddRow(epic: string) {
     },
   });
 }
+
+export type ImportLine = Schemas['ImportLine'];
+
+/** The plan's sub-tasks not in Jira yet as an .xlsx to change offline and import back. */
+export const detailTemplateUrl = (epic: string) => `/api/v1/planning/${encodeURIComponent(epic)}/detail/template`;
+
+/** Reads a filled template and checks each line against the plan; nothing is saved. */
+export const useImportPreview = (epic: string) => useMutation({
+  mutationFn: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return unwrap(http.POST('/api/v1/planning/{epic}/detail/import/preview', { params: { path: { epic } }, body: fd as never, bodySerializer: (b) => b as FormData }));
+  },
+});
+
+/** Applies the lines of a preview that have no error; the plan that follows comes back. */
+export function useApplyImport(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lines: ImportLine[]) => unwrap(http.POST('/api/v1/planning/{epic}/detail/import', { params: { path: { epic } }, body: {
+      lines: lines.map((l) => ({ ref: l.ref, ba_id: l.ba_id ?? null, bal_id: l.bal_id ?? null, jm_id: l.jm_id ?? null, effort_h: l.effort_h ?? null,
+        start: l.start ?? null, end: l.end ?? null })),
+    } })),
+    // a Create or ticket effort is the estimation's: the screens built on it read it again
+    onSuccess: (v) => {
+      qc.setQueryData(detailPlanQuery(epic).queryKey, v);
+      void qc.invalidateQueries({ queryKey: ['planning'], predicate: (q) => q.queryKey[1] !== 'detail' });
+    },
+  });
+}

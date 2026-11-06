@@ -2099,6 +2099,83 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/import" : {
+      "post" : {
+        "operationId" : "applyDetailImport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DetailImportBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/detail/import/preview" : {
+      "post" : {
+        "operationId" : "previewDetailImport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "encoding" : {
+                "file" : { }
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/DetailPlanUpload"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ImportLine"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/detail/push" : {
       "post" : {
         "operationId" : "pushDetailPlan",
@@ -2230,6 +2307,33 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
+    "/api/v1/planning/{epic}/detail/template" : {
+      "get" : {
+        "operationId" : "detailTemplate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "binary"
                 }
               }
             },
@@ -5027,6 +5131,29 @@
         },
         "required" : [ "days" ]
       },
+      "DetailImportBody" : {
+        "type" : "object",
+        "properties" : {
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ImportLineBody"
+            },
+            "maxItems" : 2000,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "lines" ]
+      },
+      "DetailPlanUpload" : {
+        "type" : "object",
+        "properties" : {
+          "file" : {
+            "type" : [ "string", "null" ],
+            "format" : "binary"
+          }
+        }
+      },
       "DetailPlanView" : {
         "type" : "object",
         "properties" : {
@@ -5815,6 +5942,21 @@
         },
         "required" : [ "countries", "date", "name" ]
       },
+      "ImportChange" : {
+        "type" : "object",
+        "properties" : {
+          "after" : {
+            "type" : [ "string", "null" ]
+          },
+          "before" : {
+            "type" : [ "string", "null" ]
+          },
+          "field" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "after", "before", "field" ]
+      },
       "ImportIn" : {
         "type" : "object",
         "properties" : {
@@ -5831,6 +5973,87 @@
           }
         },
         "required" : [ "rows" ]
+      },
+      "ImportLine" : {
+        "type" : "object",
+        "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "changes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ImportChange"
+            }
+          },
+          "effort_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "function" : {
+            "type" : "string"
+          },
+          "jm_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "line" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "start" : {
+            "type" : [ "string", "null" ]
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "ba_id", "bal_id", "changes", "effort_h", "end", "errors", "function", "jm_id", "line", "ref", "start", "step" ]
+      },
+      "ImportLineBody" : {
+        "type" : "object",
+        "properties" : {
+          "ba_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "bal_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "effort_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "end" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "jm_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "ref" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "start" : {
+            "type" : [ "string", "null" ],
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required" : [ "ref" ]
       },
       "ImportPreviewOut" : {
         "type" : "object",

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { membersQuery, useCan } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
@@ -9,11 +9,12 @@ import { useToast } from '../../../shared/state/toast';
 import { onboardingQuery } from '../api';
 import { AddRowDialog } from './AddRowDialog';
 import { EffortDays } from './EffortDays';
+import { ImportDialog } from './ImportDialog';
 import { MoreMenu, type MenuItem } from './MoreMenu';
 import { PlanSummary } from './PlanSummary';
 import { StepsTable, type Slot } from './StepsTable';
 import { jiraCsv, planCsv } from './csv';
-import { useAutoAllocate, useClearPlan, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
+import { detailTemplateUrl, useAutoAllocate, useClearPlan, useImportPreview, useSaveDraft, type DetailPlanView, type DraftIn, type ImportLine } from './api';
 
 /** A person who can be given a row: a member of the anken, with their role. */
 export interface Person { id: string; name: string; role?: string | null }
@@ -35,10 +36,13 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
   const [view, setView] = useState<View>('lines');
   const [adding, setAdding] = useState<'function' | 'task' | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [imported, setImported] = useState<{ file: string; lines: ImportLine[] } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const preview = useImportPreview(epic);
   const save = useSaveDraft(epic);
   const auto = useAutoAllocate(epic);
   const clear = useClearPlan(epic);
-  const busy = auto.isPending || save.isPending || clear.isPending;
+  const busy = auto.isPending || save.isPending || clear.isPending || preview.isPending;
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   const members = useQuery(membersQuery(epic)).data ?? [];
   const open = v.rows.filter((r) => !r.pushed_at);
@@ -61,6 +65,17 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
     downloadCsv(`jira-subtasks-${epic}.csv`, c.header, c.rows);
     toast(`Exported ${c.rows.length} sub-tasks · Jira › Import work items from CSV; the rows stay unpushed here`);
   };
+  const downloadTemplate = () => {
+    const a = document.createElement('a');
+    a.href = detailTemplateUrl(epic);
+    a.download = `detail-plan-${epic}.xlsx`;
+    a.click();
+  };
+  const onFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) preview.mutate(f, { onSuccess: (lines) => setImported({ file: f.name, lines }), onError: (err) => toast(errorMessage(err), true) });
+    e.target.value = '';
+  };
   const assigns = (rows: Row[]) => rows.map((y) => ({ row_id: y.id, ba_id: y.ba_id ?? null, bal_id: y.bal_id ?? null, jm_id: y.jm_id ?? null }));
   const draft = (p: Partial<DraftIn>) => save.mutate({ order: open.map((r) => r.id), assigns: assigns(open), ...p }, { onError: (e) => toast(errorMessage(e), true) });
   const assign = (r: Row, slot: Slot, id: string | null) => draft({ assigns: assigns(open.map((x) => (x.id === r.id ? { ...x, [slot]: id } : x))) });
@@ -74,6 +89,11 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
       { label: 'Clear all', icon: 'trash-2' as const, disabled: busy, onClick: () => setClearing(true) },
       'sep' as const,
     ] : []),
+    { label: 'Download template', icon: 'file-down', disabled: open.length === 0,
+      title: 'The sub-tasks as an Excel file: change BA / BAL / JM, efforts and dates, then import it back', onClick: downloadTemplate },
+    ...(admin ? [{ label: 'Import Excel / CSV', icon: 'file-up' as const, disabled: busy || open.length === 0,
+      title: 'Reads a filled template; you review what changes before it is applied', onClick: () => fileInput.current?.click() }] : []),
+    'sep' as const,
     { label: 'Export plan', icon: 'download', disabled: open.length === 0, onClick: exportPlan },
     { label: 'Export for Jira', icon: 'file-spreadsheet', disabled: v.plan.length === 0, title: 'The sub-tasks the push would create, for Jira › Import work items from CSV', onClick: exportJira },
   ];
@@ -91,7 +111,7 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
           <MoreMenu items={more} />
           {admin && open.length > 0 && (
             <Button appearance={empty ? 'primary' : 'secondary'} size="sm" iconBefore="users" disabled={busy}
-              title="Fills the empty BA / BAL / JM of each function from the phase's team (JMs from the anken), keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
+              title="Fills the empty BA / BAL / JM of each function from the phase's team in the master schedule, keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
               onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
               {auto.isPending ? 'Allocating…' : 'Auto allocate'}
             </Button>
@@ -102,6 +122,8 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
         ? <StepsTable epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} />
         : v.days.length ? <EffortDays v={v} name={name} />
           : <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nothing is planned yet: pick the people of each function, or Auto allocate.</div>}
+      <input ref={fileInput} type="file" accept=".xlsx,.csv" aria-label="Import file" hidden onChange={onFile} />
+      {imported && <ImportDialog epic={epic} file={imported.file} lines={imported.lines} name={label} close={() => setImported(null)} />}
       {adding && <AddRowDialog epic={epic} kind={adding} tasks={v.tasks} close={() => setAdding(null)} />}
       {clearing && (
         <div className="scrim" onClick={() => setClearing(false)}>

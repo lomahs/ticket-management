@@ -135,7 +135,7 @@ class AccessGateTest extends ApiTestSupport {
     void missingCsrfIs403() throws Exception {
         MockHttpServletResponse res = mvc.perform(post("/api/v1/sync").contentType("application/json").content("{}")
                 .with(authentication(signedIn(ADMIN)))).andReturn().getResponse();
-        Res r = new Res(res.getStatus(), res.getContentType(), res.getContentAsString(StandardCharsets.UTF_8));
+        Res r = new Res(res.getStatus(), res.getContentType(), res.getContentAsString(StandardCharsets.UTF_8), res.getContentAsByteArray());
         problem(r, 403, "csrf");
     }
 }

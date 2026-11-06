@@ -91,6 +91,33 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    void detailPlanTemplateImportsBackUnchangedAndAppliesWhatChanged() throws Exception {
+        Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
+        long id = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json().get("rows").get(0).get("id").asLong();
+        call(json(post("/api/v1/planning/PAY-1100/master-schedule"), Map.of("phases",
+                List.of(Map.of("phase", "Implement_Coding", "start", "2026-10-12", "member_ids", List.of("an"))), "reason", "Kick-off")));
+        call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(id),
+                "assigns", List.of(Map.of("row_id", id, "ba_id", "an")))));
+        Res t = call(get("/api/v1/planning/PAY-1100/detail/template"));
+        assertThat(t.contentType()).isEqualTo(DetailPlanFiles.XLSX);
+        List<List<String>> rows = LeaveFiles.readRows("t.xlsx", t.bytes());
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).subList(0, 6)).containsExactly(String.valueOf(id), "Implement_Coding", "Run", "Ticket", rows.get(0).get(4), "An");
+        assertThat(rows.get(0).get(9)).matches("\\d{4}-\\d{2}-\\d{2}"); // a date cell, read back as ISO
+        JsonNode same = call(multipart("/api/v1/planning/PAY-1100/detail/import/preview")
+                .file(new MockMultipartFile("file", "t.xlsx", DetailPlanFiles.XLSX, t.bytes()))).json();
+        assertThat(same.get(0).get("errors")).isEmpty();
+        assertThat(same.get(0).get("changes")).isEmpty();
+        JsonNode v = call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines",
+                List.of(Map.of("ref", String.valueOf(id), "start", "2026-10-20", "end", "2026-10-21"))))).json();
+        assertThat(v.get("steps").get(0).get("manual").asBoolean()).isTrue();
+        assertThat(v.get("steps").get(0).get("start").asText()).isEqualTo("2026-10-20");
+        problem(call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines", List.of(Map.of("ref", "999"))))), 422, "invalid");
+        problem(call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines", List.of()))
+                .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+    }
+
+    @Test
     void masterScheduleSavesVersions() throws Exception {
         Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
         call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row))));

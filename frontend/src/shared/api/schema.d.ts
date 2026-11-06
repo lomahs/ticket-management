@@ -932,6 +932,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyDetailImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/detail/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewDetailImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/push": {
         parameters: {
             query?: never;
@@ -989,6 +1021,22 @@ export interface paths {
         };
         get?: never;
         put: operations["editDetailStep"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/detail/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["detailTemplate"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2008,6 +2056,13 @@ export interface components {
             /** Format: int32 */
             days: number;
         };
+        DetailImportBody: {
+            lines: components["schemas"]["ImportLineBody"][];
+        };
+        DetailPlanUpload: {
+            /** Format: binary */
+            file?: string | null;
+        };
         DetailPlanView: {
             allocated: components["schemas"]["OverrunAllocation"][];
             by_hand: components["schemas"]["HandPicks"][];
@@ -2246,8 +2301,39 @@ export interface components {
             date: string;
             name: string;
         };
+        ImportChange: {
+            after: string | null;
+            before: string | null;
+            field: string;
+        };
         ImportIn: {
             rows: string[][];
+        };
+        ImportLine: {
+            ba_id: string | null;
+            bal_id: string | null;
+            changes: components["schemas"]["ImportChange"][];
+            /** Format: double */
+            effort_h: number | null;
+            end: string | null;
+            errors: string[];
+            function: string;
+            jm_id: string | null;
+            /** Format: int32 */
+            line: number;
+            ref: string;
+            start: string | null;
+            step: string | null;
+        };
+        ImportLineBody: {
+            ba_id?: string | null;
+            bal_id?: string | null;
+            /** Format: double */
+            effort_h?: number | null;
+            end?: string | null;
+            jm_id?: string | null;
+            ref: string;
+            start?: string | null;
         };
         ImportPreviewOut: {
             file: string;
@@ -4874,6 +4960,58 @@ export interface operations {
             };
         };
     };
+    applyDetailImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DetailImportBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    previewDetailImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["DetailPlanUpload"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportLine"][];
+                };
+            };
+        };
+    };
     pushDetailPlan: {
         parameters: {
             query?: {
@@ -4970,6 +5108,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    detailTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
                 };
             };
         };

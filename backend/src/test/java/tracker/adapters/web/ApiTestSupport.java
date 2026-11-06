@@ -34,7 +34,8 @@ abstract class ApiTestSupport {
     @Autowired
     MockMvc mvc;
 
-    record Res(int status, String contentType, String text) {
+    /** @param bytes the body as sent, for a file */
+    record Res(int status, String contentType, String text, byte[] bytes) {
         JsonNode json() throws Exception {
             return JSON.readTree(text);
         }
@@ -48,7 +49,7 @@ abstract class ApiTestSupport {
         TestSecurityContextHolder.clearContext(); // no principal carries over from an earlier call
         r.with(csrf()).with(req -> req.getAttribute(CHOSEN) != null ? req : authentication(signedIn(ADMIN)).postProcessRequest(req));
         MockHttpServletResponse res = mvc.perform(r).andReturn().getResponse();
-        return new Res(res.getStatus(), res.getContentType(), res.getContentAsString(StandardCharsets.UTF_8));
+        return new Res(res.getStatus(), res.getContentType(), res.getContentAsString(StandardCharsets.UTF_8), res.getContentAsByteArray());
     }
 
     /** Signed in as this e-mail. */

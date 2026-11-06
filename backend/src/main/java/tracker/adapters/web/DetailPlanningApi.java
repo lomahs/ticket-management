@@ -40,6 +40,9 @@ import tracker.adapters.web.auth.Open;
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Requires;
 import tracker.application.AppError.Invalid;
+import tracker.application.service.DetailPlanImportService;
+import tracker.application.service.DetailPlanImportService.ImportLine;
+import tracker.application.service.DetailPlanImportService.ImportLineIn;
 import tracker.application.service.DetailPlanService;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
@@ -73,14 +76,16 @@ public class DetailPlanningApi {
     private final EstimationService estimation;
     private final MasterScheduleService schedule;
     private final DetailPlanService detail;
+    private final DetailPlanImportService detailImport;
     private final ReplanService replan;
     private final ScopeService scopes;
 
-    public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, DetailPlanService detail, ReplanService replan,
-                             ScopeService scopes) {
+    public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, DetailPlanService detail,
+                             DetailPlanImportService detailImport, ReplanService replan, ScopeService scopes) {
         this.estimation = estimation;
         this.schedule = schedule;
         this.detail = detail;
+        this.detailImport = detailImport;
         this.replan = replan;
         this.scopes = scopes;
     }
@@ -245,6 +250,57 @@ public class DetailPlanningApi {
     public DetailPlanView clearDetailPlan(@PathVariable("epic") String epic,
                                           @RequestParam(name = "keep_input", defaultValue = "false") boolean keepInput, Viewer viewer) {
         return detail.clear(epicScope(viewer, epic), epic, keepInput);
+    }
+
+    /** The plan's sub-tasks not in Jira yet as an .xlsx to change offline and import back, with the anken's members. */
+    @Requires(feature = Feature.PLANNING, level = Level.READ)
+    @GetMapping("/{epic}/detail/template")
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = DetailPlanFiles.XLSX, schema = @Schema(type = "string", format = "binary")))
+    public ResponseEntity<byte[]> detailTemplate(@PathVariable("epic") String epic, Viewer viewer) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(DetailPlanFiles.XLSX))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"detail-plan-" + epic + ".xlsx\"")
+                .body(DetailPlanFiles.template(detailImport.sheet(epicScope(viewer, epic), epic)));
+    }
+
+    /** The multipart body of a detail plan import. */
+    public record DetailPlanUpload(@Nullable @Schema(type = "string", format = "binary") MultipartFile file) {
+    }
+
+    /** Reads a filled template (.xlsx or .csv) and checks every line against the plan; nothing is saved. */
+    @Open(Rule.ADMIN)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(implementation = DetailPlanUpload.class), encoding = @Encoding(name = "file")))
+    @PostMapping(value = "/{epic}/detail/import/preview", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
+    public List<ImportLine> previewDetailImport(@PathVariable("epic") String epic,
+                                                @RequestPart(name = "file", required = false) @Nullable MultipartFile file, Viewer viewer)
+            throws IOException {
+        AnkenScope scope = epicScope(viewer, epic);
+        if (file == null) {
+            throw new Invalid("Choose a .xlsx or .csv file", "file");
+        }
+        String name = file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty() ? "upload" : file.getOriginalFilename();
+        return detailImport.preview(scope, epic, LeaveFiles.readRows(name, file.getBytes()));
+    }
+
+    /** A line of the preview to apply; null keeps what the plan has. */
+    public record ImportLineBody(@NotBlank String ref, @Nullable String baId, @Nullable String balId, @Nullable String jmId,
+                                 @Nullable @PositiveOrZero Double effortH,
+                                 @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
+                                 @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end) {
+        ImportLineIn in() {
+            return new ImportLineIn(ref, baId, balId, jmId, effortH, start, end);
+        }
+    }
+
+    public record DetailImportBody(@NotNull @Size(max = 2000) List<@NotNull @Valid ImportLineBody> lines) {
+    }
+
+    /** Applies the lines of a preview (people picked, efforts and dates set by hand) and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/import")
+    public DetailPlanView applyDetailImport(@PathVariable("epic") String epic, @RequestBody @Valid DetailImportBody body, Viewer viewer) {
+        return detailImport.apply(epicScope(viewer, epic), epic, body.lines().stream().map(ImportLineBody::in).toList());
     }
 
     /**
