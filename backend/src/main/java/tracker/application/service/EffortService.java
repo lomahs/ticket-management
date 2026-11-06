@@ -26,10 +26,12 @@ import tracker.domain.Burndown;
 import tracker.domain.Capacity.PlanItem;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
+import tracker.domain.Effort;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Numbers;
 import tracker.domain.PhaseGroups;
+import tracker.domain.PlanMatrix;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepDef;
@@ -216,7 +218,7 @@ public class EffortService {
      */
     public record BurndownView(@Nullable String epicKey, String title, List<BurndownOption> ankens, List<String> phases,
                                @Nullable String phase, List<BurndownOption> tasks, @Nullable String task, List<String> members,
-                               @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown) {
+                               @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown, PlanMatrix.PlanGrid matrix) {
     }
 
     /**
@@ -281,6 +283,44 @@ public class EffortService {
         }
         String from = chart.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
         return new BurndownView(epic, titleOf(ctx, epic), ankens, phases, ph, tasks, tk, members, who, items.size(), ctx.today,
-                Burndown.compute(items, ctx.cal, ctx.today, from));
+                Burndown.compute(items, ctx.cal, ctx.today, from), matrix(ctx, chart, groups, phases, start, who));
+    }
+
+    /**
+     * The plan per function, person and day of the chart's sub-tasks: each step shared between the function's BA and BAL by the
+     * step weights, over its planned dates (a handover is not taken into account). Rows by phase, sub-phase (by its start),
+     * function (by its first start); {@code who} keeps that person's rows.
+     */
+    private static PlanMatrix.PlanGrid matrix(TrackerContext ctx, List<Issue> chart, Map<String, String> groups, List<String> phases,
+                                            Map<String, String> taskStart, @Nullable String who) {
+        Map<String, String> fnStart = new HashMap<>();
+        chart.forEach(i -> fnStart.merge(functionKey(ctx, i), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b));
+        java.util.function.Function<Issue, String> taskOf = i -> Text.orElse(i.parentKey(), "");
+        List<PlanMatrix.Item> items = new ArrayList<>();
+        for (Issue i : chart.stream().sorted(Comparator
+                .comparingInt((Issue i) -> phases.indexOf(groups.getOrDefault(taskOf.apply(i), PhaseGroups.OTHER)))
+                .thenComparing(i -> taskStart.getOrDefault(taskOf.apply(i), ""))
+                .thenComparing(taskOf)
+                .thenComparing(i -> fnStart.get(functionKey(ctx, i)))
+                .thenComparing(i -> functionKey(ctx, i))
+                .thenComparing(Issue::plannedStart)).toList()) {
+            String task = taskOf.apply(i);
+            Function fn = ctx.function(i);
+            String label = fn != null ? fn.name() : Text.orElse(i.functionName(), i.summary());
+            String taskName = ctx.issue(task).map(t -> PhaseGroups.taskName(t.summary())).orElse(task);
+            for (Effort.PlanShare s : ctx.planShares(i)) {
+                PlanItem p = Effort.planItem(i, s.memberId(), null, s.fraction());
+                if (p != null && (who == null || who.equals(s.memberId()))) {
+                    items.add(new PlanMatrix.Item(groups.getOrDefault(task, PhaseGroups.OTHER), task, taskName, functionKey(ctx, i), label, p));
+                }
+            }
+        }
+        return PlanMatrix.compute(items, ctx.cal);
+    }
+
+    /** The function a sub-task is a step of; a sub-task outside any function is its own. */
+    private static String functionKey(TrackerContext ctx, Issue i) {
+        Function fn = ctx.function(i);
+        return fn != null ? "fn:" + fn.id() : "issue:" + i.key();
     }
 }

@@ -11,6 +11,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { burndownQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 import { PickAnken } from '../../../shared/ui/PickAnken';
+import { PlanTable } from './PlanTable';
 
 const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
@@ -106,6 +107,7 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
         <BurndownChart b={b} today={v.today}
           empty={`No sub-tasks with a Planned Start, a Planned End and an estimate${v.phase || v.task || v.member ? ' match these filters' : ' in this anken'}.`} />
       </section>
+      <PlanTable m={v.matrix} today={v.today} />
     </>
   );
 }

@@ -1834,6 +1834,7 @@ export interface components {
             ankens: components["schemas"]["BurndownOption"][];
             burndown: components["schemas"]["BurndownChart"];
             epic_key: string | null;
+            matrix: components["schemas"]["PlanGrid"];
             member: string | null;
             members: string[];
             phase: string | null;
@@ -2829,6 +2830,21 @@ export interface components {
             key: string;
             member_id: string;
             start: string;
+        };
+        PlanGrid: {
+            days: string[];
+            rows: components["schemas"]["PlanRow"][];
+        };
+        PlanRow: {
+            function: string;
+            function_key: string;
+            hours: number[];
+            member_id: string;
+            phase: string;
+            task: string;
+            task_key: string;
+            /** Format: double */
+            total_h: number;
         };
         PlanningPreview: {
             capacity: components["schemas"]["MemberCapacity"][];

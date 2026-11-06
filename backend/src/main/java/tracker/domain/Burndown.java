@@ -41,7 +41,7 @@ public final class Burndown {
     }
 
     /** The first shown day on or after d, else the last one. */
-    private static String snap(List<String> days, String d) {
+    static String snap(List<String> days, String d) {
         for (String x : days) {
             if (x.compareTo(d) >= 0) {
                 return x;

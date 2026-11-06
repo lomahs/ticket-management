@@ -53,6 +53,7 @@ import tracker.domain.Issue;
 import tracker.domain.LeaveType;
 import tracker.domain.Member;
 import tracker.domain.Numbers;
+import tracker.domain.PlanMatrix;
 import tracker.domain.Role;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
@@ -417,6 +418,21 @@ class ServiceReadsTest {
         assertThat(one.burndown().estimateH()).isLessThan(b.estimateH());
         assertThat(one.burndown().start()).isEqualTo(inPhase.burndown().start()); // the phase's start, whoever is picked
         assertThatThrownBy(() -> effort.burndown(ALL, "NOPE-1", null, null, null)).isInstanceOf(NotFound.class);
+    }
+
+    @Test
+    void burndownMatrixSharesEachStepBetweenTheBaAndTheBalByTheStepWeights() {
+        TrackerContext ctx = contexts.load(ALL);
+        Map<String, Member> team = contexts.membersById();
+        double shared = ctx.subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100") && !Steps.isJmReview(i)
+                        && i.plannedStart() != null && i.plannedEnd() != null && i.estimateH() > 0)
+                .flatMap(i -> ctx.planShares(i).stream().map(s -> i.estimateH() * s.fraction())).mapToDouble(Double::doubleValue).sum();
+        PlanMatrix.PlanGrid m = effort.burndown(ALL, "PAY-1100", null, null, null).matrix();
+        assertThat(m.rows()).allMatch(r -> r.hours().size() == m.days().size());
+        assertThat(m.rows().stream().mapToDouble(PlanMatrix.PlanRow::totalH).sum()).isCloseTo(shared, org.assertj.core.data.Offset.offset(0.1));
+        assertThat(m.rows()).anyMatch(r -> team.get(r.memberId()).role() == Role.BAL); // the BAL's share of Create, Fix comment…
+        String bal = m.rows().stream().map(PlanMatrix.PlanRow::memberId).filter(id -> team.get(id).role() == Role.BAL).findFirst().orElseThrow();
+        assertThat(effort.burndown(ALL, "PAY-1100", null, null, bal).matrix().rows()).isNotEmpty().allMatch(r -> r.memberId().equals(bal));
     }
 
     @Test

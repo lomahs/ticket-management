@@ -231,6 +231,7 @@ describe('screens render API data at their URLs', () => {
         members: ['binh'], member: seen.get('member'), subtasks: 3, today: '2026-10-07',
         burndown: { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
           days: [day('2026-10-05', 12, 12), day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
+        matrix: { days: [], rows: [] },
       });
     }));
     const { router } = renderApp('/effort/burndown?anken=PAY-1100');
@@ -250,6 +251,31 @@ describe('screens render API data at their URLs', () => {
     expect(seen?.get('phase')).toBeNull(); // another anken has its own phases
     expect(seen?.get('task')).toBeNull();
     expect(seen?.get('member')).toBeNull(); // and its own people
+  });
+
+  it('lists the planned hours per function, person and day under the burndown', async () => {
+    const row = (task: string, fn: string, member_id: string, hours: number[]) => ({
+      phase: 'ITA', task_key: task, task: task === 'PAY-1301' ? 'ITA Prepare' : 'ITA Execute', function_key: `fn:${fn}`, function: fn,
+      member_id, total_h: hours.reduce((a, b) => a + b, 0), hours,
+    });
+    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json({
+      epic_key: 'PAY-1100', title: 'Payment flow revision', ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }],
+      phases: ['ITA'], phase: null, tasks: [], task: null, members: ['an'], member: null, subtasks: 3, today: '2026-10-06',
+      burndown: { estimate_h: 0, start: null, end: null, plan_remaining_h: 0, actual_remaining_h: 0, days: [] },
+      matrix: {
+        days: ['2026-10-05', '2026-10-06', '2026-10-07'],
+        rows: [row('PAY-1301', 'Login', 'an', [2.7, 2.7, 0]), row('PAY-1301', 'Login', 'minh', [1.3, 1.3, 0]),
+          row('PAY-1302', 'Search', 'an', [0, 2, 2])],
+      },
+    })));
+    renderApp('/effort/burndown?anken=PAY-1100');
+    const table = await screen.findByRole('table', { name: 'Planned effort per function, person and day' });
+    const rows = within(table).getAllByRole('row').map((r) => [...r.querySelectorAll('th,td')].map((c) => c.textContent));
+    expect(rows[0]).toEqual(['Phase', 'Sub-phase', 'Function', 'PIC', 'Day 105/10', 'Day 206/10', 'Day 307/10', 'Total']);
+    expect(rows[1]).toEqual(['ITA', 'ITA Prepare', 'Login', 'An (BA)', '2.7', '2.7', '—', '5.4']);
+    expect(rows[2]).toEqual(['', '', '', 'Minh (BAL)', '1.3', '1.3', '—', '2.6']); // the BAL's share of the same function
+    expect(rows[3]).toEqual(['', 'ITA Execute', 'Search', 'An (BA)', '—', '2', '2', '4']);
+    expect(rows[4]).toEqual(['Total', '', '', '', '4', '6', '2', '12']);
   });
 
   it('shows API errors instead of a blank screen', async () => {
