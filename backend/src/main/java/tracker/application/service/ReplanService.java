@@ -111,7 +111,7 @@ public class ReplanService {
         Allocations a = allocations.counted(scope).allocations();
         try {
             DetailScheduler.Result res = DetailScheduler.schedule(epic, chains, DetailPlanService.loads(ctx, epic, keys), a, ctx.cal,
-                    ctx.settings.workingHours.hoursPerDay());
+                    ctx.settings.workingHours.hoursPerDay(), ctx.settings.stepWeightsOf(epic).daySplit());
             Map<String, Double> before = DetailPlanService.givenBefore(ctx, epic, keys);
             Map<String, Issue> byKey = new HashMap<>();
             items.forEach(i -> byKey.put(i.key(), i));

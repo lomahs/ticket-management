@@ -287,7 +287,8 @@ public final class AutoAllocator {
             }
         }
         try {
-            return measure(in, unfilled, DetailScheduler.schedule(in.epic(), chains, in.loads(), in.hours(), in.cal(), in.jmHoursPerDay())
+            return measure(in, unfilled, DetailScheduler.schedule(in.epic(), chains, in.loads(), in.hours(), in.cal(), in.jmHoursPerDay(),
+                    in.weights().daySplit())
                     .placed(), budgets);
         } catch (RuleError e) {
             return WORST.apply(unfilled);
@@ -395,7 +396,8 @@ public final class AutoAllocator {
                 Chain c = chain(in, r, p);
                 Result res;
                 try {
-                    res = c == null ? null : DetailScheduler.schedule(in.epic(), List.of(c), ledger, in.hours(), in.cal(), in.jmHoursPerDay());
+                    res = c == null ? null : DetailScheduler.schedule(in.epic(), List.of(c), ledger, in.hours(), in.cal(), in.jmHoursPerDay(),
+                            in.weights().daySplit());
                 } catch (RuleError e) {
                     continue;
                 }
@@ -530,7 +532,8 @@ public final class AutoAllocator {
                 }
             }
         }
-        for (Placed pl : DetailScheduler.schedule(in.epic(), chains, in.loads(), in.hours(), in.cal(), in.jmHoursPerDay()).placed()) {
+        for (Placed pl : DetailScheduler.schedule(in.epic(), chains, in.loads(), in.hours(), in.cal(), in.jmHoursPerDay(),
+                in.weights().daySplit()).placed()) {
             out.get(rowOf.get(pl.ref())).add(pl);
         }
         return out;

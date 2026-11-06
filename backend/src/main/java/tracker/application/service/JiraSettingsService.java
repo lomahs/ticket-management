@@ -428,9 +428,11 @@ public class JiraSettingsService {
      * @param weights step key ("create", "balr", …) → weight
      * @param pic     step key → the role Jira assigns the sub-task to at push: BA or BAL
      * @param shares  step key → percent of the step's planned hours the function's BA and BAL carry
+     * @param daySplit how the detail plan shares a BA's day between Create (and tickets) and Fix comment, as parts
      * @param own     the anken has its own, not the default
      */
-    public record StepWeightsView(Map<String, Double> weights, Map<String, Role> pic, Map<String, StepWeights.Share> shares, boolean own) {
+    public record StepWeightsView(Map<String, Double> weights, Map<String, Role> pic, Map<String, StepWeights.Share> shares,
+                                  StepWeights.DaySplit daySplit, boolean own) {
     }
 
     private StepWeightsView stepWeightsView(TrackerSettings s, @Nullable String epic) {
@@ -444,7 +446,7 @@ public class JiraSettingsService {
             shares.put(k.value(), sw.shareOf(k));
         }
         TrackerSettings.AnkenSettings a = epic == null ? null : s.anken.get(epic);
-        return new StepWeightsView(w, pic, shares, a != null && a.stepWeights != null);
+        return new StepWeightsView(w, pic, shares, sw.daySplit(), a != null && a.stepWeights != null);
     }
 
     /** The default when {@code epic} is null or blank. */
@@ -456,9 +458,10 @@ public class JiraSettingsService {
      * @param raw       every step key → a weight of 0 or more
      * @param rawPic    step key → BA or BAL; null keeps what the scope has
      * @param rawShares step key → BA and BAL percent, each 0–100 and together 100 at most; null keeps what the scope has
+     * @param daySplit  Create and Fix comment parts of a BA's day, 0 or more and not both 0; null keeps what the scope has
      */
     public StepWeightsView saveStepWeights(@Nullable String epic, Map<String, Double> raw, @Nullable Map<String, Role> rawPic,
-                                           @Nullable Map<String, StepWeights.Share> rawShares) {
+                                           @Nullable Map<String, StepWeights.Share> rawShares, StepWeights.@Nullable DaySplit daySplit) {
         String scope = tracked(epic);
         StepWeights now = settings.load().stepWeightsOf(scope);
         Map<StepKind, Double> w = new EnumMap<>(StepKind.class);
@@ -485,7 +488,10 @@ public class JiraSettingsService {
                 shares.put(k, sh);
             }
         }
-        StepWeights sw = new StepWeights(w, pic, shares);
+        if (daySplit != null && !(daySplit.create() >= 0 && daySplit.fix() >= 0 && daySplit.create() + daySplit.fix() > 0)) {
+            throw new Invalid("The Create and Fix comment parts of a BA's day are 0 or more, and not both 0", "day_split");
+        }
+        StepWeights sw = new StepWeights(w, pic, shares, daySplit != null ? daySplit : now.daySplit());
         TrackerSettings saved = settings.update(s -> {
             if (scope == null) {
                 s.stepWeights = sw;

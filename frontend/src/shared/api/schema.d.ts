@@ -2052,6 +2052,12 @@ export interface components {
             /** Format: double */
             planned_h: number;
         };
+        DaySplit: {
+            /** Format: double */
+            create?: number;
+            /** Format: double */
+            fix?: number;
+        };
         DaysOut: {
             /** Format: int32 */
             days: number;
@@ -3041,6 +3047,7 @@ export interface components {
             summary: string;
         };
         StepWeightsIn: {
+            day_split?: components["schemas"]["DaySplit"] | null;
             pic?: {
                 [key: string]: "BA" | "PM" | "PIM" | "BAL" | "JM";
             } | null;
@@ -3052,6 +3059,7 @@ export interface components {
             };
         };
         StepWeightsView: {
+            day_split: components["schemas"]["DaySplit"];
             own: boolean;
             pic: {
                 [key: string]: "BA" | "PM" | "PIM" | "BAL" | "JM";

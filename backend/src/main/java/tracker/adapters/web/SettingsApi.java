@@ -290,9 +290,9 @@ public class SettingsApi {
     }
 
     /** @param weights step key ("create", "balr", "fixb", "jmr", "fixj") → weight */
-    /** @param pic and {@code shares}: null keeps what the scope has */
+    /** @param pic and {@code shares}, {@code day_split}: null keeps what the scope has */
     public record StepWeightsIn(@NotNull Map<String, @NotNull Double> weights, @Nullable Map<String, @NotNull Role> pic,
-                                @Nullable Map<String, StepWeights.@NotNull Share> shares) {
+                                @Nullable Map<String, StepWeights.@NotNull Share> shares, StepWeights.@Nullable DaySplit daySplit) {
     }
 
     @Open(Rule.ADMIN)
@@ -304,7 +304,7 @@ public class SettingsApi {
     @Open(Rule.ADMIN)
     @PutMapping("/settings/step-weights")
     public StepWeightsView saveStepWeights(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid StepWeightsIn body) {
-        return jiraSettings.saveStepWeights(anken, body.weights(), body.pic(), body.shares());
+        return jiraSettings.saveStepWeights(anken, body.weights(), body.pic(), body.shares(), body.daySplit());
     }
 
     @Open(Rule.ADMIN)

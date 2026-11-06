@@ -5121,6 +5121,19 @@
         },
         "required" : [ "allocation_h", "date", "member_id", "planned_h" ]
       },
+      "DaySplit" : {
+        "type" : "object",
+        "properties" : {
+          "create" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "fix" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }
+      },
       "DaysOut" : {
         "type" : "object",
         "properties" : {
@@ -8141,6 +8154,13 @@
       "StepWeightsIn" : {
         "type" : "object",
         "properties" : {
+          "day_split" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DaySplit"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "pic" : {
             "type" : [ "object", "null" ],
             "additionalProperties" : {
@@ -8167,6 +8187,9 @@
       "StepWeightsView" : {
         "type" : "object",
         "properties" : {
+          "day_split" : {
+            "$ref" : "#/components/schemas/DaySplit"
+          },
           "own" : {
             "type" : "boolean"
           },
@@ -8191,7 +8214,7 @@
             }
           }
         },
-        "required" : [ "own", "pic", "shares", "weights" ]
+        "required" : [ "day_split", "own", "pic", "shares", "weights" ]
       },
       "StructureImportRow" : {
         "type" : "object",

@@ -342,7 +342,8 @@ public class DetailPlanService {
                 }
             }
             try {
-                DetailScheduler.Result res = DetailScheduler.schedule(epic, chains, loads(ctx, epic, Set.of()), a, ctx.cal, jmHoursPerDay);
+                DetailScheduler.Result res = DetailScheduler.schedule(epic, chains, loads(ctx, epic, Set.of()), a, ctx.cal, jmHoursPerDay,
+                        w.daySplit());
                 placed = res.placed();
                 overDay = res.overDay();
                 ledger = res.ledger();

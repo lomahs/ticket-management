@@ -27,8 +27,8 @@ import tracker.domain.ScheduleVersion.PhaseRow;
  * How a member's hours of a day are shared:
  * <ul>
  * <li>Reviews (the BAL's shares, BAL Review included) take the member's free hours first, in row order.</li>
- * <li>The BA's hours left go 2/3 to Create (and tickets), in row order, and 1/3 to the BA's part of the Fix comment steps that
- * can start, the function whose Create ended first first. Hours one side does not use go to the other: with no Fix comment
+ * <li>The BA's hours left go to Create (and tickets), in row order, and to the BA's part of the Fix comment steps that can
+ * start, the function whose Create ended first first, by Settings › Step weights' day split (2/3 and 1/3 by default). Hours one side does not use go to the other: with no Fix comment
  * that can start, Create takes the whole day; with only Fix comments left, they do.</li>
  * </ul>
  */
@@ -128,12 +128,23 @@ public final class DetailScheduler {
      */
     public static Result schedule(String epic, List<Chain> chains, Map<String, Map<String, Double>> loads, Allocations a, WorkCalendar cal,
                                   double jmHoursPerDay) {
-        return schedule(epic, chains, loads, hours(epic, a, cal), cal, jmHoursPerDay);
+        return schedule(epic, chains, loads, hours(epic, a, cal), cal, jmHoursPerDay, StepWeights.DaySplit.DEFAULT);
+    }
+
+    /** @param split how a BA's day is shared between Create and Fix comment (Settings › Step weights) */
+    public static Result schedule(String epic, List<Chain> chains, Map<String, Map<String, Double>> loads, Allocations a, WorkCalendar cal,
+                                  double jmHoursPerDay, StepWeights.DaySplit split) {
+        return schedule(epic, chains, loads, hours(epic, a, cal), cal, jmHoursPerDay, split);
     }
 
     /** As above, with the hours of each member and day from {@code hours} (a cache, in the auto allocation). */
     public static Result schedule(String epic, List<Chain> chains, Map<String, Map<String, Double>> loads, Hours hours, WorkCalendar cal,
                                   double jmHoursPerDay) {
+        return schedule(epic, chains, loads, hours, cal, jmHoursPerDay, StepWeights.DaySplit.DEFAULT);
+    }
+
+    public static Result schedule(String epic, List<Chain> chains, Map<String, Map<String, Double>> loads, Hours hours, WorkCalendar cal,
+                                  double jmHoursPerDay, StepWeights.DaySplit split) {
         // a member's days are copied the first time this run plans hours for them: the loads are never changed
         Map<String, Map<String, Double>> ledger = new HashMap<>(loads);
         Set<String> own = new HashSet<>();
@@ -157,7 +168,7 @@ public final class DetailScheduler {
                 }
             }
         }
-        new Sim(epic, ledger, own, touched, placed, parts, hours, cal, jmHoursPerDay).run(chains);
+        new Sim(epic, ledger, own, touched, placed, parts, hours, cal, jmHoursPerDay, split.fixShare()).run(chains);
         List<DayOverrun> over = new ArrayList<>();
         touched.forEach((m, days) -> days.forEach(d -> {
             double h = ledger.get(m).get(d);
@@ -230,6 +241,8 @@ public final class DetailScheduler {
         final Hours hours;
         final WorkCalendar cal;
         final double jmHoursPerDay;
+        /** the Fix comments' share of a BA's day */
+        final double fixShare;
         /** the chains with a step waiting for hours, in row order */
         final List<Run> runs = new ArrayList<>();
         /** member → the first of the days in a row they had work ready but no free hours */
@@ -237,7 +250,7 @@ public final class DetailScheduler {
         final Map<String, Integer> idle = new HashMap<>();
 
         Sim(String epic, Map<String, Map<String, Double>> ledger, Set<String> own, Map<String, Set<String>> touched, List<Placed> placed,
-            List<Part> parts, Hours hours, WorkCalendar cal, double jmHoursPerDay) {
+            List<Part> parts, Hours hours, WorkCalendar cal, double jmHoursPerDay, double fixShare) {
             this.epic = epic;
             this.ledger = ledger;
             this.own = own;
@@ -247,6 +260,7 @@ public final class DetailScheduler {
             this.hours = hours;
             this.cal = cal;
             this.jmHoursPerDay = jmHoursPerDay;
+            this.fixShare = fixShare;
         }
 
         void run(List<Chain> chains) {
@@ -368,7 +382,7 @@ public final class DetailScheduler {
                 } else if (create.isEmpty()) {
                     give(fix, free, day);
                 } else {
-                    double f = give(fix, free / 3, day);
+                    double f = give(fix, free * fixShare, day);
                     double c = give(create, free - f, day);
                     give(fix, free - f - c, day);
                 }

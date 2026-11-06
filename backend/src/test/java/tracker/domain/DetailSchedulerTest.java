@@ -85,6 +85,15 @@ class DetailSchedulerTest {
     }
 
     @Test
+    void theDaySplitComesFromStepWeights() {
+        // 1 : 1: Tue Fix 3h and Create 3h (instead of 2h and 4h)
+        Chain fix = new Chain("2026-10-06", List.of(step("f", StepKind.FIX_BAL, 3, new DetailScheduler.Share("an", 3))));
+        Chain create = new Chain(MON, List.of(step("c", StepKind.CREATE, 20, new DetailScheduler.Share("an", 20))));
+        Result r = DetailScheduler.schedule("E", List.of(fix, create), Map.of(), A, CAL, 8, new StepWeights.DaySplit(1, 1));
+        assertThat(parts(r, "an")).startsWith("05 c 6.0", "06 f 3.0", "06 c 3.0", "07 c 6.0");
+    }
+
+    @Test
     void withCreateDoneTheFixCommentsTakeTheWholeDay() {
         // Mon: Fix 2h, Create needs 2h of its 4h, the 2h left go to the Fix; Tue: only the Fix is left
         Chain fix = new Chain(MON, List.of(step("f", StepKind.FIX_JM, 8, new DetailScheduler.Share("an", 8))));

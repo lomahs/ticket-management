@@ -50,4 +50,14 @@ class StepWeightsTest {
         assertThat(s.stepWeightsOf("PAY-1300")).isEqualTo(StepWeights.defaults());
         assertThat(s.stepWeightsOf(null)).isEqualTo(StepWeights.defaults());
     }
+
+    @Test
+    void aBasDayIsTwoPartsCreateToOnePartFixCommentUnlessSet() throws Exception {
+        assertThat(StepWeights.defaults().daySplit().fixShare()).isCloseTo(1.0 / 3, within(1e-9));
+        // settings saved before the day split was a setting read it as the default
+        StepWeights old = new com.fasterxml.jackson.databind.ObjectMapper().readValue("{\"weights\":{\"CREATE\":1.0}}", StepWeights.class);
+        assertThat(old.daySplit()).isEqualTo(StepWeights.DaySplit.DEFAULT);
+        assertThat(new StepWeights.DaySplit(1, 1).fixShare()).isEqualTo(0.5);
+        assertThat(new StepWeights.DaySplit(3, 0).fixShare()).isZero(); // Fix comments only get what Create leaves
+    }
 }

@@ -15,10 +15,10 @@ describe('detail planning', () => {
     const PIC = { create: 'BA', balr: 'BA', fixb: 'BAL', jmr: 'BAL', fixj: 'BAL' };
     const SHARES = { create: { ba: 100, bal: 0 }, balr: { ba: 0, bal: 100 }, fixb: { ba: 70, bal: 30 }, jmr: { ba: 0, bal: 0 }, fixj: { ba: 70, bal: 30 } };
     server.use(
-      http.get('*/api/v1/settings/step-weights', () => HttpResponse.json({ weights: WEIGHTS, pic: PIC, shares: SHARES, own: false })),
+      http.get('*/api/v1/settings/step-weights', () => HttpResponse.json({ weights: WEIGHTS, pic: PIC, shares: SHARES, day_split: { create: 2, fix: 1 }, own: false })),
       http.put('*/api/v1/settings/step-weights', async ({ request }) => {
         saved = { anken: new URL(request.url).searchParams.get('anken'), body: await request.json() };
-        return HttpResponse.json({ weights: { ...WEIGHTS, balr: 0.5 }, pic: PIC, shares: SHARES, own: true });
+        return HttpResponse.json({ weights: { ...WEIGHTS, balr: 0.5 }, pic: PIC, shares: SHARES, day_split: { create: 1, fix: 1 }, own: true });
       }),
     );
     renderApp('/settings/step-weights?for=PAY-1100');
@@ -28,9 +28,16 @@ describe('detail planning', () => {
     expect(screen.getByText(/100 % at most together/)).toBeTruthy(); // 80 + 30
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Fix comment BAL BAL share'), { target: { value: '20' } });
+    expect(screen.getByText('= 67 % and 33 %')).toBeTruthy(); // a BA's day: 2 : 1 by default
+    fireEvent.change(screen.getByLabelText("Create part of a BA's day"), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText("Fix comment part of a BA's day"), { target: { value: '0' } });
+    expect(screen.getByText(/not both 0/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Create part of a BA's day"), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText("Fix comment part of a BA's day"), { target: { value: '1' } });
+    expect(screen.getByText('= 50 % and 50 %')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(saved).toEqual({ anken: 'PAY-1100', body: { weights: { ...WEIGHTS, balr: 0.5 }, pic: PIC,
-      shares: { ...SHARES, fixb: { ba: 80, bal: 20 } } } }));
+      shares: { ...SHARES, fixb: { ba: 80, bal: 20 } }, day_split: { create: 1, fix: 1 } } }));
   });
 
   it('previews a master schedule and saves a version with a reason', async () => {

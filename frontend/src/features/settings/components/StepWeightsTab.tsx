@@ -12,7 +12,10 @@ import { jiraQuery, stepWeightsQuery, useResetStepWeights, useSaveStepWeights } 
 import { useSettingsTarget } from './AnkenPicker';
 import { ErrText, Section } from './common';
 
-/** Settings → Step weights: the share of the Create estimate each step takes, for one anken or the default. */
+/**
+ * Settings → Step weights: the share of the Create estimate each step takes, and how a BA's day is shared between Create and
+ * Fix comment, for one anken or the default.
+ */
 export function StepWeightsTab() {
   const t = useSettingsTarget();
   const anken = t.status === 'ready' ? t.anken : null;
@@ -46,7 +49,12 @@ function WeightsForm({ anken, v }: { anken: string | null; v: Schemas['StepWeigh
   const [pic, setPic] = useState<Record<string, Pic>>(Object.fromEntries(STEPS.map((s) => [s.k, v.pic[s.k] === 'BAL' ? 'BAL' : 'BA'])));
   const [ba, setBa] = useState<Record<string, string>>(Object.fromEntries(STEPS.map((s) => [s.k, String(v.shares[s.k]?.ba ?? 0)])));
   const [bal, setBal] = useState<Record<string, string>>(Object.fromEntries(STEPS.map((s) => [s.k, String(v.shares[s.k]?.bal ?? 0)])));
+  const [day, setDay] = useState({ create: String(v.day_split?.create ?? 2), fix: String(v.day_split?.fix ?? 1) });
   const num = (r: Record<string, string>, k: string) => Number(r[k]);
+  const dayCreate = Number(day.create);
+  const dayFix = Number(day.fix);
+  const badDay = day.create.trim() === '' || day.fix.trim() === '' || !(dayCreate >= 0 && dayFix >= 0) || dayCreate + dayFix <= 0;
+  const fixPct = badDay ? 0 : Math.round((dayFix / (dayCreate + dayFix)) * 100);
   const badWeight = STEPS.some((s) => w[s.k].trim() === '' || !(num(w, s.k) >= 0));
   const badShare = STEPS.some((s) => [ba, bal].some((r) => r[s.k].trim() === '' || !(num(r, s.k) >= 0 && num(r, s.k) <= 100))
     || num(ba, s.k) + num(bal, s.k) > 100);
@@ -54,6 +62,7 @@ function WeightsForm({ anken, v }: { anken: string | null; v: Schemas['StepWeigh
     weights: Object.fromEntries(STEPS.map((s) => [s.k, num(w, s.k)])),
     pic: { ...pic },
     shares: Object.fromEntries(STEPS.map((s) => [s.k, { ba: num(ba, s.k), bal: num(bal, s.k) }])),
+    day_split: { create: dayCreate, fix: dayFix },
   });
   const field = (label: string, r: Record<string, string>, set: (f: (p: Record<string, string>) => Record<string, string>) => void, k: string) => (
     <TextField aria-label={label} type="number" size="sm" value={r[k]} onChange={(x) => set((p) => ({ ...p, [k]: x }))} />
@@ -77,8 +86,22 @@ function WeightsForm({ anken, v }: { anken: string | null; v: Schemas['StepWeigh
           </div>
         ))}
       </div>
+      <div role="group" aria-label="A BA's day in the detail plan" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span className="heading" style={{ fontWeight: 600 }}>A BA&apos;s day in the detail plan</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>Create and tickets</span>
+          <span style={{ width: 80 }}><TextField aria-label="Create part of a BA's day" type="number" size="sm" value={day.create}
+            onChange={(x) => setDay((d) => ({ ...d, create: x }))} /></span>
+          <span>:</span>
+          <span style={{ width: 80 }}><TextField aria-label="Fix comment part of a BA's day" type="number" size="sm" value={day.fix}
+            onChange={(x) => setDay((d) => ({ ...d, fix: x }))} /></span>
+          <span>Fix comment</span>
+          {!badDay && <span className="muted" style={{ fontSize: 12 }}>{`= ${100 - fixPct} % and ${fixPct} %`}</span>}
+        </div>
+        <span className="eyebrow">How the detail plan and Auto allocate share each day of a BA: Create (and tickets), and the BA&apos;s part of the Fix comments that can start, the function whose Create ended first first. What one side does not use goes to the other: with no Fix comment to do, Create takes the whole day. The BAL&apos;s reviews take the BAL&apos;s whole day.</span>
+      </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <Button disabled={badWeight || badShare || save.isPending} onClick={() => save.mutate(body(), {
+        <Button disabled={badWeight || badShare || badDay || save.isPending} onClick={() => save.mutate(body(), {
           onSuccess: () => toast('Step weights saved'), onError: (e) => toast(errorMessage(e), true),
         })}>Save</Button>
         {anken && v.own && <Button appearance="subtle" disabled={reset.isPending} onClick={() => reset.mutate(undefined, {
@@ -86,6 +109,7 @@ function WeightsForm({ anken, v }: { anken: string | null; v: Schemas['StepWeigh
         })}>Use default</Button>}
         {badWeight && <ErrText>Every weight is a number of 0 or more.</ErrText>}
         {badShare && <ErrText>Each share is 0 to 100 %, and the BA and BAL shares of a step are 100 % at most together.</ErrText>}
+        {badDay && <ErrText>The Create and Fix comment parts of a BA&apos;s day are 0 or more, and not both 0.</ErrText>}
       </div>
     </Section>
   );

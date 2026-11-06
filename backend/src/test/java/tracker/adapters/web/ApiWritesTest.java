@@ -48,8 +48,16 @@ class ApiWritesTest extends ApiTestSupport {
     @Test
     void putStepWeightsForAnAnkenKeepsTheDefault() throws Exception {
         Map<String, Object> w = Map.of("create", 1.0, "balr", 0.5, "fixb", 0.3, "jmr", 0.25, "fixj", 0.2);
-        JsonNode saved = call(json(put("/api/v1/settings/step-weights").param("anken", "PAY-1100"), Map.of("weights", w))).json();
+        JsonNode saved = call(json(put("/api/v1/settings/step-weights").param("anken", "PAY-1100"), Map.of("weights", w,
+                "day_split", Map.of("create", 1, "fix", 1)))).json();
         assertThat(saved.get("own").asBoolean()).isTrue();
+        assertThat(saved.get("day_split").get("fix").asDouble()).isEqualTo(1.0);
+        // a save without day_split keeps it
+        assertThat(call(json(put("/api/v1/settings/step-weights").param("anken", "PAY-1100"), Map.of("weights", w))).json()
+                .get("day_split").get("create").asDouble()).isEqualTo(1.0);
+        assertThat(call(get("/api/v1/settings/step-weights")).json().get("day_split").get("create").asDouble()).isEqualTo(2.0);
+        problem(call(json(put("/api/v1/settings/step-weights"), Map.of("weights", w, "day_split", Map.of("create", 0, "fix", 0)))),
+                422, "invalid");
         JsonNode mine = call(get("/api/v1/settings/step-weights").param("anken", "PAY-1100")).json();
         assertThat(mine.get("weights").get("balr").asDouble()).isEqualTo(0.5);
         JsonNode def = call(get("/api/v1/settings/step-weights")).json();
