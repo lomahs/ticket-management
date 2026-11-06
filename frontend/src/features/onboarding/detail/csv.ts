@@ -29,12 +29,12 @@ export function planCsv(v: DetailPlanView, name: (id?: string | null) => string)
 /**
  * The sub-tasks the push would create, for Jira › Import work items from CSV: under their Task, with the push's assignee,
  * reporter, dates (Due date = Plan end), estimate in seconds and labels (one Labels column each, as Jira's importer takes them).
- * Lines without dates (the plan cannot be computed) are left out.
+ * Lines without dates yet (not planned by Auto allocate) go without them, as in the push.
  */
 export function jiraCsv(v: DetailPlanView, email: (id?: string | null) => string, labels: string[]): Csv {
   return {
     header: ['Issue Type', 'Summary', 'Parent', 'Assignee', 'Reporter', 'Start date', 'End date', 'Due date', 'Original Estimate', ...labels.map(() => 'Labels')],
-    rows: lines(v).filter(({ s }) => s.start && s.end).map(({ s, r }) => ['Sub-task', s.summary, r.task_key, email(s.assignee_id), email(s.reporter_id),
+    rows: lines(v).map(({ s, r }) => ['Sub-task', s.summary, r.task_key, email(s.assignee_id), email(s.reporter_id),
       s.start, s.end, s.end, seconds(s.effort_h), ...labels]),
   };
 }

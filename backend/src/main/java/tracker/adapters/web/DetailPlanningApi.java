@@ -234,11 +234,18 @@ public class DetailPlanningApi {
         return detail.addRow(epicScope(viewer, epic), epic, new NewRowIn(body.taskKey(), body.functionName(), body.steps(), body.effortH()));
     }
 
-    /** Fills the empty BA / BAL / JM slots (docs/auto-allocation.md); saves the draft and returns the plan. */
+    /** Fills the empty BA / BAL / JM slots (docs/auto-allocation.md), plans every row again and saves the plan; returns it. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/auto-allocate")
     public DetailPlanView autoAllocate(@PathVariable("epic") String epic, Viewer viewer) {
         return detail.autoAllocate(epicScope(viewer, epic), epic);
+    }
+
+    /** The plan as it stands (effort per day, overruns, phase checks), without planning again; nothing is saved. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/check")
+    public DetailPlanView checkDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.check(epicScope(viewer, epic), epic);
     }
 
     /**
@@ -304,22 +311,20 @@ public class DetailPlanningApi {
     }
 
     /**
-     * The review of the push: every sub-task, with the requests; refused while the plan has problems or goes over a budget,
-     * and over a member's allocation on a day unless {@code allow_over_day} confirms it.
+     * The review of the push: every sub-task, with the requests, and the dates the plan shows; refused while the plan has input
+     * problems (over a budget or over the day's allocation only warn).
      */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push/preview")
-    public BatchPreview previewDetailPush(@PathVariable("epic") String epic,
-                                          @RequestParam(name = "allow_over_day", defaultValue = "false") boolean allowOverDay, Viewer viewer) {
-        return detail.pushPreview(epicScope(viewer, epic), epic, allowOverDay);
+    public BatchPreview previewDetailPush(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.pushPreview(epicScope(viewer, epic), epic);
     }
 
     /** Creates the plan's sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push")
-    public BatchResult pushDetailPlan(@PathVariable("epic") String epic,
-                                      @RequestParam(name = "allow_over_day", defaultValue = "false") boolean allowOverDay, Viewer viewer) {
-        return detail.push(viewer, epicScope(viewer, epic), epic, allowOverDay);
+    public BatchResult pushDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.push(viewer, epicScope(viewer, epic), epic);
     }
 
     /** @param assignees sub-task key → the member it moves to */

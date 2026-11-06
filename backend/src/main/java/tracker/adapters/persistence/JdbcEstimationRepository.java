@@ -14,7 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tracker.application.ports.EstimationRepository;
 import tracker.domain.AutoPicks;
+import tracker.domain.DetailScheduler.Part;
+import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.EstimationRow;
+import tracker.domain.SavedPlan;
 import tracker.domain.StepEdit;
 import tracker.domain.StepKind;
 
@@ -121,6 +124,69 @@ class JdbcEstimationRepository implements EstimationRepository {
             jdbc.sql("INSERT INTO estimation_auto_picks (row_id, ba_id, bal_id, jm_id) VALUES (:row, :ba, :bal, :jm)").param("row", p.rowId())
                     .param("ba", p.baId()).param("bal", p.balId()).param("jm", p.jmId()).update();
         }
+    }
+
+    @Override
+    public SavedPlan savedPlan(String epic) {
+        List<Placed> placed = jdbc.sql("""
+                SELECT p.* FROM estimation_plan_placed p JOIN estimation_rows r ON r.id = p.row_id
+                WHERE r.epic_key = :epic AND r.pushed_at IS NULL ORDER BY r.position, r.id, p.rowid
+                """).param("epic", epic).query((r, n) -> {
+            String step = r.getString("step");
+            return new Placed(r.getString("ref"), r.getString("phase"), step.isEmpty() ? null : StepKind.of(step), r.getString("member_id"),
+                    r.getDouble("hours"), r.getString("planned_start"), r.getString("planned_end"), r.getInt("counted") != 0);
+        }).list();
+        List<Part> parts = jdbc.sql("""
+                SELECT p.* FROM estimation_plan_parts p JOIN estimation_rows r ON r.id = p.row_id
+                WHERE r.epic_key = :epic AND r.pushed_at IS NULL ORDER BY p.rowid
+                """).param("epic", epic)
+                .query((r, n) -> new Part(r.getString("ref"), r.getString("member_id"), r.getString("day"), r.getDouble("hours"))).list();
+        return new SavedPlan(placed, parts);
+    }
+
+    @Override
+    @Transactional
+    public void savePlan(String epic, SavedPlan plan) {
+        deleteSavedPlan(epic);
+        for (Placed p : plan.placed()) {
+            jdbc.sql("""
+                    INSERT INTO estimation_plan_placed (row_id, ref, phase, step, member_id, hours, planned_start, planned_end, counted)
+                    VALUES (:row, :ref, :phase, :step, :member, :hours, :start, :end, :counted)
+                    """).param("row", rowOf(p.ref())).param("ref", p.ref()).param("phase", p.phase())
+                    .param("step", p.kind() == null ? "" : p.kind().value()).param("member", p.memberId()).param("hours", p.hours())
+                    .param("start", p.start()).param("end", p.end()).param("counted", p.counted() ? 1 : 0).update();
+        }
+        for (Part p : plan.parts()) {
+            jdbc.sql("INSERT INTO estimation_plan_parts (row_id, ref, member_id, day, hours) VALUES (:row, :ref, :member, :day, :hours)")
+                    .param("row", rowOf(p.ref())).param("ref", p.ref()).param("member", p.memberId()).param("day", p.date())
+                    .param("hours", p.hours()).update();
+        }
+    }
+
+    @Override
+    @Transactional
+    public void deleteSavedPlan(String epic) {
+        for (String table : List.of("estimation_plan_placed", "estimation_plan_parts")) {
+            jdbc.sql("DELETE FROM " + table + " WHERE row_id IN (SELECT id FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL)")
+                    .param("epic", epic).update();
+        }
+    }
+
+    @Override
+    public boolean initialPlanPending(String epic) {
+        return jdbc.sql("SELECT COUNT(*) FROM estimation_plan_pending WHERE epic_key = :epic").param("epic", epic).query(Integer.class).single() > 0;
+    }
+
+    @Override
+    public void setInitialPlanPending(String epic, boolean pending) {
+        jdbc.sql(pending ? "INSERT OR IGNORE INTO estimation_plan_pending (epic_key) VALUES (:epic)" : "DELETE FROM estimation_plan_pending WHERE epic_key = :epic")
+                .param("epic", epic).update();
+    }
+
+    /** The estimation row of a step's ref ("12:create", or "12" for a row without steps). */
+    private static long rowOf(String ref) {
+        int i = ref.indexOf(':');
+        return Long.parseLong(i < 0 ? ref : ref.substring(0, i));
     }
 
     private static Map<String, Object> values(EstimationRow r) {

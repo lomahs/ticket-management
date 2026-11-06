@@ -2065,6 +2065,32 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/check" : {
+      "post" : {
+        "operationId" : "checkDetailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/detail/clear" : {
       "post" : {
         "operationId" : "clearDetailPlan",
@@ -2186,14 +2212,6 @@
           "schema" : {
             "type" : "string"
           }
-        }, {
-          "in" : "query",
-          "name" : "allow_over_day",
-          "required" : false,
-          "schema" : {
-            "type" : "boolean",
-            "default" : false
-          }
         } ],
         "responses" : {
           "200" : {
@@ -2219,14 +2237,6 @@
           "required" : true,
           "schema" : {
             "type" : "string"
-          }
-        }, {
-          "in" : "query",
-          "name" : "allow_over_day",
-          "required" : false,
-          "schema" : {
-            "type" : "boolean",
-            "default" : false
           }
         } ],
         "responses" : {
@@ -5170,6 +5180,12 @@
       "DetailPlanView" : {
         "type" : "object",
         "properties" : {
+          "affected" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "allocated" : {
             "type" : "array",
             "items" : {
@@ -5192,6 +5208,12 @@
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/DayLoad"
+            }
+          },
+          "left_out" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
             }
           },
           "over_budget" : {
@@ -5243,7 +5265,7 @@
             }
           }
         },
-        "required" : [ "allocated", "by_hand", "checks", "days", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
+        "required" : [ "affected", "allocated", "by_hand", "checks", "days", "left_out", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
       },
       "DraftBody" : {
         "type" : "object",

@@ -25,8 +25,8 @@ export const overDayText = (o: DetailPlanView['over_day'][number], name: (id: st
 const pill = (tone: CSSProperties): CSSProperties => ({ ...tone, border: 0, cursor: 'pointer', gap: 6, lineHeight: '24px', padding: '0 10px' });
 
 /**
- * Where the plan stands, always in view: each phase against the master schedule, how much is left to assign, and how many
- * problems stand before the push. The problems themselves open from their count, and on their own once {@code checked}
+ * Where the plan stands, always in view: each phase against the master schedule, how much is left to assign, how many
+ * problems stand before the push and the warnings (over budget, over the day's allocation) that do not stop it. The problems themselves open from their count, and on their own once {@code checked}
  * (the PIM saved, tried to finish or reviewed the push).
  */
 export function PlanSummary({ epic, v, name, checked }: { epic: string; v: DetailPlanView; name: (id: string) => string; checked: boolean }) {
@@ -36,9 +36,10 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
   const open = v.rows.filter((r) => !r.pushed_at);
   const lines = v.steps.filter((s) => !s.removed && open.some((r) => r.id === s.row_id)).length;
   const unassigned = open.filter((r) => !r.ba_id || (r.steps && !r.bal_id)).length;
-  const issues = v.problems.length + v.over_budget.length;
+  const issues = v.problems.length;
+  const warnings = v.over_day.length + v.over_budget.length;
   const issuesOpen = issues > 0 && (checked || showIssues);
-  const warnOpen = v.over_day.length > 0 && (checked || showWarn);
+  const warnOpen = warnings > 0 && (checked || showWarn);
   return (
     <section className="card" aria-label="Plan status" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
@@ -60,13 +61,19 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
             <Icon name="circle-alert" size={14} />{`${plural(issues, 'problem')} before the push`}<Icon name={issuesOpen ? 'chevron-up' : 'chevron-down'} size={14} />
           </button>
         )}
+        {v.over_budget.length > 0 && (
+          <button type="button" className="status-pill" aria-expanded={warnOpen} onClick={() => setShowWarn((x) => !x)}
+            style={pill({ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' })}>
+            <Icon name="triangle-alert" size={14} />{`${plural(v.over_budget.length, 'member')} over budget`}<Icon name={warnOpen ? 'chevron-up' : 'chevron-down'} size={14} />
+          </button>
+        )}
         {v.over_day.length > 0 && (
           <button type="button" className="status-pill" aria-expanded={warnOpen} onClick={() => setShowWarn((x) => !x)}
             style={pill({ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' })}>
             <Icon name="triangle-alert" size={14} />{`${plural(v.over_day.length, 'day')} above the allocation`}<Icon name={warnOpen ? 'chevron-up' : 'chevron-down'} size={14} />
           </button>
         )}
-        {issues === 0 && v.over_day.length === 0 && v.plan.length > 0 && (
+        {issues === 0 && warnings === 0 && lines > 0 && (
           <span className="status-pill" style={{ background: 'var(--hl-ok)', color: 'var(--hl-ok-fg)', lineHeight: '24px', padding: '0 10px' }}>
             <Icon name="circle-check" size={14} />Ready to push</span>
         )}
@@ -74,14 +81,19 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
       {issuesOpen && (
         <div role="alert" aria-label="Before the push" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-red)' }}>
           {v.problems.map((p) => <span key={p} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{p}</span>)}
-          {v.over_budget.map((o) => <span key={o.member_id + o.phase} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{`${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`}</span>)}
-          {v.allocated.length > 0 && <div style={{ background: 'var(--surface-card)', borderRadius: 8, padding: '4px 6px' }}><AllocationMatrix epic={epic} rows={v.allocated} name={name} /></div>}
         </div>
       )}
       {warnOpen && (
         <div role="region" aria-label="Over the allocation" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-amber)' }}>
-          <span className="eyebrow" style={{ color: 'var(--hl-amber-fg)' }}>Warnings: the push asks to confirm them.</span>
+          <span className="eyebrow" style={{ color: 'var(--hl-amber-fg)' }}>Warnings: they do not stop the push.</span>
+          {v.over_budget.map((o) => <span key={o.member_id + o.phase} style={{ color: 'var(--hl-amber-fg)', fontSize: 13 }}>{`${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`}</span>)}
+          {v.allocated.length > 0 && <div style={{ background: 'var(--surface-card)', borderRadius: 8, padding: '4px 6px' }}><AllocationMatrix epic={epic} rows={v.allocated} name={name} /></div>}
           {v.over_day.map((o) => <span key={o.member_id + o.date} style={{ color: 'var(--hl-amber-fg)', fontSize: 13 }}>{overDayText(o, name)}</span>)}
+        </div>
+      )}
+      {v.left_out.length > 0 && (
+        <div role="note" aria-label="Left out of the check" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 13, color: 'var(--text-muted)' }}>
+          {v.left_out.map((x) => <span key={x}>{x}</span>)}
         </div>
       )}
       {v.stale_phases.length > 0 && (

@@ -106,6 +106,9 @@ class ApiWritesTest extends ApiTestSupport {
                 List.of(Map.of("phase", "Implement_Coding", "start", "2026-10-12", "member_ids", List.of("an"))), "reason", "Kick-off")));
         call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(id),
                 "assigns", List.of(Map.of("row_id", id, "ba_id", "an")))));
+        call(post("/api/v1/planning/PAY-1100/detail/auto-allocate"));
+        assertThat(call(post("/api/v1/planning/PAY-1100/detail/check")).json().get("affected").get(0).asText())
+                .isEqualTo(String.valueOf(id)); // one member for 16h: Run ends after the master End
         Res t = call(get("/api/v1/planning/PAY-1100/detail/template"));
         assertThat(t.contentType()).isEqualTo(DetailPlanFiles.XLSX);
         List<List<String>> rows = LeaveFiles.readRows("t.xlsx", t.bytes());

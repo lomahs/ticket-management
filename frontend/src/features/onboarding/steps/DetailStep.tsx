@@ -7,7 +7,7 @@ import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { onboardingMembersQuery, useFinishOnboarding } from '../api';
 import { StepShell } from '../components/StepShell';
-import { detailPlanQuery } from '../detail/api';
+import { detailPlanQuery, useCheckResult, withCheck } from '../detail/api';
 import { DetailPlan } from '../detail/DetailPlan';
 import { PushControls } from '../detail/PushControls';
 
@@ -19,6 +19,7 @@ export function DetailStep({ epic }: { epic: string }) {
     .map((m) => ({ id: m.member_id, name: m.name, role: m.role ?? null }));
   const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
   const q = useQuery(detailPlanQuery(epic));
+  const check = useCheckResult(epic);
   const rows = q.data?.rows ?? [];
   const finish = useFinishOnboarding(epic);
   const done = rows.length > 0 && rows.every((r) => r.pushed_at);
@@ -26,7 +27,7 @@ export function DetailStep({ epic }: { epic: string }) {
   const [checked, setChecked] = useState(false);
   return (
     <StepShell epic={epic} step="detail" title="Detail plan"
-      sub="Pick who does each function and in which order; the dates follow from the phase start. Then review and push the sub-tasks to Jira."
+      sub="Pick who does each function and in which order, then Auto allocate plans the dates from the phase start. Change what you need, Check it, Auto allocate again around it; then review and push the sub-tasks to Jira."
       onSave={async () => setChecked(true)}
       footer={(
         <>
@@ -41,7 +42,7 @@ export function DetailStep({ epic }: { epic: string }) {
               onError: (e) => toast(errorMessage(e), true),
             });
           }}>Finish onboarding</Button>
-          {q.data && <PushControls epic={epic} v={q.data} name={name} onCheck={() => setChecked(true)} />}
+          {q.data && <PushControls epic={epic} v={withCheck(q.data, check)} name={name} onCheck={() => setChecked(true)} />}
         </>
       )}>
       {q.isPending ? <Loading /> : q.isError ? <QueryError error={q.error} /> : <DetailPlan epic={epic} v={q.data} people={people} checked={checked} />}

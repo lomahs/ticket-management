@@ -301,7 +301,7 @@ describe('onboarding', () => {
     line('2', 2, null, '[PAY] Run', 16)];
   const detailView = (over: Record<string, unknown> = {}) => ({
     rows: [LOGIN, RUN], tasks: [TASK], plan: [], steps: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
-    stale_phases: [], problems: [], by_hand: [], ...over,
+    stale_phases: [], problems: [], by_hand: [], affected: [], left_out: [], ...over,
   });
   const planned = {
     plan: [{ row_id: 2, steps: [{ ref: '2', step: null, member_id: 'an', hours: 16, start: '2026-10-12', end: '2026-10-14' }] }],
@@ -411,6 +411,76 @@ describe('onboarding', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('sets dates by hand before the plan can be computed', async () => {
+    const sent: Record<string, unknown>[] = [];
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }))),
+      http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
+        sent.push(await request.json() as Record<string, unknown>);
+        return HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const end = await screen.findByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
+    expect(end.value).toBe(''); // nothing computed yet
+    expect(end.disabled).toBe(false);
+    fireEvent.change(end, { target: { value: '2026-10-15' } });
+    fireEvent.blur(end); // one date set: the other follows it
+    await waitFor(() => expect(sent).toEqual([{ row_id: 2, step: null, effort_h: null, start: '2026-10-15', end: '2026-10-15', removed: false }]));
+  });
+
+  it('checks the plan as it stands without changing it', async () => {
+    let checks = 0;
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
+      http.post('*/api/v1/planning/PAY-1100/detail/check', () => {
+        checks++;
+        return HttpResponse.json(detailView({ ...planned, affected: ['2'], left_out: ['Row 1 (Login): no people yet, not counted'],
+          over_day: [{ member_id: 'an', date: '2026-10-12', planned_h: 16, allocation_h: 8 }] }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const run = await screen.findByRole('row', { name: '[PAY] Run' });
+    expect(run.getAttribute('data-affected')).toBeNull();
+    expect(screen.queryByRole('button', { name: '1 day above the allocation' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
+    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'));
+    expect(checks).toBe(1);
+    expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-12'); // the list keeps its dates
+    expect(screen.getByRole('button', { name: '1 day above the allocation' })).toBeTruthy(); // the summary is the Check's
+    expect(screen.getByText('Row 1 (Login): no people yet, not counted')).toBeTruthy();
+  });
+
+  it('is ready to push lines without dates yet', async () => {
+    onboarding({ step: 6 });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())));
+    renderApp('/onboarding/PAY-1100/detail');
+    expect(await screen.findByText('Ready to push')).toBeTruthy(); // nobody planned yet: created without dates
+    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps the check until Auto allocate', async () => {
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
+      http.post('*/api/v1/planning/PAY-1100/detail/check', () => HttpResponse.json(detailView({ ...planned, affected: ['2'] }))),
+      http.put('*/api/v1/planning/PAY-1100/detail/step', () => HttpResponse.json(detailView(planned))),
+      http.post('*/api/v1/planning/PAY-1100/detail/auto-allocate', () => HttpResponse.json(detailView(planned))),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
+    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'));
+    const end = screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
+    fireEvent.change(end, { target: { value: '2026-10-20' } });
+    fireEvent.blur(end);
+    expect(await screen.findByText('Saved')).toBeTruthy();
+    expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'); // an adjustment keeps it
+    fireEvent.click(screen.getByRole('button', { name: 'Auto allocate' }));
+    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBeNull());
+  });
+
   it('auto allocates the empty slots and shows the plan that follows', async () => {
     let posts = 0;
     onboarding({ step: 6 });
@@ -503,8 +573,8 @@ describe('onboarding', () => {
     expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('minh');
   });
 
-  it('warns about days above the allocation and pushes them once confirmed', async () => {
-    let allowed: string | null = null;
+  it('warns about days above the allocation and pushes anyway', async () => {
+    let allowed: string | null = 'not sent';
     onboarding({ step: 6 });
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
@@ -518,15 +588,15 @@ describe('onboarding', () => {
     renderApp('/onboarding/PAY-1100/detail');
     expect(await screen.findByRole('button', { name: '1 day above the allocation' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Review push' }));
-    await waitFor(() => expect(allowed).toBe('true'));
-    const dialog = await screen.findByRole('dialog', { name: 'Push review' }); // the warnings are confirmed in the review
+    const dialog = await screen.findByRole('dialog', { name: 'Push review' }); // the warnings show again in the review
+    expect(allowed).toBeNull(); // nothing to confirm
     expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
     const warn = screen.getByRole('region', { name: 'Over the allocation' });
     expect(warn.textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull(); // a warning, not a block
   });
 
-  it('blocks the push while a member is over budget', async () => {
+  it('warns while a member is over budget, without blocking the push', async () => {
     onboarding({ step: 6 });
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
       ...planned, over_budget: [{ member_id: 'an', phase: 'ITA', planned_h: 40, budget_h: 36 }],
@@ -536,10 +606,12 @@ describe('onboarding', () => {
     renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Finish onboarding' })); // not every row is in Jira: shows what stands before
     expect(await screen.findByText('An is over budget in ITA: 40h of 36h')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Over the allocation' }).textContent).toContain('An is over budget in ITA');
+    expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull();
     const matrix = screen.getByRole('table', { name: 'Allocated per anken' });
     expect(matrix.textContent).toContain('PAY-1100 (this)');
     expect(screen.getByRole('row', { name: /An · ITA \(from 12\/10\)/ }).textContent).toBe('An · ITA (from 12/10)3h5h8h');
-    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('pushes the plan, then finishes the onboarding', async () => {

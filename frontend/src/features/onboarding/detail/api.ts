@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../../shared/api/client';
 import type { Schemas } from '../../../shared/api/types';
 
@@ -10,6 +10,30 @@ export const detailPlanQuery = (epic: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/planning/{epic}/detail', { params: { path: { epic } } })),
 });
 
+// outside ['planning']: the invalidations after a write leave the last Check alone
+const checkKey = (epic: string) => ['detail-check', epic] as const;
+
+/** The last Check of the plan, kept until the next Auto allocate or a reload; null before any. */
+export function useCheckResult(epic: string): DetailPlanView | null {
+  return useQuery({ queryKey: checkKey(epic), queryFn: () => null as DetailPlanView | null, enabled: false, staleTime: Infinity, gcTime: Infinity })
+    .data ?? null;
+}
+
+/** Checks the plan as it stands (effort per day, overruns, phase checks) without planning again; nothing is saved. */
+export function useCheckPlan(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/check', { params: { path: { epic } } })),
+    onSuccess: (v) => qc.setQueryData(checkKey(epic), v),
+  });
+}
+
+/** The plan with what the last Check found, when there is one: its effort per day, overruns and phase checks. */
+export const withCheck = (v: DetailPlanView, check: DetailPlanView | null): DetailPlanView => (check
+  ? { ...v, checks: check.checks, days: check.days, over_day: check.over_day, over_budget: check.over_budget, allocated: check.allocated,
+    affected: check.affected, left_out: check.left_out }
+  : v);
+
 /** Saves the draft; the plan that follows comes back. */
 export function useSaveDraft(epic: string) {
   const qc = useQueryClient();
@@ -19,12 +43,19 @@ export function useSaveDraft(epic: string) {
   });
 }
 
-/** Fills the empty slots with who finishes each row soonest; the draft is saved and the plan that follows comes back. */
+/**
+ * Fills the empty slots with who finishes each row soonest, then plans every row again and saves the plan, which comes back;
+ * the last Check goes. When it cannot plan, the people it filled are saved and the error comes back.
+ */
 export function useAutoAllocate(epic: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/auto-allocate', { params: { path: { epic } } })),
-    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+    onSuccess: (v) => {
+      qc.setQueryData(detailPlanQuery(epic).queryKey, v);
+      qc.setQueryData(checkKey(epic), null);
+    },
+    onError: () => qc.invalidateQueries({ queryKey: detailPlanQuery(epic).queryKey }),
   });
 }
 
@@ -37,17 +68,15 @@ export function useClearPlan(epic: string) {
   });
 }
 
-/** @param allow the PIM confirmed the days planned above a member's allocation */
 export const usePushPreview = (epic: string) => useMutation({
-  mutationFn: (allow: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview',
-    { params: { path: { epic }, query: { allow_over_day: allow } } })),
+  mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } } })),
 });
 
 export function usePushPlan(epic: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ['write', 'detail-plan'],
-    mutationFn: (allow: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic }, query: { allow_over_day: allow } } })),
+    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic } } })),
     onSettled: () => qc.invalidateQueries(),
   });
 }

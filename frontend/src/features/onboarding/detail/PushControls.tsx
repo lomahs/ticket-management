@@ -11,7 +11,7 @@ import { overDayText } from './PlanSummary';
 
 /**
  * The push of the plan, for the step's action bar: what stands before it, then Review push, which opens what the push
- * creates in Jira (with the days above an allocation to confirm) and pushes it.
+ * creates in Jira (with the days above an allocation as a warning) and pushes it.
  */
 export function PushControls({ epic, v, name, onCheck }: { epic: string; v: DetailPlanView; name: (id: string) => string; onCheck: () => void }) {
   const admin = useCan('planning', 'write');
@@ -20,10 +20,10 @@ export function PushControls({ epic, v, name, onCheck }: { epic: string; v: Deta
   const push = usePushPlan(epic);
   const [open, setOpen] = useState(false);
   if (!admin || !v.rows.some((r) => !r.pushed_at)) return null;
-  const issues = v.problems.length + v.over_budget.length;
-  const blocked = issues > 0 || v.plan.length === 0;
-  const allow = v.over_day.length > 0;
-  const why = issues > 0 ? `Fix ${issues} problem${issues === 1 ? '' : 's'} to push` : v.plan.length === 0 ? 'Nothing planned yet' : null;
+  const issues = v.problems.length;
+  const lines = v.steps.filter((s) => !s.removed && v.rows.some((r) => r.id === s.row_id && !r.pushed_at)).length;
+  const blocked = issues > 0 || lines === 0;
+  const why = issues > 0 ? `Fix ${issues} problem${issues === 1 ? '' : 's'} to push` : lines === 0 ? 'Nothing to push' : null;
   return (
     <>
       {why && (
@@ -33,11 +33,11 @@ export function PushControls({ epic, v, name, onCheck }: { epic: string; v: Deta
       )}
       <Button iconBefore="eye" disabled={blocked || preview.isPending} title={why ?? 'What the push creates in Jira'} onClick={() => {
         onCheck();
-        preview.mutate(allow, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
+        preview.mutate(undefined, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
       }}>Review push</Button>
       {open && preview.data && (
         <PushDialog epic={epic} v={v} name={name} creates={preview.data.creates} pushing={push.isPending} close={() => setOpen(false)}
-          push={() => push.mutate(allow, {
+          push={() => push.mutate(undefined, {
             onSuccess: (r) => { toast(`Created ${Object.keys(r.created).length} sub-tasks in Jira`); setOpen(false); preview.reset(); },
             onError: (e) => toast(errorMessage(e), true),
           })} />

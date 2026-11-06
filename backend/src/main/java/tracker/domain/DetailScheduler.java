@@ -445,8 +445,22 @@ public final class DetailScheduler {
      */
     private static void spread(String ref, Share sh, String start, String end, Map<String, Map<String, Double>> ledger, Set<String> own,
                                Map<String, Set<String>> touched, List<Part> parts, WorkCalendar cal, Hours hours) {
-        if (sh.hours() <= EPS) {
+        List<Part> spread = spread(ref, sh, start, end, cal, hours);
+        if (spread.isEmpty()) {
             return;
+        }
+        Map<String, Double> m = mine(sh.memberId(), ledger, own);
+        for (Part p : spread) {
+            m.merge(p.date(), p.hours(), Double::sum);
+            touched.computeIfAbsent(sh.memberId(), k -> new TreeSet<>()).add(p.date());
+            parts.add(p);
+        }
+    }
+
+    /** The parts of a share set by hand on {@code start}..{@code end}, spread as above; none for a share of 0 hours. */
+    public static List<Part> spread(String ref, Share sh, String start, String end, WorkCalendar cal, Hours hours) {
+        if (sh.hours() <= EPS) {
+            return List.of();
         }
         List<String> all = Dates.daysBetween(start, end);
         List<String> days = all.stream().filter(d -> hours.on(sh.memberId(), d) > EPS).toList();
@@ -456,12 +470,11 @@ public final class DetailScheduler {
         if (days.isEmpty()) {
             days = List.of(start);
         }
-        Map<String, Double> m = mine(sh.memberId(), ledger, own);
+        List<Part> out = new ArrayList<>();
         for (String d : days) {
-            m.merge(d, sh.hours() / days.size(), Double::sum);
-            touched.computeIfAbsent(sh.memberId(), k -> new TreeSet<>()).add(d);
-            parts.add(new Part(ref, sh.memberId(), d, sh.hours() / days.size()));
+            out.add(new Part(ref, sh.memberId(), d, sh.hours() / days.size()));
         }
+        return out;
     }
 
     /**

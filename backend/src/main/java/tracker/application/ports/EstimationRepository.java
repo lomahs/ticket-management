@@ -4,6 +4,7 @@ import java.util.List;
 
 import tracker.domain.AutoPicks;
 import tracker.domain.EstimationRow;
+import tracker.domain.SavedPlan;
 import tracker.domain.StepEdit;
 
 /** The estimation rows of each anken. */
@@ -36,4 +37,18 @@ public interface EstimationRepository {
 
     /** Replaces the row's auto picks; empty ones are deleted. */
     void saveAutoPicks(AutoPicks picks);
+
+    /** The plan Auto allocate saved for the epic's unpushed rows. */
+    SavedPlan savedPlan(String epic);
+
+    /** Replaces the saved plan of the epic's unpushed rows. */
+    void savePlan(String epic, SavedPlan plan);
+
+    /** Deletes the saved plan of the epic's unpushed rows. */
+    void deleteSavedPlan(String epic);
+
+    /** Whether the epic was planned before plans were saved, and its plan is still to be computed once. */
+    boolean initialPlanPending(String epic);
+
+    void setInitialPlanPending(String epic, boolean pending);
 }

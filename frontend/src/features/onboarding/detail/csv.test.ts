@@ -41,9 +41,10 @@ describe('detail plan CSV', () => {
     const c = jiraCsv(v, (id) => (id ? `${id}@acme.vn` : ''), ['PAY', 'phase']);
     expect(c.header).toEqual(['Issue Type', 'Summary', 'Parent', 'Assignee', 'Reporter', 'Start date', 'End date', 'Due date', 'Original Estimate',
       'Labels', 'Labels']);
-    expect(c.rows).toEqual([ // Run has no dates yet: left out
+    expect(c.rows).toEqual([ // Run has no dates yet: created without them, as the push does
       ['Sub-task', '[PAY] Login – Create', 'PAY-1102', 'an@acme.vn', 'minh@acme.vn', '2026-10-12', '2026-10-13', '2026-10-13', 28800, 'PAY', 'phase'],
       ['Sub-task', '[PAY] Login – BAL Review', 'PAY-1102', 'an@acme.vn', '', '2026-10-12', '2026-10-13', '2026-10-13', 5400, 'PAY', 'phase'],
+      ['Sub-task', '[PAY] Run', 'PAY-1103', 'an@acme.vn', '', null, null, null, 57600, 'PAY', 'phase'],
     ]);
   });
 });

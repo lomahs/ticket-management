@@ -83,6 +83,7 @@ class DetailPlanImportTest {
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
                 new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
                 new RowAssign(rows.get(2).id(), "binh", "minh", null))));
+        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled: it only plans
         return rows;
     }
 

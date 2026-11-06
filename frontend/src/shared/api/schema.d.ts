@@ -916,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["checkDetailPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/clear": {
         parameters: {
             query?: never;
@@ -2070,10 +2086,12 @@ export interface components {
             file?: string | null;
         };
         DetailPlanView: {
+            affected: string[];
             allocated: components["schemas"]["OverrunAllocation"][];
             by_hand: components["schemas"]["HandPicks"][];
             checks: components["schemas"]["PhaseCheck"][];
             days: components["schemas"]["DayLoad"][];
+            left_out: string[];
             over_budget: components["schemas"]["Overrun"][];
             over_day: components["schemas"]["DayOverrun"][];
             plan: components["schemas"]["RowPlan"][];
@@ -4944,6 +4962,28 @@ export interface operations {
             };
         };
     };
+    checkDetailPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
     clearDetailPlan: {
         parameters: {
             query?: {
@@ -5022,9 +5062,7 @@ export interface operations {
     };
     pushDetailPlan: {
         parameters: {
-            query?: {
-                allow_over_day?: boolean;
-            };
+            query?: never;
             header?: never;
             path: {
                 epic: string;
@@ -5046,9 +5084,7 @@ export interface operations {
     };
     previewDetailPush: {
         parameters: {
-            query?: {
-                allow_over_day?: boolean;
-            };
+            query?: never;
             header?: never;
             path: {
                 epic: string;

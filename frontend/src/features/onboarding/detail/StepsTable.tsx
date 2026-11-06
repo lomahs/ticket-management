@@ -16,6 +16,10 @@ export type Slot = 'ba_id' | 'bal_id' | 'jm_id';
 const COLS = 'minmax(260px,3fr) 80px minmax(150px,1.4fr) 140px 140px 64px';
 const INPUT: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 12px/1 var(--font-text)', width: '100%' };
 const step = (k?: string | null) => STEPS.find((s) => s.k === k);
+/** A line Check found affected (amber) or whose dates were set by hand. */
+const line = (manual: boolean, affected: boolean): CSSProperties => (affected
+  ? { background: 'var(--hl-amber)', boxShadow: 'inset 3px 0 0 var(--hl-amber-fg)' }
+  : manual ? { background: 'var(--hl-manual)', boxShadow: 'inset 3px 0 0 var(--hl-manual-fg)' } : {});
 /** A value set by hand: kept when the plan is computed or allocated again. */
 const byHand = (set: boolean): CSSProperties => (set
   ? { background: 'var(--hl-manual)', borderColor: 'var(--hl-manual-fg)', color: 'var(--hl-manual-fg)', fontWeight: 700 }
@@ -26,9 +30,11 @@ const byHand = (set: boolean): CSSProperties => (set
  * once, on the function; each of its lines (one per step, one per ticket) shows who carries its hours (Settings › Step
  * weights), its effort and its dates, which can be set by hand.
  */
-export function StepsTable({ epic, v, people, admin, assign, swap }: {
+export function StepsTable({ epic, v, people, admin, assign, swap, affected = [] }: {
   epic: string; v: DetailPlanView; people: Person[]; admin: boolean;
   assign: (r: Row, slot: Slot, id: string | null) => void; swap: (a: number, b: number) => void;
+  /** the refs the last Check found on a day over an allocation or after their phase's master End */
+  affected?: string[];
 }) {
   const toast = useToast();
   const edit = useEditStep(epic);
@@ -77,20 +83,21 @@ export function StepsTable({ epic, v, people, admin, assign, swap }: {
     const parts = [s.ba_h > 0 && `${name(r.ba_id) || (r.steps ? 'BA' : 'Member')} ${f1(s.ba_h)}h`, s.bal_h > 0 && `${name(r.bal_id) || 'BAL'} ${f1(s.bal_h)}h`].filter(Boolean);
     return parts.length ? parts.join(' · ') : '0h';
   };
-  // Sent on blur or Enter, not on change: the browser reports a "valid" date at every keystroke of the year (0002-10-12, …)
+  // Sent on blur or Enter, not on change: the browser reports a "valid" date at every keystroke of the year (0002-10-12, …).
+  // Dates can be set before the plan is computed (nobody picked yet): the first one set stands for both.
   const date = (s: Step, which: 'start' | 'end') => (
-    <input type="date" aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || !s.start} defaultValue={s[which] ?? ''}
+    <input type="date" aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || s.removed} defaultValue={s[which] ?? ''}
       key={`${s.ref}:${which}:${s[which] ?? ''}`} min="2000-01-01" max="2099-12-31"
       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
       onBlur={(e) => {
         const d = e.target.value;
-        if (!s.start || !s.end || d === s[which]) return;
+        if (d === (s[which] ?? '')) return;
         if (!/^20\d\d-\d\d-\d\d$/.test(d)) {
           e.target.value = s[which] ?? '';
           return;
         }
-        const start = which === 'start' ? d : s.start;
-        const end = which === 'end' ? d : s.end < d ? d : s.end;
+        const start = which === 'start' ? d : s.start ?? d;
+        const end = which === 'end' ? d : !s.end || s.end < d ? d : s.end;
         send(s, { start, end: end < start ? start : end });
       }} style={{ ...INPUT, ...byHand(s.manual) }} />
   );
@@ -127,8 +134,9 @@ export function StepsTable({ epic, v, people, admin, assign, swap }: {
         {!closed && lines.map((s) => {
           const st = step(s.step);
           return (
-            <div key={s.ref} role="row" aria-label={s.summary} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '5px 16px 5px 52px',
-              background: s.manual ? 'var(--hl-manual)' : undefined, boxShadow: s.manual ? 'inset 3px 0 0 var(--hl-manual-fg)' : undefined }}>
+            <div key={s.ref} role="row" aria-label={s.summary} data-affected={affected.includes(s.ref) || undefined}
+              title={affected.includes(s.ref) ? 'Check: on a day over the allocation, or after the phase\'s master End' : undefined}
+              style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '5px 16px 5px 52px', ...line(s.manual, affected.includes(s.ref)) }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }} title={s.summary}>
                 <span aria-hidden="true" style={{ width: 8, height: 8, flex: 'none', borderRadius: 2, background: st?.color ?? 'var(--border-strong)' }} />
                 <span style={{ width: 104, flex: 'none', fontWeight: 600, fontSize: 12 }} className="heading">{st?.label ?? 'Ticket'}</span>

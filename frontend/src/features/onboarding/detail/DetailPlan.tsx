@@ -14,7 +14,10 @@ import { MoreMenu, type MenuItem } from './MoreMenu';
 import { PlanSummary } from './PlanSummary';
 import { StepsTable, type Slot } from './StepsTable';
 import { jiraCsv, planCsv } from './csv';
-import { detailTemplateUrl, useAutoAllocate, useClearPlan, useImportPreview, useSaveDraft, type DetailPlanView, type DraftIn, type ImportLine } from './api';
+import {
+  detailTemplateUrl, useAutoAllocate, useCheckPlan, useCheckResult, useClearPlan, useImportPreview, useSaveDraft, withCheck, type DetailPlanView,
+  type DraftIn, type ImportLine,
+} from './api';
 
 /** A person who can be given a row: a member of the anken, with their role. */
 export interface Person { id: string; name: string; role?: string | null }
@@ -23,8 +26,9 @@ type Row = Schemas['EstimationRow'];
 type View = 'lines' | 'days';
 
 /**
- * Who does each function and the dates that follow, checked against the master schedule. The push to Jira sits in the
- * step's action bar (PushControls).
+ * Who does each function and the dates that follow, checked against the master schedule. Auto allocate plans and saves the
+ * dates; what is changed after stays as it is until the next one, and Check shows what it does to each member's hours. The
+ * push to Jira sits in the step's action bar (PushControls).
  *
  * @param checked show what stands before the push (problems, budgets, days over the allocation) without being asked: once
  *                the PIM saved, tried to finish or reviewed the push, not on the first visit
@@ -42,7 +46,9 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
   const save = useSaveDraft(epic);
   const auto = useAutoAllocate(epic);
   const clear = useClearPlan(epic);
-  const busy = auto.isPending || save.isPending || clear.isPending || preview.isPending;
+  const check = useCheckPlan(epic);
+  const shown = withCheck(v, useCheckResult(epic));
+  const busy = auto.isPending || save.isPending || clear.isPending || preview.isPending || check.isPending;
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   const members = useQuery(membersQuery(epic)).data ?? [];
   const open = v.rows.filter((r) => !r.pushed_at);
@@ -95,12 +101,12 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
       title: 'Reads a filled template; you review what changes before it is applied', onClick: () => fileInput.current?.click() }] : []),
     'sep' as const,
     { label: 'Export plan', icon: 'download', disabled: open.length === 0, onClick: exportPlan },
-    { label: 'Export for Jira', icon: 'file-spreadsheet', disabled: v.plan.length === 0, title: 'The sub-tasks the push would create, for Jira › Import work items from CSV', onClick: exportJira },
+    { label: 'Export for Jira', icon: 'file-spreadsheet', disabled: open.length === 0, title: 'The sub-tasks the push would create, for Jira › Import work items from CSV', onClick: exportJira },
   ];
 
   return (
     <>
-      <PlanSummary epic={epic} v={v} name={name} checked={checked} />
+      <PlanSummary epic={epic} v={shown} name={name} checked={checked} />
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
         <Tabs<View> value={view} onChange={setView} style={{ borderBottom: 0 }}
           tabs={[{ value: 'lines', label: 'Sub-tasks' }, { value: 'days', label: 'Effort per day' }]} />
@@ -110,18 +116,28 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
           {admin && <Button appearance="secondary" size="sm" iconBefore="plus" disabled={v.tasks.length === 0} onClick={() => setAdding('task')}>Add task</Button>}
           <MoreMenu items={more} />
           {admin && open.length > 0 && (
+            <Button appearance="secondary" size="sm" iconBefore="scan-search" disabled={busy}
+              title="Checks each member's hours per day for the dates as they stand. Nothing is planned again or saved."
+              onClick={() => check.mutate(undefined, {
+                onSuccess: (c) => toast(c.affected.length ? `Checked · ${c.affected.length} sub-task${c.affected.length === 1 ? '' : 's'} to look at` : 'Checked · nothing over'),
+                onError: (e) => toast(errorMessage(e), true),
+              })}>
+              {check.isPending ? 'Checking…' : 'Check'}
+            </Button>
+          )}
+          {admin && open.length > 0 && (
             <Button appearance={empty ? 'primary' : 'secondary'} size="sm" iconBefore="users" disabled={busy}
-              title="Fills the empty BA / BAL / JM of each function from the phase's team in the master schedule, keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
-              onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
+              title="Fills the empty BA / BAL / JM of each function from the phase's team in the master schedule, keeping members within their hours in the phase, phases on time and work evenly shared, then plans every function again. People already picked and dates or efforts set by hand stay; the plan stays as it is until the next Auto allocate."
+              onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Allocated and planned'), onError: (e) => toast(errorMessage(e), true) })}>
               {auto.isPending ? 'Allocating…' : 'Auto allocate'}
             </Button>
           )}
         </span>
       </div>
       {view === 'lines'
-        ? <StepsTable epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} />
-        : v.days.length ? <EffortDays v={v} name={name} />
-          : <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nothing is planned yet: pick the people of each function, or Auto allocate.</div>}
+        ? <StepsTable epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} affected={shown.affected} />
+        : shown.days.length ? <EffortDays v={shown} name={name} />
+          : <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nothing is planned yet: Auto allocate plans every function.</div>}
       <input ref={fileInput} type="file" accept=".xlsx,.csv" aria-label="Import file" hidden onChange={onFile} />
       {imported && <ImportDialog epic={epic} file={imported.file} lines={imported.lines} name={label} close={() => setImported(null)} />}
       {adding && <AddRowDialog epic={epic} kind={adding} tasks={v.tasks} close={() => setAdding(null)} />}
@@ -131,7 +147,8 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
             <span className="dialog-title">Clear the whole plan?</span>
             <span style={{ fontSize: 13 }}>
               Every BA, BAL and JM of the rows not in Jira yet is emptied, also the people you picked; the dates and efforts set by
-              hand go back to the computed ones and the removed lines come back. The rows and their estimation stay.
+              hand go, the removed lines come back and the planned dates go too, until the next Auto allocate. The rows and their
+              estimation stay.
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
               <span className="spacer" />
