@@ -104,7 +104,7 @@ public final class PlanRows {
                 if (bal.equals(ba)) {
                     shares.set(0, new Share(ba, h[0] + h[1]));
                 } else {
-                    shares.add(new Share(bal, h[1]));
+                    shares.add(new Share(bal, h[1], true));
                 }
             }
             if (shares.isEmpty() && st.hours() <= 0 && ba != null) { // a step of 0 hours still takes its day

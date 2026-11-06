@@ -159,7 +159,9 @@ class AutoAllocationLab {
                 case BA_HOURS -> MasterSchedule.endOf(EPIC, start, pw.effortH(), teamBas, a, cal);
                 case BA_AND_CHAIN -> MasterSchedule.endOf(EPIC, start, pw, teamBas, a, cal);
             };
-            phases.put(p, new Phase(start, end.end(), teams.get(p)));
+            List<String> team = new ArrayList<>(teams.get(p));
+            team.addAll(jms); // every phase team has the anken's JMs, as Master schedule picks them by default
+            phases.put(p, new Phase(start, end.end(), team));
             start = Dates.addDays(end.end(), 1);
         }
         // work already in Jira: a third of the BAs have 2h a day for the first week
@@ -173,7 +175,7 @@ class AutoAllocationLab {
                 loads.put(id, days);
             }
         }
-        return new Input(EPIC, rows, phases, roles, jms, loads, Map.of(), AutoAllocator.cached(DetailScheduler.hours(EPIC, a, cal)), cal, w, 8);
+        return new Input(EPIC, rows, phases, roles, loads, Map.of(), AutoAllocator.cached(DetailScheduler.hours(EPIC, a, cal)), cal, w, 8);
     }
 
     /** One strategy on each variant: how much each factor adds to the days late. */

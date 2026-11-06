@@ -42,7 +42,6 @@ import tracker.domain.Issue;
 import tracker.domain.MasterSchedule;
 import tracker.domain.PlanRows;
 import tracker.domain.StepEdit;
-import tracker.domain.Member;
 import tracker.domain.Onboarding;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
@@ -282,8 +281,8 @@ public class DetailPlanService {
     }
 
     /**
-     * Fills the empty BA / BAL / JM slots of the unpushed rows ({@link AutoAllocator}, docs/auto-allocation.md): BAs and BALs
-     * from the phase's team in the master schedule, JMs from the anken. People already picked stay; the draft is saved.
+     * Fills the empty BA / BAL / JM slots of the unpushed rows ({@link AutoAllocator}, docs/auto-allocation.md): BAs, BALs and
+     * JMs from the phase's team in the master schedule. People already picked stay; the draft is saved.
      */
     public DetailPlanView autoAllocate(AnkenScope scope, String epic) {
         TrackerContext ctx = EstimationService.load(context, scope, epic);
@@ -297,15 +296,13 @@ public class DetailPlanService {
                 new AutoAllocator.Phase(p.start(), p.end(), p.memberIds().stream().filter(id -> ctx.isMember(epic, id)).toList())));
         Map<String, Role> roles = new HashMap<>();
         ctx.members.values().stream().filter(m -> m.role() != null).forEach(m -> roles.put(m.id(), m.role()));
-        List<String> jms = ctx.members.values().stream().filter(m -> m.role() == Role.JM && ctx.isMember(epic, m.id())).map(Member::id)
-                .sorted().toList();
         Allocations a = allocations.counted(scope).allocations();
         StepWeights w = ctx.settings.stepWeightsOf(epic);
         List<StepEdit> edits = estimation.stepEdits(epic);
         AutoAllocator.Input in = new AutoAllocator.Input(epic,
                 open.stream().map(r -> new AutoAllocator.Row(r.id(), r.phase(), r.steps(), r.effortH(), r.baId(), r.balId(), r.jmId(),
                         PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w))).toList(),
-                phases, roles, jms, loads(ctx, epic, Set.of()), givenBefore(ctx, epic, Set.of()),
+                phases, roles, loads(ctx, epic, Set.of()), givenBefore(ctx, epic, Set.of()),
                 AutoAllocator.cached(DetailScheduler.hours(epic, a, ctx.cal)), ctx.cal, w, ctx.settings.workingHours.hoursPerDay());
         List<RowAssign> assigns = AutoAllocator.allocate(in).stream().map(p -> new RowAssign(p.rowId(), p.baId(), p.balId(), p.jmId())).toList();
         return saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);

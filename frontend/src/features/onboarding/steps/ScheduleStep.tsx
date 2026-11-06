@@ -25,8 +25,8 @@ const INPUT: CSSProperties = { height: 32, boxSizing: 'border-box', padding: '0 
 
 function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterScheduleView']; people: MemberHours[] }) {
   const save = useSaveMasterSchedule(epic);
-  // the default team of a phase: the members who give the anken hours, JMs aside (their reviews take no allocation)
-  const team = people.filter((p) => p.role !== 'JM' && (p.hours_per_day ?? 0) > 0).map((p) => p.member_id);
+  // the default team of a phase: the members who give the anken hours, and its JMs (their reviews take no allocation)
+  const team = people.filter((p) => p.role === 'JM' || (p.hours_per_day ?? 0) > 0).map((p) => p.member_id);
   const [start, setStart] = useState(v.current?.phases[0]?.start ?? '');
   const [who, setWho] = useState<Record<string, string[]>>(() => Object.fromEntries(v.estimation_phases.map((p) =>
     [p, v.current?.phases.find((x) => x.phase === p)?.member_ids ?? team])));
@@ -65,7 +65,7 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
       <section className="card card-clip" aria-label="Master schedule phases">
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span className="title">Phases</span>
-          <span className="eyebrow">BA effort comes from the estimation: Create, Fix BAL and Fix JM, and tickets (BAL and JM reviews aside). The End is the later of the day the team's members other than BALs have given that effort, and the day the longest function's reviews end after the Creates. Hours per day come from Add member. Each phase starts the working day after the previous one ends.</span>
+          <span className="eyebrow">BA effort comes from the estimation: Create, Fix BAL and Fix JM, and tickets (BAL and JM reviews aside). The End is the later of the day the team's members other than BALs and JMs have given that effort, and the day the longest function's reviews end after the Creates. Hours per day come from Add member. Each phase starts the working day after the previous one ends.</span>
         </div>
         {v.estimation_phases.length === 0 && <div style={{ padding: 16, color: 'var(--text-muted)' }}>The estimation has no rows yet.</div>}
         <div style={{ overflowX: 'auto' }}>

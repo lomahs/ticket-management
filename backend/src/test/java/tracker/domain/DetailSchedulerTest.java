@@ -64,6 +64,54 @@ class DetailSchedulerTest {
                 "an 1.0 2026-10-08/2026-10-08"); // the next step starts after the later part
     }
 
+    static List<String> parts(Result r, String member) {
+        return r.parts().stream().filter(p -> p.memberId().equals(member)).map(p -> p.date().substring(8) + " " + p.ref() + " " + p.hours()).toList();
+    }
+
+    static Step step(String ref, StepKind kind, double h, DetailScheduler.Share... shares) {
+        return new Step(ref, "ITA", kind, List.of(shares), shares[0].memberId(), h, null, null);
+    }
+
+    @Test
+    void aFixCommentThatCanStartTakesAThirdOfTheBasDayAndCreateTheRest() {
+        // an gives 6h a day: Mon no Fix comment can start, Create takes the day; Tue Fix 2h (a third), Create 4h; Wed the Fix
+        // needs 1h, the hour it leaves goes to Create (5h); Thu Create alone
+        Chain fix = new Chain("2026-10-06", List.of(step("f", StepKind.FIX_BAL, 3, new DetailScheduler.Share("an", 3))));
+        Chain create = new Chain(MON, List.of(step("c", StepKind.CREATE, 20, new DetailScheduler.Share("an", 20))));
+        Result r = run(Map.of(), fix, create);
+        assertThat(parts(r, "an")).containsExactly("05 c 6.0", "06 f 2.0", "06 c 4.0", "07 f 1.0", "07 c 5.0", "08 c 5.0");
+        assertThat(r.placed()).extracting(p -> p.ref() + " " + p.start() + "/" + p.end())
+                .containsExactlyInAnyOrder("f 2026-10-06/2026-10-07", "c 2026-10-05/2026-10-08");
+    }
+
+    @Test
+    void withCreateDoneTheFixCommentsTakeTheWholeDay() {
+        // Mon: Fix 2h, Create needs 2h of its 4h, the 2h left go to the Fix; Tue: only the Fix is left
+        Chain fix = new Chain(MON, List.of(step("f", StepKind.FIX_JM, 8, new DetailScheduler.Share("an", 8))));
+        Result r = run(Map.of(), fix, single("t", "an", 2)); // a ticket counts as Create
+        assertThat(parts(r, "an")).containsExactly("05 f 2.0", "05 t 2.0", "05 f 2.0", "06 f 4.0");
+    }
+
+    @Test
+    void theFixCommentOfTheFunctionWhoseCreateEndedFirstGoesFirst() {
+        // both Fix comments can start on Thursday; B's Create ended on Monday, A's on Tuesday: B's goes first although A is the
+        // earlier row
+        Chain a = new Chain(MON, List.of(new Step("ac", "ITA", StepKind.CREATE, List.of(new DetailScheduler.Share("an", 1)), "an", 1, "2026-10-06",
+                "2026-10-06"), new Step("aj", "ITA", StepKind.JM_REVIEW, "tanaka", 8, null), step("af", StepKind.FIX_JM, 4, new DetailScheduler.Share("an", 4))));
+        Chain b = new Chain(MON, List.of(new Step("bc", "ITA", StepKind.CREATE, List.of(new DetailScheduler.Share("an", 1)), "an", 1, MON,
+                MON), new Step("bj", "ITA", StepKind.JM_REVIEW, "tanaka", 16, null), step("bf", StepKind.FIX_JM, 4, new DetailScheduler.Share("an", 4))));
+        Result r = run(Map.of(), a, b);
+        assertThat(parts(r, "an")).containsSubsequence("08 bf 4.0", "08 af 2.0", "09 af 2.0");
+    }
+
+    @Test
+    void theBalsShareOfAFixCommentIsAReviewThatTakesTheBalsDayFirst() {
+        // minh carries a ticket (Create) and the BAL's 3h of a Fix comment: the review takes its 3h first, not a third of the day
+        Step fix = step("f", StepKind.FIX_BAL, 3, new DetailScheduler.Share("minh", 3, true));
+        Result r = run(Map.of(), single("t", "minh", 12), new Chain(MON, List.of(fix)));
+        assertThat(parts(r, "minh")).containsExactly("05 f 3.0", "05 t 3.0", "06 t 6.0", "07 t 3.0");
+    }
+
     @Test
     void datesSetByHandSpreadTheHoursEvenAboveTheAllocation() {
         Step pinned = new Step("p", "ITA", StepKind.CREATE, List.of(new DetailScheduler.Share("an", 16)), "an", 16, "2026-10-08", "2026-10-09");

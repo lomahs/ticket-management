@@ -29,7 +29,7 @@ import tracker.domain.Viewer;
 
 /**
  * Step 2 of planning: start and members of each phase, its End computed from the BA work of the estimation and the allocations of
- * the team but its BALs ({@link MasterSchedule#endOf(String, String, PhaseWork, List, Allocations, tracker.domain.WorkCalendar)}); saved
+ * the team but its BALs and JMs ({@link MasterSchedule#endOf(String, String, PhaseWork, List, Allocations, tracker.domain.WorkCalendar)}); saved
  * as versions.
  */
 @Service
@@ -124,10 +124,12 @@ public class MasterScheduleService {
                 }
                 start = ctx.cal.nextWork(Dates.addDays(out.getLast().end(), 1), in.memberIds().getFirst());
             }
-            // the End comes from the BA work against the hours of the team but its BALs: a BAL only reviews
-            List<String> bas = in.memberIds().stream().filter(m -> ctx.members.get(m).role() != Role.BAL).toList();
+            // the End comes from the BA work against the hours of the team but its BALs and JMs: they only review
+            List<String> bas = in.memberIds().stream().filter(m -> ctx.members.get(m).role() != Role.BAL && ctx.members.get(m).role() != Role.JM)
+                    .toList();
             if (bas.isEmpty()) {
-                throw new Invalid("Pick a BA for " + in.phase() + ": a BAL only reviews, so the End does not count their hours", at + "member_ids");
+                throw new Invalid("Pick a BA for " + in.phase() + ": BALs and JMs only review, so the End does not count their hours",
+                        at + "member_ids");
             }
             PhaseWork w = work.get(in.phase());
             try {

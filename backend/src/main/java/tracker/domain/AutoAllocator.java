@@ -18,7 +18,9 @@ import tracker.domain.DetailScheduler.Result;
  * Auto allocation of a detail plan: who fills the empty BA / BAL / JM slots of the unpushed rows (docs/auto-allocation.md).
  * <ol>
  * <li>Greedy, row after row in the rows' order: the combination of candidates that ends the row soonest, then adds the fewest
- * hours over budget, then gives its people the smallest share of their phase budget, then the JM with the fewest reviews.</li>
+ * hours over budget, then gives its people the smallest share of their phase budget, then the JM with the fewest reviews.
+ * Each row is placed alone on the days the earlier rows left; the whole plan, members' days shared by the scheduler's rules,
+ * is what the improvement scores.</li>
  * <li>Improvement on the whole plan's {@link Score}: first targeted moves (rows over budget or late, to people within budget),
  * then every move and swap, pass after pass until nothing gets better or {@link Options#maxTrials} plans were scored.</li>
  * </ol>
@@ -47,11 +49,10 @@ public final class AutoAllocator {
 
     /**
      * @param roles       member → role (members without one are never picked)
-     * @param jms         the anken's JMs
      * @param loads       member → day → hours already planned (open sub-tasks in Jira)
      * @param givenBefore "member|phase" → hours the member already has in the phase in Jira
      */
-    public record Input(String epic, List<Row> rows, Map<String, Phase> phases, Map<String, Role> roles, List<String> jms,
+    public record Input(String epic, List<Row> rows, Map<String, Phase> phases, Map<String, Role> roles,
                         Map<String, Map<String, Double>> loads, Map<String, Double> givenBefore, Hours hours, WorkCalendar cal,
                         StepWeights weights, double jmHoursPerDay) {
     }
@@ -226,12 +227,9 @@ public final class AutoAllocator {
         return out;
     }
 
-    /** BA (and the one member of a row without steps): the phase team's BAs; BAL: its BALs; JM: the anken's JMs. */
+    /** BA (and the one member of a row without steps): the phase team's BAs; BAL: its BALs; JM: its JMs. */
     static List<String> candidates(Input in, Row r, Slot s) {
-        if (s == Slot.JM) {
-            return in.jms();
-        }
-        Role role = s == Slot.BA ? Role.BA : Role.BAL;
+        Role role = s == Slot.BA ? Role.BA : s == Slot.BAL ? Role.BAL : Role.JM;
         return in.phases().get(r.phase()).team().stream().filter(id -> in.roles().get(id) == role).sorted().toList();
     }
 
@@ -354,8 +352,14 @@ public final class AutoAllocator {
                         .map(id -> given.getOrDefault(id + '|' + e.getKey(), 0.0)).toList());
             }
         }
-        spread += spread(in.jms().stream().map(id -> jmHours.getOrDefault(id, 0.0)).toList());
+        spread += spread(jms(in).stream().map(id -> jmHours.getOrDefault(id, 0.0)).toList());
         return new Score(unfilled, Numbers.round(over, 2), late, days, Numbers.round(spread, 2));
+    }
+
+    /** The JMs of every phase team: JM Review takes no allocation, so its hours are shared across the phases. */
+    private static List<String> jms(Input in) {
+        return in.phases().values().stream().flatMap(p -> p.team().stream()).filter(id -> in.roles().get(id) == Role.JM).distinct().sorted()
+                .toList();
     }
 
     private static double spread(List<Double> hours) {
@@ -477,65 +481,59 @@ public final class AutoAllocator {
     // --- improvement ----------------------------------------------------------------------------------------------------
 
     /**
-     * The plan of the current picks, kept row by row: what each row placed and the ledger before it, so a change at row k
-     * schedules only rows k and after.
+     * The plan of the current picks and what each row placed. Rows share their members' days (a row's Fix comment takes a
+     * third of the BA's day from a later row's Create), so a change to one row schedules the whole plan again.
      */
     private static final class Plan {
         final Input in;
         final List<Pick> picks;
-        final List<Map<String, Map<String, Double>>> before = new ArrayList<>();
-        final List<List<Placed>> placed = new ArrayList<>();
+        List<List<Placed>> placed = List.of();
 
         Plan(Input in, List<Pick> picks) {
             this.in = in;
             this.picks = new ArrayList<>(picks);
-            rebuild(0);
+            rebuild();
         }
 
-        /** Re-schedules rows k and after, one at a time, keeping each row's ledger and placed steps. */
-        void rebuild(int k) {
-            Map<String, Map<String, Double>> ledger = k < before.size() ? before.get(k) : in.loads();
-            while (before.size() > k) {
-                before.removeLast();
-                placed.removeLast();
-            }
-            for (int i = k; i < in.rows().size(); i++) {
-                before.add(ledger);
-                Chain c = chain(in, in.rows().get(i), picks.get(i));
-                if (c == null) {
-                    placed.add(List.of());
-                    continue;
-                }
-                Result res = DetailScheduler.schedule(in.epic(), List.of(c), ledger, in.hours(), in.cal(), in.jmHoursPerDay());
-                placed.add(res.placed());
-                ledger = res.ledger();
-            }
+        void rebuild() {
+            placed = byRow(in, picks);
         }
 
-        /** The score with {@code trial} instead of the current picks from row k on (rows before k are unchanged). */
-        Score trial(int k, List<Pick> trial, Budgets budgets) {
-            List<Chain> chains = new ArrayList<>();
-            for (int i = k; i < in.rows().size(); i++) {
-                Chain c = chain(in, in.rows().get(i), trial.get(i));
-                if (c != null) {
-                    chains.add(c);
-                }
-            }
-            List<Placed> all = new ArrayList<>();
-            for (int i = 0; i < k; i++) {
-                all.addAll(placed.get(i));
-            }
+        /** The score with {@code trial} instead of the current picks. */
+        Score trial(List<Pick> trial, Budgets budgets) {
+            List<List<Placed>> rows;
             try {
-                all.addAll(DetailScheduler.schedule(in.epic(), chains, before.get(k), in.hours(), in.cal(), in.jmHoursPerDay()).placed());
+                rows = byRow(in, trial);
             } catch (RuleError e) {
                 return WORST.apply(unfilled(in, trial));
             }
-            return measure(in, unfilled(in, trial), all, budgets);
+            return measure(in, unfilled(in, trial), rows.stream().flatMap(List::stream).toList(), budgets);
         }
 
         List<Placed> all() {
             return placed.stream().flatMap(List::stream).toList();
         }
+    }
+
+    /** Schedules every row with these picks; what each row placed, in row order. */
+    private static List<List<Placed>> byRow(Input in, List<Pick> picks) {
+        List<Chain> chains = new ArrayList<>();
+        Map<String, Integer> rowOf = new HashMap<>();
+        List<List<Placed>> out = new ArrayList<>();
+        for (int i = 0; i < in.rows().size(); i++) {
+            out.add(new ArrayList<>());
+            Chain c = chain(in, in.rows().get(i), picks.get(i));
+            if (c != null) {
+                chains.add(c);
+                for (DetailScheduler.Step st : c.steps()) {
+                    rowOf.put(st.ref(), i);
+                }
+            }
+        }
+        for (Placed pl : DetailScheduler.schedule(in.epic(), chains, in.loads(), in.hours(), in.cal(), in.jmHoursPerDay()).placed()) {
+            out.get(rowOf.get(pl.ref())).add(pl);
+        }
+        return out;
     }
 
     /**
@@ -574,12 +572,12 @@ public final class AutoAllocator {
                         }
                         List<Pick> trial = new ArrayList<>(plan.picks);
                         trial.set(i, trial.get(i).with(s, id));
-                        Score sc = plan.trial(i, trial, budgets);
+                        Score sc = plan.trial(trial, budgets);
                         if (sc.compareTo(best) < 0) {
                             best = sc;
                             better = true;
                             plan.picks.set(i, trial.get(i));
-                            plan.rebuild(i);
+                            plan.rebuild();
                             now = id;
                         }
                     }
@@ -606,13 +604,13 @@ public final class AutoAllocator {
                             List<Pick> trial = new ArrayList<>(plan.picks);
                             trial.set(i, trial.get(i).with(s, mb));
                             trial.set(j, trial.get(j).with(s, ma));
-                            Score sc = plan.trial(i, trial, budgets);
+                            Score sc = plan.trial(trial, budgets);
                             if (sc.compareTo(best) < 0) {
                                 best = sc;
                                 better = true;
                                 plan.picks.set(i, trial.get(i));
                                 plan.picks.set(j, trial.get(j));
-                                plan.rebuild(i);
+                                plan.rebuild();
                                 ma = mb;
                             }
                         }

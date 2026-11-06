@@ -28,7 +28,9 @@ class AutoAllocatorTest {
 
     static Input input(List<Row> rows, List<String> team, String end, List<String> jms, List<Allocation> alloc, List<Leave> leaves) {
         WorkCalendar cal = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M, leaves);
-        return new Input("E", rows, Map.of("P", new Phase(MON, end, team)), ROLES, jms, Map.of(), Map.of(),
+        List<String> all = new java.util.ArrayList<>(team);
+        all.addAll(jms);
+        return new Input("E", rows, Map.of("P", new Phase(MON, end, all)), ROLES, Map.of(), Map.of(),
                 AutoAllocator.cached(DetailScheduler.hours("E", new Allocations(alloc), cal)), cal, StepWeights.defaults(), 8);
     }
 

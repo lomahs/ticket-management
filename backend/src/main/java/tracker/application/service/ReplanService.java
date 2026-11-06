@@ -193,7 +193,7 @@ public class ReplanService {
                     if (bal.equals(ba)) {
                         shares.set(0, new DetailScheduler.Share(ba, hours * (s.ba() + s.bal()) / 100));
                     } else {
-                        shares.add(new DetailScheduler.Share(bal, hours * s.bal() / 100));
+                        shares.add(new DetailScheduler.Share(bal, hours * s.bal() / 100, true));
                     }
                 }
                 if (s.counted() && shares.isEmpty()) { // nobody known to carry it: its assignee does

@@ -256,14 +256,14 @@ class DetailPlanningTest {
     @Test
     void autoAllocateFillsEmptySlotsWithWhoFinishesSoonestAndKeepsPicks() {
         estimate();
-        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh", "tanaka")),
                 new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
         List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(),
                 List.of(new RowAssign(rows.get(0).id(), "an", null, null))));
         DetailPlanView v = detail.autoAllocate(ALL, EPIC);
         assertThat(v.rows()).extracting(r -> r.functionName() + "=" + r.baId() + "/" + r.balId() + "/" + r.jmId())
-                .containsExactly("Login=an/minh/tanaka", // an was picked; the BAL and JM come from the phase team and the anken
+                .containsExactly("Login=an/minh/tanaka", // an was picked; the BAL and JM come from the phase team
                         "Run=binh/null/null", // an is busy with Login, so Bình finishes sooner
                         "Pay=an/minh/null"); // the only BA of the ITB team; a 3-step function has no JM
         assertThat(v.problems()).isEmpty();
@@ -271,9 +271,20 @@ class DetailPlanningTest {
     }
 
     @Test
-    void autoAllocateRemembersItsPicksSoTheyClearApartFromWhatWasSetByHand() {
+    void autoAllocateTakesTheJmFromThePhaseTeamOnly() {
         estimate();
         schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        // tanaka is a JM of the anken but not in the ITA team: Login's JM stays empty, its BA and BAL are filled
+        assertThat(v.rows()).filteredOn(r -> r.functionName().equals("Login")).singleElement()
+                .satisfies(r -> assertThat(r.jmId()).isNull()).satisfies(r -> assertThat(r.balId()).isEqualTo("minh"));
+    }
+
+    @Test
+    void autoAllocateRemembersItsPicksSoTheyClearApartFromWhatWasSetByHand() {
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh", "tanaka")),
                 new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
         List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
         List<Long> order = rows.stream().map(EstimationRow::id).toList();

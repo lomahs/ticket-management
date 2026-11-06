@@ -199,14 +199,14 @@ class OnboardingTest {
     @Test
     void phasesWithoutAStartFollowThePreviousOne() {
         onboarding.start(PIM, EPIC);
-        onboarding.saveMembers(PIM, EPIC, List.of(new MemberIn("tanaka", true, 4.0)));
+        onboarding.saveMembers(PIM, EPIC, List.of(new MemberIn("binh", true, 4.0)), true); // 4h here, above the 8h elsewhere
         estimation.save(EPIC, List.of(new EstimationRow(0, EPIC, 0, "Prepare", "Study", "Requirement study", null, 8, null, null, null, null, null),
                 new EstimationRow(0, EPIC, 1, "Implement_Coding", "Code", "Refund", null, 8, null, null, null, null, null)));
-        var rows = schedule.preview(SCOPE, EPIC, List.of(new PhaseRowIn("Prepare", "2026-10-15", List.of("tanaka")),
-                new PhaseRowIn("Implement_Coding", null, List.of("tanaka"))));
+        var rows = schedule.preview(SCOPE, EPIC, List.of(new PhaseRowIn("Prepare", "2026-10-15", List.of("binh")),
+                new PhaseRowIn("Implement_Coding", null, List.of("binh"))));
         assertThat(rows.get(0).end()).isEqualTo("2026-10-16"); // 8h at 4h a day: Thu and Fri
         assertThat(rows.get(1).start()).isEqualTo("2026-10-19"); // the next working day, after the weekend
-        assertThatThrownBy(() -> schedule.preview(SCOPE, EPIC, List.of(new PhaseRowIn("Prepare", null, List.of("tanaka")))))
+        assertThatThrownBy(() -> schedule.preview(SCOPE, EPIC, List.of(new PhaseRowIn("Prepare", null, List.of("binh")))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("phases.0.start");
     }
 }
