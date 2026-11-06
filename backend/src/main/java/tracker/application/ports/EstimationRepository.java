@@ -2,6 +2,7 @@ package tracker.application.ports;
 
 import java.util.List;
 
+import tracker.domain.AutoPicks;
 import tracker.domain.EstimationRow;
 import tracker.domain.StepEdit;
 
@@ -26,4 +27,13 @@ public interface EstimationRepository {
 
     /** Replaces the edit of that row and step; an empty edit is deleted. */
     void saveStepEdit(StepEdit edit);
+
+    /** Deletes the step edits of the epic's unpushed rows. */
+    void deleteUnpushedStepEdits(String epic);
+
+    /** Who Auto allocate put in the slots of the epic's rows. */
+    List<AutoPicks> autoPicks(String epic);
+
+    /** Replaces the row's auto picks; empty ones are deleted. */
+    void saveAutoPicks(AutoPicks picks);
 }

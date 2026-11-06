@@ -271,6 +271,37 @@ class DetailPlanningTest {
     }
 
     @Test
+    void autoAllocateRemembersItsPicksSoTheyClearApartFromWhatWasSetByHand() {
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        List<Long> order = rows.stream().map(EstimationRow::id).toList();
+        detail.saveDraft(ALL, EPIC, new DraftIn(order, List.of(new RowAssign(rows.get(0).id(), "an", null, null))));
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC); // Login=an/minh/tanaka, Run=binh, Pay=an/minh
+        assertThat(v.byHand()).extracting(h -> h.rowId() + " " + h.ba() + h.bal() + h.jm()).containsExactly(rows.get(0).id() + " truefalsefalse");
+        // Run's member picked by hand (the draft sends every row, the unchanged ones stay Auto allocate's), and a date set by hand
+        v = detail.saveDraft(ALL, EPIC, new DraftIn(order, v.rows().stream().map(r -> new RowAssign(r.id(),
+                r.id() == rows.get(1).id() ? "an" : r.baId(), r.balId(), r.jmId())).toList()));
+        assertThat(v.byHand()).extracting(h -> h.rowId()).containsExactly(rows.get(0).id(), rows.get(1).id());
+        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-20", "2026-10-21", false));
+
+        v = detail.clear(ALL, EPIC, true);
+        assertThat(v.rows()).extracting(r -> r.functionName() + "=" + r.baId() + "/" + r.balId() + "/" + r.jmId())
+                .containsExactly("Login=an/null/null", "Run=an/null/null", "Pay=null/null/null");
+        assertThat(v.steps()).filteredOn(s -> s.rowId() == rows.get(1).id()).extracting(StepRow::manual).containsExactly(true);
+        v = detail.autoAllocate(ALL, EPIC); // fills the slots again around what was set by hand
+        assertThat(v.rows()).allMatch(r -> r.baId() != null);
+        assertThat(v.rows().get(1).baId()).isEqualTo("an");
+
+        v = detail.clear(ALL, EPIC, false);
+        assertThat(v.rows()).allMatch(r -> r.baId() == null && r.balId() == null && r.jmId() == null);
+        assertThat(v.steps()).noneMatch(StepRow::manual);
+        assertThat(v.byHand()).isEmpty();
+        assertThat(estimationRows.autoPicks(EPIC)).isEmpty();
+    }
+
+    @Test
     void autoAllocateNeedsAMasterSchedule() {
         estimate();
         assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessage("Save a master schedule first");

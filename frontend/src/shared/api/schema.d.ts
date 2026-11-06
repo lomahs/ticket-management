@@ -916,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clearDetailPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/push": {
         parameters: {
             query?: never;
@@ -1994,6 +2010,7 @@ export interface components {
         };
         DetailPlanView: {
             allocated: components["schemas"]["OverrunAllocation"][];
+            by_hand: components["schemas"]["HandPicks"][];
             checks: components["schemas"]["PhaseCheck"][];
             days: components["schemas"]["DayLoad"][];
             over_budget: components["schemas"]["Overrun"][];
@@ -2206,6 +2223,13 @@ export interface components {
             phase: string;
             steps: (components["schemas"]["TaskCard"] | null)[];
             task_key: string;
+        };
+        HandPicks: {
+            ba: boolean;
+            bal: boolean;
+            jm: boolean;
+            /** Format: int64 */
+            row_id: number;
         };
         Handover: {
             date: string;
@@ -4807,6 +4831,30 @@ export interface operations {
     autoAllocate: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    clearDetailPlan: {
+        parameters: {
+            query?: {
+                keep_input?: boolean;
+            };
             header?: never;
             path: {
                 epic: string;

@@ -237,6 +237,17 @@ public class DetailPlanningApi {
     }
 
     /**
+     * Empties the BA / BAL / JM of the unpushed rows and returns the plan. {@code keep_input}: only Auto allocate's picks; else
+     * every pick and every date, effort and removal set by hand.
+     */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/clear")
+    public DetailPlanView clearDetailPlan(@PathVariable("epic") String epic,
+                                          @RequestParam(name = "keep_input", defaultValue = "false") boolean keepInput, Viewer viewer) {
+        return detail.clear(epicScope(viewer, epic), epic, keepInput);
+    }
+
+    /**
      * The review of the push: every sub-task, with the requests; refused while the plan has problems or goes over a budget,
      * and over a member's allocation on a day unless {@code allow_over_day} confirms it.
      */

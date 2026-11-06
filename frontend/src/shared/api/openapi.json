@@ -2065,6 +2065,40 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/clear" : {
+      "post" : {
+        "operationId" : "clearDetailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "keep_input",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/detail/push" : {
       "post" : {
         "operationId" : "pushDetailPlan",
@@ -5002,6 +5036,12 @@
               "$ref" : "#/components/schemas/OverrunAllocation"
             }
           },
+          "by_hand" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/HandPicks"
+            }
+          },
           "checks" : {
             "type" : "array",
             "items" : {
@@ -5063,7 +5103,7 @@
             }
           }
         },
-        "required" : [ "allocated", "checks", "days", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
+        "required" : [ "allocated", "by_hand", "checks", "days", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
       },
       "DraftBody" : {
         "type" : "object",
@@ -5698,6 +5738,25 @@
           }
         },
         "required" : [ "epic_key", "function_id", "name", "phase", "steps", "task_key" ]
+      },
+      "HandPicks" : {
+        "type" : "object",
+        "properties" : {
+          "ba" : {
+            "type" : "boolean"
+          },
+          "bal" : {
+            "type" : "boolean"
+          },
+          "jm" : {
+            "type" : "boolean"
+          },
+          "row_id" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "ba", "bal", "jm", "row_id" ]
       },
       "Handover" : {
         "type" : "object",

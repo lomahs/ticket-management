@@ -251,7 +251,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async ({ request }) => { previews.push(await request.json()); return HttpResponse.json(rows); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', async ({ request }) => { saved = await request.json(); return HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] }); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [], by_hand: [] })),
     );
     renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.change(await screen.findByLabelText('Start date'), { target: { value: '2026-10-12' } });
@@ -277,7 +277,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA'], current, versions: [current], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async () => { await new Promise((r) => setTimeout(r, 500)); return HttpResponse.json([phase]); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', () => { saves++; return HttpResponse.json({}); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [], by_hand: [] })),
     );
     const { router } = renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.click(await screen.findByRole('button', { name: 'Continue to Detail plan' })); // before the preview is back
@@ -293,16 +293,42 @@ describe('onboarding', () => {
     line('2', 2, null, '[PAY] Run', 16)];
   const detailView = (over: Record<string, unknown> = {}) => ({
     rows: [LOGIN, RUN], tasks: [TASK], plan: [], steps: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
-    stale_phases: [], problems: [], ...over,
+    stale_phases: [], problems: [], by_hand: [], ...over,
   });
   const planned = {
     plan: [{ row_id: 2, steps: [{ ref: '2', step: null, member_id: 'an', hours: 16, start: '2026-10-12', end: '2026-10-14' }] }],
     steps: [...LINES.slice(0, 2), line('2', 2, null, '[PAY] Run', 16, ['2026-10-12', '2026-10-14'])],
     checks: [{ phase: 'ITA', master_end: '2026-10-13', plan_end: '2026-10-14', days_late: 1 }],
-    days: [{ member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false }] },
+    days: [{ member_id: 'an', date: '2026-10-11', planned_h: 0, allocated_h: 0, off: 'Weekend', other_h: 0, items: [] },
+      { member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false }] },
       { member_id: 'an', date: '2026-10-13', planned_h: 9, allocated_h: 8, off: null, other_h: 3, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false },
         { key: 'PAY-1290', title: 'Refund – Create', hours: 1, other: false }, { key: 'PAY-1300', title: 'Refund', hours: 3, other: true }] }],
   };
+
+  it('highlights the people picked by hand and clears the plan with or without them', async () => {
+    const clears: string[] = [];
+    onboarding({ step: 6 });
+    const view = detailView({ rows: [{ ...LOGIN, ba_id: 'an', bal_id: 'minh', jm_id: 'tanaka' }, RUN], ...planned,
+      by_hand: [{ row_id: 1, ba: true, bal: false, jm: false }] });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.post('*/api/v1/planning/PAY-1100/detail/clear', ({ request }) => {
+        clears.push(new URL(request.url).searchParams.get('keep_input') ?? '');
+        return HttpResponse.json(view);
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const ba = await screen.findByLabelText('BA, Login Create');
+    expect(ba.getAttribute('data-by-hand')).toBe('true');
+    expect(screen.getByLabelText('BAL, Login Create').getAttribute('data-by-hand')).toBeNull(); // Auto allocate's pick
+    fireEvent.click(screen.getByRole('button', { name: 'Clear, keep my input' }));
+    await waitFor(() => expect(clears).toEqual(['true']));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Clear the plan' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Clear all' }));
+    await waitFor(() => expect(clears).toEqual(['true', 'false']));
+    expect(await screen.findByText('Plan cleared')).toBeTruthy();
+  });
 
   it('assigns members and shows computed dates', async () => {
     let saved: { assigns: Record<string, unknown>[] } | null = null;
@@ -328,10 +354,12 @@ describe('onboarding', () => {
     expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-14');
     expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
-    expect(days.textContent).toContain('9 / 8'); // above the allocation
-    expect(days.textContent).toContain('+3 other');
-    fireEvent.mouseEnter(within(days).getByLabelText('An 2026-10-13'));
-    const tip = within(days).getByRole('tooltip');
+    const tue = within(days).getByLabelText('An 2026-10-13');
+    expect(tue.textContent).toBe('9+3 other'); // the planned hours only, red above the 8h allocation
+    expect(within(days).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Member', 'Mon', 'Tue', '10/12', '10/13']); // no weekend
+    fireEvent.mouseEnter(tue);
+    const tip = screen.getByRole('tooltip');
+    expect(days.contains(tip)).toBe(false); // above the page, not clipped by the section
     expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
     expect(tip.textContent).toContain('Other anken');
     expect(tip.textContent).toContain('Refund3h'); // another anken: its name and hours

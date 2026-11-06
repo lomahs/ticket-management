@@ -28,6 +28,15 @@ export function useAutoAllocate(epic: string) {
   });
 }
 
+/** @param keepInput empty only Auto allocate's picks; else every pick and every date, effort and removal set by hand */
+export function useClearPlan(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (keepInput: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/clear', { params: { path: { epic }, query: { keep_input: keepInput } } })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
 /** @param allow the PIM confirmed the days planned above a member's allocation */
 export const usePushPreview = (epic: string) => useMutation({
   mutationFn: (allow: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview',

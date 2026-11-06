@@ -15,6 +15,7 @@ import java.util.TreeSet;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
@@ -27,6 +28,7 @@ import tracker.domain.Allocations;
 import tracker.domain.AutoAllocator;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.AutoPicks;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
 import tracker.domain.DetailScheduler;
@@ -159,10 +161,16 @@ public class DetailPlanService {
      * @param stalePhases phases whose BA effort changed since the master schedule was saved (its End is out of date)
      * @param problems    what keeps a plan from being computed; when any, {@code plan} is empty
      * @param allocated   one per entry of {@code overBudget}, in the same order
+     * @param byHand      the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
      */
     public record DetailPlanView(List<EstimationRow> rows, List<EstimationService.TaskOption> tasks, List<RowPlan> plan, List<StepRow> steps,
                                  List<Overrun> overBudget, List<OverrunAllocation> allocated, List<DayOverrun> overDay,
-                                 List<PhaseCheck> checks, List<DayLoad> days, List<String> stalePhases, List<String> problems) {
+                                 List<PhaseCheck> checks, List<DayLoad> days, List<String> stalePhases, List<String> problems,
+                                 List<HandPicks> byHand) {
+    }
+
+    /** Which slots of a row hold someone picked by hand. */
+    public record HandPicks(long rowId, boolean ba, boolean bal, boolean jm) {
     }
 
     /**
@@ -189,26 +197,88 @@ public class DetailPlanService {
         return compute(scope, epic).view();
     }
 
-    /** Saves the order of the unpushed rows and their people; returns the plan that follows. */
+    /** Saves the order of the unpushed rows and their people, picked by hand; returns the plan that follows. */
     public DetailPlanView saveDraft(AnkenScope scope, String epic, DraftIn draft) {
+        return saveDraft(scope, epic, draft, true);
+    }
+
+    /**
+     * @param byHand the people come from the PIM: a slot that changes is no longer Auto allocate's pick; else from Auto
+     *               allocate, which remembers who it put in each slot it filled
+     */
+    private DetailPlanView saveDraft(AnkenScope scope, String epic, DraftIn draft, boolean byHand) {
         EstimationService.load(context, scope, epic);
         List<EstimationRow> all = estimation.findByEpic(epic);
         List<EstimationRow> open = all.stream().filter(r -> !r.pushed()).toList();
         Map<Long, RowAssign> assign = new HashMap<>();
         draft.assigns().forEach(a -> assign.put(a.rowId(), a));
+        Map<Long, AutoPicks> auto = autoPicks(epic);
         List<EstimationRow> ordered = new ArrayList<>();
         draft.order().forEach(id -> open.stream().filter(r -> r.id() == id).findFirst().ifPresent(ordered::add));
         open.stream().filter(r -> !ordered.contains(r)).forEach(ordered::add);
         int position = all.size() - open.size();
         List<EstimationRow> next = new ArrayList<>();
+        List<AutoPicks> picks = new ArrayList<>();
         for (EstimationRow r : ordered) {
             RowAssign a = assign.get(r.id());
-            next.add(new EstimationRow(r.id(), epic, position++, r.phase(), r.subphase(), r.functionName(), r.steps(), r.effortH(),
-                    a != null ? blank(a.baId()) : r.baId(), a != null ? blank(a.balId()) : r.balId(), a != null ? blank(a.jmId()) : r.jmId(),
+            String ba = a != null ? blank(a.baId()) : r.baId();
+            String bal = a != null ? blank(a.balId()) : r.balId();
+            String jm = a != null ? blank(a.jmId()) : r.jmId();
+            next.add(new EstimationRow(r.id(), epic, position++, r.phase(), r.subphase(), r.functionName(), r.steps(), r.effortH(), ba, bal, jm,
                     r.taskKey(), null));
+            AutoPicks was = auto.getOrDefault(r.id(), AutoPicks.none(r.id()));
+            AutoPicks now = new AutoPicks(r.id(), pick(was.baId(), r.baId(), ba, byHand), pick(was.balId(), r.balId(), bal, byHand),
+                    pick(was.jmId(), r.jmId(), jm, byHand));
+            if (!now.equals(was)) {
+                picks.add(now);
+            }
         }
         estimation.save(epic, next);
+        picks.forEach(estimation::saveAutoPicks);
         return view(scope, epic);
+    }
+
+    /** Auto allocate's pick of a slot after it changed from {@code before} to {@code after}: kept while the slot stays. */
+    private static @Nullable String pick(@Nullable String auto, @Nullable String before, @Nullable String after, boolean byHand) {
+        if (Objects.equals(before, after)) {
+            return auto;
+        }
+        return byHand ? null : after;
+    }
+
+    private Map<Long, AutoPicks> autoPicks(String epic) {
+        Map<Long, AutoPicks> out = new HashMap<>();
+        estimation.autoPicks(epic).forEach(p -> out.put(p.rowId(), p));
+        return out;
+    }
+
+    /**
+     * Empties the slots of the unpushed rows. {@code keepInput}: only those still holding Auto allocate's pick; the people
+     * picked by hand, the dates and efforts set by hand and the removed steps stay. Else every slot, and every step edit goes
+     * too: the plan is the estimation's again.
+     */
+    @Transactional
+    public DetailPlanView clear(AnkenScope scope, String epic, boolean keepInput) {
+        EstimationService.load(context, scope, epic);
+        List<EstimationRow> open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).toList();
+        Map<Long, AutoPicks> auto = autoPicks(epic);
+        List<EstimationRow> next = new ArrayList<>();
+        for (EstimationRow r : open) {
+            AutoPicks p = auto.getOrDefault(r.id(), AutoPicks.none(r.id()));
+            next.add(new EstimationRow(r.id(), epic, r.position(), r.phase(), r.subphase(), r.functionName(), r.steps(), r.effortH(),
+                    keep(r.baId(), p.baId(), keepInput), keep(r.balId(), p.balId(), keepInput), keep(r.jmId(), p.jmId(), keepInput),
+                    r.taskKey(), null));
+            estimation.saveAutoPicks(AutoPicks.none(r.id()));
+        }
+        estimation.save(epic, next);
+        if (!keepInput) {
+            estimation.deleteUnpushedStepEdits(epic);
+        }
+        return view(scope, epic);
+    }
+
+    private static @Nullable String keep(@Nullable String picked, @Nullable String auto, boolean keepInput) {
+        return keepInput && AutoPicks.byHand(picked, auto) ? picked : null;
     }
 
     /**
@@ -238,7 +308,7 @@ public class DetailPlanService {
                 phases, roles, jms, loads(ctx, epic, Set.of()), givenBefore(ctx, epic, Set.of()),
                 AutoAllocator.cached(DetailScheduler.hours(epic, a, ctx.cal)), ctx.cal, w, ctx.settings.workingHours.hoursPerDay());
         List<RowAssign> assigns = AutoAllocator.allocate(in).stream().map(p -> new RowAssign(p.rowId(), p.baId(), p.balId(), p.jmId())).toList();
-        return saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns));
+        return saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
     }
 
     private static @Nullable String blank(@Nullable String s) {
@@ -323,7 +393,17 @@ public class DetailPlanService {
                 }
             }
         }
-        DetailPlanView view = new DetailPlanView(all, tasks, plan, stepRows, over, allocated, overDay, checks, days, stale, problems);
+        Map<Long, AutoPicks> auto = autoPicks(epic);
+        List<HandPicks> byHand = new ArrayList<>();
+        for (EstimationRow r : rows) {
+            AutoPicks p = auto.getOrDefault(r.id(), AutoPicks.none(r.id()));
+            HandPicks h = new HandPicks(r.id(), AutoPicks.byHand(r.baId(), p.baId()), AutoPicks.byHand(r.balId(), p.balId()),
+                    AutoPicks.byHand(r.jmId(), p.jmId()));
+            if (h.ba() || h.bal() || h.jm()) {
+                byHand.add(h);
+            }
+        }
+        DetailPlanView view = new DetailPlanView(all, tasks, plan, stepRows, over, allocated, overDay, checks, days, stale, problems, byHand);
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, w, view);
     }
 

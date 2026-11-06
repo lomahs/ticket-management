@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import tracker.application.ports.EstimationRepository;
+import tracker.domain.AutoPicks;
 import tracker.domain.EstimationRow;
 import tracker.domain.StepEdit;
 import tracker.domain.StepKind;
@@ -94,6 +95,31 @@ class JdbcEstimationRepository implements EstimationRepository {
                     VALUES (:row, :step, :effort, :start, :end, :removed)
                     """).param("row", e.rowId()).param("step", step).param("effort", e.effortH()).param("start", e.start())
                     .param("end", e.end()).param("removed", e.removed() ? 1 : 0).update();
+        }
+    }
+
+    @Override
+    public void deleteUnpushedStepEdits(String epic) {
+        jdbc.sql("""
+                DELETE FROM estimation_steps WHERE row_id IN (SELECT id FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL)
+                """).param("epic", epic).update();
+    }
+
+    @Override
+    public List<AutoPicks> autoPicks(String epic) {
+        return jdbc.sql("""
+                SELECT a.* FROM estimation_auto_picks a JOIN estimation_rows r ON r.id = a.row_id WHERE r.epic_key = :epic ORDER BY a.row_id
+                """).param("epic", epic)
+                .query((r, n) -> new AutoPicks(r.getLong("row_id"), r.getString("ba_id"), r.getString("bal_id"), r.getString("jm_id"))).list();
+    }
+
+    @Override
+    @Transactional
+    public void saveAutoPicks(AutoPicks p) {
+        jdbc.sql("DELETE FROM estimation_auto_picks WHERE row_id = :row").param("row", p.rowId()).update();
+        if (!p.empty()) {
+            jdbc.sql("INSERT INTO estimation_auto_picks (row_id, ba_id, bal_id, jm_id) VALUES (:row, :ba, :bal, :jm)").param("row", p.rowId())
+                    .param("ba", p.baId()).param("bal", p.balId()).param("jm", p.jmId()).update();
         }
     }
 

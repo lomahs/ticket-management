@@ -17,7 +17,6 @@ const box = (bg: string, bd: string): CSSProperties => ({ width: 12, height: 12,
 
 export function Legend() {
   const item: CSSProperties = { display: 'flex', alignItems: 'center', gap: 5 };
-  const pill = (bg: string, fg: string): CSSProperties => ({ padding: '2px 6px', borderRadius: 99, background: bg, color: fg, font: '700 10px/1 var(--font-text)' });
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-muted)' }}>
       <span style={item}><span style={box('var(--do-nys-bg)', '1px solid var(--do-nys)')} />NYS</span>
@@ -25,7 +24,6 @@ export function Legend() {
       <span style={item}><span style={box('var(--do-res-bg)', '1px solid var(--do-res)')} />Resolved</span>
       <span style={item}><span style={box('var(--do-clo-bg)', '1px solid var(--do-clo)')} />Done</span>
       <span style={item}><span style={box('var(--hl-red)', '2px solid var(--hl-red-fg)')} />Late</span>
-      <span style={item}><span style={pill('var(--do-jm)', 'var(--do-jm-fg)')}>R2 · JM</span>review round, with JM</span>
       <span style={item}><span style={{ ...box('var(--do-wip)', '0'), borderRadius: '50%', boxShadow: ACTIVE_RING, margin: '0 3px' }} />JM round is here now</span>
     </div>
   );

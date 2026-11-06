@@ -207,8 +207,8 @@ function FunctionRow({ f }: { f: Fn }) {
 }
 
 /**
- * A step: a node on the line from Create to Fix comment JM, its status (late in red) and planned end, or just Done; a fix step
- * with JM shows its review rounds, and the step where the JM round is now is ringed.
+ * A step: a node on the line from Create to Fix comment JM, its status (late in red) and planned end, or just Done; the step
+ * where the JM round is now is ringed, and a fix step's review rounds are in its tooltip.
  */
 function StepCell({ c, active, prev, next: after }: { c: Step; active: boolean; prev: Step | null; next: Step | null }) {
   const open = useOpenTicket();
@@ -236,15 +236,6 @@ function StepCell({ c, active, prev, next: after }: { c: Step; active: boolean; 
     }}>
       {prev && <span style={{ position: 'absolute', top: 12, left: -5, right: '50%', height: 2, background: line(prev.status === 'C') }} />}
       {after && <span style={{ position: 'absolute', top: 12, left: '50%', right: -5, height: 2, background: line(closed) }} />}
-      {c.rounds > 0 && c.with_jm && (
-        <span style={{
-          position: 'absolute', top: 3, left: -5, transform: 'translateX(-50%)', zIndex: 1, display: 'flex', alignItems: 'center', gap: 3, height: 20, padding: '0 7px',
-          borderRadius: 99, boxShadow: '0 0 0 2px var(--surface-card)', font: '700 11px/1 var(--font-text)', whiteSpace: 'nowrap',
-          background: 'var(--do-jm)', color: 'var(--do-jm-fg)',
-        }}>
-          <Icon name="repeat" size={11} />R{c.rounds} · {where}
-        </span>
-      )}
       <span style={{
         position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, boxSizing: 'border-box', borderRadius: '50%',
         color: '#fff', boxShadow: active ? ACTIVE_RING : late ? '0 0 0 3px var(--hl-red)' : undefined, ...node, ...(late ? { border: '2px solid var(--hl-red-fg)' } : {}),

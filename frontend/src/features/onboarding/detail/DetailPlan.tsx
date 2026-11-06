@@ -14,7 +14,7 @@ import { AllocationMatrix } from './AllocationMatrix';
 import { EffortDays } from './EffortDays';
 import { StepsTable } from './StepsTable';
 import { jiraCsv, planCsv } from './csv';
-import { detailPlanQuery,useAutoAllocate, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
+import { detailPlanQuery, useAutoAllocate, useClearPlan, usePushPlan, usePushPreview, useSaveDraft, type DetailPlanView, type DraftIn } from './api';
 
 /** A person who can be given a row: a member of the anken, with their role. */
 export interface Person { id: string; name: string; role?: string | null }
@@ -44,6 +44,13 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
   const auto = useAutoAllocate(epic);
+  const clear = useClearPlan(epic);
+  const [clearing, setClearing] = useState(false);
+  const busy = auto.isPending || save.isPending || clear.isPending;
+  const clearPlan = (keepInput: boolean) => clear.mutate(keepInput, {
+    onSuccess: () => toast(keepInput ? 'Auto allocate\'s picks cleared · what you set by hand stays' : 'Plan cleared'),
+    onError: (e) => toast(errorMessage(e), true),
+  });
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   const members = useQuery(membersQuery(epic)).data ?? [];
   const label = (id?: string | null) => (id ? name(id) : '');
@@ -116,11 +123,17 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
         <Button appearance="secondary" size="sm" iconBefore="download" disabled={v.plan.length === 0}
           title="The sub-tasks the push would create, for Jira › Import work items from CSV" onClick={exportJira}>Export for Jira</Button>
         {admin && open.length > 0 && (
-          <Button appearance="secondary" size="sm" disabled={auto.isPending || save.isPending}
-            title="Fills the empty BA / BAL / JM of each function from the phase's team (JMs from the anken), keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
-            onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
-            Auto allocate
-          </Button>
+          <>
+            <Button appearance="secondary" size="sm" disabled={busy}
+              title="Fills the empty BA / BAL / JM of each function from the phase's team (JMs from the anken), keeping members within their hours in the phase, phases on time and work evenly shared. People already picked and lines set by hand stay."
+              onClick={() => auto.mutate(undefined, { onSuccess: () => toast('Empty slots allocated'), onError: (e) => toast(errorMessage(e), true) })}>
+              Auto allocate
+            </Button>
+            <Button appearance="secondary" size="sm" iconBefore="eraser" disabled={busy}
+              title="Empties the BA / BAL / JM Auto allocate filled. People you picked, dates and efforts you set and removed lines stay: Auto allocate then plans again around them."
+              onClick={() => clearPlan(true)}>Clear, keep my input</Button>
+            <Button appearance="secondary" size="sm" iconBefore="trash-2" disabled={busy} onClick={() => setClearing(true)}>Clear all</Button>
+          </>
         )}
         {admin && <Button appearance="secondary" size="sm" iconBefore="plus" disabled={v.tasks.length === 0} onClick={() => setAdding('function')}>Add function</Button>}
         {admin && <Button appearance="secondary" size="sm" iconBefore="plus" disabled={v.tasks.length === 0} onClick={() => setAdding('task')}>Add task</Button>}
@@ -132,6 +145,22 @@ function Plan({ epic, v, people, checked, onCheck }: { epic: string; v: DetailPl
       {admin && (
         <div style={{ display: 'flex', gap: 8 }}>
           <Button disabled={blocked || preview.isPending} onClick={() => { onCheck?.(); if (allow) setConfirming(true); else review(); }}>Review push</Button>
+        </div>
+      )}
+      {clearing && (
+        <div className="scrim" onClick={() => setClearing(false)}>
+          <div className="dialog" role="dialog" aria-modal="true" aria-label="Clear the plan" onClick={(e) => e.stopPropagation()} style={{ width: 'min(520px,100%)' }}>
+            <span className="dialog-title">Clear the whole plan?</span>
+            <span style={{ fontSize: 13 }}>
+              Every BA, BAL and JM of the rows not in Jira yet is emptied, also the people you picked; the dates and efforts set by
+              hand go back to the computed ones and the removed lines come back. The rows and their estimation stay.
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="spacer" />
+              <Button appearance="subtle" onClick={() => setClearing(false)}>Cancel</Button>
+              <Button onClick={() => { setClearing(false); clearPlan(false); }}>Clear all</Button>
+            </div>
+          </div>
         </div>
       )}
       {confirming && (

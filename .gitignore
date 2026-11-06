@@ -12,3 +12,5 @@ docs/
 .superpowers/
 .mcp.json
 .vscode/
+.idea
+backend/config/

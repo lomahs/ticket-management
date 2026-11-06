@@ -42,11 +42,18 @@ export function StepsTable({ epic, v, people, admin, assign, move }: {
   // BA and BAL: anyone but a JM; JM: anyone but a BA or a BAL; whoever is picked stays listed
   const choices = (slot: Slot, picked?: string | null) => people.filter((m) => m.id === picked
     || (slot === 'jm_id' ? m.role !== 'BA' && m.role !== 'BAL' : m.role !== 'JM'));
+  // a person picked by hand, not by Auto allocate: "Clear, keep my input" keeps them
+  const picked = (r: Row, slot: Slot) => {
+    const h = v.by_hand.find((x) => x.row_id === r.id);
+    return !!h && (slot === 'ba_id' ? h.ba : slot === 'bal_id' ? h.bal : h.jm);
+  };
   const person = (r: Row, s: Step, slot: Slot, hours: number | null) => {
     const label = `${slot === 'ba_id' ? (r.steps ? 'BA' : 'Member') : slot === 'bal_id' ? 'BAL' : 'JM'}, ${r.function_name} ${stepLabel(s.step)}`;
+    const hand = picked(r, slot);
     return (
       <span style={{ ...CELL, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <select aria-label={label} disabled={!admin} value={r[slot] ?? ''} onChange={(e) => assign(r, slot, e.target.value || null)} style={INPUT}>
+        <select aria-label={label} disabled={!admin} value={r[slot] ?? ''} onChange={(e) => assign(r, slot, e.target.value || null)}
+          title={hand ? 'Picked by hand: Clear, keep my input keeps it' : undefined} data-by-hand={hand || undefined} style={{ ...INPUT, ...byHand(hand) }}>
           <option value="">–</option>
           {choices(slot, r[slot]).map((m) => <option key={m.id} value={m.id}>{m.role ? `${m.name} (${m.role})` : m.name}</option>)}
         </select>
@@ -139,6 +146,7 @@ export function StepsTable({ epic, v, people, admin, assign, move }: {
       {v.plan.length > 0 && <div className="eyebrow" style={{ padding: '8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
         Scheduled in this order from each phase&apos;s Start; each member&apos;s day is filled up to their allocation. Highlighted lines and fields
         were set by hand: they keep their dates and hours, and the rest is planned around them, Auto allocate included; <b>↶</b> computes them again.
+        Highlighted people were picked by hand: Clear, keep my input empties only those Auto allocate picked.
       </div>}
     </section>
   );
