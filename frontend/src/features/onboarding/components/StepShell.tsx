@@ -21,7 +21,7 @@ export function Stepper({ epic, title, savedAt, current, reached, onExit }: {
         <span className="spacer" />
         {savedAt && (
           <span className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="check" size={13} color="var(--hl-green-fg)" />{`Draft saved · ${relTime(savedAt)}`}
+            <Icon name="check" size={13} color="var(--hl-ok-fg)" />{`Draft saved · ${relTime(savedAt)}`}
           </span>
         )}
         {onExit ? <Button appearance="secondary" size="sm" onClick={onExit}>Save &amp; exit</Button>
@@ -29,7 +29,8 @@ export function Stepper({ epic, title, savedAt, current, reached, onExit }: {
       </div>
       <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(6,minmax(0,1fr))', gap: 6 }}>
         {STEPS.map((s) => {
-          const done = s.n < current || (s.n <= reached && s.n !== current);
+          // done: a step the anken went past with Continue; visiting a later step does not tick the ones skipped
+          const done = s.n < reached && s.n !== current;
           const cur = s.n === current;
           const open = !!epic && s.n <= Math.max(reached, current);
           const body = (
@@ -96,12 +97,12 @@ export function StepShell({ epic, step, title, sub, onSave, canContinue = true, 
         <span className="eyebrow">{sub}</span>
       </header>
       {children}
-      <div className="card" style={{ position: 'sticky', bottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '12px 16px', boxShadow: 'var(--shadow-raised, 0 8px 24px rgba(16,18,20,.08))' }}>
+      <div className="card action-bar">
         {prev ? <Link to="/onboarding/$epic/$step" params={{ epic, step: prev.key }} style={{ fontSize: 13, fontWeight: 600 }}>← Back</Link>
           : <Link to="/onboarding" style={{ fontSize: 13, fontWeight: 600 }}>Cancel</Link>}
         <span className="spacer" />
-        {footer}
         <Button appearance="secondary" disabled={busy} onClick={() => void run(n, () => toast('Draft saved'))}>Save draft</Button>
+        {footer}
         {next && (
           <Button disabled={busy || !canContinue} onClick={() => void run(next.n, () => void navigate({ to: '/onboarding/$epic/$step', params: { epic, step: next.key } }))}>
             {continueLabel ?? `Continue to ${next.label}`}

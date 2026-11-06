@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
@@ -12,19 +12,12 @@ import { Avatar, av, Seg } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { functionPreviewQuery, matrixQuery, useCreateFunction } from '../api';
 import { MatrixHeader } from './MatrixHeader';
+import { useDebounced } from '../../../shared/state/debounce';
 
 const route = getRouteApi('/app/anken/$epic/matrix/new');
 const COLS = 'minmax(220px,1fr) 90px 56px 150px 150px';
 const WEIGHTS = [1, 0.25, 0.3, 0.25, 0.2]; // display only: the server computes the real estimates
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 export function AddFunctionPage() {
   const { epic } = route.useParams();

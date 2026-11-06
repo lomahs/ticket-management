@@ -33,7 +33,7 @@ export function NewOnboardingPage() {
           <TextField mono label="Epic key" placeholder="e.g. PAY-1420" value={key} onChange={(v) => setKey(v.toUpperCase())} style={{ width: 220 }} />
           <Button type="submit" appearance="secondary" iconBefore="search" disabled={!key.trim() || lookup.isPending}>Look up in Jira</Button>
         </form>
-        {lookup.isError && <div role="alert" style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--hl-red-bg)', color: 'var(--hl-red-fg)', fontWeight: 600 }}>{errorMessage(lookup.error)}</div>}
+        {lookup.isError && <div role="alert" style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--hl-red)', color: 'var(--hl-red-fg)', fontWeight: 600 }}>{errorMessage(lookup.error)}</div>}
         {e && (
           <div className="card-clip" style={{ border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
             <div style={{ padding: '12px 14px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: 'var(--surface-hover)' }}>
@@ -52,7 +52,7 @@ export function NewOnboardingPage() {
           </div>
         )}
       </section>
-      <div className="card" style={{ position: 'sticky', bottom: 12, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+      <div className="card action-bar">
         <Link to="/onboarding" style={{ fontSize: 13, fontWeight: 600 }}>Cancel</Link>
         <span className="spacer" />
         <Button disabled={!e || start.isPending} onClick={go}>{e?.tracked ? 'Continue' : 'Track & continue'}</Button>

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useMe } from '../../../shared/api/queries';
 import { Button, Select, TextField } from '../../../shared/ds';
@@ -7,12 +7,8 @@ import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { onboardingMembersQuery, onboardingQuery, templateTasksQuery, useCreateTasks, usePreviewTasks, useSaveProgress } from '../api';
 import { StepShell } from '../components/StepShell';
+import { useDebounced } from '../../../shared/state/debounce';
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
-  return v;
-}
 
 /** Step 2, Setting Phase: the anken's template Tasks; the missing ones are named by the Task pattern and created in one go. */
 export function TasksStep({ epic }: { epic: string }) {
@@ -75,7 +71,7 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
                     <td style={{ padding: '8px 16px', fontWeight: 600 }}>{t.match}</td>
                     <td style={{ padding: 8 }}>{t.phase}</td>
                     <td style={{ padding: 8 }}>{t.existing_key ? <span style={{ font: '600 12px/1 var(--font-mono)' }}>{t.existing_key}</span>
-                      : <span className="status-pill" style={{ background: 'var(--hl-red-bg)', color: 'var(--hl-red-fg)' }}>Missing</span>}</td>
+                      : <span className="status-pill" style={{ background: 'var(--hl-red)', color: 'var(--hl-red-fg)' }}>Missing</span>}</td>
                     <td style={{ padding: '6px 16px' }}>
                       {t.existing_key ? <span className="muted">{t.name}</span> : (
                         <>

@@ -46,5 +46,7 @@ export const relTime = (iso: string | null, now = Date.now()) => {
   if (m < 1) return 'just now';
   if (m < 60) return m === 1 ? '1 minute ago' : `${m} minutes ago`;
   const h = Math.floor(m / 60);
-  return h === 1 ? '1 hour ago' : `${h} hours ago`;
+  if (h < 24) return h === 1 ? '1 hour ago' : `${h} hours ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? '1 day ago' : `${d} days ago`;
 };

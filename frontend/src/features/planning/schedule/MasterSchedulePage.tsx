@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan, useMembers } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
@@ -10,6 +10,7 @@ import { PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { PlanningTabs, WithAnken } from '../components/PlanningTabs';
 import { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn } from './api';
+import { useDebounced } from '../../../shared/state/debounce';
 
 /** Step 2 of planning: start and members of each phase; effort, plan MD and end follow; each save is a version. */
 export function MasterSchedulePage() {
@@ -29,11 +30,6 @@ function Schedule({ epic }: { epic: string }) {
   return <Editor key={q.data.current?.id ?? 0} epic={epic} v={q.data} />;
 }
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
-  return v;
-}
 
 const COLS = '90px 90px minmax(200px,3fr) 150px 70px 90px';
 const DATE: CSSProperties = { height: 30, boxSizing: 'border-box', padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 13px/1 var(--font-text)' };

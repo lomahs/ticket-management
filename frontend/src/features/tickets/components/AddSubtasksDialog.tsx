@@ -1,20 +1,13 @@
 import { useQueries } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, IconButton, Select, TextField, type Option } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { functionPreviewQuery } from '../../matrix';
 import { newRef, type NewRow } from '../model/draft';
+import { useDebounced } from '../../../shared/state/debounce';
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 /** The Task new sub-tasks go under: an existing one (key) or one added in this batch (ref). */
 export interface ParentTask { key?: string; ref?: string; summary: string; workflow: boolean }

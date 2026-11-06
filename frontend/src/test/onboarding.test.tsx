@@ -37,6 +37,14 @@ function onboarding(over: Partial<typeof ONB> = {}) {
 }
 
 describe('onboarding', () => {
+  it('ticks only the steps the anken went past, not those skipped by opening a later one', async () => {
+    onboarding({ step: 2 });
+    renderApp('/onboarding/PAY-1100/members');
+    const band = await screen.findByRole('region', { name: 'Onboarding progress' });
+    await within(band).findByText('Payment flow revision');
+    expect(within(band).getAllByRole('listitem').map((s) => s.textContent?.startsWith('✓'))).toEqual([true, false, false, false, false, false]);
+  });
+
   it('lists the ankens in progress and resumes one at its step', async () => {
     let deleted = false;
     server.use(
@@ -318,12 +326,15 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const ba = await screen.findByLabelText('BA, Login Create');
+    const ba = await screen.findByLabelText('BA, Login');
     expect(ba.getAttribute('data-by-hand')).toBe('true');
-    expect(screen.getByLabelText('BAL, Login Create').getAttribute('data-by-hand')).toBeNull(); // Auto allocate's pick
-    fireEvent.click(screen.getByRole('button', { name: 'Clear, keep my input' }));
+    expect(screen.getByLabelText('BAL, Login').getAttribute('data-by-hand')).toBeNull(); // Auto allocate's pick
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear, keep my input' }));
     await waitFor(() => expect(clears).toEqual(['true']));
-    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(screen.queryByRole('menu')).toBeNull(); // a pick closes the menu
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear all' }));
     const dialog = await screen.findByRole('dialog', { name: 'Clear the plan' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear all' }));
     await waitFor(() => expect(clears).toEqual(['true', 'false']));
@@ -341,18 +352,24 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const ba = await screen.findByLabelText('BA, Login Create');
-    expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit
+    const ba = await screen.findByLabelText('BA, Login');
+    expect(screen.getAllByLabelText('BA, Login')).toHaveLength(1); // picked once for the function, not on each of its lines
+    expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit, only counted
+    expect(screen.getByRole('button', { name: '1 problem before the push' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Fix 1 problem to push' })).toBeTruthy();
     expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)', 'Minh (BAL)']);
-    expect([...screen.getByLabelText('JM, Login Create').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–']); // no BA or BAL
+    expect([...screen.getByLabelText('JM, Login').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–']); // no BA or BAL
+    expect(screen.getByLabelText('Member, Run')).toBeTruthy(); // a ticket has one member
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
     expect(screen.getByText('[PAY] Login – BAL Review')).toBeTruthy(); // one line per step, named by the name rules
-    fireEvent.change(screen.getByLabelText('BA, Login Create'), { target: { value: 'an' } });
+    fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
     await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-12'));
     expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-14');
     expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).getByText('An 8h')).toBeTruthy(); // who carries the line
+    fireEvent.click(screen.getByRole('tab', { name: 'Effort per day' }));
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
     const tue = within(days).getByLabelText('An 2026-10-13');
     expect(tue.textContent).toBe('9+3 other'); // the planned hours only, red above the 8h allocation
@@ -363,7 +380,6 @@ describe('onboarding', () => {
     expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
     expect(tip.textContent).toContain('Other anken');
     expect(tip.textContent).toContain('Refund3h'); // another anken: its name and hours
-    expect((screen.getByLabelText('BA, Login BAL Review') as HTMLSelectElement).value).toBe('an'); // BA and BAL are the function's
     expect(screen.getByRole('button', { name: 'Finish onboarding' }).getAttribute('title')).toBe('Push every row to Jira first');
   });
 
@@ -407,7 +423,7 @@ describe('onboarding', () => {
     );
     renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
-    await waitFor(() => expect((screen.getByLabelText('BA, Login Create') as HTMLSelectElement).value).toBe('an'));
+    await waitFor(() => expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('an'));
     expect(posts).toBe(1);
   });
 
@@ -459,13 +475,14 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm the push' });
+    expect(await screen.findByRole('button', { name: '1 day above the allocation' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Review push' }));
+    await waitFor(() => expect(allowed).toBe('true'));
+    const dialog = await screen.findByRole('dialog', { name: 'Push review' }); // the warnings are confirmed in the review
+    expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
     const warn = screen.getByRole('region', { name: 'Over the allocation' });
     expect(warn.textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull(); // a warning, not a block
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }));
-    await waitFor(() => expect(allowed).toBe('true'));
   });
 
   it('blocks the push while a member is over budget', async () => {
@@ -500,7 +517,7 @@ describe('onboarding', () => {
     );
     const { router } = renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
-    const review = await screen.findByRole('region', { name: 'Push review' });
+    const review = await screen.findByRole('dialog', { name: 'Push review' });
     expect(within(review).getByText('[ITA] Run')).toBeTruthy();
     expect(within(review).getByText('Labels PAY, phase (Setting Phase)')).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));

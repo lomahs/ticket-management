@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { add, dayDiff, dm, dow, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn, type PhaseRow } from '../../planning';
 import { onboardingMembersQuery, type MemberHours } from '../api';
 import { StepShell } from '../components/StepShell';
+import { useDebounced } from '../../../shared/state/debounce';
 
 /** Step 5: one Start date; the phases follow each other, each ending when its members have given its effort. */
 export function ScheduleStep({ epic }: { epic: string }) {
@@ -17,11 +18,6 @@ export function ScheduleStep({ epic }: { epic: string }) {
   return <Schedule key={q.data.current?.id ?? 0} epic={epic} v={q.data} people={m.data.filter((x) => x.in_anken)} />;
 }
 
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
-  return v;
-}
 
 const COLORS = ['var(--hl-blue-fg, #2F6FD6)', 'var(--hl-purple-fg, #6A4FD8)', 'var(--hl-green-fg, #2E7D4F)', 'var(--hl-amber-fg, #B26A00)', 'var(--hl-red-fg, #B3261E)'];
 const COLS = 'minmax(120px,1.2fr) 80px minmax(220px,3fr) 70px 70px 70px';
