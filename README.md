@@ -7,7 +7,7 @@ Jira companion for a BA team: My Work, Function Matrix, Anken Overview, Planning
 ```
 backend/   Java 25 · Spring Boot 3 · JdbcClient/SQLite · Flyway · layered (domain → application → adapters → config)
 frontend/  React · Vite · TypeScript · TanStack Router/Query · feature-sliced, typed client generated from OpenAPI
-scripts/   setup.sh · demo.sh · dev.sh · check.sh (and a .ps1 of each for Windows)
+scripts/   setup.sh · demo.sh · dev.sh · prod.sh · check.sh (and a .ps1 of each for Windows)
 ```
 
 ## Quick start
@@ -16,6 +16,7 @@ scripts/   setup.sh · demo.sh · dev.sh · check.sh (and a .ps1 of each for Win
 scripts/demo.sh          # demo data on http://localhost:8000 — same code as the real app, simulated Jira
 scripts/dev.sh           # development: API :8000 + Vite :5173, demo profile
 scripts/dev.sh jira      # development against real Jira (set it up in Settings → Jira)
+scripts/prod.sh          # production build against real Jira on http://localhost:8000 (same database as dev.sh jira)
 scripts/check.sh         # every automated check; add --e2e for the Playwright suite
 ```
 
@@ -27,6 +28,7 @@ On Windows, run the PowerShell version of each script (same options, PowerShell 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\demo.ps1            # -Port 8100 for another port
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1             # or: scripts\dev.ps1 jira
+powershell -ExecutionPolicy Bypass -File scripts\prod.ps1            # -Port 8100 for another port
 powershell -ExecutionPolicy Bypass -File scripts\check.ps1           # -E2E for the Playwright suite
 ```
 

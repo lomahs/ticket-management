@@ -40,6 +40,7 @@ groups.
 ```bash
 scripts/demo.sh                        # demo data on :8000 (simulated Jira, "today" = 2026-10-07)
 scripts/dev.sh                         # API :8000 + Vite :5173 (demo profile); `scripts/dev.sh jira` for real Jira
+scripts/prod.sh                        # production build against real Jira on :8000 (database of `dev.sh jira`)
 scripts/check.sh                       # every check: backend tests, API types, typecheck, lint, frontend tests
 cd backend && ./mvnw -q test -Dtest=PhaseGroupsTest     # one backend test class
 cd frontend && npx vitest run src/test/screens.test.tsx  # one frontend test file
