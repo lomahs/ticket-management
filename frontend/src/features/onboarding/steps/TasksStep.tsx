@@ -29,7 +29,8 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [labels, setLabels] = useState(savedLabels.join(' '));
-  const who = assignee || (people.some((m) => m.member_id === me?.member_id) ? me!.member_id! : people[0]?.member_id ?? '');
+  const mine = me?.member_id;
+  const who = assignee || (mine && people.some((m) => m.member_id === mine) ? mine : people[0]?.member_id ?? '');
   const progress = useSaveProgress(epic);
   const preview = usePreviewTasks(epic);
   const create = useCreateTasks(epic);

@@ -1,3 +1,5 @@
+import { configure } from '@testing-library/react';
+
 // Node 25 ships its own `localStorage` global, which hides jsdom's and has no methods without --localstorage-file.
 // Tests get an in-memory Storage instead; browsers are unaffected.
 if (typeof globalThis.localStorage?.setItem !== 'function') {
@@ -12,3 +14,7 @@ if (typeof globalThis.localStorage?.setItem !== 'function') {
   };
   Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
 }
+
+// The React Compiler runs in tests too (they check the code the browser gets), so a screen's first lazy import takes
+// longer to transform than Testing Library's default 1 s wait.
+configure({ asyncUtilTimeout: 5000 });

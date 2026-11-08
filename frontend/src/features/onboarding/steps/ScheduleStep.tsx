@@ -37,8 +37,9 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
   const pv = useQuery(schedulePreviewQuery(epic, useDebounced(complete ? phases : [], 250)));
   const rows = complete ? pv.data ?? [] : [];
   // unchanged since the saved version: same Start, same phases and members (judged on the inputs, not on the preview)
-  const same = !!v.current && v.current.phases.length === phases.length && v.current.phases[0]?.start === start
-    && phases.every((p, i) => p.phase === v.current!.phases[i].phase && p.member_ids.join() === v.current!.phases[i].member_ids.join());
+  const cur = v.current;
+  const same = !!cur && cur.phases.length === phases.length && cur.phases[0]?.start === start
+    && phases.every((p, i) => p.phase === cur.phases[i].phase && p.member_ids.join() === cur.phases[i].member_ids.join());
   const name = (id: string) => people.find((p) => p.member_id === id)?.name ?? id;
   const end = rows.length ? rows[rows.length - 1].end : null;
   return (

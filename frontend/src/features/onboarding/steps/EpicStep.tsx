@@ -16,7 +16,7 @@ export function NewOnboardingPage() {
   const lookup = useLookupEpic();
   const start = useStartOnboarding();
   const e = lookup.data;
-  const go = () => start.mutate(e!.key, {
+  const go = () => e && start.mutate(e.key, {
     onSuccess: (o) => void navigate({ to: '/onboarding/$epic/$step', params: { epic: o.epic_key, step: o.step === 2 ? 'tasks' : 'epic' } }),
     onError: (err) => toast(errorMessage(err), true),
   });

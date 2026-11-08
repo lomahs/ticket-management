@@ -63,7 +63,6 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
   const rows = b.tasks.flatMap((t) => [t.task, ...t.subtasks]);
   const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
   const value = (r: Schemas['BoardRow'], f: Field) => edits[r.key]?.[f] ?? saved(r, f);
-  const edit = (r: Schemas['BoardRow'], f: Field) => (v: string) => canWrite && setEdits((e) => withEdit(e, r, f, v));
   const setNew = (ref: string, k: keyof NewRow) => (v: string) => setNews((n) => n.map((x) => (x.ref === ref ? { ...x, [k]: v } : x)));
   const removeNew = (ref: string) => setNews((n) => n.filter((x) => x.ref !== ref && x.parent_ref !== ref));
 
@@ -136,53 +135,15 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
   };
 
   const selectStyle = (e: boolean) => cell(e, { cursor: canWrite ? 'pointer' : 'default' });
-  const existing = (r: Schemas['BoardRow'], depth: 0 | 1, task?: Schemas['BoardTask']) => {
-    const e = edits[r.key] ?? {};
-    const was = (f: Field) => (e[f] != null ? `Was ${saved(r, f) || '–'}` : undefined);
-    const kids = task ? task.subtasks.length + news.filter((n) => n.parent_key === r.key).length : 0;
-    return (
-      <div key={r.key} role="row" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, alignItems: 'center', padding: '3px 16px', borderTop: '1px solid var(--border-subtle)',
-        background: sel.has(r.key) ? 'color-mix(in oklch, var(--surface-tint) 55%, transparent)' : undefined }}>
-        <input type="checkbox" aria-label={`Select ${r.key}`} checked={sel.has(r.key)} onChange={() => pick(r.key)} />
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button type="button" className="row-btn key" onClick={() => open(r.key)} title="Open the ticket">{r.key}</button>
-          {Object.keys(e).length > 0 && <span title="Edited · not committed" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)' }} />}
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, paddingLeft: depth ? 22 : 0 }}>
-          {task && (
-            <IconButton icon={closed.has(r.key) ? 'chevron-right' : 'chevron-down'} label={closed.has(r.key) ? 'Show sub-tasks' : 'Hide sub-tasks'} size="sm" onClick={() => toggle(r.key)} />
-          )}
-          <span className="ellipsis" title={r.summary} style={{ fontWeight: task ? 600 : 400, color: 'var(--text-heading)' }}>{r.summary}</span>
-          {task && <span className="eyebrow" style={{ flex: 'none' }}>{task.phase} · {kids}</span>}
-        </span>
-        <select aria-label={`${r.key} status`} value={value(r, 'status')} disabled={!canWrite} title={was('status')} onChange={(ev) => edit(r, 'status')(ev.target.value)}
-          style={selectStyle(e.status != null)}>
-          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {(['assignee_id', 'reporter_id'] as const).map((f) => (
-          <select key={f} aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(r, f)} disabled={!canWrite} title={was(f)}
-            onChange={(ev) => edit(r, f)(ev.target.value)} style={selectStyle(e[f] != null)}>
-            {!value(r, f) && <option value="">–</option>}
-            {value(r, f) && !people.some((p) => p.value === value(r, f)) && <option value={value(r, f)}>{name(value(r, f))}</option>}
-            {people.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        ))}
-        {(['planned_start', 'planned_end'] as const).map((f) => (
-          <input key={f} type="date" aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(r, f)} disabled={!canWrite} title={was(f)}
-            onChange={(ev) => edit(r, f)(ev.target.value)} style={cell(e[f] != null)} />
-        ))}
-        <input type="number" min={0} step={0.5} aria-label={`${r.key} estimate`} value={value(r, 'estimate_h')} disabled={!canWrite} title={was('estimate_h')}
-          onChange={(ev) => edit(r, 'estimate_h')(ev.target.value)} style={cell(e.estimate_h != null, { textAlign: 'right' })} />
-        <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          {task && canWrite && (
-            <IconButton icon="plus" label={`Add sub-tasks to ${r.key}`} size="sm"
-              onClick={() => setDialog({ kind: 'sub', task: { key: r.key, summary: r.summary, workflow: task.workflow } })} />
-          )}
-        </span>
-      </div>
-    );
-  };
-  const draft = (r: NewRow, depth: 0 | 1) => {
+  // Each row gets only its own state, so an edit or a tick re-renders that row and not the whole board.
+  const editRow = (r: Schemas['BoardRow'], f: Field, v: string) => canWrite && setEdits((e) => withEdit(e, r, f, v));
+  const addSub = (task: ParentTask) => setDialog({ kind: 'sub', task });
+  const existing = (r: Schemas['BoardRow'], depth: 0 | 1, task?: Schemas['BoardTask']) => (
+    <ExistingRow key={r.key} r={r} depth={depth} task={task} e={edits[r.key]} picked={sel.has(r.key)} folded={closed.has(r.key)}
+      kids={task ? task.subtasks.length + news.filter((n) => n.parent_key === r.key).length : 0}
+      canWrite={canWrite} people={people} name={name} pick={pick} toggle={toggle} open={open} edit={editRow} addSub={addSub} />
+  );
+  const draft =(r: NewRow, depth: 0 | 1) => {
     const need = missing(r);
     const inputs = (k: keyof NewRow) => setNew(r.ref, k);
     return (
@@ -317,6 +278,58 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
       {review && (
         <CommitDialog preview={review.preview} parentLabel={parentLabel} name={name} committing={apply.isPending} commit={commit} close={() => setReview(null)} />
       )}
+    </div>
+  );
+}
+
+/** A Task or sub-task already in Jira, edited in place; `e` holds its edits not yet committed. */
+function ExistingRow({ r, depth, task, e = {}, picked, folded, kids, canWrite, people, name, pick, toggle, open, edit, addSub }: {
+  r: Schemas['BoardRow']; depth: 0 | 1; task?: Schemas['BoardTask']; e?: Edits[string]; picked: boolean; folded: boolean; kids: number;
+  canWrite: boolean; people: Option[]; name: (id: string) => string;
+  pick: (key: string) => void; toggle: (key: string) => void; open: (key: string) => void;
+  edit: (r: Schemas['BoardRow'], f: Field, v: string) => void; addSub: (task: ParentTask) => void;
+}) {
+  const value = (f: Field) => e[f] ?? saved(r, f);
+  const was = (f: Field) => (e[f] != null ? `Was ${saved(r, f) || '–'}` : undefined);
+  const selectStyle = (edited: boolean) => cell(edited, { cursor: canWrite ? 'pointer' : 'default' });
+  return (
+    <div role="row" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, alignItems: 'center', padding: '3px 16px', borderTop: '1px solid var(--border-subtle)',
+      background: picked ? 'color-mix(in oklch, var(--surface-tint) 55%, transparent)' : undefined }}>
+      <input type="checkbox" aria-label={`Select ${r.key}`} checked={picked} onChange={() => pick(r.key)} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button type="button" className="row-btn key" onClick={() => open(r.key)} title="Open the ticket">{r.key}</button>
+        {Object.keys(e).length > 0 && <span title="Edited · not committed" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)' }} />}
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, paddingLeft: depth ? 22 : 0 }}>
+        {task && (
+          <IconButton icon={folded ? 'chevron-right' : 'chevron-down'} label={folded ? 'Show sub-tasks' : 'Hide sub-tasks'} size="sm" onClick={() => toggle(r.key)} />
+        )}
+        <span className="ellipsis" title={r.summary} style={{ fontWeight: task ? 600 : 400, color: 'var(--text-heading)' }}>{r.summary}</span>
+        {task && <span className="eyebrow" style={{ flex: 'none' }}>{task.phase} · {kids}</span>}
+      </span>
+      <select aria-label={`${r.key} status`} value={value('status')} disabled={!canWrite} title={was('status')} onChange={(ev) => edit(r, 'status', ev.target.value)}
+        style={selectStyle(e.status != null)}>
+        {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {(['assignee_id', 'reporter_id'] as const).map((f) => (
+        <select key={f} aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(f)} disabled={!canWrite} title={was(f)}
+          onChange={(ev) => edit(r, f, ev.target.value)} style={selectStyle(e[f] != null)}>
+          {!value(f) && <option value="">–</option>}
+          {value(f) && !people.some((p) => p.value === value(f)) && <option value={value(f)}>{name(value(f))}</option>}
+          {people.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+        </select>
+      ))}
+      {(['planned_start', 'planned_end'] as const).map((f) => (
+        <input key={f} type="date" aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(f)} disabled={!canWrite} title={was(f)}
+          onChange={(ev) => edit(r, f, ev.target.value)} style={cell(e[f] != null)} />
+      ))}
+      <input type="number" min={0} step={0.5} aria-label={`${r.key} estimate`} value={value('estimate_h')} disabled={!canWrite} title={was('estimate_h')}
+        onChange={(ev) => edit(r, 'estimate_h', ev.target.value)} style={cell(e.estimate_h != null, { textAlign: 'right' })} />
+      <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        {task && canWrite && (
+          <IconButton icon="plus" label={`Add sub-tasks to ${r.key}`} size="sm" onClick={() => addSub({ key: r.key, summary: r.summary, workflow: task.workflow })} />
+        )}
+      </span>
     </div>
   );
 }
