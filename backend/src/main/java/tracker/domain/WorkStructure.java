@@ -10,15 +10,21 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The project structure an admin configures: the phases in order, and the fixed set of Jira Tasks every epic carries.
+ * The project structure an admin configures: the phases in order, the fixed set of Jira Tasks every epic carries, and the phases the Daily Overview shows.
  * Without templates a Task's phase comes from a leading "[Phase]" in its Summary, as before templates existed.
  */
-public record WorkStructure(List<String> phases, List<TaskTemplate> tasks) {
+public record WorkStructure(List<String> phases, List<TaskTemplate> tasks, List<String> daily) {
     private static final Pattern WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     public WorkStructure {
         phases = phases == null ? List.of() : List.copyOf(phases);
         tasks = tasks == null ? List.of() : List.copyOf(tasks);
+        daily = daily == null ? List.of() : List.copyOf(daily);
+    }
+
+    /** A structure that shows no phase on the Daily Overview. */
+    public WorkStructure(List<String> phases, List<TaskTemplate> tasks) {
+        this(phases, tasks, List.of());
     }
 
     public static WorkStructure empty() {

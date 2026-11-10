@@ -45,7 +45,8 @@ public class TrackerSettings {
         public static AnkenSettings copyOf(WorkStructure structure, NameRules nameRules) {
             AnkenSettings a = new AnkenSettings();
             a.structure = new WorkStructure(new ArrayList<>(structure.phases()),
-                    structure.tasks().stream().map(t -> new TaskTemplate(t.match(), t.phase(), t.prefix(), t.workflow(), t.type())).toList());
+                    structure.tasks().stream().map(t -> new TaskTemplate(t.match(), t.phase(), t.prefix(), t.workflow(), t.type())).toList(),
+                    new ArrayList<>(structure.daily()));
             a.nameRules = new NameRules();
             a.nameRules.rule = nameRules.rule;
             a.nameRules.aliases = new LinkedHashMap<>(nameRules.aliases);

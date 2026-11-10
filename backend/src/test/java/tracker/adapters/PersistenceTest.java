@@ -419,7 +419,7 @@ class PersistenceTest {
         assertThat(settings.load().structure).isEqualTo(WorkStructure.empty());
         TrackerSettings s = settings.load();
         s.structure = new WorkStructure(List.of("Study", "FUT"), List.of(new TaskTemplate("FUT create test case", "FUT", "FUTTC"),
-                new TaskTemplate("QnA management for *", "FUT", "", false)));
+                new TaskTemplate("QnA management for *", "FUT", "", false)), List.of("FUT"));
         settings.save(s);
         assertThat(settings.load().structure).isEqualTo(s.structure);
         assertThat(jdbc.sql("SELECT value FROM settings").query(String.class).single())

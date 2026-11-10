@@ -159,6 +159,15 @@ class ServiceWritesTest {
         assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
     }
 
+    @Test
+    void saveStructureKeepsTheDailyPhasesInPhaseOrder() {
+        List<String> phases = List.of("Prepare", "Implement_Coding", "Function Unit Test");
+        assertThat(jiraSettings.saveStructure("PAY-1100", new WorkStructure(phases, List.of(), List.of(" Function Unit Test ", "Prepare"))).daily())
+                .containsExactly("Prepare", "Function Unit Test");
+        assertThatThrownBy(() -> jiraSettings.saveStructure("PAY-1100", new WorkStructure(phases, List.of(), List.of("Nope"))))
+                .isInstanceOf(Invalid.class).hasMessage("Daily Overview phase Nope is not in the phase list");
+    }
+
     static Issue task(String key, String summary) {
         return new Issue(key, "CRM", "CRM-400", "CRM-400", IssueKind.PARENT, summary, "", Status.WIP, "an", null, null, 0, 0,
                 "2026-09-01", "In Progress", null, null, null, List.of(), List.of());

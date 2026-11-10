@@ -218,9 +218,11 @@ public class SettingsApi {
     }
 
     /** @param phases in project order */
-    public record StructureIn(@NotNull List<@NotNull String> phases, @Nullable List<@NotNull @Valid TaskTemplateIn> tasks) {
+    public record StructureIn(@NotNull List<@NotNull String> phases, @Nullable List<@NotNull @Valid TaskTemplateIn> tasks,
+                            @Nullable List<@NotNull String> daily) {
         WorkStructure domain() {
-            return new WorkStructure(phases, tasks == null ? List.of() : tasks.stream().map(TaskTemplateIn::domain).toList());
+            return new WorkStructure(phases, tasks == null ? List.of() : tasks.stream().map(TaskTemplateIn::domain).toList(),
+                    daily == null ? List.of() : daily);
         }
     }
 

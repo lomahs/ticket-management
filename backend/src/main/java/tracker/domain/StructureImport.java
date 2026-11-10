@@ -15,12 +15,13 @@ public final class StructureImport {
     }
 
     /** Type cell, lower case without spaces, "_" or "-" → template type. */
-    private static final Map<String, String> TYPES = Map.of("task", "", "qna", TaskTemplate.QNA, "workrequest", TaskTemplate.WORK_REQUEST);
+    private static final Map<String, String> TYPES = Map.of("task", "", "qna", TaskTemplate.QNA, "bug", TaskTemplate.BUG,
+            "workrequest", TaskTemplate.WORK_REQUEST);
 
     /**
      * @param line     the line in the file (the header is line 1)
      * @param match    the template's Task name: the rule with the Task name filled in
-     * @param workflow on for Task, off for QnA and WorkRequest
+     * @param workflow on for Task, off for QnA, Bug and WorkRequest
      * @param errors   empty when the row can be imported
      */
     public record StructureImportRow(int line, String phase, String task, String match, String prefix, String type, boolean workflow,

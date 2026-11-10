@@ -33,6 +33,13 @@ class StructureImportTest {
     }
 
     @Test
+    void bugTypeIsReadAndHasNoWorkflow() {
+        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "Bugs", "", "Bug")), TaskNames.DEFAULT_RULE);
+        assertThat(rows).extracting(StructureImportRow::type).containsExactly("bug");
+        assertThat(rows).extracting(StructureImportRow::workflow).containsExactly(false);
+    }
+
+    @Test
     void flagsRowsWithoutAPhaseOrATaskName() {
         List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("", "Execute", "", "Task"), List.of("ITA", "", "", "Task")),
                 TaskNames.DEFAULT_RULE);
@@ -42,7 +49,7 @@ class StructureImportTest {
 
     @Test
     void emptyOrUnknownTypeIsTaskAndPrefixMayBeEmpty() {
-        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "Execute"), List.of("ITA", "Bugs", "", "Bug")),
+        List<StructureImportRow> rows = StructureImport.rows(List.of(List.of("ITA", "Execute"), List.of("ITA", "Bugs", "", "Epic")),
                 TaskNames.DEFAULT_RULE);
         assertThat(rows).extracting(StructureImportRow::errors).containsExactly(List.of(), List.of());
         assertThat(rows).extracting(StructureImportRow::type).containsExactly("", "");

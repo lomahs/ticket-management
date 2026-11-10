@@ -292,7 +292,7 @@ class ApiWritesTest extends ApiTestSupport {
     @Test
     void structureImportReadsCsvAndExcelByTheTaskNameRule() throws Exception {
         JsonNode rows = call(multipart("/api/v1/settings/structure/import?anken=PAY-1100").file(new org.springframework.mock.web.MockMultipartFile(
-                "file", "phases.csv", "text/csv", "﻿Phase;Task name;Prefix;Type;Workflow\nITA;ITA Prepare;ITAP;Task;5 steps\n;;;;\nUC;Q&A;;Bug;None\n"
+                "file", "phases.csv", "text/csv", "﻿Phase;Task name;Prefix;Type;Workflow\nITA;ITA Prepare;ITAP;Task;5 steps\n;;;;\nUC;Q&A;;Epic;None\n"
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)))).json();
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).get("match").asText()).isEqualTo("[*] ITA Prepare"); // the demo's Task pattern "[{anken_prefix}] {sub_phase}"

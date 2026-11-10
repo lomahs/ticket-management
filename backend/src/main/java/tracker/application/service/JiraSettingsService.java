@@ -334,7 +334,7 @@ public class JiraSettingsService {
     }
 
     /** @param seen the tracked epics' Tasks, classified with these phases and tasks */
-    public record StructureView(List<String> phases, List<TaskTemplate> tasks, List<SeenTask> seen) {
+    public record StructureView(List<String> phases, List<TaskTemplate> tasks, List<String> daily, List<SeenTask> seen) {
     }
 
     /** The epic a request names: null for the default (blank), else a tracked epic. */
@@ -361,7 +361,7 @@ public class JiraSettingsService {
             int t = ws.templateIndex(p.summary());
             return new SeenTask(p.key(), p.epicKey(), p.summary(), ws.phaseOfTask(p.summary()), t < 0 ? null : t);
         }).toList();
-        return new StructureView(ws.phases(), ws.tasks(), seen);
+        return new StructureView(ws.phases(), ws.tasks(), ws.daily(), seen);
     }
 
     private static WorkStructure checked(WorkStructure ws) {
@@ -390,7 +390,13 @@ public class JiraSettingsService {
                 throw new Invalid("Each Task name may appear only once: " + t.match(), "tasks");
             }
         }
-        return new WorkStructure(phases, tasks);
+        List<String> daily = ws.daily().stream().map(d -> d == null ? "" : d.strip()).toList();
+        for (String d : daily) {
+            if (!phases.contains(d)) {
+                throw new Invalid("Daily Overview phase " + d + " is not in the phase list", "daily");
+            }
+        }
+        return new WorkStructure(phases, tasks, phases.stream().filter(daily::contains).toList());
     }
 
     public StructureView structure(@Nullable String epic) {

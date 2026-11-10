@@ -3117,6 +3117,7 @@ export interface components {
             workflow: boolean;
         };
         StructureIn: {
+            daily?: string[] | null;
             phases: string[];
             tasks?: components["schemas"]["TaskTemplateIn"][] | null;
         };
@@ -3125,6 +3126,7 @@ export interface components {
             file?: string | null;
         };
         StructureView: {
+            daily: string[];
             phases: string[];
             seen: components["schemas"]["SeenTask"][];
             tasks: components["schemas"]["TaskTemplate"][];

@@ -8331,6 +8331,12 @@
       "StructureIn" : {
         "type" : "object",
         "properties" : {
+          "daily" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string"
+            }
+          },
           "phases" : {
             "type" : "array",
             "items" : {
@@ -8358,6 +8364,12 @@
       "StructureView" : {
         "type" : "object",
         "properties" : {
+          "daily" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "phases" : {
             "type" : "array",
             "items" : {
@@ -8377,7 +8389,7 @@
             }
           }
         },
-        "required" : [ "phases", "seen", "tasks" ]
+        "required" : [ "daily", "phases", "seen", "tasks" ]
       },
       "SyncIn" : {
         "type" : "object",
