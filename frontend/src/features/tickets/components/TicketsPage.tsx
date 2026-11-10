@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
 import { Fragment, useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
@@ -49,6 +49,7 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
   const toast = useToast();
   const preview = usePreviewBatch();
   const apply = useApplyBatch();
+  const committing = useIsMutating({ mutationKey: ['write', 'tickets'] }) > 0;
 
   const [edits, setEdits] = useState<Edits>({});
   const [news, setNews] = useState<NewRow[]>([]);
@@ -97,24 +98,22 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
       onError: (e) => toast(errorMessage(e), true),
     });
   };
-  const commit = () => review && apply.mutate({
-    epic: b.epic,
-    updates: review.preview.updates.map((u) => ({ key: u.key, changes: u.changes.map(({ field, before, after }) => ({ field, before, after })) })),
-    creates: review.creates,
-  }, {
-    onSuccess: (r) => {
-      const made = Object.keys(r.created).length;
-      toast(`Written to Jira · ${[r.updated.length && `${r.updated.length} updated`, made && `${made} created`].filter(Boolean).join(', ')}`);
-      setEdits({});
-      setNews([]);
-      setSel(new Set());
-      setReview(null);
-    },
-    onError: (e) => {
-      toast(errorMessage(e), true); // a 409: a ticket changed in Jira after the review and nothing was written
-      setReview(null);
-    },
-  });
+  // The review closes at once and the commit runs in the background; useApplyBatch reports how it ended. Once it is written,
+  // the edits it sent are dropped unless they were changed again meanwhile, and so are the new rows it created. On an error
+  // (a 409: a ticket changed in Jira after the review and nothing was written) everything stays for a new review.
+  const commit = () => {
+    if (!review) return;
+    const sent = edits;
+    const made = new Set(review.creates.map((c) => c.ref));
+    setReview(null);
+    apply.mutate({ epic: b.epic, preview: review.preview, creates: review.creates }, {
+      onSuccess: () => {
+        setEdits((e) => Object.fromEntries(Object.entries(e).filter(([k, v]) => v !== sent[k])));
+        setNews((n) => n.filter((r) => !made.has(r.ref)));
+        setSel(new Set());
+      },
+    });
+  };
 
   const exportSelected = () => {
     downloadCsv(`jira-update-${b.epic}.csv`, ['Issue key', 'Summary', 'Status', 'Assignee', 'Reporter', 'Start date', 'End date', 'Original Estimate'],
@@ -262,8 +261,8 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
           <span className="spacer" />
           {counts && <Button appearance="subtle" onClick={() => { setEdits({}); setNews([]); }}>Discard all</Button>}
           {news.length > 0 && <Button appearance="secondary" iconBefore="download" onClick={exportNew}>Export new as CSV</Button>}
-          <Button iconBefore="eye" disabled={!counts || bad.length > 0 || preview.isPending} onClick={openReview}>
-            {preview.isPending ? 'Reading Jira…' : 'Review & commit'}
+          <Button iconBefore="eye" disabled={!counts || bad.length > 0 || preview.isPending || committing} onClick={openReview}>
+            {committing ? 'Committing…' : preview.isPending ? 'Reading Jira…' : 'Review & commit'}
           </Button>
         </div>
       )}
@@ -276,7 +275,7 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
           add={(r) => setNews((n) => [...n, ...r])} close={() => setDialog(null)} />
       )}
       {review && (
-        <CommitDialog preview={review.preview} parentLabel={parentLabel} name={name} committing={apply.isPending} commit={commit} close={() => setReview(null)} />
+        <CommitDialog preview={review.preview} parentLabel={parentLabel} name={name} commit={commit} close={() => setReview(null)} />
       )}
     </div>
   );

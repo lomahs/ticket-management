@@ -20,11 +20,11 @@ function show(field: Field, v: string | null | undefined, name: (id: string) => 
 }
 
 /**
- * The review of a ticket change: each field with what Jira has now and what it will have, the exact requests, and what Jira
- * itself may still do. Apply sends these changes back, so nothing else is written.
+ * The review of a ticket change: each field with what Jira has now and what it will have, and what Jira itself may still do.
+ * Apply sends these changes back, so nothing else is written; it runs in the background and the requests go to the console.
  */
-export function ReviewDialog({ review, name, applying, apply, close }: {
-  review: Schemas['TicketChangePreview']; name: (id: string) => string; applying: boolean; apply: () => void; close: () => void;
+export function ReviewDialog({ review, name, apply, close }: {
+  review: Schemas['TicketChangePreview']; name: (id: string) => string; apply: () => void; close: () => void;
 }) {
   const n = review.changes.length;
   const unchanged = (Object.keys(LABEL) as Field[]).filter((f) => !review.changes.some((c) => c.field === f)).map((f) => LABEL[f]);
@@ -40,7 +40,7 @@ export function ReviewDialog({ review, name, applying, apply, close }: {
   }
   const grid = { display: 'grid', gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr)', gap: 10, padding: '8px 12px' } as const;
   return (
-    <div className="scrim" onClick={applying ? undefined : close}>
+    <div className="scrim" onClick={close}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label="Apply to Jira" onClick={(e) => e.stopPropagation()}
         style={{ width: 'min(640px,100%)', maxHeight: '100%', overflow: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -48,7 +48,7 @@ export function ReviewDialog({ review, name, applying, apply, close }: {
             <div className="dialog-title">Apply to Jira</div>
             <div className="eyebrow ellipsis">{review.key} · {review.summary}</div>
           </div>
-          <IconButton icon="x" label="Close" size="sm" onClick={close} disabled={applying} />
+          <IconButton icon="x" label="Close" size="sm" onClick={close} />
         </div>
         <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden', fontSize: 13 }}>
           <div style={{ ...grid, background: 'var(--surface-hover)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -62,15 +62,6 @@ export function ReviewDialog({ review, name, applying, apply, close }: {
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div className="title" style={{ fontSize: 12 }}>Requests to Jira · {review.requests.length}</div>
-          {review.requests.map((r, i) => (
-            <div key={i} style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--surface-hover)', font: '12px/1.5 var(--font-mono)', wordBreak: 'break-all' }}>
-              <div className="heading" style={{ fontWeight: 600 }}>{r.method} {r.path}</div>
-              {r.body && <div className="muted">{r.body}</div>}
-            </div>
-          ))}
-        </div>
         {notes.map((x) => (
           <div key={x.icon} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, background: 'var(--surface-hover)', fontSize: 12, lineHeight: 1.45 }}>
             <Icon name={x.icon} size={14} style={{ flex: 'none', marginTop: 1 }} />
@@ -78,9 +69,9 @@ export function ReviewDialog({ review, name, applying, apply, close }: {
           </div>
         ))}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span className="eyebrow" style={{ flex: 1, minWidth: 200 }}>Each request is recorded in Settings › Jira log.</span>
-          <Button appearance="subtle" onClick={close} disabled={applying}>Cancel</Button>
-          <Button iconBefore="upload" disabled={applying} onClick={apply}>{applying ? 'Applying…' : `Apply ${n} change${n === 1 ? '' : 's'}`}</Button>
+          <span className="eyebrow" style={{ flex: 1, minWidth: 200 }}>Applies in the background; a message tells when it is done. Each request is recorded in Settings › Jira log.</span>
+          <Button appearance="subtle" onClick={close}>Cancel</Button>
+          <Button iconBefore="upload" onClick={apply}>{`Apply ${n} change${n === 1 ? '' : 's'}`}</Button>
         </div>
       </div>
     </div>

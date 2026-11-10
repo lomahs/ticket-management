@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import meBa from './fixtures/me-ba.json';
 import { fixtures, renderApp, server } from './renderApp';
 
@@ -122,10 +122,17 @@ describe('screens render API data at their URLs', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Apply to Jira' });
     expect(previewed).toEqual({ planned_end: '2026-10-09' });
     expect(within(dialog).getByText('customfield_10016')).toBeTruthy();
-    expect(within(dialog).getByText('PUT /rest/api/3/issue/PAY-1213')).toBeTruthy();
+    // the requests go to the console, not the review
+    expect(within(dialog).queryByText('PUT /rest/api/3/issue/PAY-1213')).toBeNull();
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {});
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 1 change' }));
+    // the review closes at once; the write runs in the background and a toast tells when it is done
+    expect(screen.queryByRole('dialog', { name: 'Apply to Jira' })).toBeNull();
     await waitFor(() => expect(applied).toEqual({ changes: [{ field: 'planned_end', before: '2026-10-08', after: '2026-10-09' }] }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Apply to Jira' })).toBeNull());
+    expect(log).toHaveBeenCalledWith('PUT /rest/api/3/issue/PAY-1213', { fields: { customfield_10016: '2026-10-09' } });
+    expect(await screen.findByText('PAY-1213 is updated in Jira · 1 field written')).toBeTruthy();
+    vi.restoreAllMocks();
   });
 
   it('keeps the not-started outline on a NYS cell whose tone is late, and reds the dates of a late finish', async () => {

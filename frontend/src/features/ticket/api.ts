@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../shared/api/client';
+import { errorMessage } from '../../shared/api/errors';
+import { logJiraRequests, logJiraResult } from '../../shared/api/jiraLog';
 import type { Schemas } from '../../shared/api/types';
+import { useToast } from '../../shared/state/toast';
 
 export const ticketQuery = (key: string) => ({
   queryKey: ['ticket', key] as const,
@@ -16,14 +19,28 @@ export function usePreviewTicket(key: string) {
   });
 }
 
-/** Applies a review's changes as they were shown; a 409 means Jira changed meanwhile and nothing was written. */
+/**
+ * Applies a review's changes as they were shown, in the background: the requests go to the browser console, and the outcome
+ * is toasted even when the panel was closed meanwhile. A 409 means Jira changed meanwhile and nothing was written.
+ */
 export function useApplyTicket(key: string) {
   const qc = useQueryClient();
+  const toast = useToast();
   return useMutation({
     mutationKey: ['write', 'ticket', key],
-    mutationFn: (changes: Schemas['FieldChange'][]) => unwrap(http.PATCH('/api/v1/tickets/{key}', {
-      params: { path: { key } }, body: { changes: changes.map(({ field, before, after }) => ({ field, before, after })) },
+    mutationFn: (review: Schemas['TicketChangePreview']) => unwrap(http.PATCH('/api/v1/tickets/{key}', {
+      params: { path: { key } }, body: { changes: review.changes.map(({ field, before, after }) => ({ field, before, after })) },
     })),
+    onMutate: (review) => logJiraRequests(`Apply ${key}`, review.requests),
+    onSuccess: (detail, review) => {
+      logJiraResult(`Apply ${key}`, detail);
+      const n = review.changes.length;
+      toast(`${key} is updated in Jira · ${n} field${n === 1 ? '' : 's'} written`, 'success');
+    },
+    onError: (e) => {
+      logJiraResult(`Apply ${key}`, e);
+      toast(`${key}: ${errorMessage(e)}`, true);
+    },
     onSettled: () => qc.invalidateQueries(),
   });
 }

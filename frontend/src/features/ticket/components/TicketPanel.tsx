@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
@@ -59,6 +59,8 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const { ok: canWrite, off } = useAdminJiraWrite();
   const preview = usePreviewTicket(ticketKey);
   const apply = useApplyTicket(ticketKey);
+  // counted by key, so a write that outlives the panel still locks the ticket when it is opened again
+  const applying = useIsMutating({ mutationKey: ['write', 'ticket', ticketKey] }) > 0;
   const toast = useToast();
   // Edits stay here until they are reviewed and applied; nothing reaches Jira before.
   const [draft, setDraft] = useState<Draft>({});
@@ -108,18 +110,13 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
     },
     onError: (e) => toast(errorMessage(e), true),
   });
-  const applyReview = () => review && apply.mutate(review.changes, {
-    onSuccess: () => {
-      toast(`Written to Jira · ${c.key} · ${review.changes.length} field${review.changes.length === 1 ? '' : 's'}`);
-      setDraft({});
-      setReview(null);
-    },
-    onError: (e) => {
-      // A 409 means Jira changed after the review and nothing was written; the draft stays for a new review.
-      toast(errorMessage(e), true);
-      setReview(null);
-    },
-  });
+  // The review closes at once and the write runs in the background; useApplyTicket reports how it ended. On an error (a 409
+  // means Jira changed after the review and nothing was written) the draft stays for a new review.
+  const applyReview = () => {
+    if (!review) return;
+    setReview(null);
+    apply.mutate(review, { onSuccess: () => setDraft({}) });
+  };
   const tot = Math.max(c.estimate_h, c.logged_h) || 1;
   const inn = Math.min(c.logged_h, c.estimate_h);
   const ov = Math.max(0, c.logged_h - c.estimate_h);
@@ -127,7 +124,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
     : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f1(sc.plan_to_date_h)}h · actual ${f1(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
-  const disabled = !canWrite || preview.isPending || apply.isPending;
+  const disabled = !canWrite || preview.isPending || applying;
 
   return (
     <>
@@ -175,13 +172,15 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
         {edited.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8, background: 'var(--surface-tint)' }}>
             <span style={{ flex: 1, minWidth: 160, fontSize: 12, fontWeight: 600, color: 'var(--text-heading)' }}>
-              {edited.length} change{edited.length === 1 ? '' : 's'} not sent · {edited.map((f) => FIELD_LABEL[f]).join(', ')}
+              {edited.length} change{edited.length === 1 ? '' : 's'} {applying ? 'being written to Jira' : 'not sent'} · {edited.map((f) => FIELD_LABEL[f]).join(', ')}
             </span>
-            <Button appearance="subtle" size="sm" disabled={preview.isPending} onClick={() => setDraft({})}>Discard</Button>
-            <Button size="sm" iconBefore="eye" disabled={preview.isPending} onClick={openReview}>{preview.isPending ? 'Reading Jira…' : 'Review & apply'}</Button>
+            {!applying && <Button appearance="subtle" size="sm" disabled={preview.isPending} onClick={() => setDraft({})}>Discard</Button>}
+            <Button size="sm" iconBefore="eye" disabled={preview.isPending || applying} onClick={openReview}>
+              {applying ? 'Applying…' : preview.isPending ? 'Reading Jira…' : 'Review & apply'}
+            </Button>
           </div>
         )}
-        {review && <ReviewDialog review={review} name={name} applying={apply.isPending} apply={applyReview} close={() => setReview(null)} />}
+        {review && <ReviewDialog review={review} name={name} apply={applyReview} close={() => setReview(null)} />}
         <div>
           <div className="title" style={{ marginBottom: 8 }}>Schedule</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-body)' }}>

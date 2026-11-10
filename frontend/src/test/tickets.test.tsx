@@ -53,13 +53,15 @@ describe('Tickets', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review & commit' }));
     const review = await screen.findByRole('dialog', { name: 'Commit to Jira' });
     expect(previewed?.updates).toEqual([{ key: 'PAY-1104', planned_end: '2026-10-09' }]);
-    expect(within(review).getByText('PUT /rest/api/3/issue/PAY-1104')).toBeTruthy();
+    expect(within(review).queryByText('PUT /rest/api/3/issue/PAY-1104')).toBeNull();
     expect(within(review).getByText(/Task in PAY-1100 · Payment flow revision/)).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Commit 2 requests' }));
     await waitFor(() => expect(applied?.updates).toEqual([{ key: 'PAY-1104',
       changes: [{ field: 'planned_end', before: '2026-10-08', after: '2026-10-09' }] }]));
+    expect(screen.queryByRole('dialog', { name: 'Commit to Jira' })).toBeNull();
     expect(applied?.creates).toEqual(previewed?.creates);
     expect(await screen.findByText('No pending changes')).toBeTruthy();
+    expect(await screen.findByText(/PAY-1100 is committed to Jira/)).toBeTruthy();
   });
 
   it('adds 3-step functions under a workflow Task', async () => {
