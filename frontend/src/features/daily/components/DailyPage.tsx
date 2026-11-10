@@ -12,7 +12,7 @@ import { BurndownChart } from '../../../shared/ui/BurndownChart';
 import { PickAnken } from '../../../shared/ui/PickAnken';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { dailyQuery, useCapture } from '../api';
-import { PhaseTable } from './PhaseTable';
+import { FunctionOverview } from './FunctionOverview';
 import { TypedSection } from './TypedSection';
 
 const route = getRouteApi('/app/daily');
@@ -37,9 +37,9 @@ export function DailyPage() {
   );
 }
 
-/** One anken: today live, or a captured day (`date`); the burndown's phase is in the URL too. */
+/** One anken: today live, or a captured day (`date`); the burndown's phase and the Function overview's tab are in the URL too. */
 function DailyOf({ anken }: { anken: string }) {
-  const { date, phase } = route.useSearch();
+  const { date, phase, tab } = route.useSearch();
   const navigate = route.useNavigate();
   const q = useQuery(dailyQuery(anken, date));
   if (q.isPending) return <Loading />;
@@ -70,7 +70,7 @@ function DailyOf({ anken }: { anken: string }) {
         <BurndownChart b={chart.chart} today={c.date} todayLabel={v.live ? 'Today' : day(c.date)} height={260}
           empty="No sub-tasks with a Planned Start, a Planned End and an estimate." />
       </section>
-      <PhaseTable groups={c.groups} />
+      <FunctionOverview groups={c.groups} daily={v.daily_phases} tab={tab} pick={(t) => navigate({ search: (s) => ({ ...s, tab: t }) })} />
       <TypedSection typed={c.typed} anken={anken} editable={v.live} />
     </>
   );

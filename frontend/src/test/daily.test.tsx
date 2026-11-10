@@ -45,6 +45,10 @@ function content(date: string, note: string) {
   };
 }
 const snapshots = [{ date: '2026-10-06', captured_at: '2026-10-06T18:00:00+07:00', captured_by: 'auto' }];
+/** Today, live, with the anken's Daily phases. */
+const live = (daily: string[]) => ({
+  content: content('2026-10-07', 'Waiting for the card team'), live: true, captured_at: null, captured_by: null, today: '2026-10-07', auto_capture: '18:00', snapshots, daily_phases: daily,
+});
 
 describe('Daily Overview', () => {
   it('shows the live day, switches to a captured day and saves a note', async () => {
@@ -55,8 +59,8 @@ describe('Daily Overview', () => {
         const date = new URL(request.url).searchParams.get('date');
         asked.push(date);
         return HttpResponse.json(date
-          ? { content: content(date, 'Asked the card team'), live: false, captured_at: snapshots[0].captured_at, captured_by: 'auto', today: '2026-10-07', auto_capture: '18:00', snapshots }
-          : { content: content('2026-10-07', 'Waiting for the card team'), live: true, captured_at: null, captured_by: null, today: '2026-10-07', auto_capture: '18:00', snapshots });
+          ? { content: content(date, 'Asked the card team'), live: false, captured_at: snapshots[0].captured_at, captured_by: 'auto', today: '2026-10-07', auto_capture: '18:00', snapshots, daily_phases: [] }
+          : live([]));
       }),
       http.put('*/api/v1/daily/notes/:key', async ({ request }) => { note = await request.json(); return HttpResponse.json({ key: 'PAY-1173', note: 'Send today' }); }),
     );
@@ -67,28 +71,33 @@ describe('Daily Overview', () => {
     expect(screen.getByText(/Live · not captured yet/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
 
-    const table = screen.getByRole('region', { name: 'Phases and functions' });
-    expect(within(table).getByText('Prepare')).toBeTruthy(); // a done group of an older snapshot, as one row
-    expect(within(table).getByText('Domestic card payment')).toBeTruthy();
-    expect(within(table).getByText('Late 2d')).toBeTruthy();
-    expect(within(table).queryByText(/R3 · Team/)).toBeNull();
-    expect(within(table).getAllByText('Requirement study')).toHaveLength(3); // the Task and one row per ticket
+    const fo = screen.getByRole('region', { name: 'Function overview' });
+    expect(within(fo).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Prepare 100%', 'Implement_Coding 48%']);
+    expect(within(fo).getByRole('tab', { name: 'Implement_Coding 48%' }).getAttribute('aria-selected')).toBe('true'); // the first current
+    expect(within(fo).getByRole('tab', { name: 'Prepare 100%' }).getAttribute('aria-selected')).toBe('false');
+    expect(within(fo).getByText('48% · 20/60 done')).toBeTruthy();
+    expect(within(fo).getByText('· 1 late')).toBeTruthy();
+    expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
+    expect(within(fo).getByRole('button', { name: 'WIP · 2d late' })).toBeTruthy();
+    expect(within(fo).queryByText(/R3 · Team/)).toBeNull();
+    expect(within(fo).getAllByText('Requirement study')).toHaveLength(3); // the Task heading and one row per ticket
     // a done sub-task shows just Done: no Closed, no dates
-    expect(within(table).queryByText('Closed')).toBeNull();
-    expect(within(table).queryByText('09/04')).toBeNull();
+    expect(within(fo).queryByText('Closed')).toBeNull();
+    expect(within(fo).queryByText('09/04')).toBeNull();
     // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
-    expect(within(table).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
-    expect(within(table).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
-    expect(within(table).queryAllByTitle(/now:/)).toHaveLength(2); // F03's JM Review has not started
-    expect(within(table).getByText('No JM steps')).toBeTruthy(); // F06 runs the 3-step flow
-    // a done Task starts collapsed
-    expect(within(table).getAllByText('Design review')).toHaveLength(1);
-    fireEvent.click(within(table).getByRole('button', { name: 'Expand Design review' }));
-    expect(within(table).getAllByText('Design review')).toHaveLength(2);
-    fireEvent.click(within(table).getByRole('button', { name: 'Collapse Payment flow revision' }));
-    expect(within(table).queryByText('Domestic card payment')).toBeNull();
-    expect(within(table).getByText(/2 sub-tasks outside the name rule, not listed here/)).toBeTruthy();
-    expect(within(table).getByRole('link', { name: 'See them in Ticket Check' }).getAttribute('href')).toBe('/ticket-check?check=rule');
+    expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
+    expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
+    expect(within(fo).queryAllByTitle(/now:/)).toHaveLength(2); // F03's JM Review has not started
+    expect(within(fo).getByText('No JM steps')).toBeTruthy(); // F06 runs the 3-step flow
+    expect(within(fo).getByText(/2 sub-tasks outside the name rule, not listed here/)).toBeTruthy();
+    expect(within(fo).getByRole('link', { name: 'See them in Ticket Check' }).getAttribute('href')).toBe('/ticket-check?check=rule');
+    // a done group of an older snapshot has no Tasks: one Done row
+    fireEvent.click(within(fo).getByRole('tab', { name: 'Prepare 100%' }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: 'Prepare' }));
+    const panel = within(fo).getByRole('tabpanel', { name: 'Prepare' });
+    expect(within(panel).getByText('Prepare')).toBeTruthy();
+    expect(within(panel).getAllByText('Done')).toHaveLength(1);
+    expect(within(fo).queryByText('Domestic card payment')).toBeNull();
 
     const typed = screen.getByRole('region', { name: 'QnA, Bug and WorkRequest' });
     expect(within(typed).getByText('1 with JM · 1 with the team')).toBeTruthy();
@@ -108,6 +117,23 @@ describe('Daily Overview', () => {
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
     expect(within(screen.getByRole('region', { name: 'QnA, Bug and WorkRequest' })).getByText('Asked the card team')).toBeTruthy(); // read-only
     expect(screen.queryByLabelText('Note on PAY-1171')).toBeNull();
+  });
+
+  it('shows only the Daily phases as tabs, and an unknown tab falls back to the first current', async () => {
+    server.use(http.get('*/api/v1/daily', () => HttpResponse.json(live(['Implement_Coding']))));
+    renderApp('/daily?anken=PAY-1100&tab=Nope');
+    const fo = await screen.findByRole('region', { name: 'Function overview' });
+    expect(within(fo).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Implement_Coding 48%']);
+    expect(within(fo).getByRole('tab', { name: 'Implement_Coding 48%' }).getAttribute('aria-selected')).toBe('true');
+    expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
+  });
+
+  it('says so when no Daily phase is in the anken', async () => {
+    server.use(http.get('*/api/v1/daily', () => HttpResponse.json(live(['UAT']))));
+    renderApp('/daily?anken=PAY-1100');
+    const fo = await screen.findByRole('region', { name: 'Function overview' });
+    expect(within(fo).getByText('No phase to show. Pick the phases in Settings → Structure.')).toBeTruthy();
+    expect(within(fo).queryByRole('tab')).toBeNull();
   });
 
   it('asks for an anken under "All my anken"', async () => {

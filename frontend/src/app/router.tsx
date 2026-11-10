@@ -148,7 +148,7 @@ const daily = createRoute({
   path: 'daily',
   ...needs('overview'),
   validateSearch: dailySearch,
-  search: { middlewares: [dropOnAnkenChange('date', 'phase')] },
+  search: { middlewares: [dropOnAnkenChange('date', 'phase', 'tab')] },
   component: lazyRouteComponent(() => import('../features/daily'), 'DailyPage'),
 });
 
