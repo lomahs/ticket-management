@@ -12,7 +12,7 @@ import { Section, useDebounced } from './common';
 type TaskType = NonNullable<Schemas['TaskTemplateIn']['type']>;
 type Template = Omit<Schemas['TaskTemplate'], 'type'> & { type: TaskType };
 const TYPES: { value: TaskType; label: string }[] = [
-  { value: '', label: 'Task' }, { value: 'qna', label: 'QnA' }, { value: 'work_request', label: 'WorkRequest' },
+  { value: '', label: 'Task' }, { value: 'qna', label: 'QnA' }, { value: 'bug', label: 'Bug' }, { value: 'work_request', label: 'WorkRequest' },
 ];
 const GRID = 'minmax(220px,2fr) minmax(140px,1fr) minmax(120px,1fr) 140px 110px 40px';
 const SEEN_GRID = '110px minmax(220px,2fr) minmax(120px,1fr) minmax(160px,1.4fr)';
@@ -78,6 +78,7 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
   const importFile = useImportStructure(anken);
   const fileInput = useRef<HTMLInputElement>(null);
   const [phases, setPhases] = useState<string[]>(v.phases);
+  const [daily, setDaily] = useState<string[]>(v.daily);
   const [tasks, setTasks] = useState<Template[]>(v.tasks.map((t) => ({ ...t, type: (TYPES.find((x) => x.value === t.type)?.value ?? '') })));
   const [fresh, setFresh] = useState<{ phases: string[]; tasks: string[] }>({ phases: [], tasks: [] }); // added by an import, until saved
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
@@ -105,19 +106,26 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
   const unmatched = seen.filter((s) => s.template == null).length;
   return (
     <>
-      <Section title="Phases" sub="Project phases in order. Overview and Effort list phases in this order; phases found on tickets but not listed here come last.">
+      <Section title="Phases" sub="Project phases in order. Overview and Effort list phases in this order; phases found on tickets but not listed here come last. Ticked phases are the tabs of the Daily Overview; none ticked: the phases that have started.">
         {phases.map((p, i) => (
           <div key={i} data-imported={fresh.phases.includes(norm(p)) || undefined}
             style={{ display: 'flex', gap: 8, alignItems: 'center', ...(fresh.phases.includes(norm(p)) && { background: 'var(--hl-ok)', borderRadius: 10, padding: 4 }) }}>
-            <TextField aria-label={`Phase ${i + 1}`} value={p} onChange={(val) => setPhases((ps) => ps.map((x, j) => (j === i ? val : x)))} style={{ flex: 1 }} />
+            <TextField aria-label={`Phase ${i + 1}`} value={p} onChange={(val) => {
+              setDaily((d) => d.map((x) => (x === p ? val : x)));
+              setPhases((ps) => ps.map((x, j) => (j === i ? val : x)));
+            }} style={{ flex: 1 }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+              <input type="checkbox" aria-label={`Show Phase ${i + 1} on the Daily Overview`} checked={daily.includes(p)}
+                onChange={(e) => setDaily((d) => (e.target.checked ? [...d, p] : d.filter((x) => x !== p)))} /> Daily
+            </label>
             <IconButton icon="arrow-up" label={`Move phase ${i + 1} up`} appearance="subtle" disabled={i === 0} onClick={() => setPhases((ps) => swap(ps, i, i - 1))} />
             <IconButton icon="arrow-down" label={`Move phase ${i + 1} down`} appearance="subtle" disabled={i === phases.length - 1} onClick={() => setPhases((ps) => swap(ps, i, i + 1))} />
-            <IconButton icon="trash-2" label={`Remove phase ${i + 1}`} appearance="subtle" onClick={() => setPhases((ps) => ps.filter((_, j) => j !== i))} />
+            <IconButton icon="trash-2" label={`Remove phase ${i + 1}`} appearance="subtle" onClick={() => { setDaily((d) => d.filter((x) => x !== p)); setPhases((ps) => ps.filter((_, j) => j !== i)); }} />
           </div>
         ))}
         <div><Button appearance="secondary" iconBefore="plus" onClick={() => setPhases((ps) => [...ps, ''])}>Add phase</Button></div>
       </Section>
-      <Section pad={false} title="Tasks" sub={<>The fixed set of Tasks under every Epic. The Task name is matched against the whole Jira Task Summary, ignoring case; <code>*</code> matches any text. Prefix is what <code>{'{prefix}'}</code> stands for in that Task's sub-task names. Turn the workflow off for Tasks whose sub-tasks are not functions (Q&amp;A, WR, CR…). Type marks the Tasks whose sub-tasks the Daily Overview lists as QnA or WorkRequest.</>}>
+      <Section pad={false} title="Tasks" sub={<>The fixed set of Tasks under every Epic. The Task name is matched against the whole Jira Task Summary, ignoring case; <code>*</code> matches any text. Prefix is what <code>{'{prefix}'}</code> stands for in that Task's sub-task names. Turn the workflow off for Tasks whose sub-tasks are not functions (Q&amp;A, WR, CR…). Type marks the Tasks whose sub-tasks the Daily Overview lists as QnA, Bug or WorkRequest.</>}>
         <div style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 900 }}>
             <div style={{ ...HEAD, gridTemplateColumns: GRID }}><span>Task name</span><span>Phase</span><span>Prefix</span><span>Type</span><span>Workflow</span><span /></div>
@@ -140,7 +148,7 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
                 {importFile.isPending ? 'Reading file…' : 'Import Excel / CSV'}
               </Button>
               <input ref={fileInput} type="file" accept=".xlsx,.csv" aria-label="Phases and tasks file" onChange={onFile} style={{ display: 'none' }} />
-              <span className="eyebrow">Columns: Phase, Task name, Prefix, Type (Task, QnA, WorkRequest), Workflow (not read). Rows with a Task name already here update it.</span>
+              <span className="eyebrow">Columns: Phase, Task name, Prefix, Type (Task, QnA, Bug, WorkRequest), Workflow (not read). Rows with a Task name already here update it.</span>
             </div>
           </div>
         </div>
@@ -163,7 +171,7 @@ function StructureForm({ v, anken }: { v: Schemas['StructureView']; anken: strin
         </div>
       </Section>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button disabled={save.isPending} onClick={() => save.mutate({ phases, tasks }, {
+        <Button disabled={save.isPending} onClick={() => save.mutate({ phases, tasks, daily }, {
           onSuccess: () => { setFresh({ phases: [], tasks: [] }); toast('Phases & tasks saved · synced'); }, onError: (e) => toast(errorMessage(e), true),
         })}>Save</Button>
       </div>

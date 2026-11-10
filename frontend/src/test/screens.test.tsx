@@ -295,6 +295,7 @@ describe('screens render API data at their URLs', () => {
   it('edits phases and Task templates and saves them', async () => {
     const view = {
       phases: ['UC', 'FUT'],
+      daily: [] as string[],
       tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
       seen: [
         { key: 'PAY-1110', epic_key: 'PAY-1100', summary: 'FUT create test case', phase: 'FUT', template: 0 },
@@ -313,12 +314,37 @@ describe('screens render API data at their URLs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
     fireEvent.change(screen.getByLabelText('Phase 3'), { target: { value: 'ITA' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], tasks: view.tasks.map((t) => ({ ...t, type: '' })) }));
+    await waitFor(() => expect(saved).toEqual({ phases: ['UC', 'FUT', 'ITA'], daily: [], tasks: view.tasks.map((t) => ({ ...t, type: '' })) }));
+  });
+
+  it('ticks the phases the Daily Overview shows', async () => {
+    const view = {
+      phases: ['UC', 'FUT'], daily: [] as string[],
+      tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
+      seen: [],
+    };
+    const saved: Record<string, unknown>[] = [];
+    server.use(
+      http.get('*/api/v1/settings/structure', () => HttpResponse.json(view)),
+      http.post('*/api/v1/settings/structure/preview', () => HttpResponse.json(view)),
+      http.put('*/api/v1/settings/structure', async ({ request }) => { saved.push(await request.json() as Record<string, unknown>); return HttpResponse.json(view); }),
+    );
+    renderApp('/settings/structure');
+    fireEvent.click(await screen.findByLabelText('Show Phase 2 on the Daily Overview'));
+    fireEvent.change(screen.getByLabelText('Phase 2'), { target: { value: 'FUT2' } });
+    expect((screen.getByLabelText('Show Phase 2 on the Daily Overview') as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved[0]?.daily).toEqual(['FUT2']));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove phase 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved[1]?.daily).toEqual([]));
+    expect([...(screen.getByLabelText('Task 1 type') as HTMLSelectElement).options].map((o) => o.text)).toContain('Bug');
   });
 
   it('imports phases and Tasks from a file, highlights the new rows and saves them merged', async () => {
     const view = {
       phases: ['UC', 'FUT'],
+      daily: [] as string[],
       tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
       seen: [],
     };
@@ -338,7 +364,7 @@ describe('screens render API data at their URLs', () => {
     );
     renderApp('/settings/structure');
     const input = await screen.findByLabelText('Phases and tasks file');
-    expect([...(screen.getByLabelText('Task 1 type') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Task', 'QnA', 'WorkRequest']);
+    expect([...(screen.getByLabelText('Task 1 type') as HTMLSelectElement).options].map((o) => o.text)).toEqual(['Task', 'QnA', 'Bug', 'WorkRequest']);
     fireEvent.change(input, { target: { files: [new File(['x'], 'phases.csv', { type: 'text/csv' })] } });
     expect(await screen.findByText(/phases\.csv: 2 added · 1 updated · skipped line 5/)).toBeTruthy();
     expect((screen.getByLabelText('Phase 3') as HTMLInputElement).value).toBe('ITA');
@@ -349,6 +375,7 @@ describe('screens render API data at their URLs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(saved).toEqual({
       phases: ['UC', 'FUT', 'ITA'],
+      daily: [],
       tasks: [
         { match: 'FUT create test case', phase: 'FUT', prefix: 'FTC', workflow: true, type: '' },
         { match: '[*][*] ITA Prepare', phase: 'ITA', prefix: 'ITAP', workflow: true, type: '' },
@@ -361,6 +388,7 @@ describe('screens render API data at their URLs', () => {
   describe('per-anken settings', () => {
     const structure = {
       phases: ['UC', 'FUT'],
+      daily: [] as string[],
       tasks: [{ match: 'FUT create test case', phase: 'FUT', prefix: 'FUTTC', workflow: true }],
       seen: [],
     };
