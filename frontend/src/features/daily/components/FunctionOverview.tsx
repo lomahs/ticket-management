@@ -45,13 +45,17 @@ function sorted<T, K extends string>(items: T[], s: Sort<K> | null, value: (t: T
 /**
  * The anken's Daily phases, one tab each (none ticked: the phase groups that have started), in the server's order; the tab
  * in the URL, else the first in progress, else the first. A tab lists its Tasks: the functions as a matrix of their steps,
- * then the single tickets.
+ * then the single tickets. A past day (`live` false) has no group for a Daily phase that had not started then.
  */
-export function FunctionOverview({ groups, daily, tab, pick }: { groups: Group[]; daily: string[]; tab: string | undefined; pick: (tab: string) => void }) {
+export function FunctionOverview({ groups, daily, live, tab, pick }: {
+  groups: Group[]; daily: string[]; live: boolean; tab: string | undefined; pick: (tab: string) => void;
+}) {
   const [fnSort, setFnSort] = useState<Sort<FnKey> | null>(null);
   const [oneSort, setOneSort] = useState<Sort<OneKey> | null>(null);
   const shown = daily.length ? groups.filter((g) => daily.includes(g.name)) : groups.filter((g) => g.state !== 'not_started');
   const active = shown.find((g) => g.name === tab) ?? shown.find((g) => g.state === 'current') ?? shown[0];
+  const none = !daily.length ? 'No phase has started yet.'
+    : live ? 'No phase to show. Pick the phases in Settings → Structure.' : 'None of the Daily phases had started on this day.';
   return (
     <section className="card" aria-label="Function overview" style={{ overflow: 'hidden', borderRadius: 14, padding: 0 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -83,16 +87,13 @@ export function FunctionOverview({ groups, daily, tab, pick }: { groups: Group[]
       </div>
       {!active ? (
         <div className="empty-row" style={{ borderTop: 0 }}>
-          {daily.length ? 'No phase to show. Pick the phases in Settings → Structure.' : 'No phase has started yet.'}
+          {none}
         </div>
       ) : (
         <div role="tabpanel" aria-label={active.name} style={{ overflowX: 'auto' }}>
           <div style={{ minWidth: 900 }}>
-            {!active.sub_phases.length ? <EmptyGroup g={active} /> : (
-              active.sub_phases.map((t) => (
-                <TaskBlock key={t.key} t={t} n={stepsOf(active)} fnSort={fnSort} setFnSort={setFnSort} oneSort={oneSort} setOneSort={setOneSort} />
-              ))
-            )}
+            {!active.sub_phases.length ? <EmptyGroup g={active} />
+              : <TabBody g={active} fnSort={fnSort} setFnSort={setFnSort} oneSort={oneSort} setOneSort={setOneSort} />}
           </div>
         </div>
       )}
@@ -114,49 +115,80 @@ function EmptyGroup({ g }: { g: Group }) {
   );
 }
 
-function TaskBlock({ t, n, fnSort, setFnSort, oneSort, setOneSort }: {
-  t: Task; n: number;
+const head: CSSProperties = { display: 'grid', gap: '0 10px', alignItems: 'center', padding: '8px 20px 6px', borderBottom: '1px solid var(--border-subtle)' };
+
+/**
+ * A tab: the matrix (one column header, then each Task with functions as a heading row and its functions), then the single
+ * tickets the same way. A Task with both kinds is headed in each part; its note on unlisted sub-tasks goes under its last part.
+ */
+function TabBody({ g, fnSort, setFnSort, oneSort, setOneSort }: {
+  g: Group;
   fnSort: Sort<FnKey> | null; setFnSort: (s: Sort<FnKey> | null) => void; oneSort: Sort<OneKey> | null; setOneSort: (s: Sort<OneKey> | null) => void;
 }) {
   const members = useMemberMap();
-  const name = (id?: string | null) => members[id ?? '']?.name ?? id ?? '';
-  const fns = sorted(t.functions, fnSort, (f: Fn, k) => (k === 'name' ? f.name.toLowerCase() : name(f.ba_id).toLowerCase()));
-  const ones = sorted(t.tickets, oneSort, (x: Ticket, k) => (
-    k === 'name' ? x.name.toLowerCase() : k === 'owner' ? name(x.assignee_id).toLowerCase() : k === 'status' ? STATUS_ORDER[x.status] ?? 0
-      : x.planned_end ?? '9999'));
-  const head: CSSProperties = { display: 'grid', gap: '0 10px', alignItems: 'center', padding: '8px 20px 6px' };
+  const name = (id?: string | null) => (members[id ?? '']?.name ?? id ?? '').toLowerCase();
+  const n = stepsOf(g);
+  const fnTasks = g.sub_phases.filter((t) => t.functions.length > 0);
+  const oneTasks = g.sub_phases.filter((t) => t.tickets.length > 0);
+  const bare = g.sub_phases.filter((t) => !t.functions.length && !t.tickets.length);
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '8px 20px', background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <span className="ellipsis" style={{ font: '700 14px/1.3 var(--font-text)', color: 'var(--text-heading)' }} title={t.key}>{t.name}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.closed} / {t.total} done</span>
-      </div>
-      {t.functions.length > 0 && (
+    <>
+      {fnTasks.length > 0 && (
         <>
           <div style={{ ...head, gridTemplateColumns: fnCols(n) }}>
             <Head label="Function" on={fnSort?.key === 'name' ? fnSort.dir : null} click={() => setFnSort(next(fnSort, 'name'))} />
             <Head label="BA" on={fnSort?.key === 'owner' ? fnSort.dir : null} click={() => setFnSort(next(fnSort, 'owner'))} />
             {STEPS.slice(0, n).map((st) => <span key={st.k} style={{ textAlign: 'center', font: '600 12px/1.2 var(--font-text)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{st.short}</span>)}
           </div>
-          {fns.map((f) => <FunctionRow key={f.id} f={f} n={n} />)}
+          {fnTasks.map((t) => (
+            <div key={t.key}>
+              <TaskHead t={t} />
+              {sorted(t.functions, fnSort, (f: Fn, k) => (k === 'name' ? f.name.toLowerCase() : name(f.ba_id))).map((f) => <FunctionRow key={f.id} f={f} n={n} />)}
+              {!t.tickets.length && <Unmatched t={t} />}
+            </div>
+          ))}
         </>
       )}
-      {t.tickets.length > 0 && (
+      {oneTasks.length > 0 && (
         <>
           <div style={{ ...head, gridTemplateColumns: ONE_COLS }}>
             {([['name', 'Ticket'], ['owner', 'Assignee'], ['status', 'Status'], ['end', 'Planned end']] as [OneKey, string][]).map(([k, l]) => (
               <Head key={k} label={l} on={oneSort?.key === k ? oneSort.dir : null} click={() => setOneSort(next(oneSort, k))} center={k === 'status'} />
             ))}
           </div>
-          {ones.map((x) => <TicketRow key={x.key} t={x} />)}
+          {oneTasks.map((t) => (
+            <div key={t.key}>
+              <TaskHead t={t} />
+              {sorted(t.tickets, oneSort, (x: Ticket, k) => (
+                k === 'name' ? x.name.toLowerCase() : k === 'owner' ? name(x.assignee_id) : k === 'status' ? STATUS_ORDER[x.status] ?? 0
+                  : x.planned_end ?? '9999')).map((x) => <TicketRow key={x.key} t={x} />)}
+              <Unmatched t={t} />
+            </div>
+          ))}
         </>
       )}
-      {t.unmatched > 0 && (
-        <div style={{ padding: '6px 20px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          {`${t.unmatched} sub-task${t.unmatched === 1 ? '' : 's'} outside the name rule, not listed here. `}
-          <Link to="/ticket-check" search={{ check: 'rule' }}>See them in Ticket Check</Link>
-        </div>
-      )}
+      {bare.map((t) => <div key={t.key}><TaskHead t={t} /><Unmatched t={t} /></div>)}
+    </>
+  );
+}
+
+/** A Task's heading row: its name and done / total. */
+function TaskHead({ t }: { t: Task }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '8px 20px', background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-subtle)' }}>
+      <span className="ellipsis" style={{ font: '700 14px/1.3 var(--font-text)', color: 'var(--text-heading)' }} title={t.key}>{t.name}</span>
+      <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.closed} / {t.total} done</span>
+    </div>
+  );
+}
+
+/** The Task's sub-tasks whose title does not follow the name rule: a count and a link to Ticket Check. */
+function Unmatched({ t }: { t: Task }) {
+  if (t.unmatched <= 0) return null;
+  return (
+    <div style={{ padding: '6px 20px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+      {`${t.unmatched} sub-task${t.unmatched === 1 ? '' : 's'} outside the name rule, not listed here. `}
+      <Link to="/ticket-check" search={{ check: 'rule' }}>See them in Ticket Check</Link>
     </div>
   );
 }
@@ -186,11 +218,16 @@ function Owner({ id }: { id?: string | null }) {
 
 const nameStyle: CSSProperties = { font: '600 15px/1.3 var(--font-text)', color: 'var(--text-heading)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
 
-/** A coloured status cell or chip: red and outlined when late. */
+/** A coloured status cell or chip: red and outlined when late. Its text wraps rather than spill into the next column. */
 const cellStyle = (status: string, late: boolean): CSSProperties => ({
   display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28, boxSizing: 'border-box', padding: '4px 6px', borderRadius: 6,
-  cursor: 'pointer', font: '600 13px/1.2 var(--font-text)', whiteSpace: 'nowrap', ...(late ? lateChip : { ...chip(status as Status), border: 0 }),
+  cursor: 'pointer', font: '600 13px/1.2 var(--font-text)', textAlign: 'center', minWidth: 0, ...(late ? lateChip : { ...chip(status as Status), border: 0 }),
 });
+
+/** "WIP · 2d late"; in a narrow column the days late go to a second line. */
+function LateLabel({ label, days }: { label: string; days: number }) {
+  return <span>{label} ·{' '}<span style={{ whiteSpace: 'nowrap' }}>{days}d late</span></span>;
+}
 
 /**
  * Where a function's JM round is while its JM Review is under way (WIP or Resolved): the JM Review's assignee tells. A JM:
@@ -231,7 +268,6 @@ function StepCell({ c, active }: { c: Step; active: boolean }) {
   const st = statusOf(c.status);
   const closed = c.status === 'C';
   const late = c.late && !closed;
-  const label = closed ? 'Done' : late ? `${st.label} · ${c.late_days}d late` : st.label;
   const where = c.with_jm ? 'JM' : 'Team';
   const stepName = STEPS.find((s) => s.k === c.step)?.label ?? c.step;
   const now = active ? ` · now: ${c.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '';
@@ -239,7 +275,7 @@ function StepCell({ c, active }: { c: Step; active: boolean }) {
     + ` · plan ${dm(c.planned_start) || '?'} – ${dm(c.planned_end) || '?'}${c.rounds ? ` · round ${c.rounds}, with ${where}` : ''}${now}`;
   return (
     <button type="button" title={tip} onClick={() => open(c.key)} className="hv-bright" style={{ ...cellStyle(c.status, late), boxShadow: active ? ACTIVE_RING : undefined }}>
-      {label}
+      {closed ? 'Done' : late ? <LateLabel label={st.label} days={c.late_days} /> : st.label}
     </button>
   );
 }
@@ -255,7 +291,7 @@ function TicketRow({ t }: { t: Ticket }) {
       <span style={nameStyle} title={`${t.key} ${t.name}`}>{t.name}</span>
       <Owner id={t.assignee_id} />
       <button type="button" onClick={() => open(t.key)} title={`${t.key} · ${st.label}${late ? ` · ${t.late_days} working days late` : ''}`} className="hv-bright" style={cellStyle(t.status, late)}>
-        {done ? 'Done' : late ? `${st.label} · late ${t.late_days}d` : st.label}
+        {done ? 'Done' : late ? <LateLabel label={st.label} days={t.late_days} /> : st.label}
       </button>
       <span style={{ font: '500 14px/1 var(--font-mono)', color: late ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{done ? '' : dm(t.planned_end)}</span>
     </div>

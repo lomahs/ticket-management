@@ -13,7 +13,9 @@ const chart = { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_rem
 const step = (key: string, s: string, status: string, extra: object = {}) => ({
   key, step: s, status, assignee_id: 'binh', planned_start: '2026-10-01', planned_end: '2026-10-02', late: false, late_days: 0, rounds: 0, with_jm: false, ...extra,
 });
-const ticket = (key: string, who: string, name = 'Requirement study') => ({ key, name, assignee_id: who, status: 'C', planned_start: '2026-09-03', planned_end: '2026-09-04', late: false, late_days: 0 });
+const ticket = (key: string, who: string, name = 'Requirement study', extra: object = {}) => ({
+  key, name, assignee_id: who, status: 'C', planned_start: '2026-09-03', planned_end: '2026-09-04', late: false, late_days: 0, ...extra,
+});
 const task = (key: string, name: string, extra: object) => ({ key, name, state: 'current', pct: 40, closed: 2, total: 5, late: 0, unmatched: 0, functions: [], tickets: [], ...extra });
 const done = (pre: string) => [step(`${pre}1`, 'create', 'C'), step(`${pre}2`, 'balr', 'C'), step(`${pre}3`, 'fixb', 'C')];
 
@@ -34,7 +36,11 @@ function content(date: string, note: string) {
             ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N')] },
           { id: 'F06', name: 'Execute test case', ba_id: 'an', steps: [
             step('PAY-1241', 'create', 'C'), step('PAY-1242', 'balr', 'W'), step('PAY-1243', 'fixb', 'N')] }] }),
-        task('PAY-1160', 'Requirement study', { unmatched: 2, tickets: [ticket('PAY-1161', 'an'), ticket('PAY-1162', 'binh')] }),
+        task('PAY-1300', 'Receipt screens', { functions: [
+          { id: 'F07', name: 'Receipt screen', ba_id: 'binh', steps: [
+            ...done('PAY-130'), step('PAY-1304', 'jmr', 'N', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1305', 'fixj', 'N')] }] }),
+        task('PAY-1160', 'Requirement study', { unmatched: 2, tickets: [ticket('PAY-1161', 'an'), ticket('PAY-1162', 'binh'),
+          ticket('PAY-1163', 'an', 'Glossary', { status: 'R', planned_end: '2026-10-06', late: true, late_days: 1 })] }),
         task('PAY-1150', 'Design review', { state: 'done', pct: 100, closed: 1, total: 1, tickets: [ticket('PAY-1151', 'an', 'Design review')] }),
       ] },
     ],
@@ -81,6 +87,11 @@ describe('Daily Overview', () => {
     expect(within(fo).getByRole('button', { name: 'WIP · 2d late' })).toBeTruthy();
     expect(within(fo).queryByText(/R3 · Team/)).toBeNull();
     expect(within(fo).getAllByText('Requirement study')).toHaveLength(3); // the Task heading and one row per ticket
+    expect(within(fo).getByRole('button', { name: 'Resolved · 1d late' })).toBeTruthy(); // a late single ticket: as a late cell
+    // one column header per tab, the Tasks as heading rows under it
+    expect(within(fo).getAllByRole('button', { name: 'Function' })).toHaveLength(1);
+    expect(within(fo).getAllByRole('button', { name: 'Ticket' })).toHaveLength(1);
+    expect(within(fo).getByText('Receipt screens')).toBeTruthy();
     // a done sub-task shows just Done: no Closed, no dates
     expect(within(fo).queryByText('Closed')).toBeNull();
     expect(within(fo).queryByText('09/04')).toBeNull();
@@ -105,9 +116,12 @@ describe('Daily Overview', () => {
     expect(bug.compareDocumentPosition(typed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(typed.compareDocumentPosition(wr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(bug).getByText('No bugs yet')).toBeTruthy();
+    expect(within(bug).queryByText(/with JM|with the team/)).toBeNull(); // no counts on an empty section
     expect(within(typed).getByText('1 with JM')).toBeTruthy();
     expect(within(typed).getByText('1 with the team')).toBeTruthy();
     expect(within(typed).getByText('JM · 4d')).toBeTruthy();
+    expect(within(typed).getByText('Team · 1d')).toBeTruthy();
+    expect(within(typed).getByText('Tanaka')).toBeTruthy(); // the assignee: plain text
     const field = within(typed).getByLabelText('Note on PAY-1173');
     fireEvent.change(field, { target: { value: 'Send today' } });
     fireEvent.blur(field);
@@ -138,6 +152,14 @@ describe('Daily Overview', () => {
     renderApp('/daily?anken=PAY-1100');
     const fo = await screen.findByRole('region', { name: 'Function overview' });
     expect(within(fo).getByText('No phase to show. Pick the phases in Settings → Structure.')).toBeTruthy();
+    expect(within(fo).queryByRole('tab')).toBeNull();
+  });
+
+  it('says so when no Daily phase had started on a past day', async () => {
+    server.use(http.get('*/api/v1/daily', () => HttpResponse.json({ ...live(['UAT']), live: false, captured_at: snapshots[0].captured_at, captured_by: 'auto' })));
+    renderApp('/daily?anken=PAY-1100&date=2026-10-06');
+    const fo = await screen.findByRole('region', { name: 'Function overview' });
+    expect(within(fo).getByText('None of the Daily phases had started on this day.')).toBeTruthy();
     expect(within(fo).queryByRole('tab')).toBeNull();
   });
 

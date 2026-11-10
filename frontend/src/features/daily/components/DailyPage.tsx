@@ -70,7 +70,7 @@ function DailyOf({ anken }: { anken: string }) {
         <BurndownChart b={chart.chart} today={c.date} todayLabel={v.live ? 'Today' : day(c.date)} height={260}
           empty="No sub-tasks with a Planned Start, a Planned End and an estimate." />
       </section>
-      <FunctionOverview groups={c.groups} daily={v.daily_phases} tab={tab} pick={(t) => navigate({ search: (s) => ({ ...s, tab: t }) })} />
+      <FunctionOverview groups={c.groups} daily={v.daily_phases} live={v.live} tab={tab} pick={(t) => navigate({ search: (s) => ({ ...s, tab: t }) })} />
       <TypedSections typed={c.typed} anken={anken} editable={v.live} />
     </>
   );

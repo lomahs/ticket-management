@@ -7,18 +7,21 @@ import { statusOf } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
 import { useSaveNote } from '../api';
-import { chip } from './chips';
+import { chip, lateChip } from './chips';
 
 type Typed = Schemas['DailyTyped'];
 
 const TYPES: { k: string; label: string; short: string; none: string; badge: CSSProperties }[] = [
-  { k: 'bug', label: 'Bug', short: 'BUG', none: 'No bugs yet', badge: { background: 'var(--hl-red)', color: 'var(--hl-red-fg)' } },
+  { k: 'bug', label: 'Bug', short: 'BUG', none: 'No bugs yet', badge: { background: 'var(--hl-red-fg)', color: 'var(--text-inverse)' } },
   { k: 'qna', label: 'QnA', short: 'QnA', none: 'No QnA yet', badge: { background: 'var(--text-heading)', color: 'var(--surface-card)' } },
-  { k: 'work_request', label: 'WorkRequest', short: 'WR', none: 'No work requests yet', badge: { background: 'var(--surface-hover)', color: 'var(--text-muted)' } },
+  { k: 'work_request', label: 'WorkRequest', short: 'WR', none: 'No work requests yet', badge: { background: 'var(--do-nys)', color: 'var(--text-inverse)' } },
 ];
 const COLS = '92px minmax(200px,1.4fr) 120px 96px 120px 80px minmax(240px,2fr)';
 /** Working days with JM after which the wait is shown in red. */
 const LONG_WAIT = 3;
+const pill: CSSProperties = { padding: '2px 10px', borderRadius: 99, font: '600 12px/1.4 var(--font-text)', whiteSpace: 'nowrap' };
+const JM: CSSProperties = { background: 'var(--do-jm)', color: 'var(--do-jm-fg)' };
+const TEAM: CSSProperties = { background: 'var(--do-team-bg)', color: 'var(--do-team)' };
 
 /**
  * The sub-tasks of the Bug, QnA and WorkRequest Tasks, one card each: whether each is with JM (the client) or with the team,
@@ -37,8 +40,12 @@ export function TypedSections({ typed, anken, editable }: { typed: Typed[]; anke
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ padding: '3px 8px', borderRadius: 3, font: '700 11px/1.3 var(--font-text)', ...ty.badge }}>{ty.short}</span>
               <span style={{ font: '700 18px/1.2 var(--font-display)', color: 'var(--text-heading)' }}>{ty.label}</span>
-              <span style={{ padding: '2px 10px', borderRadius: 99, font: '600 12px/1.4 var(--font-text)', background: 'var(--do-jm)', color: 'var(--do-jm-fg)' }}>{withJm} with JM</span>
-              <span style={{ padding: '2px 10px', borderRadius: 99, font: '600 12px/1.4 var(--font-text)', background: 'var(--do-team-bg)', color: 'var(--do-team)' }}>{open.length - withJm} with the team</span>
+              {rows.length > 0 && (
+                <>
+                  <span style={{ ...pill, ...JM }}>{withJm} with JM</span>
+                  <span style={{ ...pill, ...TEAM }}>{open.length - withJm} with the team</span>
+                </>
+              )}
               {shut > 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>· {shut} closed in the last 7 days</span>}
             </div>
             {rows.length ? (
@@ -65,20 +72,22 @@ function Row({ t, anken, editable }: { t: Typed; anken: string; editable: boolea
   const openTicket = useOpenTicket();
   const st = statusOf(t.status);
   const who = members[t.assignee_id ?? '']?.name ?? t.assignee_id ?? 'Unassigned';
-  const wait = t.closed_on ? `closed ${dm(t.closed_on)}` : `${t.with_jm ? 'JM' : 'Team'} · ${t.held_days ? t.held_days + 'd' : 'today'}`;
-  const long = !t.closed_on && t.with_jm && t.held_days >= LONG_WAIT;
+  const long = t.with_jm && t.held_days >= LONG_WAIT;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 12px', alignItems: 'center', padding: '8px 12px', border: '1px solid var(--border-subtle)', borderRadius: 8, opacity: t.closed_on ? 0.7 : 1 }}>
       <button type="button" className="key hv-underline" onClick={() => openTicket(t.key)} style={{ justifySelf: 'start', padding: 0, border: 0, background: 'none', cursor: 'pointer', font: '600 13px/1.2 var(--font-mono)' }}>
         {t.key}
       </button>
       <span style={{ font: '600 15px/1.35 var(--font-text)', color: 'var(--text-heading)' }}>{t.summary}</span>
-      <span title={t.with_jm ? 'With JM (the client)' : 'With the team'} style={{
-        justifySelf: 'start', padding: '4px 10px', borderRadius: 99, font: '700 13px/1.2 var(--font-text)', whiteSpace: 'nowrap',
-        background: t.with_jm ? 'var(--do-jm)' : 'var(--do-team-bg)', color: t.with_jm ? 'var(--do-jm-fg)' : 'var(--do-team)',
-      }}>{who}</span>
+      <span className="ellipsis" style={{ fontSize: 14, color: t.assignee_id ? 'var(--text-heading)' : 'var(--text-muted)' }}>{who}</span>
       <span style={{ justifySelf: 'start', padding: '2px 8px', borderRadius: 3, font: '600 12px/1.4 var(--font-text)', ...chip(t.status as Status) }}>{st.label}</span>
-      <span style={{ font: '600 12px/1.2 var(--font-text)', whiteSpace: 'nowrap', color: long ? 'var(--hl-red-fg)' : 'var(--text-muted)' }}>{wait}</span>
+      {t.closed_on ? (
+        <span style={{ font: '600 12px/1.2 var(--font-text)', whiteSpace: 'nowrap', color: 'var(--text-muted)' }}>closed {dm(t.closed_on)}</span>
+      ) : (
+        <span title={t.with_jm ? 'With JM (the client)' : 'With the team'} style={{
+          ...pill, justifySelf: 'start', ...(long ? { background: lateChip.background, color: lateChip.color } : t.with_jm ? JM : TEAM),
+        }}>{`${t.with_jm ? 'JM' : 'Team'} · ${t.held_days ? t.held_days + 'd' : 'today'}`}</span>
+      )}
       <span style={{ font: '500 14px/1.2 var(--font-mono)', color: 'var(--text-heading)', whiteSpace: 'nowrap' }}>{dm(t.created)}</span>
       <Note key={t.key + '|' + t.note} t={t} anken={anken} editable={editable} />
     </div>
