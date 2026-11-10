@@ -13,7 +13,7 @@ import { PickAnken } from '../../../shared/ui/PickAnken';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { dailyQuery, useCapture } from '../api';
 import { FunctionOverview } from './FunctionOverview';
-import { TypedSection } from './TypedSection';
+import { TypedSections } from './TypedSection';
 
 const route = getRouteApi('/app/daily');
 const ALL = '';
@@ -71,7 +71,7 @@ function DailyOf({ anken }: { anken: string }) {
           empty="No sub-tasks with a Planned Start, a Planned End and an estimate." />
       </section>
       <FunctionOverview groups={c.groups} daily={v.daily_phases} tab={tab} pick={(t) => navigate({ search: (s) => ({ ...s, tab: t }) })} />
-      <TypedSection typed={c.typed} anken={anken} editable={v.live} />
+      <TypedSections typed={c.typed} anken={anken} editable={v.live} />
     </>
   );
 }

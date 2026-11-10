@@ -99,10 +99,15 @@ describe('Daily Overview', () => {
     expect(within(panel).getAllByText('Done')).toHaveLength(1);
     expect(within(fo).queryByText('Domestic card payment')).toBeNull();
 
-    const typed = screen.getByRole('region', { name: 'QnA, Bug and WorkRequest' });
-    expect(within(typed).getByText('1 with JM · 1 with the team')).toBeTruthy();
-    expect(within(typed).getByText('with JM · 4d')).toBeTruthy();
-    expect(within(typed).getByText('No bugs yet')).toBeTruthy();
+    const bug = screen.getByRole('region', { name: 'Bug' });
+    const typed = screen.getByRole('region', { name: 'QnA' });
+    const wr = screen.getByRole('region', { name: 'WorkRequest' });
+    expect(bug.compareDocumentPosition(typed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(typed.compareDocumentPosition(wr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(bug).getByText('No bugs yet')).toBeTruthy();
+    expect(within(typed).getByText('1 with JM')).toBeTruthy();
+    expect(within(typed).getByText('1 with the team')).toBeTruthy();
+    expect(within(typed).getByText('JM · 4d')).toBeTruthy();
     const field = within(typed).getByLabelText('Note on PAY-1173');
     fireEvent.change(field, { target: { value: 'Send today' } });
     fireEvent.blur(field);
@@ -115,7 +120,7 @@ describe('Daily Overview', () => {
     expect(await screen.findByText('Past snapshot')).toBeTruthy();
     expect(asked).toContain('2026-10-06');
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
-    expect(within(screen.getByRole('region', { name: 'QnA, Bug and WorkRequest' })).getByText('Asked the card team')).toBeTruthy(); // read-only
+    expect(within(screen.getByRole('region', { name: 'QnA' })).getByText('Asked the card team')).toBeTruthy(); // read-only
     expect(screen.queryByLabelText('Note on PAY-1171')).toBeNull();
   });
 
