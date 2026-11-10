@@ -9,6 +9,7 @@ import { ticketCheckSearch } from '../features/ticket-check/search';
 import { burndownSearch, timesheetSearch } from '../features/effort/search';
 import { SCHEDULE_FILTERS } from '../features/overview/search';
 import { matrixSearch } from '../features/matrix/search';
+import { ticketsSearch } from '../features/tickets/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
 import { planningSearch } from '../features/planning/search';
@@ -128,7 +129,7 @@ const ticketsEntry = createRoute({
     throw first ? redirect({ to: '/tickets/$epic', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });
-const tickets = createRoute({ getParentRoute: () => app, path: 'tickets/$epic', ...needs('ticket'), component: lazyRouteComponent(() => import('../features/tickets'), 'TicketsPage') });
+const tickets = createRoute({ getParentRoute: () => app, path: 'tickets/$epic', ...needs('ticket'), validateSearch: ticketsSearch, component: lazyRouteComponent(() => import('../features/tickets'), 'TicketsPage') });
 const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ticketList = createRoute({

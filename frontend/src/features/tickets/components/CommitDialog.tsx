@@ -1,19 +1,20 @@
 import type { Schemas } from '../../../shared/api/types';
 import { Button, Icon, IconButton } from '../../../shared/ds';
-import { dm, hrs } from '../../../shared/format/dates';
+import { hrs, ymd } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 
 type Field = Schemas['FieldChange']['field'];
 const LABEL: Record<Field, string> = {
-  status: 'Status', assignee: 'Assignee', reporter: 'Reporter', planned_start: 'Start', planned_end: 'End', estimate: 'Estimate',
+  summary: 'Summary', status: 'Status', assignee: 'Assignee', reporter: 'Reporter', planned_start: 'Start', planned_end: 'End', estimate: 'Estimate',
 };
 
 function show(field: Field, v: string | null | undefined, name: (id: string) => string): string {
   if (v == null || v === '') return '–';
+  if (field === 'summary') return v;
   if (field === 'status') return statusOf(v).label;
   if (field === 'assignee' || field === 'reporter') return name(v);
   if (field === 'estimate') return hrs(Number(v));
-  return dm(v);
+  return ymd(v);
 }
 
 /**

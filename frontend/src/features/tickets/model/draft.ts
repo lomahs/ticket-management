@@ -1,7 +1,7 @@
 import type { Schemas } from '../../../shared/api/types';
 
 /** The fields of an existing ticket the screen edits, as the API names them. */
-export type Field = 'status' | 'assignee_id' | 'reporter_id' | 'planned_start' | 'planned_end' | 'estimate_h';
+export type Field = 'summary' | 'status' | 'assignee_id' | 'reporter_id' | 'planned_start' | 'planned_end' | 'estimate_h';
 
 /** Edits by ticket key; a field is only there while its value differs from Jira's. */
 export type Edits = Record<string, Partial<Record<Field, string>>>;
@@ -29,7 +29,7 @@ export function saved(r: Schemas['BoardRow'], f: Field): string {
 /** The edits with one field set; setting it back to the saved value drops it. */
 export function withEdit(edits: Edits, r: Schemas['BoardRow'], f: Field, v: string): Edits {
   const row = { ...edits[r.key] };
-  if (v === saved(r, f) || (v === '' && f !== 'status')) delete row[f];
+  if (v === saved(r, f) || (f === 'summary' ? !v.trim() : v === '' && f !== 'status')) delete row[f];
   else row[f] = v;
   const next = { ...edits };
   if (Object.keys(row).length) next[r.key] = row;
@@ -38,7 +38,7 @@ export function withEdit(edits: Edits, r: Schemas['BoardRow'], f: Field, v: stri
 }
 
 export const updatesOf = (edits: Edits): Schemas['UpdateIn'][] => Object.entries(edits).map(([key, e]) => ({
-  key, status: e.status as Schemas['UpdateIn']['status'], assignee_id: e.assignee_id, reporter_id: e.reporter_id,
+  key, summary: e.summary?.trim(), status: e.status as Schemas['UpdateIn']['status'], assignee_id: e.assignee_id, reporter_id: e.reporter_id,
   planned_start: e.planned_start, planned_end: e.planned_end, estimate_h: e.estimate_h != null ? Number(e.estimate_h) : undefined,
 }));
 

@@ -227,6 +227,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
                         i.assignee = to;
                     }
                 }
+                case "summary" -> i.summary = v.asText();
                 case "reporter" -> i.reporter = v.isNull() ? null : removeAccPrefix(v.path("accountId").asText());
                 case "timetracking" -> i.estH = minutes(v.path("originalEstimate")) / 60.0;
                 case JiraRequests.DUE_DATE -> {

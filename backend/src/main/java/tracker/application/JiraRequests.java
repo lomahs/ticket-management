@@ -34,6 +34,7 @@ public final class JiraRequests {
     /** The Jira field a ticket field is written to, as a review shows it. */
     public static String jiraField(TicketField f, FieldMapping fm) {
         return switch (f) {
+            case SUMMARY -> "summary";
             case STATUS -> "status";
             case ASSIGNEE -> "assignee";
             case REPORTER -> "reporter";
@@ -44,7 +45,7 @@ public final class JiraRequests {
     }
 
     /**
-     * One PUT holding exactly these fields; empty when there are none. Values: a Jira account id for people, YYYY-MM-DD
+     * One PUT holding exactly these fields; empty when there are none. Values: text for the summary, a Jira account id for people, YYYY-MM-DD
      * for dates, hours (a Number) for the estimate; null clears the field. A status goes through {@link #transition}.
      * Planned End is also written to Jira's Due date.
      */
@@ -115,6 +116,7 @@ public final class JiraRequests {
 
     private static void put(ObjectNode fields, TicketField f, @Nullable Object v, FieldMapping fm) {
         switch (f) {
+            case SUMMARY -> fields.put(f.value(), (String) v);
             case STATUS -> throw new IllegalArgumentException("A status is changed through a transition");
             case ASSIGNEE, REPORTER -> {
                 if (v == null) {

@@ -356,6 +356,19 @@ class ServiceWritesTest {
         assertThat(log.recent(10, false).get(1).body()).contains("\"parent\":{\"key\":\"PAY-1501\"}");
     }
 
+    /** The Tickets screen renames a ticket: the summary is reviewed against Jira's and written with the other fields. */
+    @Test
+    void batchRenamesATicket() {
+        TicketService.TicketChanges rename = new TicketService.TicketChanges(null, null, null, null, "2026-10-08", null, "  Collect refund samples ");
+        TicketService.BatchPreview p = tickets.previewBatch(ALL, "PAY-1100", List.of(new TicketService.TicketUpdate("PAY-1213", rename)), List.of());
+        TicketChangePreview u = p.updates().get(0);
+        assertThat(u.changes()).extracting(c -> c.field() + "=" + c.after()).containsExactly("summary=Collect refund samples", "planned_end=2026-10-08");
+        assertThat(u.requests().get(0).body()).contains("\"summary\":\"Collect refund samples\"");
+
+        tickets.applyBatch(ADMIN, ALL, "PAY-1100", List.of(new ExpectedUpdate("PAY-1213", expected(u))), List.of());
+        assertThat(tickets.detail(ALL, "PAY-1213").card().summary()).isEqualTo("Collect refund samples");
+    }
+
     @Test
     void batchIsRefusedWholeWhenOneTicketChanged(@Autowired tracker.adapters.fake.FakeJira jira) {
         List<TicketService.TicketUpdate> updates = List.of(new TicketService.TicketUpdate("PAY-1213", want(null, null, null, null, "2026-10-08", null)));

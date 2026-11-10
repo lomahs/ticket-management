@@ -43,7 +43,8 @@ describe('Tickets', () => {
     const table = await screen.findByRole('region', { name: 'Tickets' });
     fireEvent.change(within(table).getByLabelText('PAY-1104 end'), { target: { value: '2026-10-09' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New tasks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Tasks/ }));
     const dialog = await screen.findByRole('dialog', { name: 'New tasks' });
     fireEvent.click(within(dialog).getByLabelText('Add [Prepare] Work requests'));
     fireEvent.change(within(dialog).getByLabelText('Assignee'), { target: { value: 'chi' } });
@@ -76,7 +77,11 @@ describe('Tickets', () => {
       }),
     );
     renderApp('/tickets/PAY-1100');
-    fireEvent.click(await screen.findByRole('button', { name: 'Add sub-tasks to PAY-1102' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Sub-tasks/ }));
+    const pick = await screen.findByRole('dialog', { name: 'Sub-tasks under a Task' });
+    fireEvent.change(within(pick).getByLabelText('Under the Task'), { target: { value: 'PAY-1102' } });
+    fireEvent.click(within(pick).getByRole('button', { name: 'Next' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add sub-tasks' });
     // no role queries in this dialog: jsdom cannot clone its segment buttons' var() backgrounds
     expect(within(dialog).getByText('Single sub-task')).toBeTruthy();
@@ -94,7 +99,8 @@ describe('Tickets', () => {
     renderApp('/tickets/PAY-1100');
     const table = await screen.findByRole('region', { name: 'Tickets' });
     expect((within(table).getByLabelText('PAY-1104 status') as HTMLSelectElement).disabled).toBe(true);
-    expect(screen.queryByRole('button', { name: 'New tasks' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import CSV' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Review & commit' })).toBeNull();
     fireEvent.click(within(table).getByLabelText('Select PAY-1104'));
     fireEvent.click(within(table).getByLabelText('Select PAY-1105'));
@@ -102,5 +108,56 @@ describe('Tickets', () => {
     expect(within(bar).getByRole('link', { name: /Open in Jira/ }).getAttribute('href'))
       .toBe(`https://acme-pay.atlassian.net/issues/?jql=${encodeURIComponent('key in (PAY-1104, PAY-1105) ORDER BY key')}`);
     expect(within(bar).queryByLabelText('Set status…')).toBeNull();
+  });
+
+  it('lists sub-tasks flat and sorts them by several columns', async () => {
+    const flat = { ...board, tasks: [{ ...board.tasks[0], subtasks: [
+      row('PAY-1104', 'Kick-off', { assignee_id: 'binh', planned_start: '2026-10-07' }), row('PAY-1105', 'Collect', { assignee_id: 'an', planned_start: '2026-10-09' }),
+      row('PAY-1106', 'Minutes', { assignee_id: 'an', planned_start: '2026-10-05' }),
+    ] }] };
+    server.use(http.get('*/api/v1/tickets/board', () => HttpResponse.json(flat)));
+    renderApp('/tickets/PAY-1100');
+    const table = await screen.findByRole('region', { name: 'Tickets' });
+    const order = () => within(table).getAllByRole('button', { name: /^PAY-/ }).map((b) => b.textContent);
+    expect(order()).toEqual(['PAY-1104', 'PAY-1105', 'PAY-1106']);
+    fireEvent.click(within(table).getByRole('button', { name: 'Sort by Assignee' }));
+    fireEvent.click(within(table).getByRole('button', { name: 'Sort by Start' }), { shiftKey: true });
+    await waitFor(() => expect(order()).toEqual(['PAY-1106', 'PAY-1105', 'PAY-1104']));
+    fireEvent.click(within(table).getByRole('button', { name: 'Sort by Start' }), { shiftKey: true });
+    await waitFor(() => expect(order()).toEqual(['PAY-1105', 'PAY-1106', 'PAY-1104']));
+    expect(screen.getByText('Sorted by')).toBeTruthy();
+  });
+
+  it('imports a CSV of the template as drafts, shows what changed and reviews it with the summary', async () => {
+    let previewed: { updates: unknown[]; creates: unknown[] } | undefined;
+    server.use(
+      http.get('*/api/v1/tickets/board', () => HttpResponse.json(board)),
+      http.post('*/api/v1/tickets/batch/preview', async ({ request }) => {
+        previewed = await request.json() as typeof previewed;
+        return HttpResponse.json({ updates: [], creates: [] });
+      }),
+    );
+    renderApp('/tickets/PAY-1100');
+    const table = await screen.findByRole('region', { name: 'Tickets' });
+    const csv = ['Key;Issue Type;Parent;Summary;Status;Assignee;Reporter;Start;End;Estimate (h)',
+      'PAY-1104;Sub-task;PAY-1101;Kick-off with the JM;;;;;2026/10/09;',
+      ';Sub-task;PAY-1101;Write the minutes;;an.nguyen@acme.vn;;;;',
+      'PAY-4040;;;;;;;;;'].join('\n');
+    fireEvent.change(screen.getByLabelText('CSV file to import'), { target: { files: [new File([csv], 'tickets.csv', { type: 'text/csv' })] } });
+    expect(await screen.findByText('Not committed · 1 new · 1 updated')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Changed only · 2' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(table).queryByRole('button', { name: 'PAY-1105' })).toBeNull();
+    expect((within(table).getByLabelText('PAY-1104 summary') as HTMLInputElement).value).toBe('Kick-off with the JM');
+    expect(within(table).getByText('CHANGED')).toBeTruthy();
+    expect(within(table).getByText('NEW')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import skipped 1 row' }));
+    const skipped = await screen.findByRole('dialog', { name: 'Rows not imported' });
+    expect(within(skipped).getByText('PAY-4040 is not a ticket of PAY-1100')).toBeTruthy();
+    fireEvent.click(within(skipped).getByRole('button', { name: 'Close' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review & commit' }));
+    await waitFor(() => expect(previewed?.updates).toEqual([{ key: 'PAY-1104', summary: 'Kick-off with the JM', planned_end: '2026-10-09' }]));
+    expect(previewed?.creates).toMatchObject([{ subtask: true, parent_key: 'PAY-1101', summary: 'Write the minutes', assignee_id: 'an' }]);
   });
 });

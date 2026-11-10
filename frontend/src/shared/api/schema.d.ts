@@ -1871,7 +1871,7 @@ export interface components {
             after: string;
             before?: string | null;
             /** @enum {string} */
-            field: "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
+            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
         };
         ChangePreview: {
             day_off: components["schemas"]["DateReason"][];
@@ -2217,7 +2217,7 @@ export interface components {
             after: string;
             before: string | null;
             /** @enum {string} */
-            field: "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
+            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
             jira_field: string;
         };
         FieldCheck: {
@@ -3316,6 +3316,7 @@ export interface components {
             reporter_id?: string | null;
             /** @enum {string|null} */
             status?: "N" | "W" | "R" | "C" | null;
+            summary?: string | null;
         };
         UserPatchIn: {
             /** @enum {string|null} */

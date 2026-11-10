@@ -66,14 +66,14 @@ public class TicketsApi {
     }
 
     /** The changes of a review, sent back unchanged. */
-    public record ApplyIn(@NotEmpty @Size(max = 6) List<@Valid ChangeIn> changes) {
+    public record ApplyIn(@NotEmpty @Size(max = 7) List<@Valid ChangeIn> changes) {
     }
 
     /** The wanted values of one ticket in a batch; fields left out are not changed. */
     public record UpdateIn(@NotNull String key, @Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
                            @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
                            @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
-                           @Nullable @PositiveOrZero Double estimateH) {
+                           @Nullable @PositiveOrZero Double estimateH, @Nullable @Size(max = 255) String summary) {
     }
 
     /** A Task (subtask false: under the epic) or a sub-task, under an existing Task or one created earlier in the batch. */
@@ -92,7 +92,7 @@ public class TicketsApi {
     }
 
     /** One ticket's changes as the review showed them. */
-    public record ExpectedUpdateIn(@NotNull String key, @NotEmpty @Size(max = 6) List<@Valid ChangeIn> changes) {
+    public record ExpectedUpdateIn(@NotNull String key, @NotEmpty @Size(max = 7) List<@Valid ChangeIn> changes) {
     }
 
     public record BatchApplyIn(@NotNull String epic, @NotNull @Size(max = 300) List<@NotNull @Valid ExpectedUpdateIn> updates,
@@ -144,7 +144,7 @@ public class TicketsApi {
     public BatchPreview previewBatch(@RequestBody @Valid BatchIn body, Viewer viewer) {
         return tickets.previewBatch(scopes.scope(viewer, body.epic()), body.epic(),
                 body.updates().stream().map(u -> new TicketUpdate(u.key(), new TicketChanges(u.status(), u.assigneeId(), u.reporterId(),
-                        u.plannedStart(), u.plannedEnd(), u.estimateH()))).toList(),
+                        u.plannedStart(), u.plannedEnd(), u.estimateH(), u.summary()))).toList(),
                 body.creates().stream().map(NewTicketIn::ticket).toList());
     }
 

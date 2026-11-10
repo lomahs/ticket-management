@@ -4099,7 +4099,7 @@
             "items" : {
               "$ref" : "#/components/schemas/ChangeIn"
             },
-            "maxItems" : 6,
+            "maxItems" : 7,
             "minItems" : 0
           }
         },
@@ -4552,7 +4552,7 @@
           },
           "field" : {
             "type" : "string",
-            "enum" : [ "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
           }
         },
         "required" : [ "after", "field" ]
@@ -5579,7 +5579,7 @@
             "items" : {
               "$ref" : "#/components/schemas/ChangeIn"
             },
-            "maxItems" : 6,
+            "maxItems" : 7,
             "minItems" : 0
           },
           "key" : {
@@ -5612,7 +5612,7 @@
           },
           "field" : {
             "type" : "string",
-            "enum" : [ "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
           },
           "jira_field" : {
             "type" : "string"
@@ -8921,6 +8921,11 @@
           "status" : {
             "type" : [ "string", "null" ],
             "enum" : [ "N", "W", "R", "C" ]
+          },
+          "summary" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 255,
+            "minLength" : 0
           }
         },
         "required" : [ "key" ]

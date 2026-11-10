@@ -14,7 +14,7 @@ public final class FakeIssue {
     }
 
     final String key;
-    final String summary;
+    String summary;
     final String parent;
     String status;
     String assignee;

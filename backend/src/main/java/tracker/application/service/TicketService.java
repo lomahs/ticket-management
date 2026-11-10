@@ -118,9 +118,14 @@ public class TicketService {
         return new TicketDetail(c, fn != null ? fn.baId(ctx.members) : null, i.reporterId(), warns, history, logs, Text.hasText(site) ? site + "/browse/" + key : null);
     }
 
-    /** What to change; fields that are null are left as they are. */
+    /** What to change; fields that are null are left as they are. Only the Tickets screen changes the summary. */
     public record TicketChanges(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
-                                @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH) {
+                                @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH,
+                                @Nullable String summary) {
+        public TicketChanges(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
+                             @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH) {
+            this(status, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, null);
+        }
     }
 
     /**
@@ -165,6 +170,7 @@ public class TicketService {
     private static Map<TicketField, @Nullable String> current(TrackerContext ctx, IssueSnapshot live) {
         FieldMapping fm = ctx.settings.fieldMapping;
         Map<TicketField, @Nullable String> now = new EnumMap<>(TicketField.class);
+        now.put(TicketField.SUMMARY, live.summary());
         now.put(TicketField.STATUS, SyncService.status(ctx.settings, live.statusName(), live.statusCategory()).value());
         now.put(TicketField.ASSIGNEE, person(ctx, live.assignee()));
         now.put(TicketField.REPORTER, person(ctx, live.reporter()));
@@ -205,6 +211,10 @@ public class TicketService {
         Map<TicketField, @Nullable String> now = current(ctx, live);
         Map<TicketField, String> after = new EnumMap<>(TicketField.class);
         Map<TicketField, @Nullable Object> values = new EnumMap<>(TicketField.class);
+        if (Text.hasText(want.summary())) {
+            after.put(TicketField.SUMMARY, want.summary().strip());
+            values.put(TicketField.SUMMARY, want.summary().strip());
+        }
         if (want.status() != null) {
             after.put(TicketField.STATUS, want.status().value());
         }
@@ -514,7 +524,7 @@ public class TicketService {
             String est = after.get(TicketField.ESTIMATE);
             return new TicketChanges(after.containsKey(TicketField.STATUS) ? Status.of(after.get(TicketField.STATUS)) : null,
                     after.get(TicketField.ASSIGNEE), after.get(TicketField.REPORTER), after.get(TicketField.PLANNED_START),
-                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est));
+                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est), after.get(TicketField.SUMMARY));
         } catch (IllegalArgumentException e) {
             throw new Invalid(e.getMessage(), "changes");
         }
