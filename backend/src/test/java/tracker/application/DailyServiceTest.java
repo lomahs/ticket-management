@@ -16,12 +16,14 @@ import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.DailySnapshotRepository;
 import tracker.application.service.DailyService;
+import tracker.application.service.JiraSettingsService;
 import tracker.application.service.DailyService.DailyContent;
 import tracker.application.service.DailyService.DailyGroup;
 import tracker.application.service.DailyService.DailySubPhase;
 import tracker.application.service.DailyService.DailyTyped;
 import tracker.application.service.DailyService.DailyView;
 import tracker.domain.AnkenScope;
+import tracker.domain.WorkStructure;
 
 /** The Daily Overview on the demo data; captures and notes write, so the context is dropped afterwards. */
 @DemoTest
@@ -33,16 +35,19 @@ class DailyServiceTest {
     DailyService daily;
     @Autowired
     DailySnapshotRepository snapshots;
+    @Autowired
+    JiraSettingsService jiraSettings;
 
     static DailyGroup group(DailyContent c, String name) {
         return c.groups().stream().filter(g -> g.name().equals(name)).findFirst().orElseThrow();
     }
 
     @Test
-    void todayIsLiveWithStartedPhaseGroupsOnly() {
+    void todayIsLiveWithEveryPhaseGroup() {
         DailyView v = daily.view(ALL, "PAY-1100", null);
         assertThat(List.of(v.live(), v.today(), v.autoCapture(), v.content().date())).containsExactly(true, "2026-10-07", "18:00", "2026-10-07");
         assertThat(v.capturedAt()).isNull();
+        assertThat(v.dailyPhases()).isEmpty();
         assertThat(v.content().groups()).extracting(DailyGroup::name, DailyGroup::state)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("Prepare", "current"),
                         org.assertj.core.groups.Tuple.tuple("Implement_Coding", "current"),
@@ -130,5 +135,24 @@ class DailyServiceTest {
         assertThat(past.snapshots()).extracting(DailyService.SnapshotOption::date).containsExactly("2026-10-07", "2026-10-06");
         assertThatThrownBy(() -> daily.view(ALL, "PAY-1100", "2026-10-01")).isInstanceOf(NotFound.class);
         assertThatThrownBy(() -> daily.view(new AnkenScope(Set.of("PAY-1300")), "PAY-1100", null)).isInstanceOf(NotFound.class);
+    }
+
+    @Test
+    void notStartedPhaseGroupsAreKept() {
+        DailyContent c = daily.view(ALL, "PAY-1420", null).content();
+        assertThat(c.groups()).extracting(DailyGroup::state).contains("not_started");
+        assertThat(c.burndowns()).extracting(DailyService.DailyBurndown::phase)
+                .containsExactlyElementsOf(java.util.stream.Stream.concat(java.util.stream.Stream.of((String) null),
+                        c.groups().stream().map(DailyGroup::name)).toList());
+    }
+
+    @Test
+    void theDailySettingIsReturnedAlsoForAPastDay() {
+        var now = jiraSettings.structure("PAY-1100");
+        jiraSettings.saveStructure("PAY-1100", new WorkStructure(now.phases(), now.tasks(), List.of("Implement_Coding")));
+        DailyView today = daily.view(ALL, "PAY-1100", null);
+        assertThat(today.dailyPhases()).containsExactly("Implement_Coding");
+        snapshots.save("PAY-1100", "2026-10-06", "2026-10-06T18:00:00+07:00", "auto", today.content());
+        assertThat(daily.view(ALL, "PAY-1100", "2026-10-06").dailyPhases()).containsExactly("Implement_Coding");
     }
 }

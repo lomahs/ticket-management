@@ -96,7 +96,7 @@ public class DailyService {
     }
 
     /**
-     * @param state     done | current; a phase group that has not started is left out
+     * @param state     done | current | not_started; a group without sub-tasks is left out
      * @param late      sub-tasks whose finish is overdue
      * @param subPhases the group's Tasks that have sub-tasks
      */
@@ -138,9 +138,10 @@ public class DailyService {
      * @param capturedAt  when the shown day was captured (ISO local date-time with offset); null when it was not
      * @param autoCapture "HH:mm" of the daily capture, or "off"
      * @param snapshots   the anken's captured days, newest first
+     * @param dailyPhases the phases the anken's Daily setting lists; always the current setting, also for a past day
      */
     public record DailyView(DailyContent content, boolean live, @Nullable String capturedAt, @Nullable String capturedBy, String today,
-                            String autoCapture, List<SnapshotOption> snapshots) {
+                            String autoCapture, List<SnapshotOption> snapshots, List<String> dailyPhases) {
     }
 
     /** @param date a captured day; null or today: live */
@@ -151,15 +152,16 @@ public class DailyService {
         String day = Text.hasText(date) ? date : ctx.today;
         SnapshotOption captured = list.stream().filter(s -> s.date().equals(day)).findFirst().orElse(null);
         String auto = settings.load().dailyCapture;
+        List<String> daily = ctx.settings.structureOf(epic).daily();
         if (day.equals(ctx.today)) {
             return new DailyView(content(ctx, epic), true, captured != null ? captured.capturedAt() : null,
-                    captured != null ? captured.capturedBy() : null, ctx.today, auto, list);
+                    captured != null ? captured.capturedBy() : null, ctx.today, auto, list, daily);
         }
         DailyContent saved = captured == null ? null : snapshots.find(epic, day, DailyContent.class).orElse(null);
         if (saved == null) {
             throw new NotFound("No Daily Overview of " + epic + " was captured on " + day, "date");
         }
-        return new DailyView(saved, false, captured.capturedAt(), captured.capturedBy(), ctx.today, auto, list);
+        return new DailyView(saved, false, captured.capturedAt(), captured.capturedBy(), ctx.today, auto, list, daily);
     }
 
     /** Captures today's Daily Overview of {@code epic}, replacing an earlier capture of today. */
@@ -218,7 +220,7 @@ public class DailyService {
         for (String g : PhaseGroups.ordered(subsByGroup, st.phases())) {
             PhaseRollup r = Overview.phaseRollup(g, subsByGroup.get(g), ctx.schedule, thr);
             Overview.Schedule state = r.schedule().state();
-            if (state == Overview.Schedule.NOT_STARTED || state == Overview.Schedule.UNKNOWN) {
+            if (state == Overview.Schedule.UNKNOWN) {
                 continue;
             }
             List<DailySubPhase> subPhases = tasksByGroup.get(g).stream()

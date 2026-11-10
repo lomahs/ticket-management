@@ -2003,6 +2003,7 @@ export interface components {
             captured_at: string | null;
             captured_by: string | null;
             content: components["schemas"]["DailyContent"];
+            daily_phases: string[];
             live: boolean;
             snapshots: components["schemas"]["SnapshotOption"][];
             today: string;

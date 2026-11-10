@@ -4944,6 +4944,12 @@
           "content" : {
             "$ref" : "#/components/schemas/DailyContent"
           },
+          "daily_phases" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
           "live" : {
             "type" : "boolean"
           },
@@ -4957,7 +4963,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "auto_capture", "captured_at", "captured_by", "content", "live", "snapshots", "today" ]
+        "required" : [ "auto_capture", "captured_at", "captured_by", "content", "daily_phases", "live", "snapshots", "today" ]
       },
       "DateReason" : {
         "type" : "object",
