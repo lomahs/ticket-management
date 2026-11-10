@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan, useMemberMap, useMeta } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton, TextField } from '../../../shared/ds';
+import { Button, DateField, IconButton, TextField } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { allocationQuery, useSaveAllocation } from '../api';
@@ -90,7 +90,7 @@ function Body({ timeline, close }: { timeline: Schemas['AllocationTimeline']; cl
       ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No allocation yet.</div>}
       {write && (
         <>
-          <TextField label="From" type="date" value={from} onChange={setPicked} />
+          <DateField label="From" value={from} onChange={setPicked} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {epics.map((e) => (
               <TextField key={e} label={e} type="number" min={0} step={0.5} value={vals[e] ?? ''} style={{ width: 110 }}

@@ -173,7 +173,7 @@ describe('screens render API data at their URLs', () => {
     renderApp('/anken/PAY-1100/matrix');
     const ita = await screen.findByRole('region', { name: 'ITA matrix' });
     expect(within(ita).getAllByRole('rowgroup').map((g) => g.getAttribute('aria-label'))).toEqual(['ITA Prepare', 'ITA Execute']);
-    expect(within(within(ita).getAllByRole('rowgroup')[0]).getByText('05/10 – 16/10')).toBeTruthy();
+    expect(within(within(ita).getAllByRole('rowgroup')[0]).getByText('10/05 – 10/16')).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'UAT matrix' })).toBeNull();
     cleanup();
     renderApp('/anken/PAY-1100/matrix?tasks=PAY-1301,PAY-1302,PAY-1303');
@@ -271,7 +271,7 @@ describe('screens render API data at their URLs', () => {
     renderApp('/effort/burndown?anken=PAY-1100');
     const table = await screen.findByRole('table', { name: 'Planned effort per function, person and day' });
     const rows = within(table).getAllByRole('row').map((r) => [...r.querySelectorAll('th,td')].map((c) => c.textContent));
-    expect(rows[0]).toEqual(['Phase', 'Sub-phase', 'Function', 'PIC', 'Day 105/10', 'Day 206/10', 'Day 307/10', 'Total']);
+    expect(rows[0]).toEqual(['Phase', 'Sub-phase', 'Function', 'PIC', 'Day 110/05', 'Day 210/06', 'Day 310/07', 'Total']);
     expect(rows[1]).toEqual(['ITA', 'ITA Prepare', 'Login', 'An (BA)', '2.7', '2.7', '—', '5.4']);
     expect(rows[2]).toEqual(['', '', '', 'Minh (BAL)', '1.3', '1.3', '—', '2.6']); // the BAL's share of the same function
     expect(rows[3]).toEqual(['', 'ITA Execute', 'Search', 'An (BA)', '—', '2', '2', '4']);

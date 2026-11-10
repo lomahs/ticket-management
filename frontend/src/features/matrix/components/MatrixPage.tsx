@@ -4,7 +4,7 @@ import { useState, type MouseEvent } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import type { TaskCard, Tone } from '../../../shared/api/types';
-import { Button, Icon, IconButton, TextField } from '../../../shared/ds';
+import { Button, DateRangeField, Icon, IconButton, TextField } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { STEPS, TONE, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
@@ -72,8 +72,8 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
     const b = e.currentTarget.getBoundingClientRect();
     setRangeOpen((cur) => (cur?.i === i ? null : { i, top: b.bottom + 6, left: Math.max(8, Math.min(b.left, innerWidth - 370)) }));
   };
-  const setRange = (i: number, k: 'from' | 'to', v: string) => {
-    const r = { ...(f.ranges[i] ?? {}), [k]: v || undefined };
+  const setRange = (i: number, v: { from: string; to: string }) => {
+    const r = { from: v.from || undefined, to: v.to || undefined };
     const ranges = { ...f.ranges, [i]: r };
     if (!r.from && !r.to) delete ranges[i];
     setF({ ranges });
@@ -222,11 +222,7 @@ function Matrix({ m, layout }: { m: Schemas['MatrixView']; layout: MatrixLayout 
             position: 'fixed', top: rangeOpen.top, left: rangeOpen.left, zIndex: 56, padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
             borderRadius: 14, background: 'var(--surface-card)', boxShadow: 'var(--shadow-overlay)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <TextField type="date" value={f.ranges[rangeOpen.i]?.from ?? ''} onChange={(v) => setRange(rangeOpen.i, 'from', v)} style={{ width: 150 }} aria-label="From" />
-              <span className="muted">–</span>
-              <TextField type="date" value={f.ranges[rangeOpen.i]?.to ?? ''} onChange={(v) => setRange(rangeOpen.i, 'to', v)} style={{ width: 150 }} aria-label="To" />
-            </div>
+            <DateRangeField from={f.ranges[rangeOpen.i]?.from ?? ''} to={f.ranges[rangeOpen.i]?.to ?? ''} onChange={(v) => setRange(rangeOpen.i, v)} />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
               <Button appearance="subtle" size="sm" onClick={() => { const ranges = { ...f.ranges }; delete ranges[rangeOpen.i]; setF({ ranges }); setRangeOpen(null); }}>Clear</Button>
               <Button size="sm" onClick={() => setRangeOpen(null)}>Done</Button>

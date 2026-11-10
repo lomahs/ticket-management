@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan, useMembers } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button } from '../../../shared/ds';
+import { Button, DateField } from '../../../shared/ds';
 import { dm, hrs } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { PageHead } from '../../../shared/ui/bits';
@@ -78,7 +78,7 @@ function Editor({ epic, v }: { epic: string; v: Schemas['MasterScheduleView'] })
                       </label>
                     ))}
                   </div>
-                  <input type="date" aria-label={`Start, ${r.phase}`} disabled={!admin} value={r.start ?? ''} onChange={(e) => edit(i, { start: e.target.value })} style={DATE} />
+                  <DateField bare aria-label={`Start, ${r.phase}`} disabled={!admin} value={r.start ?? ''} onChange={(v) => edit(i, { start: v })} style={{ ...DATE, width: 132 }} />
                   <span>{c ? c.plan_md : '–'}</span>
                   <span>{c ? dm(c.end) : '–'}</span>
                 </div>

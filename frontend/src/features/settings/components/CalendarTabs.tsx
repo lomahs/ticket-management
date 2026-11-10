@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton, Select, TextField } from '../../../shared/ds';
-import { dm, dow, f1, WDN } from '../../../shared/format/dates';
+import { Button, DateField, IconButton, Select, TextField } from '../../../shared/ds';
+import { dm, dow, f1, WDN, ymd } from '../../../shared/format/dates';
 import { useMeta } from '../../../shared/api/queries';
 import { useToast } from '../../../shared/state/toast';
 import { Seg } from '../../../shared/ui/bits';
@@ -40,14 +40,14 @@ export function HolidaysTab() {
         <Seg items={[['all', 'All'], ['VN', 'Vietnam'], ['JP', 'Japan']]} value={flt} onPick={setFlt} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '160px minmax(0,1fr) 150px auto', gap: 10, alignItems: 'flex-end', padding: '12px 20px', background: 'var(--surface-hover)' }}>
-        <TextField label="Date" type="date" value={nh.date} onChange={(v) => setNh({ ...nh, date: v })} />
+        <DateField label="Date" value={nh.date} onChange={(v) => setNh({ ...nh, date: v })} />
         <TextField label="Name" placeholder="e.g. Hung Kings Festival (VN)" value={nh.name} onChange={(v) => setNh({ ...nh, name: v })} />
         <Select label="Country" options={COUNTRIES} value={nh.c} onChange={(v) => setNh({ ...nh, c: v })} />
         <Button iconBefore="plus" disabled={!(nh.date && nh.name.trim()) || add.isPending} onClick={submit}>Add</Button>
       </div>
       {list.map((h) => (
         <div key={h.date} style={{ display: 'grid', gridTemplateColumns: '110px 50px minmax(0,1fr) 80px auto', gap: 12, alignItems: 'center', padding: '8px 20px', borderTop: '1px solid var(--border-subtle)', opacity: h.date < today ? 0.55 : 1 }}>
-          <b className="heading">{dm(h.date)}/{h.date.slice(0, 4)}</b>
+          <b className="heading">{ymd(h.date)}</b>
           <span className="eyebrow">{WDN[dow(h.date)]}</span>
           <span className="heading">{h.name}</span>
           <span style={{ font: '600 11px/20px var(--font-text)', padding: '0 8px', borderRadius: 6, background: 'var(--surface-hover)', color: 'var(--text-heading)', width: 'max-content' }}>{h.countries.join(' + ')}</span>
@@ -74,14 +74,14 @@ export function ExtraDaysTab() {
   return (
     <Section pad={false} title="Extra working days" sub="Weekends are hidden on every calendar. Add a weekend date here when the team works that day; it then appears in Planning, Effort and Team Calendar and counts toward capacity.">
       <div style={{ display: 'grid', gridTemplateColumns: '180px minmax(0,1fr) auto', gap: 10, alignItems: 'flex-end', padding: '12px 20px', background: 'var(--surface-hover)' }}>
-        <TextField label="Date" type="date" value={ot.date} onChange={(v) => { setOt({ ...ot, date: v }); add.reset(); }} />
+        <DateField label="Date" value={ot.date} onChange={(v) => { setOt({ ...ot, date: v }); add.reset(); }} />
         <TextField label="Reason" placeholder="e.g. Release support" value={ot.note} onChange={(v) => setOt({ ...ot, note: v })} />
         <Button iconBefore="plus" disabled={!ot.date || add.isPending} onClick={submit}>Add</Button>
       </div>
       {add.isError && <div style={{ padding: '8px 20px 0' }}><ErrText>{errorMessage(add.error)}</ErrText></div>}
       {days.map(([d, note]) => (
         <div key={d} style={{ display: 'grid', gridTemplateColumns: '110px 50px minmax(0,1fr) auto', gap: 12, alignItems: 'center', padding: '8px 20px', borderTop: '1px solid var(--border-subtle)', opacity: d < today ? 0.55 : 1 }}>
-          <b className="heading">{dm(d)}/{d.slice(0, 4)}</b>
+          <b className="heading">{ymd(d)}</b>
           <span className="eyebrow">{WDN[dow(d)]}</span>
           <span className="heading">{note}</span>
           <IconButton icon="trash-2" label={`Delete ${dm(d)}`} size="sm" onClick={() => del.mutate(d, { onError: (e) => toast(errorMessage(e), true) })} />

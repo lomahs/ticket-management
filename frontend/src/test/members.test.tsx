@@ -182,7 +182,7 @@ describe('anken members', () => {
       expect(dialog.getAllByRole('row')).toHaveLength(3);
       expect(dialog.getByText('current')).toBeTruthy();
       expect((dialog.getByLabelText('X') as HTMLInputElement).value).toBe('5');
-      expect((dialog.getByLabelText('From') as HTMLInputElement).value).toBe('2026-10-07');
+      expect((dialog.getByLabelText('From') as HTMLInputElement).value).toBe('2026/10/07');
       fireEvent.change(dialog.getByLabelText('X'), { target: { value: '6' } });
       fireEvent.change(dialog.getByLabelText('Y'), { target: { value: '2' } });
       fireEvent.click(dialog.getByRole('button', { name: 'Save' }));

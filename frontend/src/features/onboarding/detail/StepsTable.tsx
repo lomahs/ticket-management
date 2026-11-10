@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, Icon, IconButton } from '../../../shared/ds';
+import { Button, DateField, Icon, IconButton } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -83,19 +83,13 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
     const parts = [s.ba_h > 0 && `${name(r.ba_id) || (r.steps ? 'BA' : 'Member')} ${f1(s.ba_h)}h`, s.bal_h > 0 && `${name(r.bal_id) || 'BAL'} ${f1(s.bal_h)}h`].filter(Boolean);
     return parts.length ? parts.join(' · ') : '0h';
   };
-  // Sent on blur or Enter, not on change: the browser reports a "valid" date at every keystroke of the year (0002-10-12, …).
+  // A typed date is sent on blur or Enter, not while it is typed; a date picked on the calendar at once. A cleared field keeps the date.
   // Dates can be set before the plan is computed (nobody picked yet): the first one set stands for both.
   const date = (s: Step, which: 'start' | 'end') => (
-    <input type="date" aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || s.removed} defaultValue={s[which] ?? ''}
-      key={`${s.ref}:${which}:${s[which] ?? ''}`} min="2000-01-01" max="2099-12-31"
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-      onBlur={(e) => {
-        const d = e.target.value;
-        if (d === (s[which] ?? '')) return;
-        if (!/^20\d\d-\d\d-\d\d$/.test(d)) {
-          e.target.value = s[which] ?? '';
-          return;
-        }
+    <DateField bare sendOnLeave aria-label={`Plan ${which}, ${s.summary}`} disabled={!admin || s.removed} value={s[which] ?? ''}
+      min="2000-01-01" max="2099-12-31"
+      onChange={(d) => {
+        if (!d || d === (s[which] ?? '')) return;
         const start = which === 'start' ? d : s.start ?? d;
         const end = which === 'end' ? d : !s.end || s.end < d ? d : s.end;
         send(s, { start, end: end < start ? start : end });

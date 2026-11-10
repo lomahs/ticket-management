@@ -57,7 +57,7 @@ describe('detail planning', () => {
     fireEvent.click(screen.getByLabelText('ITA: An'));
     await waitFor(() => expect(previewed).toEqual({ phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }] }));
     const phases = screen.getByRole('region', { name: 'Master schedule phases' });
-    expect(await within(phases).findByText('16/10')).toBeTruthy();
+    expect(await within(phases).findByText('10/16')).toBeTruthy();
     expect(within(phases).getByText('30h')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Reason for this version'), { target: { value: 'Kick-off' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
@@ -97,10 +97,10 @@ describe('detail planning', () => {
       http.post('*/api/v1/planning/PAY-1100/replan/apply', async ({ request }) => { applied = await request.json(); return HttpResponse.json({ updated: ['PAY-1502'], created: {} }); }),
     );
     renderApp('/planning/replan?anken=PAY-1100&phase=ITA');
-    expect(await screen.findByText('12/10 – 13/10 → 14/10 – 15/10')).toBeTruthy();
+    expect(await screen.findByText('10/12 – 10/13 → 10/14 – 10/15')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
     const review = await screen.findByRole('region', { name: 'Re-plan review' });
-    expect(within(review).getByText('Planned Start 12/10 → 14/10')).toBeTruthy();
+    expect(within(review).getByText('Planned Start 10/12 → 10/14')).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
     await waitFor(() => expect(applied).toEqual({ phase: 'ITA', assignees: {}, updates: [{ key: 'PAY-1502', changes: [{ field: 'planned_start', before: '2026-10-12', after: '2026-10-14' }] }] }));
     expect(await screen.findByText('Re-planned 1 sub-task in Jira')).toBeTruthy();

@@ -5,7 +5,7 @@ import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useCan, useMe, useMemberMap, useMeta, usePickableMembers, VIEW_ONLY } from '../../../shared/api/queries';
 import type { LeaveTypeKey } from '../../../shared/api/types';
-import { Button, IconButton, Select, TextField } from '../../../shared/ds';
+import { Button, DateRangeField, IconButton, Select, TextField } from '../../../shared/ds';
 import { LEAVE, LEAVE_KEYS } from '../../../shared/format/labels';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { useToast } from '../../../shared/state/toast';
@@ -71,13 +71,13 @@ function LeaveDialog({ existing, defaults, missingId }: { existing: Schemas['Lea
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Select label="Member" options={memberOpts} value={member} disabled={!canAll} onChange={set('member')} />
               <Select label="Type" disabled={readOnly} options={LEAVE_KEYS.map((k) => ({ value: k, label: LEAVE[k].label }))} value={f.type} onChange={set('type')} />
-              <TextField label="From" type="date" disabled={readOnly} value={f.from} onChange={set('from')} />
-              <div>
-                <TextField label="To" type="date" disabled={readOnly} value={f.to} onChange={set('to')} aria-invalid={rangeBad} />
-                {(rangeBad || err?.field('date_to') || err?.field('to')) && (
-                  <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', marginTop: 4 }}>{err?.field('to') ?? 'To date is before From date'}</div>
-                )}
-              </div>
+            </div>
+            <div>
+              <DateRangeField label="Dates" disabled={readOnly} from={f.from} to={f.to} invalid={rangeBad}
+                onChange={(r) => { setErr(null); setF((x) => ({ ...x, ...r })); }} />
+              {(rangeBad || err?.field('date_to') || err?.field('to')) && (
+                <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', marginTop: 4 }}>{err?.field('to') ?? 'To date is before From date'}</div>
+              )}
             </div>
             <TextField label="Note" placeholder="Optional" disabled={readOnly} value={f.note} onChange={set('note')} />
             {err && !err.field('to') && <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)' }}>{err.message}</div>}

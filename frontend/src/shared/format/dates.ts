@@ -14,7 +14,13 @@ export const add = (s: string, n: number) => {
   return S(d);
 };
 export const dow = (s: string) => D(s).getUTCDay();
-export const dm = (s?: string | null) => (s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '');
+/** Japanese order: month/day ("10/07"), and year/month/day with the year ("2026/10/07"). */
+export const dm = (s?: string | null) => (s ? s.slice(5, 7) + '/' + s.slice(8, 10) : '');
+export const ymd = (s?: string | null) => (s ? s.slice(0, 4) + '/' + dm(s) : '');
+/** "2026/10/05 – 10/11", with the year once (twice when the range crosses a year). */
+export const ymdSpan = (a: string, b: string) => `${ymd(a)} – ${a.slice(0, 4) === b.slice(0, 4) ? dm(b) : ymd(b)}`;
+/** "2026-10" → "2026/10". */
+export const ym = (mon: string) => mon.slice(0, 4) + '/' + mon.slice(5, 7);
 export const dayDiff = (a: string, b: string) => Math.round((D(b).getTime() - D(a).getTime()) / 864e5);
 export const f1 = (n: number) => String(Math.round(n * 10) / 10);
 /** Hours label: 7.5 → "7.5h". */
@@ -37,7 +43,19 @@ export const mondayOf = (s: string) => add(s, -((dow(s) + 6) % 7));
 
 export const longDate = (s: string) => {
   const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return `${names[dow(s)]}, ${dm(s)}/${s.slice(0, 4)}`;
+  return `${names[dow(s)]}, ${ymd(s)}`;
+};
+
+/**
+ * The ISO date typed as yyyy/MM/dd (or yyyy-MM-dd, yyyyMMdd), null when it is not a real date. `loose` also takes a
+ * one-digit month or day ("2026/1/5"); without it a date is complete only once both have two digits.
+ */
+export const parseYmd = (text: string, loose = false): string | null => {
+  const t = text.trim();
+  const m = (loose ? /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/ : /^(\d{4})[/-](\d{2})[/-](\d{2})$/).exec(t) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(t);
+  if (!m) return null;
+  const iso = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  return S(D(iso)) === iso ? iso : null;
 };
 
 export const relTime = (iso: string | null, now = Date.now()) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { relTime } from './dates';
+import { dm, longDate, parseYmd, relTime, ym, ymd, ymdSpan } from './dates';
 
 describe('relTime', () => {
   const now = Date.parse('2026-11-06T12:00:00Z');
@@ -10,5 +10,30 @@ describe('relTime', () => {
     expect(relTime('2026-11-06T07:00:00Z', now)).toBe('5 hours ago');
     expect(relTime('2026-11-05T11:00:00Z', now)).toBe('1 day ago');
     expect(relTime('2026-10-07T12:00:00Z', now)).toBe('30 days ago'); // not "720 hours ago"
+  });
+});
+
+describe('Japanese date order', () => {
+  it('shows month/day, and year/month/day with the year', () => {
+    expect(dm('2026-10-07')).toBe('10/07');
+    expect(ymd('2026-10-07')).toBe('2026/10/07');
+    expect(ym('2026-10')).toBe('2026/10');
+    expect(longDate('2026-10-07')).toBe('Wednesday, 2026/10/07');
+    expect(ymdSpan('2026-10-05', '2026-10-11')).toBe('2026/10/05 – 10/11');
+    expect(ymdSpan('2026-12-28', '2027-01-03')).toBe('2026/12/28 – 2027/01/03'); // the year once per year
+    expect(dm(null)).toBe('');
+    expect(ymd('')).toBe('');
+  });
+
+  it('reads a typed date as yyyy/MM/dd, yyyy-MM-dd or yyyyMMdd', () => {
+    expect(parseYmd('2026/10/07')).toBe('2026-10-07');
+    expect(parseYmd(' 2026-10-07 ')).toBe('2026-10-07');
+    expect(parseYmd('20261007')).toBe('2026-10-07');
+    expect(parseYmd('2026/1/5')).toBeNull(); // complete only with two-digit month and day …
+    expect(parseYmd('2026/1/5', true)).toBe('2026-01-05'); // … unless the field is left
+    expect(parseYmd('2026/02/30')).toBeNull();
+    expect(parseYmd('2026/13/01')).toBeNull();
+    expect(parseYmd('10/07/2026')).toBeNull();
+    expect(parseYmd('')).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
-import { Button, Icon, Select, TextField } from '../../../shared/ds';
+import { Button, DateField, Icon, Select, TextField } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -135,8 +135,8 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
                 </div>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Avatar a={a} size={18} />{a.name}</span>
                 <span className="mono heading">{f1(s.estimate_h)}h</span>
-                <TextField type="date" value={s.start} onChange={(v) => setDate(i, 'start', v)} aria-label={`${STEPS[i].label} planned start`} />
-                <TextField type="date" value={s.end} onChange={(v) => setDate(i, 'end', v)} aria-label={`${STEPS[i].label} planned end`} />
+                <DateField value={s.start} onChange={(v) => setDate(i, 'start', v)} aria-label={`${STEPS[i].label} planned start`} />
+                <DateField value={s.end} onChange={(v) => setDate(i, 'end', v)} aria-label={`${STEPS[i].label} planned end`} />
               </div>
             );
           })}

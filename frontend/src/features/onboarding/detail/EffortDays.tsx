@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { Schemas } from '../../../shared/api/types';
-import { f1 } from '../../../shared/format/dates';
+import { dm, f1 } from '../../../shared/format/dates';
 import type { DetailPlanView } from './api';
 
 type Day = Schemas['DayLoad'];
@@ -54,7 +54,7 @@ export function EffortDays({ v, name }: { v: DetailPlanView; name: (id: string) 
             </tr>
             <tr>
               {dates.map((d) => <th key={d} scope="col" aria-label={d} style={{ ...CELL, paddingTop: 0, color: 'var(--text-heading)' }}>
-                {`${d.slice(5, 7)}/${d.slice(8, 10)}`}</th>)}
+                {dm(d)}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -74,7 +74,7 @@ export function EffortDays({ v, name }: { v: DetailPlanView; name: (id: string) 
                       style={{ ...CELL, ...tone(x.planned_h, off ? 0 : x.allocated_h, off), cursor: empty ? undefined : 'default' }}>
                       {off && x.planned_h <= 0 && x.other_h <= 0 ? '' : x.planned_h > 0 ? f1(x.planned_h) : '–'}
                       {x.other_h > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{`+${f1(x.other_h)} other`}</div>}
-                      {hover?.id === id && !empty && <DayTasks d={x} at={hover.rect} title={`${name(m)} · ${d.slice(5, 7)}/${d.slice(8, 10)}${x.off ? ` · ${x.off}` : ''}`} />}
+                      {hover?.id === id && !empty && <DayTasks d={x} at={hover.rect} title={`${name(m)} · ${dm(d)}${x.off ? ` · ${x.off}` : ''}`} />}
                     </td>
                   );
                 })}

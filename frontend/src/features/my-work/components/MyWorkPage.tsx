@@ -5,7 +5,7 @@ import { useMe, useMemberMap, usePickableMembers } from '../../../shared/api/que
 import { useAnkenScope } from '../../../shared/state/anken';
 import type { TaskCard } from '../../../shared/api/types';
 import { Icon, Select, type IconName } from '../../../shared/ds';
-import { add, dm, hrs, longDate } from '../../../shared/format/dates';
+import { add, dm, hrs, longDate, ym } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 import { dueLabel, taskSub, taskTitle } from '../../../shared/format/task';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
@@ -58,7 +58,7 @@ function MyWorkBody({ w, backlog, setBacklog }: { w: Schemas['MyWork']; backlog:
     if (g.kind === 'overdue') return { label: 'Overdue', dot: 'var(--hl-red-fg)' };
     if (g.kind === 'unplanned') return { label: 'No planned end', dot: 'var(--st-nys)' };
     const dot = g.current ? 'var(--st-wip)' : 'var(--st-nys)';
-    if (g.kind === 'month') return { label: `Month ${g.start!.slice(5)}/${g.start!.slice(0, 4)}`, dot };
+    if (g.kind === 'month') return { label: `Month ${ym(g.start ?? '')}`, dot };
     return { label: `${g.current ? 'This week · ' : 'Week '}${dm(g.start)} – ${dm(add(g.start!, 6))}`, dot };
   };
 

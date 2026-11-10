@@ -5,7 +5,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap, useMeta } from '../../../shared/api/queries';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { IconButton } from '../../../shared/ds';
-import { add, dm, dow, f1, hrs, monLabel, monthDays, mondayOf, shiftMon, WDN } from '../../../shared/format/dates';
+import { add, dm, dow, f1, hrs, mondayOf, monLabel, monthDays, shiftMon, WDN, ymdSpan } from '../../../shared/format/dates';
 import { dayHeadStyle, hatch, stepLabel } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { Avatar, av, Legend, Seg } from '../../../shared/ui/bits';
@@ -50,7 +50,7 @@ export function TimesheetPage() {
           <div style={{ marginRight: 6 }}><Seg items={[['week', 'Week'], ['month', 'Month']]} value={view} onPick={setView} /></div>
           <IconButton icon="chevron-left" label="Previous" appearance="secondary" size="sm" onClick={() => step(-1)} />
           <span style={{ fontWeight: 700, color: 'var(--text-heading)', minWidth: 120, textAlign: 'center' }}>
-            {isWeek ? `${dm(from)} – ${dm(to)}/${to.slice(0, 4)}` : monLabel(from.slice(0, 7))}
+            {isWeek ? ymdSpan(from, to) : monLabel(from.slice(0, 7))}
           </span>
           <IconButton icon="chevron-right" label="Next" appearance="secondary" size="sm" onClick={() => step(1)} />
           <span className="spacer" />

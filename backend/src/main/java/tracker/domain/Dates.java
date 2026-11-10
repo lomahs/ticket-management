@@ -29,9 +29,9 @@ public final class Dates {
         return d.minusDays(d.getDayOfWeek().getValue() - 1).toString();
     }
 
-    /** dd/mm label, used in human-readable messages produced by the domain. */
+    /** MM/dd label (Japanese order, as the screens show dates), used in human-readable messages produced by the domain. */
     public static String dm(String s) {
-        return s == null || s.isEmpty() ? "" : s.substring(8, 10) + "/" + s.substring(5, 7);
+        return s == null || s.isEmpty() ? "" : s.substring(5, 7) + "/" + s.substring(8, 10);
     }
 
     /** Inclusive range a..b. */

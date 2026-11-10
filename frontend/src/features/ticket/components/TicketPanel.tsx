@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import type { Schemas, Status } from '../../../shared/api/types';
-import { Button, Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
+import { Button, DateField, Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
 import { dm, f1, hrs } from '../../../shared/format/dates';
 import { days, SCHEDULE_LABEL, STATUS, signedH } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
@@ -160,8 +160,8 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
             value={value('status')} onChange={edit('status')} />
           <Select label="Assignee" disabled={disabled} options={people(members, saved.assignee_id)}
             value={value('assignee_id')} onChange={edit('assignee_id')} />
-          <TextField label="Planned Start" type="date" disabled={disabled} value={value('planned_start')} onChange={edit('planned_start')} />
-          <TextField label="Planned End" type="date" disabled={disabled} value={value('planned_end')} onChange={edit('planned_end')} />
+          <DateField label="Planned Start" disabled={disabled} value={value('planned_start')} onChange={edit('planned_start')} />
+          <DateField label="Planned End" disabled={disabled} value={value('planned_end')} onChange={edit('planned_end')} />
           <Select label="Reporter" disabled={disabled} options={people(members, saved.reporter_id)}
             value={value('reporter_id')} onChange={edit('reporter_id')} />
           <TextField label="Original estimate (h)" type="number" disabled={disabled} value={value('estimate_h')} onChange={edit('estimate_h')} />

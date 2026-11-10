@@ -1,4 +1,5 @@
 export { Button } from './Button';
+export { DateField, DateRangeField } from './DateField';
 export { Icon, type IconName } from './Icon';
 export { IconButton } from './IconButton';
 export { Select, type Option } from './Select';

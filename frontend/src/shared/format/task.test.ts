@@ -24,8 +24,8 @@ describe('task display', () => {
     expect(taskSub(card({ function_id: null, step: null }))).toBe('Implement_Coding');
   });
   it('labels the deadline', () => {
-    expect(dueLabel(card())).toBe('06/10 · late 1d');
-    expect(dueLabel(card({ late: false }))).toBe('06/10');
+    expect(dueLabel(card())).toBe('10/06 · late 1d');
+    expect(dueLabel(card({ late: false }))).toBe('10/06');
     expect(dueLabel(card({ planned_end: null, late: false }))).toBe('–');
   });
 });

@@ -400,7 +400,7 @@ class ServiceWritesTest {
         assertThat(teamSettings.holidays()).anyMatch(h -> h.date().equals("2026-04-30"));
         teamSettings.deleteHoliday("2026-04-30");
         assertThatThrownBy(() -> teamSettings.addExtraDay("2026-10-07", "")).isInstanceOf(Invalid.class)
-                .hasMessage("07/10 is already a working day");
+                .hasMessage("10/07 is already a working day");
         assertThatThrownBy(() -> teamSettings.addExtraDay("2026-10-10", "")).isInstanceOf(Conflict.class);
         teamSettings.addExtraDay("2026-10-17", "Cut-over");
         assertThat(teamSettings.extraDays()).containsEntry("2026-10-17", "Cut-over");

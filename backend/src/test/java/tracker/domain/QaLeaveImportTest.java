@@ -52,7 +52,7 @@ class QaLeaveImportTest {
     @Test
     void hoursQuestionSumsThisWeeksWorklogsForTheNamedMember() {
         Qa.Answer a = Qa.answer(ctx(), "How many hours has Bình logged this week?");
-        assertThat(a.text()).startsWith("Bình has logged 11h / 40h this week (05/10–09/10), 3h today.");
+        assertThat(a.text()).startsWith("Bình has logged 11h / 40h this week (10/05–10/09), 3h today.");
         assertThat(a.chips()).containsExactly("PAY-3");
     }
 
@@ -71,7 +71,7 @@ class QaLeaveImportTest {
         List<LeaveImport.ImportRow> r = LeaveImport.validateRows(rows, MEMBERS, existing);
         assertThat(r).extracting(LeaveImport.ImportRow::error).containsExactly("", "Unknown member \"Duc\"", "Unknown member \"Chi?\"",
                 "Invalid date format, use YYYY-MM-DD", "To date is before From date", "Unknown leave type \"Remote\"",
-                "Overlaps existing leave on 16/10");
+                "Overlaps existing leave on 10/16");
         assertThat(r.get(0).row()).isEqualTo(2);
         assertThat(r.get(0).memberId()).isEqualTo("an");
         assertThat(r.get(0).type()).isEqualTo(LeaveType.FULL);

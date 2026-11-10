@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useMe } from '../../../shared/api/queries';
-import { Button, Select, TextField } from '../../../shared/ds';
+import { Button, DateField, Select, TextField } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { onboardingMembersQuery, onboardingQuery, templateTasksQuery, useCreateTasks, usePreviewTasks, useSaveProgress } from '../api';
@@ -96,8 +96,8 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, padding: '12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
             <Select label="Assignee of the new Tasks" value={who} onChange={setAssignee} style={{ minWidth: 200 }}
               options={people.length ? people.map((m) => ({ value: m.member_id, label: m.name })) : [{ value: '', label: 'No member yet' }]} />
-            <TextField type="date" label="Planned Start" value={start} onChange={setStart} max={end || undefined} style={{ width: 160 }} />
-            <TextField type="date" label="Planned End (Due date)" value={end} onChange={setEnd} min={start || undefined} style={{ width: 160 }} />
+            <DateField label="Planned Start" value={start} onChange={setStart} max={end || undefined} style={{ width: 160 }} />
+            <DateField label="Planned End (Due date)" value={end} onChange={setEnd} min={start || undefined} style={{ width: 160 }} />
             <span className="eyebrow" style={{ paddingBottom: 10 }}>Nothing reaches Jira until you review and create.</span>
             <span className="spacer" />
             <Button appearance="secondary" iconBefore="eye" disabled={!prefix.trim() || !who || preview.isPending}

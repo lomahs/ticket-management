@@ -266,12 +266,12 @@ describe('onboarding', () => {
     const body = { phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }, { phase: 'ITB', start: null, member_ids: ['an'] }] };
     await waitFor(() => expect(previews).toContainEqual(body));
     const gantt = await screen.findByRole('region', { name: 'Gantt by phase' });
-    expect(within(gantt).getByText('16/10 – 16/10')).toBeTruthy();
+    expect(within(gantt).getByText('10/16 – 10/16')).toBeTruthy();
     // one column per day, Monday 12 to the Sunday after the last end, the weekend shaded
     const days = within(gantt).getByRole('row', { name: 'Days' });
     expect([...days.querySelectorAll('[title]')].map((d) => d.getAttribute('title'))).toEqual(
-      ['Mon 12/10', 'Tue 13/10', 'Wed 14/10', 'Thu 15/10', 'Fri 16/10', 'Sat 17/10', 'Sun 18/10']);
-    expect([...days.querySelectorAll('[data-weekend]')].map((d) => d.getAttribute('title'))).toEqual(['Sat 17/10', 'Sun 18/10']);
+      ['Mon 10/12', 'Tue 10/13', 'Wed 10/14', 'Thu 10/15', 'Fri 10/16', 'Sat 10/17', 'Sun 10/18']);
+    expect([...days.querySelectorAll('[data-weekend]')].map((d) => d.getAttribute('title'))).toEqual(['Sat 10/17', 'Sun 10/18']);
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Detail plan' }));
     await waitFor(() => expect(saved).toEqual({ ...body, reason: 'Kick-off' }));
   });
@@ -365,9 +365,9 @@ describe('onboarding', () => {
     expect(screen.getByText('[PAY] Login – BAL Review')).toBeTruthy(); // one line per step, named by the name rules
     fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
-    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-12'));
-    expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-14');
-    expect(screen.getByText('ITA ends 14/10 · master 13/10 · 1 day late')).toBeTruthy();
+    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/12'));
+    expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/14');
+    expect(screen.getByText('ITA ends 10/14 · master 10/13 · 1 day late')).toBeTruthy();
     expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).getByText('An 8h')).toBeTruthy(); // who carries the line
     fireEvent.click(screen.getByRole('tab', { name: 'Effort per day' }));
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
@@ -400,14 +400,14 @@ describe('onboarding', () => {
     expect(sent).toEqual([]);
     fireEvent.blur(start);
     await waitFor(() => expect(sent).toEqual([{ row_id: 2, step: null, effort_h: null, start: '2026-10-15', end: '2026-10-15', removed: false }]));
-    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-15'));
+    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/15'));
     // set by hand: the line is highlighted with a lock
     expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByRole('img', { name: 'Dates set by hand' })).toBeTruthy();
     expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).queryByRole('img', { name: 'Dates set by hand' })).toBeNull();
     const end =screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
     fireEvent.change(end, { target: { value: '0020-10-20' } });
     fireEvent.blur(end); // not a date of the plan: put back
-    expect(end.value).toBe('2026-10-15');
+    expect(end.value).toBe('2026/10/15');
     expect(sent).toHaveLength(1);
   });
 
@@ -448,7 +448,7 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Check' }));
     await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'));
     expect(checks).toBe(1);
-    expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026-10-12'); // the list keeps its dates
+    expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/12'); // the list keeps its dates
     expect(screen.getByRole('button', { name: '1 day above the allocation' })).toBeTruthy(); // the summary is the Check's
     expect(screen.getByText('Row 1 (Login): no people yet, not counted')).toBeTruthy();
   });
@@ -565,7 +565,7 @@ describe('onboarding', () => {
     expect(within(dialog).getByText('Line 2 · Login · Create')).toBeTruthy();
     expect(within(dialog).getByText('BA An → Minh')).toBeTruthy();
     expect(within(dialog).getByText('Effort 8h → 10h')).toBeTruthy();
-    expect(within(dialog).getByText('Plan 12/10–14/10 → 20/10–21/10 (set by hand)')).toBeTruthy();
+    expect(within(dialog).getByText('Plan 10/12–10/14 → 10/20–10/21 (set by hand)')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 2 lines' }));
     await waitFor(() => expect(applied?.lines.map((l) => l.ref)).toEqual(['1:create', '2'])); // the unchanged and wrong lines stay out
     expect(applied!.lines[0]).toEqual({ ref: '1:create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, start: null, end: null });
@@ -590,9 +590,9 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review push' }));
     const dialog = await screen.findByRole('dialog', { name: 'Push review' }); // the warnings show again in the review
     expect(allowed).toBeNull(); // nothing to confirm
-    expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
+    expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9h planned on 10/13, above the 8h allocation');
     const warn = screen.getByRole('region', { name: 'Over the allocation' });
-    expect(warn.textContent).toContain('An has 9h planned on 13/10, above the 8h allocation');
+    expect(warn.textContent).toContain('An has 9h planned on 10/13, above the 8h allocation');
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull(); // a warning, not a block
   });
 
@@ -610,7 +610,7 @@ describe('onboarding', () => {
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull();
     const matrix = screen.getByRole('table', { name: 'Allocated per anken' });
     expect(matrix.textContent).toContain('PAY-1100 (this)');
-    expect(screen.getByRole('row', { name: /An · ITA \(from 12\/10\)/ }).textContent).toBe('An · ITA (from 12/10)3h5h8h');
+    expect(screen.getByRole('row', { name: /An · ITA \(from 10\/12\)/ }).textContent).toBe('An · ITA (from 10/12)3h5h8h');
     expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
   });
 

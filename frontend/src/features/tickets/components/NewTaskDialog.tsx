@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton, Select, TextField, type Option } from '../../../shared/ds';
+import { Button, DateField, IconButton, Select, TextField, type Option } from '../../../shared/ds';
 import { newRef, type NewRow } from '../model/draft';
 
 /**
@@ -56,8 +56,8 @@ export function NewTaskDialog({ templates, people, add, close }: {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Select label="Assignee" value={common.assignee_id} options={[{ value: '', label: '–' }, ...people]} onChange={set('assignee_id')} />
           <Select label="Reporter" value={common.reporter_id} options={[{ value: '', label: 'The Jira account (default)' }, ...people]} onChange={set('reporter_id')} />
-          <TextField label="Planned Start" type="date" value={common.planned_start} onChange={set('planned_start')} />
-          <TextField label="Planned End" type="date" value={common.planned_end} onChange={set('planned_end')} />
+          <DateField label="Planned Start" value={common.planned_start} onChange={set('planned_start')} />
+          <DateField label="Planned End" value={common.planned_end} onChange={set('planned_end')} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="eyebrow" style={{ flex: 1 }}>Added as drafts. Nothing reaches Jira until you commit.</span>

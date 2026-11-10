@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type CSSProperties } from 'react';
 import type { Schemas } from '../../../shared/api/types';
+import { DateField } from '../../../shared/ds';
 import { add, dayDiff, dm, dow, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn, type PhaseRow } from '../../planning';
@@ -56,9 +57,7 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
         setReason('');
       }}>
       <section className="card" style={{ padding: '14px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 24 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontWeight: 600 }}>Start date
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={INPUT} />
-        </label>
+        <DateField label="Start date" value={start} onChange={setStart} style={{ width: 170 }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span className="eyebrow">Anken ends</span><b className="heading" style={{ fontSize: 18 }}>{end ? dm(end) : '–'}</b></div>
         {v.current && <span className="eyebrow">{`Saved version: ${v.current.reason}`}</span>}
       </section>

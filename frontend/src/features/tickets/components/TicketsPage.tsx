@@ -4,7 +4,7 @@ import { Fragment, useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { membersQuery, useAdminJiraWrite } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, Icon, IconButton, Select, TextField, type Option } from '../../../shared/ds';
+import { Button, DateField, Icon, IconButton, Select, TextField, type Option } from '../../../shared/ds';
 import { STATUS, statusOf } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket } from '../../../shared/state/ticket';
@@ -165,7 +165,7 @@ function Board({ b }: { b: Schemas['TicketBoard'] }) {
           </select>
         ))}
         {(['planned_start', 'planned_end'] as const).map((k) => (
-          <input key={k} type="date" aria-label={`New ${FIELD_LABEL[k].toLowerCase()}`} value={r[k]} onChange={(e) => inputs(k)(e.target.value)} style={cell(true)} />
+          <DateField key={k} bare aria-label={`New ${FIELD_LABEL[k].toLowerCase()}`} value={r[k]} onChange={inputs(k)} style={cell(true)} />
         ))}
         <input type="number" min={0} step={0.5} aria-label="New estimate" value={r.estimate_h} onChange={(e) => inputs('estimate_h')(e.target.value)}
           style={cell(true, { textAlign: 'right' })} />
@@ -320,8 +320,8 @@ function ExistingRow({ r, depth, task, e = {}, picked, folded, kids, canWrite, p
         </select>
       ))}
       {(['planned_start', 'planned_end'] as const).map((f) => (
-        <input key={f} type="date" aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(f)} disabled={!canWrite} title={was(f)}
-          onChange={(ev) => edit(r, f, ev.target.value)} style={cell(e[f] != null)} />
+        <DateField key={f} bare aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(f)} disabled={!canWrite} title={was(f)}
+          onChange={(v) => edit(r, f, v)} style={cell(e[f] != null)} />
       ))}
       <input type="number" min={0} step={0.5} aria-label={`${r.key} estimate`} value={value('estimate_h')} disabled={!canWrite} title={was('estimate_h')}
         onChange={(ev) => edit(r, 'estimate_h', ev.target.value)} style={cell(e.estimate_h != null, { textAlign: 'right' })} />

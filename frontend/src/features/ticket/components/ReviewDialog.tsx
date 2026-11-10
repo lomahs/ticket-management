@@ -1,6 +1,6 @@
 import type { Schemas } from '../../../shared/api/types';
 import { Button, Icon, IconButton, type IconName } from '../../../shared/ds';
-import { dm, hrs } from '../../../shared/format/dates';
+import { hrs, ymd } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 
 type Field = Schemas['FieldChange']['field'];
@@ -16,7 +16,7 @@ function show(field: Field, v: string | null | undefined, name: (id: string) => 
   if (field === 'status') return statusOf(v).label;
   if (field === 'assignee' || field === 'reporter') return name(v);
   if (field === 'estimate') return hrs(Number(v));
-  return `${dm(v)}/${v.slice(0, 4)}`;
+  return ymd(v);
 }
 
 /**

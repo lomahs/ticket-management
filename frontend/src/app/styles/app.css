@@ -82,7 +82,44 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
   border: 1.5px solid color-mix(in oklch, var(--border-focus) 70%, transparent); border-radius: 6px;
 }
 
-input[type="date"] { color-scheme: light dark; }
+/* Date fields (DateField, DateRangeField): the calendar button, the bare table-cell variant, and the calendar popover. */
+.dp-btn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.dp-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-heading); }
+.dp-btn:disabled { cursor: default; opacity: .5; }
+.dp-bare { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.dp-bare > input { width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.dp-bare > .dp-btn { position: absolute; right: 2px; width: 22px; height: 22px; }
+.dp-pop {
+  position: fixed; z-index: 90; padding: 8px 12px 10px; border-radius: 14px;
+  background: var(--surface-card); box-shadow: var(--shadow-overlay);
+}
+.dp-pop .rdp-root {
+  --rdp-accent-color: var(--button-primary-bg);
+  --rdp-accent-background-color: color-mix(in oklch, var(--button-primary-bg) 14%, transparent);
+  --rdp-day-height: 34px; --rdp-day-width: 36px;
+  --rdp-day_button-height: 32px; --rdp-day_button-width: 32px; --rdp-day_button-border-radius: 8px;
+  --rdp-selected-border: 0; --rdp-today-color: var(--text-link);
+  --rdp-nav-height: 36px; --rdp-nav_button-height: 28px; --rdp-nav_button-width: 28px;
+  --rdp-months-gap: 20px; --rdp-outside-opacity: .4; --rdp-disabled-opacity: .3;
+  --rdp-range_start-color: var(--button-primary-fg); --rdp-range_end-color: var(--button-primary-fg);
+  font: 400 13px/1 var(--font-text); color: var(--text-body);
+}
+.dp-pop .rdp-month_caption { font: 700 14px/1 var(--font-display); color: var(--text-heading); padding-left: 6px; }
+.dp-pop .rdp-weekday { font-size: 11px; font-weight: 600; color: var(--text-muted); opacity: 1; }
+.dp-pop .rdp-chevron { fill: var(--text-muted); width: 16px; height: 16px; }
+.dp-pop .rdp-button_previous, .dp-pop .rdp-button_next { border-radius: 8px; }
+.dp-pop .rdp-button_previous:hover, .dp-pop .rdp-button_next:hover { background: var(--surface-hover); }
+.dp-pop .rdp-day_button:hover:not(:disabled) { background: var(--surface-hover); }
+.dp-pop .rdp-today:not(.rdp-outside) .rdp-day_button { font-weight: 700; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.dp-pop .rdp-selected { font-size: inherit; }
+.dp-pop .rdp-selected .rdp-day_button,
+.dp-pop .rdp-selected .rdp-day_button:hover { background: var(--button-primary-bg); color: var(--button-primary-fg); }
+.dp-pop .rdp-range_middle .rdp-day_button,
+.dp-pop .rdp-range_middle .rdp-day_button:hover { background: transparent; color: var(--text-heading); }
+.dp-pop .rdp-day_button:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
 
 /* Sticky action bar at the foot of a step: clears the floating Ask button on the right. */
 .action-bar {

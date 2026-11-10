@@ -4,8 +4,8 @@ import { Fragment, useRef, useState, type DragEvent } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useJiraWrite, useMemberMap, useMeta } from '../../../shared/api/queries';
-import { Button, Icon, IconButton } from '../../../shared/ds';
-import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN } from '../../../shared/format/dates';
+import { Button, DateField, Icon, IconButton } from '../../../shared/ds';
+import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN, ymd } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, OTHER_STEP, STEPS, dayHeadStyle, hatch, mix, statusOf, stepColor } from '../../../shared/format/labels';
 import { taskTitle } from '../../../shared/format/task';
 import { useAnkenScope } from '../../../shared/state/anken';
@@ -48,10 +48,10 @@ export function PlanningPage() {
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 6 }}>
-            <input type="date" value={start} aria-label="Start date" title="Start date (snaps to Monday)"
-              onChange={(e) => e.target.value && setSearch({ start: mondayOf(e.target.value) })}
-              style={{ height: 32, boxSizing: 'border-box', padding: '0 10px', border: '1px solid var(--border-strong)', borderRadius: 8, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '600 13px/1 var(--font-text)' }} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>to {dm(last)}/{last.slice(0, 4)}</span>
+            <DateField bare value={start} aria-label="Start date" title="Start date (snaps to Monday)"
+              onChange={(v) => v && setSearch({ start: mondayOf(v) })}
+              style={{ width: 136, height: 32, boxSizing: 'border-box', padding: '0 10px', border: '1px solid var(--border-strong)', borderRadius: 8, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '600 13px/1 var(--font-text)' }} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>to {ymd(last)}</span>
           </div>
           <IconButton icon="chevron-left" label="Previous" appearance="secondary" size="sm" onClick={() => setSearch({ start: add(start, -weeks * 7) })} />
           <Button appearance="secondary" size="sm" onClick={() => setSearch({ start: undefined })}>Today</Button>

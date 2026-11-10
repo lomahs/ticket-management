@@ -2,7 +2,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, IconButton, Select, TextField, type Option } from '../../../shared/ds';
+import { Button, DateField, IconButton, Select, TextField, type Option } from '../../../shared/ds';
 import { dm, f1 } from '../../../shared/format/dates';
 import { functionPreviewQuery } from '../../matrix';
 import { newRef, type NewRow } from '../model/draft';
@@ -61,8 +61,8 @@ function Single({ people, add, close }: { people: Option[]; add: (row: NewRow) =
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Select label="Assignee" value={r.assignee_id} options={[{ value: '', label: '–' }, ...people]} onChange={set('assignee_id')} />
         <Select label="Reporter" value={r.reporter_id} options={[{ value: '', label: 'The Jira account (default)' }, ...people]} onChange={set('reporter_id')} />
-        <TextField label="Planned Start" type="date" value={r.planned_start} onChange={set('planned_start')} />
-        <TextField label="Planned End" type="date" value={r.planned_end} onChange={set('planned_end')} />
+        <DateField label="Planned Start" value={r.planned_start} onChange={set('planned_start')} />
+        <DateField label="Planned End" value={r.planned_end} onChange={set('planned_end')} />
         <TextField label="Estimate (h)" type="number" min={0} step={0.5} value={r.estimate_h} onChange={set('estimate_h')} />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -75,7 +75,7 @@ describe('Daily Overview', () => {
     expect(within(table).getAllByText('Requirement study')).toHaveLength(3); // the Task and one row per ticket
     // a done sub-task shows just Done: no Closed, no dates
     expect(within(table).queryByText('Closed')).toBeNull();
-    expect(within(table).queryByText('04/09')).toBeNull();
+    expect(within(table).queryByText('09/04')).toBeNull();
     // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
     expect(within(table).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
     expect(within(table).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
