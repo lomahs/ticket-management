@@ -40,7 +40,7 @@ export function Process({ groups, burndowns, pct, phase, pick }: {
           <Swatch bg={C.done} label="Ahead" />
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 14, overflowX: 'auto', overflowY: 'hidden', paddingBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 14, overflowX: 'auto', overflowY: 'hidden', padding: '4px 4px 18px', margin: '-4px -4px 0' }}>
         <div style={{ flex: '1 1 0', minWidth: 150, display: 'flex' }}>
           <Hub name="All phases" sigma state="run" pct={pct} b={all} on={phase == null} pick={() => pick(undefined)} />
         </div>
