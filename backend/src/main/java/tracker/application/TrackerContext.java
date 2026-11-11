@@ -133,7 +133,7 @@ public final class TrackerContext {
                 i.key(), i.summary(), i.project(), i.epicKey(), i.phase(), i.functionId(), i.functionName(),
                 i.step() != null ? i.step().value() : null, i.status().value(), i.jiraStatus(), i.assigneeId(), worker(i), planOwner(i),
                 i.plannedStart(), i.plannedEnd(), i.estimateH(), Numbers.round(i.loggedH(), 2),
-                closed ? 0 : Numbers.round(Math.max(0.0, i.estimateH() - i.loggedH()), 2),
+                closed ? 0 : Numbers.round(i.remainingH(), 2),
                 span != null ? span[0] : null, span != null ? span[1] : null,
                 f.isCurrent(), f.late(), f.lateDays(), f.soon(), f.over(), f.tone(), f.heldDays(), f.rounds(),
                 schedule.get(i.key()));
