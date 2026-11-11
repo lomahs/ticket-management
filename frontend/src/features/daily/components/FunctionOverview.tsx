@@ -259,8 +259,8 @@ function FunctionRow({ f, n }: { f: Fn; n: number }) {
 }
 
 /**
- * A step: its status (late: red, with the days late), or just Done; the step where the JM round is now is ringed, and a fix
- * step's review rounds are in its tooltip.
+ * A step: its status (late: red, with the days late), or just Done; a WIP or NYS step shows its deadline (Planned End) under
+ * it. The step where the JM round is now is ringed, and a fix step's review rounds are in its tooltip.
  */
 function StepCell({ c, active }: { c: Step; active: boolean }) {
   const open = useOpenTicket();
@@ -269,13 +269,16 @@ function StepCell({ c, active }: { c: Step; active: boolean }) {
   const closed = c.status === 'C';
   const late = c.late && !closed;
   const where = c.with_jm ? 'JM' : 'Team';
+  const due = (c.status === 'W' || c.status === 'N') && c.planned_end ? dm(c.planned_end) : '';
   const stepName = STEPS.find((s) => s.k === c.step)?.label ?? c.step;
   const now = active ? ` · now: ${c.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '';
   const tip = `${c.key} · ${stepName} · ${st.label}${late ? ` · ${c.late_days} working days late` : ''} · ${members[c.assignee_id ?? '']?.name ?? 'unassigned'}`
     + ` · plan ${dm(c.planned_start) || '?'} – ${dm(c.planned_end) || '?'}${c.rounds ? ` · round ${c.rounds}, with ${where}` : ''}${now}`;
   return (
-    <button type="button" title={tip} onClick={() => open(c.key)} className="hv-bright" style={{ ...cellStyle(c.status, late), boxShadow: active ? ACTIVE_RING : undefined }}>
+    <button type="button" title={tip} onClick={() => open(c.key)} className="hv-bright"
+      style={{ ...cellStyle(c.status, late), flexDirection: 'column', gap: 2, boxShadow: active ? ACTIVE_RING : undefined }}>
       {closed ? 'Done' : late ? <LateLabel label={st.label} days={c.late_days} /> : st.label}
+      {due && ' '}{due && <span style={{ font: '500 11px/1.2 var(--font-mono)', opacity: late ? 1 : 0.8 }}>{due}</span>}
     </button>
   );
 }

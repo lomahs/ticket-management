@@ -115,8 +115,21 @@ public class DailyService {
                              String created, int heldDays, @Nullable String closedOn, String note) {
     }
 
-    /** @param phase a phase group; null: the whole anken */
-    public record DailyBurndown(@Nullable String phase, BurndownChart chart) {
+    /**
+     * @param pct   logged / (logged + remaining) over the sub-tasks
+     * @param diffH actual − plan to date in hours: positive is more effort than planned
+     */
+    public record DailyProgress(int pct, double planToDateH, double actualToDateH, double diffH) {
+        static DailyProgress of(PhaseRollup r) {
+            return new DailyProgress(r.pct(), r.schedule().planToDateH(), r.schedule().actualToDateH(), r.schedule().diffH());
+        }
+    }
+
+    /**
+     * @param phase    a phase group; null: the whole anken
+     * @param progress the progress and effort vs plan of the same sub-tasks; null in a snapshot captured before it was kept
+     */
+    public record DailyBurndown(@Nullable String phase, BurndownChart chart, @Nullable DailyProgress progress) {
     }
 
     /**
@@ -217,6 +230,7 @@ public class DailyService {
             }
         }
         List<DailyGroup> groups = new ArrayList<>();
+        List<DailyBurndown> burndowns = new ArrayList<>();
         for (String g : PhaseGroups.ordered(subsByGroup, st.phases())) {
             PhaseRollup r = Overview.phaseRollup(g, subsByGroup.get(g), ctx.schedule, thr);
             Overview.Schedule state = r.schedule().state();
@@ -228,6 +242,7 @@ public class DailyService {
                     .sorted(Comparator.comparing((Issue t) -> earliestStart(subsOf.get(t.key()))).thenComparing(Issue::key))
                     .map(t -> subPhase(ctx, t, subsOf.get(t.key()), thr)).toList();
             groups.add(new DailyGroup(g, stateOf(state), r.pct(), r.closed(), r.total(), r.schedule().overdue(), subPhases));
+            burndowns.add(new DailyBurndown(g, burndown(ctx, subsByGroup.get(g)), DailyProgress.of(r)));
         }
 
         Map<String, String> noted = notes.find(subs.stream().map(Issue::key).toList());
@@ -235,9 +250,7 @@ public class DailyService {
                 .map(t -> new DailyTyped(t.type(), t.key(), t.summary(), t.assigneeId(), t.withJm(), t.status(), t.created(), t.heldDays(),
                         t.closedOn(), noted.getOrDefault(t.key(), ""))).toList();
         PhaseRollup all = Overview.phaseRollup(epic, subs, ctx.schedule, thr);
-        List<DailyBurndown> burndowns = new ArrayList<>();
-        burndowns.add(new DailyBurndown(null, burndown(ctx, subs)));
-        groups.forEach(g -> burndowns.add(new DailyBurndown(g.name(), burndown(ctx, subsByGroup.get(g.name())))));
+        burndowns.addFirst(new DailyBurndown(null, burndown(ctx, subs), DailyProgress.of(all)));
         String title = ctx.anken(epic).map(tracker.domain.Anken::title).orElse(epic);
         return new DailyContent(epic, title, ctx.today, all.pct(), all.schedule().planToDateH(), all.schedule().actualToDateH(),
                 all.schedule().diffH(), burndowns, groups, typed);

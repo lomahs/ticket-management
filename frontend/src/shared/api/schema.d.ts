@@ -1901,6 +1901,7 @@ export interface components {
         DailyBurndown: {
             chart: components["schemas"]["BurndownChart"];
             phase: string | null;
+            progress: components["schemas"]["DailyProgress"] | null;
         };
         DailyCaptureIn: {
             time: string;
@@ -1942,6 +1943,16 @@ export interface components {
             sub_phases: components["schemas"]["DailySubPhase"][];
             /** Format: int32 */
             total: number;
+        };
+        DailyProgress: {
+            /** Format: double */
+            actual_to_date_h: number;
+            /** Format: double */
+            diff_h: number;
+            /** Format: int32 */
+            pct: number;
+            /** Format: double */
+            plan_to_date_h: number;
         };
         DailyStep: {
             assignee_id: string | null;

@@ -60,6 +60,19 @@ class DailyServiceTest {
     }
 
     @Test
+    void eachBurndownCarriesTheProgressOfItsSubTasks() {
+        DailyContent c = daily.view(ALL, "PAY-1100", null).content();
+        assertThat(c.burndowns().getFirst().progress())
+                .isEqualTo(new DailyService.DailyProgress(c.pct(), c.planToDateH(), c.actualToDateH(), c.diffH()));
+        for (DailyService.DailyBurndown b : c.burndowns().subList(1, c.burndowns().size())) {
+            DailyService.DailyProgress p = b.progress();
+            assertThat(p).isNotNull();
+            assertThat(p.pct()).isEqualTo(group(c, b.phase()).pct());
+            assertThat(p.diffH()).isEqualTo(p.actualToDateH() - p.planToDateH(), org.assertj.core.data.Offset.offset(0.011));
+        }
+    }
+
+    @Test
     void eachTaskWithSubTasksIsRolledUpOnItsOwn() {
         List<DailySubPhase> tasks = daily.view(ALL, "PAY-1100", null).content().groups().stream().flatMap(g -> g.subPhases().stream()).toList();
         assertThat(tasks).isNotEmpty().allMatch(t -> t.total() > 0 && t.closed() <= t.total() && t.pct() >= 0 && t.pct() <= 100)

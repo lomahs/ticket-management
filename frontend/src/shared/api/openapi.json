@@ -4645,9 +4645,16 @@
           },
           "phase" : {
             "type" : [ "string", "null" ]
+          },
+          "progress" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/DailyProgress"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
-        "required" : [ "chart", "phase" ]
+        "required" : [ "chart", "phase", "progress" ]
       },
       "DailyCaptureIn" : {
         "type" : "object",
@@ -4775,6 +4782,28 @@
           }
         },
         "required" : [ "closed", "late", "name", "pct", "state", "sub_phases", "total" ]
+      },
+      "DailyProgress" : {
+        "type" : "object",
+        "properties" : {
+          "actual_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "diff_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "pct" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "plan_to_date_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "actual_to_date_h", "diff_h", "pct", "plan_to_date_h" ]
       },
       "DailyStep" : {
         "type" : "object",
