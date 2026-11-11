@@ -1,4 +1,5 @@
 import type { Schemas } from '../../../shared/api/types';
+import { f2 } from '../../../shared/format/dates';
 
 /** The fields of an existing ticket the screen edits, as the API names them. */
 export type Field = 'summary' | 'status' | 'assignee_id' | 'reporter_id' | 'planned_start' | 'planned_end' | 'estimate_h';
@@ -22,7 +23,7 @@ export interface NewRow {
 
 /** A row's value of a field as the board has it. */
 export function saved(r: Schemas['BoardRow'], f: Field): string {
-  if (f === 'estimate_h') return String(r.estimate_h);
+  if (f === 'estimate_h') return String(Number(f2(r.estimate_h)));
   return r[f] ?? '';
 }
 

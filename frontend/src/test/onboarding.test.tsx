@@ -142,7 +142,7 @@ describe('onboarding', () => {
     );
     renderApp('/onboarding/PAY-1100/estimation');
     const totals = await screen.findByRole('region', { name: 'BA effort per phase' });
-    expect(within(totals).getByText('14h')).toBeTruthy();
+    expect(within(totals).getByText('14.00h')).toBeTruthy();
     expect(screen.getByLabelText('Task name, row 1').textContent).toBe('ITA Create test case');
     fireEvent.click(screen.getByRole('button', { name: 'Add row' }));
     expect(screen.getByLabelText('Task name, row 2').textContent).toBe('–');
@@ -186,7 +186,7 @@ describe('onboarding', () => {
     const { router } = renderApp('/onboarding/PAY-1100/members');
     fireEvent.click(await screen.findByLabelText('Include Tanaka'));
     fireEvent.change(screen.getByLabelText('Hours per day, Tanaka'), { target: { value: '1' } });
-    expect(within(screen.getByRole('region', { name: 'Team totals' })).getByText('1h')).toBeTruthy(); // JM hours
+    expect(within(screen.getByRole('region', { name: 'Team totals' })).getByText('1.00h')).toBeTruthy(); // JM hours
     server.use(http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: [], current: null, versions: [], shifts: [] })));
     fireEvent.click(screen.getByRole('button', { name: 'Continue to Master schedule' }));
     await waitFor(() => expect(saved).toEqual({ members: [{ member_id: 'tanaka', in_anken: true, hours_per_day: 1 }], allow_over_the_day: false }));
@@ -225,7 +225,7 @@ describe('onboarding', () => {
     renderApp('/onboarding/PAY-1100/members');
     fireEvent.mouseEnter(await screen.findByLabelText('Already allocated, Minh'));
     const pop = screen.getByRole('dialog', { name: 'Allocation · Minh' });
-    expect(within(pop).getByText('PAY-1300').closest('div')?.textContent).toBe('PAY-1300 Refund4h');
+    expect(within(pop).getByText('PAY-1300').closest('div')?.textContent).toBe('PAY-1300 Refund4.00h');
   });
 
   it('warns about members over the working day and saves only once confirmed', async () => {
@@ -237,7 +237,7 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     const ask = await screen.findByRole('dialog', { name: 'Hours over the working day' });
     expect(within(ask).getByText('Minh')).toBeTruthy();
-    expect(screen.getByText('10h a day with other anken, more than the 8h working day')).toBeTruthy();
+    expect(screen.getByText('10.00h a day with other anken, more than the 8.00h working day')).toBeTruthy();
     fireEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Hours over the working day' })).toBeNull());
     expect(saved).toBeNull();
@@ -368,18 +368,18 @@ describe('onboarding', () => {
     await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/12'));
     expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/14');
     expect(screen.getByText('ITA ends 10/14 · master 10/13 · 1 day late')).toBeTruthy();
-    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).getByText('An 8h')).toBeTruthy(); // who carries the line
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).getByText('An 8.00h')).toBeTruthy(); // who carries the line
     fireEvent.click(screen.getByRole('tab', { name: 'Effort per day' }));
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
     const tue = within(days).getByLabelText('An 2026-10-13');
-    expect(tue.textContent).toBe('9+3 other'); // the planned hours only, red above the 8h allocation
+    expect(tue.textContent).toBe('9.00+3.00 other'); // the planned hours only, red above the 8h allocation
     expect(within(days).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Member', 'Mon', 'Tue', '10/12', '10/13']); // no weekend
     fireEvent.mouseEnter(tue);
     const tip = screen.getByRole('tooltip');
     expect(days.contains(tip)).toBe(false); // above the page, not clipped by the section
     expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
     expect(tip.textContent).toContain('Other anken');
-    expect(tip.textContent).toContain('Refund3h'); // another anken: its name and hours
+    expect(tip.textContent).toContain('Refund3.00h'); // another anken: its name and hours
     expect(screen.getByRole('button', { name: 'Finish onboarding' }).getAttribute('title')).toBe('Push every row to Jira first');
   });
 
@@ -564,7 +564,7 @@ describe('onboarding', () => {
     expect(within(dialog).getByText('Line 5 · Ghost: 9 is not a sub-task of the plan')).toBeTruthy();
     expect(within(dialog).getByText('Line 2 · Login · Create')).toBeTruthy();
     expect(within(dialog).getByText('BA An → Minh')).toBeTruthy();
-    expect(within(dialog).getByText('Effort 8h → 10h')).toBeTruthy();
+    expect(within(dialog).getByText('Effort 8.00h → 10.00h')).toBeTruthy();
     expect(within(dialog).getByText('Plan 10/12–10/14 → 10/20–10/21 (set by hand)')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 2 lines' }));
     await waitFor(() => expect(applied?.lines.map((l) => l.ref)).toEqual(['1:create', '2'])); // the unchanged and wrong lines stay out
@@ -590,9 +590,9 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review push' }));
     const dialog = await screen.findByRole('dialog', { name: 'Push review' }); // the warnings show again in the review
     expect(allowed).toBeNull(); // nothing to confirm
-    expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9h planned on 10/13, above the 8h allocation');
+    expect(within(dialog).getByRole('note', { name: 'Days above the allocation' }).textContent).toContain('An has 9.00h planned on 10/13, above the 8.00h allocation');
     const warn = screen.getByRole('region', { name: 'Over the allocation' });
-    expect(warn.textContent).toContain('An has 9h planned on 10/13, above the 8h allocation');
+    expect(warn.textContent).toContain('An has 9.00h planned on 10/13, above the 8.00h allocation');
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull(); // a warning, not a block
   });
 
@@ -605,12 +605,12 @@ describe('onboarding', () => {
     }))));
     renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Finish onboarding' })); // not every row is in Jira: shows what stands before
-    expect(await screen.findByText('An is over budget in ITA: 40h of 36h')).toBeTruthy();
+    expect(await screen.findByText('An is over budget in ITA: 40.00h of 36.00h')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Over the allocation' }).textContent).toContain('An is over budget in ITA');
     expect(screen.queryByRole('alert', { name: 'Before the push' })).toBeNull();
     const matrix = screen.getByRole('table', { name: 'Allocated per anken' });
     expect(matrix.textContent).toContain('PAY-1100 (this)');
-    expect(screen.getByRole('row', { name: /An · ITA \(from 10\/12\)/ }).textContent).toBe('An · ITA (from 10/12)3h5h8h');
+    expect(screen.getByRole('row', { name: /An · ITA \(from 10\/12\)/ }).textContent).toBe('An · ITA (from 10/12)3.00h5.00h8.00h');
     expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
   });
 

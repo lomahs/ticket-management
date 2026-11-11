@@ -58,7 +58,7 @@ describe('detail planning', () => {
     await waitFor(() => expect(previewed).toEqual({ phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }] }));
     const phases = screen.getByRole('region', { name: 'Master schedule phases' });
     expect(await within(phases).findByText('10/16')).toBeTruthy();
-    expect(within(phases).getByText('30h')).toBeTruthy();
+    expect(within(phases).getByText('30.00h')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Reason for this version'), { target: { value: 'Kick-off' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
     await waitFor(() => expect(saved).toEqual({ phases: [{ phase: 'ITA', start: '2026-10-12', member_ids: ['an'] }], reason: 'Kick-off' }));

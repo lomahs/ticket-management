@@ -65,7 +65,7 @@ public record Issue(String key, String project, String epicKey, String parentKey
     }
 
     public double loggedH() {
-        return worklogs.stream().mapToDouble(Worklog::hours).sum();
+        return Numbers.hours(worklogs.stream().mapToDouble(Worklog::hours).sum());
     }
 
     public Issue withWorklogs(List<Worklog> logs) {

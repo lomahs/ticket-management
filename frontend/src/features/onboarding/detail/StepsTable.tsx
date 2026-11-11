@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, Icon, IconButton } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useEditStep, type DetailPlanView, type StepBody } from './api';
@@ -67,7 +67,7 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
     const hand = picked(r, slot);
     return (
       <label style={{ display: 'flex', flexDirection: 'column', gap: 3, width: 150 }}>
-        <span className="eyebrow" style={{ fontSize: 11 }}>{hours == null ? `${role} · reviews` : `${role} · ${f1(hours)}h`}</span>
+        <span className="eyebrow" style={{ fontSize: 11 }}>{hours == null ? `${role} · reviews` : `${role} · ${f2(hours)}h`}</span>
         <select aria-label={`${role}, ${r.function_name}`} disabled={!admin} value={r[slot] ?? ''} onChange={(e) => assign(r, slot, e.target.value || null)}
           title={hand ? 'Picked by hand: Clear, keep my input keeps it' : undefined} data-by-hand={hand || undefined}
           style={{ ...INPUT, ...(r[slot] ? {} : { borderColor: 'var(--hl-amber-fg)' }), ...byHand(hand) }}>
@@ -80,7 +80,7 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
   /** Who carries the line's hours: the BA and the BAL by the step weights; a JM review counts for nobody. */
   const carries = (r: Row, s: Step) => {
     if (s.step === 'jmr') return `${name(r.jm_id) || 'JM'} · not counted`;
-    const parts = [s.ba_h > 0 && `${name(r.ba_id) || (r.steps ? 'BA' : 'Member')} ${f1(s.ba_h)}h`, s.bal_h > 0 && `${name(r.bal_id) || 'BAL'} ${f1(s.bal_h)}h`].filter(Boolean);
+    const parts = [s.ba_h > 0 && `${name(r.ba_id) || (r.steps ? 'BA' : 'Member')} ${f2(s.ba_h)}h`, s.bal_h > 0 && `${name(r.bal_id) || 'BAL'} ${f2(s.bal_h)}h`].filter(Boolean);
     return parts.length ? parts.join(' · ') : '0h';
   };
   // A typed date is sent on blur or Enter, not while it is typed; a date picked on the calendar at once. A cleared field keeps the date.
@@ -111,7 +111,7 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <span className="heading" style={{ fontWeight: 700, fontSize: 14 }}>{r.function_name}</span>
               <span className="eyebrow ellipsis" title={t?.summary}>
-                {`${r.steps ? `${r.steps} steps · Create ${f1(r.effort_h)}h` : `ticket · ${f1(r.effort_h)}h`} · ${r.task_key ? `${r.task_key} ${t?.name ?? ''}` : 'No Task'}`}
+                {`${r.steps ? `${r.steps} steps · Create ${f2(r.effort_h)}h` : `ticket · ${f2(r.effort_h)}h`} · ${r.task_key ? `${r.task_key} ${t?.name ?? ''}` : 'No Task'}`}
                 {starts.length > 0 && ` · ${dm(starts[0])} → ${dm(ends[ends.length - 1])}`}
               </span>
             </span>
@@ -138,10 +138,10 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
                   style={{ display: 'flex', color: 'var(--hl-manual-fg)' }}><Icon name="lock" size={13} /></span>}
                 <span className="ellipsis muted" style={{ fontSize: 12 }}>{s.summary}</span>
               </span>
-              <input type="number" min={0} step={0.5} aria-label={`Effort, ${s.summary}`} disabled={!admin} defaultValue={s.effort_h}
+              <input type="number" min={0} step={0.01} aria-label={`Effort, ${s.summary}`} disabled={!admin} defaultValue={Number(f2(s.effort_h))}
                 key={`${s.ref}:${s.effort_h}`} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} onBlur={(e) => {
                   const h = Number(e.target.value);
-                  if (e.target.value.trim() !== '' && h >= 0 && h !== s.effort_h) send(s, { effort_h: h });
+                  if (e.target.value.trim() !== '' && h >= 0 && h !== Number(f2(s.effort_h))) send(s, { effort_h: h });
                 }} style={{ ...INPUT, ...byHand(s.edited) }} />
               <span className="ellipsis" style={{ fontSize: 12 }}>{carries(r, s)}</span>
               {date(s, 'start')}
@@ -199,7 +199,7 @@ export function StepsTable({ epic, v, people, admin, assign, swap, affected = []
           {showRemoved && removed.map((s) => (
             <div key={s.ref} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13 }}>
               <span className="muted ellipsis" style={{ flex: 1 }}>{s.summary}</span>
-              <span className="muted">{`${f1(s.effort_h)}h`}</span>
+              <span className="muted">{`${f2(s.effort_h)}h`}</span>
               <Button appearance="subtle" size="sm" disabled={!admin} onClick={() => send(s, { removed: false })}>Restore</Button>
             </div>
           ))}

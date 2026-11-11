@@ -3,7 +3,7 @@ import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import { Select } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { Seg } from '../../../shared/ui/bits';
 import { BurndownChart } from '../../../shared/ui/BurndownChart';
@@ -15,7 +15,7 @@ import { PlanTable } from './PlanTable';
 
 const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
-const signed = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + f1(Math.abs(n)) + 'h';
+const signed = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + f2(Math.abs(n)) + 'h';
 
 export function BurndownPage() {
   const { anken } = useAnkenScope();
@@ -73,9 +73,9 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
   const E = b.estimate_h;
   const gap = b.actual_remaining_h - b.plan_remaining_h;
   const kpis = [
-    { label: 'Total estimate', value: f1(E) + 'h', sub: `${v.subtasks} sub-tasks · ${dm(b.start)} – ${dm(b.end)}`, fg: 'var(--text-heading)' },
-    { label: 'Planned remaining', value: f1(b.plan_remaining_h) + 'h', sub: 'by plan, end of ' + dm(v.today), fg: 'var(--text-heading)' },
-    { label: 'Actual remaining', value: f1(b.actual_remaining_h) + 'h', sub: 'estimate − logged', fg: 'var(--st-wip)' },
+    { label: 'Total estimate', value: f2(E) + 'h', sub: `${v.subtasks} sub-tasks · ${dm(b.start)} – ${dm(b.end)}`, fg: 'var(--text-heading)' },
+    { label: 'Planned remaining', value: f2(b.plan_remaining_h) + 'h', sub: 'by plan, end of ' + dm(v.today), fg: 'var(--text-heading)' },
+    { label: 'Actual remaining', value: f2(b.actual_remaining_h) + 'h', sub: 'estimate − logged', fg: 'var(--st-wip)' },
     gap > 0.05 ? { label: 'Behind plan', value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--hl-red-fg)' }
       : gap < -0.05 ? { label: 'Ahead of plan', value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--tn-res)' }
         : { label: 'On plan', value: signed(0), sub: 'actual vs planned remaining', fg: 'var(--text-heading)' },

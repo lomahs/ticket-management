@@ -42,6 +42,7 @@ import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
 import tracker.domain.MasterSchedule;
+import tracker.domain.Numbers;
 import tracker.domain.PlanRows;
 import tracker.domain.StepEdit;
 import tracker.domain.Onboarding;
@@ -589,7 +590,7 @@ public class DetailPlanService {
     private static Map<String, Map<String, Double>> ledger(Map<String, Map<String, Double>> loads, List<DetailScheduler.Part> parts) {
         Map<String, Map<String, Double>> out = new HashMap<>();
         loads.forEach((m, days) -> out.put(m, new TreeMap<>(days)));
-        parts.forEach(p -> out.computeIfAbsent(p.memberId(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Double::sum));
+        parts.forEach(p -> out.computeIfAbsent(p.memberId(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
         return out;
     }
 
@@ -602,7 +603,7 @@ public class DetailPlanService {
             double h = ledger.get(m).get(d);
             double cap = hours.on(m, d);
             if (h > cap + 1e-9) {
-                out.add(new DayOverrun(m, d, h, cap));
+                out.add(new DayOverrun(m, d, Numbers.round(h, 2), cap));
             }
         }));
         return out;
@@ -625,7 +626,7 @@ public class DetailPlanService {
         Map<String, Map<String, List<DayItem>>> mine = new HashMap<>();
         for (DetailScheduler.Part p : parts) {
             mine.computeIfAbsent(p.memberId(), k -> new HashMap<>()).computeIfAbsent(p.date(), k -> new ArrayList<>())
-                    .add(new DayItem(null, names.getOrDefault(p.ref(), p.ref()), p.hours(), false));
+                    .add(new DayItem(null, names.getOrDefault(p.ref(), p.ref()), Numbers.round(p.hours(), 2), false));
         }
         // the other anken: every tracked one, whatever the viewer's scope (only their titles and hours are shown)
         TrackerContext all = context.load(new AnkenScope(Set.copyOf(ctx.settings.jira.epics)));
@@ -648,17 +649,17 @@ public class DetailPlanService {
                 List<DayItem> items = new ArrayList<>(mine.getOrDefault(m, Map.of()).getOrDefault(d, List.of()));
                 Capacity.DayPlan dp = jira.day(m, d);
                 if (dp != null) {
-                    dp.byKey.forEach((key, h) -> items.add(new DayItem(key, ctx.issue(key).map(Issue::summary).orElse(key), h, false)));
+                    dp.byKey.forEach((key, h) -> items.add(new DayItem(key, ctx.issue(key).map(Issue::summary).orElse(key), Numbers.round(h, 2), false)));
                 }
                 Map<String, Double> byEpic = new TreeMap<>();
                 Capacity.DayPlan op = other.day(m, d);
                 if (op != null) {
-                    op.byKey.forEach((key, h) -> byEpic.merge(epicOf.get(key), h, Double::sum));
+                    op.byKey.forEach((key, h) -> byEpic.merge(epicOf.get(key), h, Numbers::sum));
                 }
-                byEpic.forEach((e, h) -> items.add(new DayItem(e, all.anken(e).map(Anken::title).orElse(e), h, true)));
+                byEpic.forEach((e, h) -> items.add(new DayItem(e, all.anken(e).map(Anken::title).orElse(e), Numbers.round(h, 2), true)));
                 String off = ctx.cal.off(d, m);
-                out.add(new DayLoad(m, d, day.getOrDefault(d, 0.0), Objects.requireNonNullElse(a.hoursOn(m, epic, d), 0.0),
-                        Text.hasText(off) ? off : null, byEpic.values().stream().mapToDouble(Double::doubleValue).sum(), items));
+                out.add(new DayLoad(m, d, Numbers.round(day.getOrDefault(d, 0.0), 2), Objects.requireNonNullElse(a.hoursOn(m, epic, d), 0.0),
+                        Text.hasText(off) ? off : null, Numbers.round(byEpic.values().stream().mapToDouble(Double::doubleValue).sum(), 2), items));
             }
         }
         return out;
@@ -805,7 +806,7 @@ public class DetailPlanService {
             for (Effort.PlanShare sh : ctx.planShares(i)) {
                 if (ctx.isMember(epic, sh.memberId())) {
                     out.merge(sh.memberId() + "|" + groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER),
-                            i.estimateH() * sh.fraction(), Double::sum);
+                            i.estimateH() * sh.fraction(), Numbers::sum);
                 }
             }
         }

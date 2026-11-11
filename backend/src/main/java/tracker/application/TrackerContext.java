@@ -132,7 +132,7 @@ public final class TrackerContext {
         return new TaskCard(
                 i.key(), i.summary(), i.project(), i.epicKey(), i.phase(), i.functionId(), i.functionName(),
                 i.step() != null ? i.step().value() : null, i.status().value(), i.jiraStatus(), i.assigneeId(), worker(i), planOwner(i),
-                i.plannedStart(), i.plannedEnd(), i.estimateH(), Numbers.round(i.loggedH(), 2),
+                i.plannedStart(), i.plannedEnd(), Numbers.round(i.estimateH(), 2), Numbers.round(i.loggedH(), 2),
                 closed ? 0 : Numbers.round(i.remainingH(), 2),
                 span != null ? span[0] : null, span != null ? span[1] : null,
                 f.isCurrent(), f.late(), f.lateDays(), f.soon(), f.over(), f.tone(), f.heldDays(), f.rounds(),

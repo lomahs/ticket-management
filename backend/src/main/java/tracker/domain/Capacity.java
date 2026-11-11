@@ -55,11 +55,11 @@ public final class Capacity {
             if (days.isEmpty()) {
                 days.add(it.start());
             }
-            double per = it.estimateH() / days.size();
-            for (String d : days) {
-                DayPlan dp = plan.dayForUpdate(it.memberId(), d);
-                dp.total += per;
-                dp.byKey.put(it.key(), dp.byKey.getOrDefault(it.key(), 0.0) + per);
+            double[] per = Numbers.split(it.estimateH(), days.size());
+            for (int k = 0; k < days.size(); k++) {
+                DayPlan dp = plan.dayForUpdate(it.memberId(), days.get(k));
+                dp.total = Numbers.sum(dp.total, per[k]);
+                dp.byKey.merge(it.key(), per[k], Numbers::sum);
             }
         }
         return plan;

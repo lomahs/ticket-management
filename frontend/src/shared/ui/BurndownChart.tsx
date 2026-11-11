@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Schemas } from '../api/types';
-import { D, dm, f1, WDN } from '../format/dates';
+import { D, dm, f2, WDN } from '../format/dates';
 
 /**
  * Remaining effort per working day: the plan (dashed) and the actual remaining (solid), with a marker on `today`.
@@ -31,13 +31,13 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
       <div style={{ position: 'relative', height }}>
         {[0, 1, 2, 3, 4].map((i) => (
           <span key={i} style={{ position: 'absolute', right: 0, top: i * 25 + '%', transform: 'translateY(-50%)', font: '500 11px/1 var(--font-mono)', color: 'var(--text-muted)' }}>
-            {f1((yMax * (4 - i)) / 4)}h
+            {f2((yMax * (4 - i)) / 4)}h
           </span>
         ))}
       </div>
       <div
         role="img"
-        aria-label={`Burndown: ${f1(b.plan_remaining_h)}h planned and ${f1(b.actual_remaining_h)}h actually remaining of ${f1(E)}h`}
+        aria-label={`Burndown: ${f2(b.plan_remaining_h)}h planned and ${f2(b.actual_remaining_h)}h actually remaining of ${f2(E)}h`}
         onMouseLeave={() => setHov(null)}
         style={{ position: 'relative', height, borderLeft: '1px solid var(--border-strong)', borderBottom: '1px solid var(--border-strong)' }}
       >
@@ -80,10 +80,10 @@ function Tip({ d, baseline, left, flip }: { d: Schemas['BurndownDay']; baseline:
       border: '1px solid var(--border-subtle)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, zIndex: 2,
     }}>
       <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{WDN[D(d.date).getUTCDay()]} {dm(d.date)}{baseline ? ' · baseline' : ''}</span>
-      <span style={row}>Plan<b style={{ color: 'var(--text-heading)' }}>{f1(d.plan_remaining_h)}h</b></span>
-      <span style={row}>Actual<b style={{ color: 'var(--st-wip)' }}>{a == null ? '—' : f1(a) + 'h'}</b></span>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f1(d.planned_h)}h planned · {f1(d.logged_h)}h logged</span>
-      {a != null && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-heading)' }}>{(a - d.plan_remaining_h > 0 ? '+' : '') + f1(a - d.plan_remaining_h)}h vs plan</span>}
+      <span style={row}>Plan<b style={{ color: 'var(--text-heading)' }}>{f2(d.plan_remaining_h)}h</b></span>
+      <span style={row}>Actual<b style={{ color: 'var(--st-wip)' }}>{a == null ? '—' : f2(a) + 'h'}</b></span>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f2(d.planned_h)}h planned · {f2(d.logged_h)}h logged</span>
+      {a != null && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-heading)' }}>{(a - d.plan_remaining_h > 0 ? '+' : '') + f2(a - d.plan_remaining_h)}h vs plan</span>}
     </div>
   );
 }

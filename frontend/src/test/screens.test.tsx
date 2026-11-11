@@ -84,7 +84,7 @@ describe('screens render API data at their URLs', () => {
     server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({ ...fixtures.ticket, warnings })));
     renderApp('/my-work?member=binh&ticket=PAY-1213');
     const panel = await screen.findByRole('complementary', { name: 'Ticket PAY-1213' });
-    expect(await within(panel).findByText(/logged 1\.5h on .*: not a role that works on this step/)).toBeTruthy();
+    expect(await within(panel).findByText(/logged 1\.50h on .*: not a role that works on this step/)).toBeTruthy();
   });
 
   it('opens the ticket panel from ?ticket= and disables Jira edits without a writer', async () => {
@@ -243,8 +243,8 @@ describe('screens render API data at their URLs', () => {
     }));
     const { router } = renderApp('/effort/burndown?anken=PAY-1100');
     expect(await screen.findByText('Behind plan')).toBeTruthy();
-    expect(screen.getByText('+2h')).toBeTruthy();
-    expect(screen.getByRole('img', { name: /4h planned and 6h actually remaining of 12h/ })).toBeTruthy();
+    expect(screen.getByText('+2.00h')).toBeTruthy();
+    expect(screen.getByRole('img', { name: /4\.00h planned and 6\.00h actually remaining of 12\.00h/ })).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Sub-phase' })).toBeNull(); // only once a phase is picked
     fireEvent.click(screen.getByRole('button', { name: 'Implement_Coding' }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
@@ -279,10 +279,10 @@ describe('screens render API data at their URLs', () => {
     const table = await screen.findByRole('table', { name: 'Planned effort per function, person and day' });
     const rows = within(table).getAllByRole('row').map((r) => [...r.querySelectorAll('th,td')].map((c) => c.textContent));
     expect(rows[0]).toEqual(['Phase', 'Sub-phase', 'Function', 'PIC', 'Day 110/05', 'Day 210/06', 'Day 310/07', 'Total']);
-    expect(rows[1]).toEqual(['ITA', 'ITA Prepare', 'Login', 'An (BA)', '2.7', '2.7', '—', '5.4']);
-    expect(rows[2]).toEqual(['', '', '', 'Minh (BAL)', '1.3', '1.3', '—', '2.6']); // the BAL's share of the same function
-    expect(rows[3]).toEqual(['', 'ITA Execute', 'Search', 'An (BA)', '—', '2', '2', '4']);
-    expect(rows[4]).toEqual(['Total', '', '', '', '4', '6', '2', '12']);
+    expect(rows[1]).toEqual(['ITA', 'ITA Prepare', 'Login', 'An (BA)', '2.70', '2.70', '—', '5.40']);
+    expect(rows[2]).toEqual(['', '', '', 'Minh (BAL)', '1.30', '1.30', '—', '2.60']); // the BAL's share of the same function
+    expect(rows[3]).toEqual(['', 'ITA Execute', 'Search', 'An (BA)', '—', '2.00', '2.00', '4.00']);
+    expect(rows[4]).toEqual(['Total', '', '', '', '4.00', '6.00', '2.00', '12.00']);
   });
 
   it('shows API errors instead of a blank screen', async () => {
@@ -620,9 +620,9 @@ describe('screens render API data at their URLs', () => {
     );
     renderApp('/effort/timesheet?from=2026-10-05');
     const under = await screen.findByRole('button', { name: /Under allocation/ });
-    expect(under.getAttribute('aria-label')).toMatch(/^5h · plan .+ · Under allocation$/); // hours and plan stay in the name
-    expect(under.getAttribute('title')).toContain('target 8h');
-    expect(under.getAttribute('title')).toContain('+1.5h on anken without allocation');
+    expect(under.getAttribute('aria-label')).toMatch(/^5\.00h · plan .+ · Under allocation$/); // hours and plan stay in the name
+    expect(under.getAttribute('title')).toContain('target 8.00h');
+    expect(under.getAttribute('title')).toContain('+1.50h on anken without allocation');
     expect(screen.getByRole('button', { name: /No allocation/ })).toBeTruthy();
     expect(screen.getByText('0 days over · 1 days under')).toBeTruthy();
     const legend = within(screen.getByRole('region', { name: 'Timesheet' }));

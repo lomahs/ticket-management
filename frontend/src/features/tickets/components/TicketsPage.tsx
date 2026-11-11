@@ -423,7 +423,7 @@ function ExistingRow({ it, r, e = {}, picked, parent, canWrite, people, name, me
         <DateField key={f} bare aria-label={`${r.key} ${FIELD_LABEL[f].toLowerCase()}`} value={value(f)} disabled={!canWrite} title={was(f)}
           onChange={(v) => edit(r, f, v)} style={cell(e[f] != null)} />
       ))}
-      <input type="number" min={0} step={0.5} aria-label={`${r.key} estimate`} value={value('estimate_h')} disabled={!canWrite} title={was('estimate_h')}
+      <input type="number" min={0} step={0.01} aria-label={`${r.key} estimate`} value={value('estimate_h')} disabled={!canWrite} title={was('estimate_h')}
         onChange={(ev) => edit(r, 'estimate_h', ev.target.value)} style={cell(e.estimate_h != null, { textAlign: 'right' })} />
       <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
         {it.task && canWrite && (
@@ -467,7 +467,7 @@ function DraftRow({ it, r, picked, parent, canWrite, people, member, pick, addSu
       {(['planned_start', 'planned_end'] as const).map((k) => (
         <DateField key={k} bare aria-label={`New ${FIELD_LABEL[k].toLowerCase()}`} value={r[k]} onChange={input(k)} style={cell(false)} />
       ))}
-      <input type="number" min={0} step={0.5} aria-label="New estimate" value={r.estimate_h} onChange={(e) => input('estimate_h')(e.target.value)}
+      <input type="number" min={0} step={0.01} aria-label="New estimate" value={r.estimate_h} onChange={(e) => input('estimate_h')(e.target.value)}
         style={cell(false, { textAlign: 'right' })} />
       <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
         {it.task && canWrite && (

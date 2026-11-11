@@ -22,9 +22,10 @@ export const ymdSpan = (a: string, b: string) => `${ymd(a)} – ${a.slice(0, 4) 
 /** "2026-10" → "2026/10". */
 export const ym = (mon: string) => mon.slice(0, 4) + '/' + mon.slice(5, 7);
 export const dayDiff = (a: string, b: string) => Math.round((D(b).getTime() - D(a).getTime()) / 864e5);
-export const f1 = (n: number) => String(Math.round(n * 10) / 10);
-/** Hours label: 7.5 → "7.5h". */
-export const hrs = (n: number | null | undefined) => (n == null ? '–' : f1(n) + 'h');
+/** Hours with two decimals, rounded half-up: 7.5 → "7.50", 1/3 → "0.33", −1.005 → "-1.01". */
+export const f2 = (n: number) => ((Math.sign(n) * Math.round(Math.abs(n) * 100 + 1e-9)) / 100 + 0).toFixed(2);
+/** Hours label: 7.5 → "7.50h". */
+export const hrs = (n: number | null | undefined) => (n == null ? '–' : f2(n) + 'h');
 
 export const monthDays = (mon: string) => {
   const [y, m] = mon.split('-').map(Number);

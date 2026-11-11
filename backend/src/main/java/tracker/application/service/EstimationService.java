@@ -18,6 +18,7 @@ import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.StepEdit;
 import tracker.domain.MasterSchedule;
+import tracker.domain.Numbers;
 import tracker.domain.PhaseGroups;
 import tracker.domain.StepWeights;
 import tracker.domain.TaskNames;
@@ -71,7 +72,7 @@ public class EstimationService {
     private EstimationView view(TrackerContext ctx, String epic) {
         List<EstimationRow> all = rows.findByEpic(epic);
         return new EstimationView(all, phaseEfforts(all, rows.stepEdits(epic), ctx.settings.stepWeightsOf(epic)).entrySet().stream()
-                .map(e -> new PhaseEffort(e.getKey(), e.getValue())).toList(), tasks(ctx, epic));
+                .map(e -> new PhaseEffort(e.getKey(), Numbers.round(e.getValue(), 2))).toList(), tasks(ctx, epic));
     }
 
     /** Phase → BA effort ({@link PhaseEffort#totalEffortH}), phases in the order of their first row. */

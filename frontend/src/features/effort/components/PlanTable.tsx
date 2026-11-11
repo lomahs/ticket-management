@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 
 type Row = Schemas['PlanRow'];
 
@@ -13,7 +13,7 @@ const fixed = (n: number): CSSProperties => ({
   width: FIXED[n], minWidth: FIXED[n], maxWidth: FIXED[n], overflow: 'hidden', textOverflow: 'ellipsis', background: 'var(--surface-card)',
   ...(n === FIXED.length - 1 ? { borderRight: '1px solid var(--border-subtle)' } : {}),
 });
-const hours = (h: number) => (h > 0.005 ? f1(h) : '—');
+const hours = (h: number) => (h > 0.005 ? f2(h) : '—');
 
 /**
  * The planned hours per function, person and day (Day 1 is the first working day of the scope): each step's estimate shared

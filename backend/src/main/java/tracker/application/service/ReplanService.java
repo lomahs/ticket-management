@@ -35,6 +35,7 @@ import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.DetailScheduler.Step;
 import tracker.domain.Function;
 import tracker.domain.Issue;
+import tracker.domain.Numbers;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.RuleError;
@@ -121,7 +122,7 @@ public class ReplanService {
                 Issue i = byKey.get(p.ref());
                 double hours = hours(i);
                 if (started(i) && p.counted() && hours > 0) { // the part already done still counts in the phase, shared the same way
-                    before.merge(p.memberId() + "|" + p.phase(), Math.max(0, i.estimateH() - hours) * p.hours() / hours, Double::sum);
+                    before.merge(p.memberId() + "|" + p.phase(), Math.max(0, i.estimateH() - hours) * p.hours() / hours, Numbers::sum);
                 }
             }
             List<Overrun> over = DetailScheduler.overBudget(res.placed(), before, Map.of(in.phase(), phase), epic, a, ctx.cal);

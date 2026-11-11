@@ -174,7 +174,7 @@ public final class DetailScheduler {
             double h = ledger.get(m).get(d);
             double cap = hours.on(m, d);
             if (h > cap + EPS) {
-                over.add(new DayOverrun(m, d, h, cap));
+                over.add(new DayOverrun(m, d, Numbers.round(h, 2), cap));
             }
         }));
         over.sort(Comparator.comparing(DayOverrun::memberId).thenComparing(DayOverrun::date));
@@ -308,7 +308,7 @@ public final class DetailScheduler {
                     continue;
                 }
                 for (Share sh : st.shares()) {
-                    Open o = new Open(r, sh, pool(st, sh), sh.hours() <= EPS ? 0 : sh.hours());
+                    Open o = new Open(r, sh, pool(st, sh), sh.hours() <= EPS ? 0 : Numbers.hours(sh.hours()));
                     if (o.left == 0) { // no hours: its first working day
                         o.first = cal.nextWork(r.cursor, sh.memberId());
                         o.last = o.first;
@@ -410,22 +410,22 @@ public final class DetailScheduler {
             return true;
         }
 
-        /** Gives up to {@code cap} hours of the day to the shares, in order; returns the hours given. */
+        /** Gives up to {@code cap} hours of the day to the shares, in order, in whole hundredths; returns the hours given. */
         private double give(List<Open> shares, double cap, String day) {
             double given = 0;
             for (Open o : shares) {
-                double take = Math.min(o.left, cap - given);
+                double take = Math.min(o.left, Numbers.floorHours(cap - given));
                 if (take <= EPS) {
                     continue;
                 }
                 String m = o.share.memberId();
-                mine(m, ledger, own).merge(day, take, Double::sum);
+                mine(m, ledger, own).merge(day, take, Numbers::sum);
                 touched.computeIfAbsent(m, k -> new TreeSet<>()).add(day);
                 parts.add(new Part(o.run.current().ref(), m, day, take));
-                o.left -= take;
+                o.left = Numbers.hours(o.left - take);
                 o.first = o.first == null ? day : o.first;
                 o.last = day;
-                given += take;
+                given = Numbers.hours(given + take);
             }
             return given;
         }
@@ -451,7 +451,7 @@ public final class DetailScheduler {
         }
         Map<String, Double> m = mine(sh.memberId(), ledger, own);
         for (Part p : spread) {
-            m.merge(p.date(), p.hours(), Double::sum);
+            m.merge(p.date(), p.hours(), Numbers::sum);
             touched.computeIfAbsent(sh.memberId(), k -> new TreeSet<>()).add(p.date());
             parts.add(p);
         }
@@ -470,9 +470,10 @@ public final class DetailScheduler {
         if (days.isEmpty()) {
             days = List.of(start);
         }
+        double[] each = Numbers.split(sh.hours(), days.size());
         List<Part> out = new ArrayList<>();
-        for (String d : days) {
-            out.add(new Part(ref, sh.memberId(), d, sh.hours() / days.size()));
+        for (int k = 0; k < days.size(); k++) {
+            out.add(new Part(ref, sh.memberId(), days.get(k), each[k]));
         }
         return out;
     }
@@ -488,7 +489,7 @@ public final class DetailScheduler {
         Map<String, Double> given = new LinkedHashMap<>(givenBefore);
         for (Placed p : placed) {
             if (p.counted()) {
-                given.merge(p.memberId() + "|" + p.phase(), p.hours(), Double::sum);
+                given.merge(p.memberId() + "|" + p.phase(), p.hours(), Numbers::sum);
             }
         }
         List<Overrun> out = new ArrayList<>();
@@ -501,7 +502,7 @@ public final class DetailScheduler {
             }
             double budget = MasterSchedule.budget(member, epic, row.start(), row.end(), a, cal);
             if (h > budget + EPS) {
-                out.add(new Overrun(member, phase, h, budget));
+                out.add(new Overrun(member, phase, Numbers.round(h, 2), Numbers.round(budget, 2)));
             }
         });
         out.sort(Comparator.comparing(Overrun::phase).thenComparing(Overrun::memberId));

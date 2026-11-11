@@ -315,7 +315,7 @@ public final class AutoAllocator {
         Map<String, Double> given = new HashMap<>(in.givenBefore());
         for (Placed pl : placed) {
             if (pl.counted()) {
-                given.merge(pl.memberId() + '|' + pl.phase(), pl.hours(), Double::sum);
+                given.merge(pl.memberId() + '|' + pl.phase(), pl.hours(), Numbers::sum);
             }
         }
         return given;
@@ -327,7 +327,7 @@ public final class AutoAllocator {
         Map<String, String> ends = new HashMap<>();
         for (Placed pl : placed) {
             if (pl.kind() == StepKind.JM_REVIEW) {
-                jmHours.merge(pl.memberId(), pl.hours(), Double::sum);
+                jmHours.merge(pl.memberId(), pl.hours(), Numbers::sum);
             }
             ends.merge(pl.phase(), pl.end(), Dates::max);
         }
@@ -414,9 +414,9 @@ public final class AutoAllocator {
                 ledger = bestRes.ledger();
                 for (Placed pl : bestRes.placed()) {
                     if (pl.kind() == StepKind.JM_REVIEW) {
-                        jmHours.merge(pl.memberId(), pl.hours(), Double::sum);
+                        jmHours.merge(pl.memberId(), pl.hours(), Numbers::sum);
                     } else {
-                        given.merge(pl.memberId() + '|' + pl.phase(), pl.hours(), Double::sum);
+                        given.merge(pl.memberId() + '|' + pl.phase(), pl.hours(), Numbers::sum);
                     }
                 }
             }
@@ -448,7 +448,7 @@ public final class AutoAllocator {
         String end = null;
         for (Placed pl : res.placed()) {
             if (pl.counted()) {
-                add.merge(pl.memberId(), pl.hours(), Double::sum);
+                add.merge(pl.memberId(), pl.hours(), Numbers::sum);
             }
             end = end == null ? pl.end() : Dates.max(end, pl.end());
         }

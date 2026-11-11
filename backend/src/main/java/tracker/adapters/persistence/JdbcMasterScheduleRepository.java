@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tracker.application.ports.MasterScheduleRepository;
+import tracker.domain.Numbers;
 import tracker.domain.ScheduleVersion;
 import tracker.domain.ScheduleVersion.PhaseRow;
 
@@ -58,7 +59,7 @@ class JdbcMasterScheduleRepository implements MasterScheduleRepository {
                     INSERT INTO master_schedule_phases (version_id, position, phase, member_ids, start_date, end_date, plan_md, total_effort_h)
                     VALUES (:id, :position, :phase, :members, :start, :end, :md, :effort)
                     """).param("id", id).param("position", i).param("phase", p.phase()).param("members", write(p.memberIds()))
-                    .param("start", p.start()).param("end", p.end()).param("md", p.planMd()).param("effort", p.totalEffortH()).update();
+                    .param("start", p.start()).param("end", p.end()).param("md", p.planMd()).param("effort", Numbers.hours(p.totalEffortH())).update();
         }
         return new ScheduleVersion(id, v.epicKey(), v.savedAt(), v.savedBy(), v.reason(), v.phases());
     }

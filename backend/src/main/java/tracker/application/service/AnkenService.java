@@ -164,7 +164,7 @@ public class AnkenService {
             if (i.status() != Status.CLOSED && Text.hasText(i.assigneeId())) {
                 open.merge(i.assigneeId(), 1, Integer::sum);
             }
-            i.worklogs().forEach(w -> logged.merge(w.memberId(), w.hours(), Double::sum));
+            i.worklogs().forEach(w -> logged.merge(w.memberId(), w.hours(), Numbers::sum));
         }
         Set<String> ids = new HashSet<>(open.keySet());
         ids.addAll(logged.keySet());

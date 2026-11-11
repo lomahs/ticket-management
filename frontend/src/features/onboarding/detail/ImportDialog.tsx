@@ -1,7 +1,7 @@
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, IconButton } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { stepLabel } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useApplyImport, type ImportLine } from './api';
@@ -15,7 +15,7 @@ export function changeText(changes: Change[], name: (id?: string | null) => stri
   const out: string[] = [];
   for (const c of changes) {
     if (SLOT[c.field]) out.push(`${SLOT[c.field]} ${name(c.before) || '–'} → ${name(c.after)}`);
-    else if (c.field === 'effort_h') out.push(`Effort ${f1(Number(c.before))}h → ${f1(Number(c.after))}h`);
+    else if (c.field === 'effort_h') out.push(`Effort ${f2(Number(c.before))}h → ${f2(Number(c.after))}h`);
   }
   const start = changes.find((c) => c.field === 'start');
   const end = changes.find((c) => c.field === 'end');

@@ -5,7 +5,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap, useMeta } from '../../../shared/api/queries';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { IconButton } from '../../../shared/ds';
-import { add, dm, dow, f1, hrs, mondayOf, monLabel, monthDays, shiftMon, WDN, ymdSpan } from '../../../shared/format/dates';
+import { add, dm, dow, f2, hrs, mondayOf, monLabel, monthDays, shiftMon, WDN, ymdSpan } from '../../../shared/format/dates';
 import { dayHeadStyle, hatch, stepLabel } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { Avatar, av, Legend, Seg } from '../../../shared/ui/bits';
@@ -175,7 +175,7 @@ function DayPopover({ pop, close }: { pop: Pop; close: () => void }) {
           <span style={{ font: '600 11px/1.3 var(--font-mono)', color: 'var(--text-link)' }}>{e.key}</span>
           <b className="heading" style={{ textAlign: 'right' }}>{hrs(e.logged_h)}</b>
           <span className="ellipsis heading" style={{ fontSize: 12 }}>{e.function_id ? `${e.function_id} · ${stepLabel(e.step)}` : e.summary}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>plan {e.planned_h ? f1(e.planned_h) + 'h' : '–'}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>plan {e.planned_h ? f2(e.planned_h) + 'h' : '–'}</span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', gridColumn: '1 / -1' }}>{e.notes.join(' · ') || 'No worklog yet'}</span>
         </div>
       ))}

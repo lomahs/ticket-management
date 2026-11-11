@@ -5,7 +5,7 @@ import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useJiraWrite, useMemberMap, useMeta } from '../../../shared/api/queries';
 import { Button, DateField, Icon, IconButton } from '../../../shared/ds';
-import { add, dayDiff, dm, dow, f1, hrs, mondayOf, WDN, ymd } from '../../../shared/format/dates';
+import { add, dayDiff, dm, dow, f2, hrs, mondayOf, WDN, ymd } from '../../../shared/format/dates';
 import { HOLIDAY_BG, LEAVE, OTHER_STEP, STEPS, dayHeadStyle, hatch, mix, statusOf, stepColor } from '../../../shared/format/labels';
 import { taskTitle } from '../../../shared/format/task';
 import { useAnkenScope } from '../../../shared/state/anken';
@@ -236,7 +236,7 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
                       const pend = cl.items.some((x) => x.pend);
                       const tip = cl.items.map(({ b: { card: k, color_step }, start, end, pend: p }) => `${k.key} · ${k.summary}\n${STEPS.find((s) => s.k === color_step)?.label ?? OTHER_STEP.label} · ${k.project}\n`
                         + `Plan ${dm(start)} – ${dm(end)}\n${k.actual_start ? `Actual ${dm(k.actual_start)} – ${k.actual_end ? dm(k.actual_end) : 'in progress'}` : 'Actual: not started'}\n`
-                        + `${f1(k.logged_h)} / ${hrs(k.estimate_h)} · ${statusOf(k.status).label}${p ? '\nPending push to Jira' : ''}`).join('\n\n')
+                        + `${f2(k.logged_h)} / ${hrs(k.estimate_h)} · ${statusOf(k.status).label}${p ? '\nPending push to Jira' : ''}`).join('\n\n')
                         + (canWrite ? '\nDrag to change dates or assignee' : '');
                       return (
                         <Fragment key={bl.key}>
@@ -354,10 +354,10 @@ function Planning({ v, hidden, setHidden, fn, setFn, closeAll }: {
                   {row.weeks.map((w) => {
                     const over = w.level === 'over';
                     const bg = { over: 'var(--hl-red)', near: 'var(--hl-amber)', ok: 'var(--hl-ok)', idle: 'var(--surface-hover)' }[w.level] ?? 'var(--surface-hover)';
-                    const sub = `${f1(w.planned_h)} / ${f1(w.available_h)}h`;
+                    const sub = `${f2(w.planned_h)} / ${f2(w.available_h)}h`;
                     if (w.level === 'no_allocation') {
                       return (
-                        <div key={w.week_start} title={`${f1(w.planned_h)}h planned, no allocation`} style={{ padding: '7px 10px', borderRadius: 8, display: 'flex', alignItems: 'baseline', gap: 6, background: hatch('var(--border-subtle)') + ',var(--surface-hover)' }}>
+                        <div key={w.week_start} title={`${f2(w.planned_h)}h planned, no allocation`} style={{ padding: '7px 10px', borderRadius: 8, display: 'flex', alignItems: 'baseline', gap: 6, background: hatch('var(--border-subtle)') + ',var(--surface-hover)' }}>
                           <span style={{ font: '600 12px/1 var(--font-text)', color: 'var(--text-muted)' }}>No allocation</span>
                         </div>
                       );

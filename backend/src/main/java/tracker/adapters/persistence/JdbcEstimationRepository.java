@@ -17,6 +17,7 @@ import tracker.domain.AutoPicks;
 import tracker.domain.DetailScheduler.Part;
 import tracker.domain.DetailScheduler.Placed;
 import tracker.domain.EstimationRow;
+import tracker.domain.Numbers;
 import tracker.domain.SavedPlan;
 import tracker.domain.StepEdit;
 import tracker.domain.StepKind;
@@ -96,7 +97,7 @@ class JdbcEstimationRepository implements EstimationRepository {
             jdbc.sql("""
                     INSERT INTO estimation_steps (row_id, step, effort_h, planned_start, planned_end, removed)
                     VALUES (:row, :step, :effort, :start, :end, :removed)
-                    """).param("row", e.rowId()).param("step", step).param("effort", e.effortH()).param("start", e.start())
+                    """).param("row", e.rowId()).param("step", step).param("effort", e.effortH() == null ? null : Numbers.hours(e.effortH())).param("start", e.start())
                     .param("end", e.end()).param("removed", e.removed() ? 1 : 0).update();
         }
     }
@@ -153,13 +154,13 @@ class JdbcEstimationRepository implements EstimationRepository {
                     INSERT INTO estimation_plan_placed (row_id, ref, phase, step, member_id, hours, planned_start, planned_end, counted)
                     VALUES (:row, :ref, :phase, :step, :member, :hours, :start, :end, :counted)
                     """).param("row", rowOf(p.ref())).param("ref", p.ref()).param("phase", p.phase())
-                    .param("step", p.kind() == null ? "" : p.kind().value()).param("member", p.memberId()).param("hours", p.hours())
+                    .param("step", p.kind() == null ? "" : p.kind().value()).param("member", p.memberId()).param("hours", Numbers.hours(p.hours()))
                     .param("start", p.start()).param("end", p.end()).param("counted", p.counted() ? 1 : 0).update();
         }
         for (Part p : plan.parts()) {
             jdbc.sql("INSERT INTO estimation_plan_parts (row_id, ref, member_id, day, hours) VALUES (:row, :ref, :member, :day, :hours)")
                     .param("row", rowOf(p.ref())).param("ref", p.ref()).param("member", p.memberId()).param("day", p.date())
-                    .param("hours", p.hours()).update();
+                    .param("hours", Numbers.hours(p.hours())).update();
         }
     }
 
@@ -196,7 +197,7 @@ class JdbcEstimationRepository implements EstimationRepository {
         v.put("subphase", r.subphase());
         v.put("fn", r.functionName());
         v.put("steps", r.steps());
-        v.put("effort", r.effortH());
+        v.put("effort", Numbers.hours(r.effortH()));
         v.put("ba", r.baId());
         v.put("bal", r.balId());
         v.put("jm", r.jmId());

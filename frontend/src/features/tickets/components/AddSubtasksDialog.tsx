@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, IconButton, Select, TextField, type Option } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { functionPreviewQuery } from '../../matrix';
 import { newRef, type NewRow } from '../model/draft';
 import { useDebounced } from '../../../shared/state/debounce';
@@ -63,7 +63,7 @@ function Single({ people, add, close }: { people: Option[]; add: (row: NewRow) =
         <Select label="Reporter" value={r.reporter_id} options={[{ value: '', label: 'The Jira account (default)' }, ...people]} onChange={set('reporter_id')} />
         <DateField label="Planned Start" value={r.planned_start} onChange={set('planned_start')} />
         <DateField label="Planned End" value={r.planned_end} onChange={set('planned_end')} />
-        <TextField label="Estimate (h)" type="number" min={0} step={0.5} value={r.estimate_h} onChange={set('estimate_h')} />
+        <TextField label="Estimate (h)" type="number" min={0} step={0.01} value={r.estimate_h} onChange={set('estimate_h')} />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span className="eyebrow" style={{ flex: 1 }}>Added as a draft. Nothing reaches Jira until you commit.</span>
@@ -106,7 +106,7 @@ function Functions({ epic, parentKey, steps, people, members, add, close }: {
         <Select label="BA · Create, Fix" value={f.ba} options={byRole('BA')} onChange={set('ba')} />
         <Select label="Reviewer BAL" value={f.bal} options={byRole('BAL')} onChange={set('bal')} />
         {steps === 5 && <Select label="Reviewer JM" value={f.jm} options={byRole('JM')} onChange={set('jm')} />}
-        <TextField label="Create effort (h)" type="number" min={0} step={0.5} value={f.create_hours} onChange={set('create_hours')} />
+        <TextField label="Create effort (h)" type="number" min={0} step={0.01} value={f.create_hours} onChange={set('create_hours')} />
         <Select label="Reporter" value={f.reporter_id} options={[{ value: '', label: 'The Jira account (default)' }, ...people]} onChange={set('reporter_id')} />
       </div>
       {error && <span role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)' }}>{errorMessage(error)}</span>}
@@ -116,7 +116,7 @@ function Functions({ epic, parentKey, steps, people, members, add, close }: {
             <div key={s.step} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 90px 56px 110px', gap: 8, padding: '6px 10px', borderTop: '1px solid var(--border-subtle)' }}>
               <span className="ellipsis heading" title={s.summary}>{s.summary}</span>
               <span>{name(s.assignee_id)}</span>
-              <span className="mono">{f1(s.estimate_h)}h</span>
+              <span className="mono">{f2(s.estimate_h)}h</span>
               <span className="mono muted">{dm(s.start)} – {dm(s.end)}</span>
             </div>
           ))}

@@ -113,7 +113,7 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
                   <select aria-label={`Steps, row ${n}`} disabled={ro} value={r.steps ?? ''} onChange={(e) => edit(i, { steps: e.target.value ? Number(e.target.value) : null })} style={CELL}>
                     <option value="">–</option><option value="3">3</option><option value="5">5</option>
                   </select>
-                  <input aria-label={`Effort (h), row ${n}`} disabled={ro} type="number" min={0} step={0.5} value={r.effort_h || ''} onChange={(e) => edit(i, { effort_h: Number(e.target.value) })} style={CELL} />
+                  <input aria-label={`Effort (h), row ${n}`} disabled={ro} type="number" min={0} step={0.01} value={r.effort_h || ''} onChange={(e) => edit(i, { effort_h: Number(e.target.value) })} style={CELL} />
                   {r.pushed_at ? <span className="eyebrow" title="Already in Jira">In Jira</span>
                     : admin ? <IconButton icon="trash-2" label={`Remove row ${n}`} size="sm" appearance="subtle" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} /> : <span />}
                 </div>

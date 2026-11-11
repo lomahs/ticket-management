@@ -4,6 +4,8 @@ import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 
+import tracker.domain.Numbers;
+
 /** Values of Jira fields as the REST API returns them: text, numbers, or null when unset. */
 public final class JiraValues {
     private JiraValues() {
@@ -31,6 +33,6 @@ public final class JiraValues {
             return null;
         }
         double n = value instanceof Number num ? num.doubleValue() : Double.parseDouble(String.valueOf(value).strip());
-        return SECONDS_FIELDS.contains(fieldId) ? n / 3600 : n;
+        return Numbers.hours(SECONDS_FIELDS.contains(fieldId) ? n / 3600 : n);
     }
 }

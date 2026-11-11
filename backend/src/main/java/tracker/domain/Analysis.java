@@ -26,8 +26,8 @@ public final class Analysis {
         List<EffortBar> out = new ArrayList<>();
         for (Group g : groups) {
             List<Issue> started = g.issues().stream().filter(i -> i.status() != Status.NYS).toList();
-            out.add(new EffortBar(g.label(), started.stream().mapToDouble(Issue::estimateH).sum(),
-                    started.stream().mapToDouble(Issue::loggedH).sum()));
+            out.add(new EffortBar(g.label(), Numbers.round(started.stream().mapToDouble(Issue::estimateH).sum(), 2),
+                    Numbers.round(started.stream().mapToDouble(Issue::loggedH).sum(), 2)));
         }
         return out;
     }
@@ -74,7 +74,7 @@ public final class Analysis {
                 for (Issue c : f.issues()) {
                     for (Worklog w : c.worklogs()) {
                         if (mid.equals(w.memberId())) {
-                            hours.merge(Effort.kindOf(c.step(), role), w.hours(), Double::sum);
+                            hours.merge(Effort.kindOf(c.step(), role), w.hours(), Numbers::sum);
                         }
                     }
                 }

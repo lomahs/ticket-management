@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useCan, useMe, useMemberMap } from '../../../shared/api/queries';
 import { Icon, type IconName } from '../../../shared/ds';
-import { dm } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { statusOf } from '../../../shared/format/labels';
 import { taskShort } from '../../../shared/format/task';
 import { useAnkenScope } from '../../../shared/state/anken';
@@ -97,7 +97,7 @@ function AnkenCardView({ a, on }: { a: Schemas['AnkenCard']; on: boolean }) {
         <div style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', fontSize: 11, color: 'var(--text-muted)' }}>
             <span style={{ flex: 1 }}>Effort used / estimate</span>
-            <span style={{ fontWeight: 600, color: r > 1 ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{Math.round(a.used_h)} / {Math.round(a.estimate_h)}h</span>
+            <span style={{ fontWeight: 600, color: r > 1 ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{f2(a.used_h)} / {f2(a.estimate_h)}h</span>
           </div>
           <div style={{ height: 4, borderRadius: 99, background: 'var(--border-subtle)', marginTop: 4 }}>
             <div style={{ height: 4, borderRadius: 99, width: Math.min(100, r * 100) + '%', background: r > 1 ? 'var(--hl-red-fg)' : 'var(--surface-accent)' }} />

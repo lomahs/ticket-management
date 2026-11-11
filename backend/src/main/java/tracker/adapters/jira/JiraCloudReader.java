@@ -38,6 +38,7 @@ import tracker.application.dto.WorklogSnapshot;
 import tracker.application.ports.JiraAuthError;
 import tracker.application.ports.JiraError;
 import tracker.application.ports.JiraReader;
+import tracker.domain.Numbers;
 
 /**
  * Jira Cloud REST API v3 reader.
@@ -414,7 +415,7 @@ public final class JiraCloudReader implements JiraReader {
         List<WorklogSnapshot> logs = new ArrayList<>();
         for (JsonNode w : worklogs(client, key, obj(f.get("worklog")))) {
             logs.add(new WorklogSnapshot(account(w.path("author")), prefix(w.path("started").asText(), 10),
-                    w.path("timeSpentSeconds").asDouble(0) / 3600, adfText(w.get("comment"))));
+                    Numbers.hours(w.path("timeSpentSeconds").asDouble(0) / 3600), adfText(w.get("comment"))));
         }
         List<ChangeSnapshot> changes = new ArrayList<>();
         for (JsonNode h : histories(client, key, obj(issue.get("changelog")))) {

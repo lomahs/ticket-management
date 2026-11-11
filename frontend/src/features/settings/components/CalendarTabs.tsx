@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, IconButton, Select, TextField } from '../../../shared/ds';
-import { dm, dow, f1, WDN, ymd } from '../../../shared/format/dates';
+import { dm, dow, f2, WDN, ymd } from '../../../shared/format/dates';
 import { useMeta } from '../../../shared/api/queries';
 import { useToast } from '../../../shared/state/toast';
 import { Seg } from '../../../shared/ui/bits';
@@ -112,7 +112,7 @@ function HoursForm({ wh }: { wh: Schemas['WorkingHours'] }) {
         <TextField label="Over-log tolerance (hours)" type="number" min={0} step={0.5} value={f.tol} onChange={(v) => setF({ ...f, tol: v })} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-heading)' }}>Working days · {Number.isFinite(hours) ? f1(hours * f.days.length) : '–'}h / week</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-heading)' }}>Working days · {Number.isFinite(hours) ? f2(hours * f.days.length) : '–'}h / week</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[1, 2, 3, 4, 5, 6, 0].map((w) => {
             const on = f.days.includes(w);

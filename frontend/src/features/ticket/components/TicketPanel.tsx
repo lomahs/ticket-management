@@ -4,7 +4,7 @@ import { errorMessage } from '../../../shared/api/errors';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import type { Schemas, Status } from '../../../shared/api/types';
 import { Button, DateField, Icon, IconButton, Select, TextField, type IconName } from '../../../shared/ds';
-import { dm, f1, hrs } from '../../../shared/format/dates';
+import { dm, f2, hrs } from '../../../shared/format/dates';
 import { days, SCHEDULE_LABEL, STATUS, signedH } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useOpenTicket, useTicketBack, useTicketKey, type TicketBack } from '../../../shared/state/ticket';
@@ -22,10 +22,10 @@ function dateLine(label: string, n: number) {
 type Warning = Schemas['TicketWarning'];
 const WARN: Record<string, { icon: IconName; bg: string; fg: string; label: (w: Warning, name: (id: string | null) => string) => string }> = {
   late: { icon: 'alarm-clock', bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)', label: (w) => `Late by ${w.value} days` },
-  over: { icon: 'trending-up', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (w) => `Over estimate ${f1(w.value)}h` },
+  over: { icon: 'trending-up', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (w) => `Over estimate ${f2(w.value)}h` },
   rounds: { icon: 'refresh-cw', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)', label: (w) => `${w.value} round` },
   invalid_worklog: { icon: 'triangle-alert', bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)',
-    label: (w, name) => `${name(w.member_id)} logged ${f1(w.value)}h on ${dm(w.date)}: not a role that works on this step` },
+    label: (w, name) => `${name(w.member_id)} logged ${f2(w.value)}h on ${dm(w.date)}: not a role that works on this step` },
 };
 
 /** Members to pick, with the current value kept even when it is not a member (a Jira account id). */
@@ -122,7 +122,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
   const ov = Math.max(0, c.logged_h - c.estimate_h);
   const sc = c.schedule;
   const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
-    : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f1(sc.plan_to_date_h)}h · actual ${f1(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
+    : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f2(sc.plan_to_date_h)}h · actual ${f2(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
   const disabled = !canWrite || preview.isPending || applying;
 
@@ -193,7 +193,7 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span className="title">Effort</span>
             <span className="spacer" />
-            <span style={{ font: '600 13px/1 var(--font-mono)', color: c.over ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{f1(c.logged_h)} / {hrs(c.estimate_h)}</span>
+            <span style={{ font: '600 13px/1 var(--font-mono)', color: c.over ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{f2(c.logged_h)} / {hrs(c.estimate_h)}</span>
           </div>
           <div style={{ display: 'flex', gap: 2, height: 8, borderRadius: 99, background: 'var(--border-subtle)', marginTop: 8, overflow: 'hidden' }}>
             <div style={{ height: 8, width: (inn / tot) * 100 + '%', background: 'var(--st-wip)' }} />

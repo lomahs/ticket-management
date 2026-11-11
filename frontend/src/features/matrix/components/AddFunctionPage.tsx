@@ -5,7 +5,7 @@ import { ApiError, errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { useAdminJiraWrite, useMemberMap } from '../../../shared/api/queries';
 import { Button, DateField, Icon, Select, TextField } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Avatar, av, Seg } from '../../../shared/ui/bits';
@@ -95,7 +95,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
         <Select label="Reviewer BAL" options={balOpts} value={bal} onChange={set('bal')} />
         {five && <Select label="Reviewer JM" options={jmOpts} value={jm} onChange={set('jm')} />}
         <div>
-          <TextField label="Effort Create (hours)" type="number" min={0.5} step={0.5} value={form.hours} onChange={set('hours')} aria-invalid={!(hours > 0)} />
+          <TextField label="Effort Create (hours)" type="number" min={0.5} step={0.01} value={form.hours} onChange={set('hours')} aria-invalid={!(hours > 0)} />
           {!(hours > 0) && <div role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', marginTop: 4 }}>Enter more than 0 hours</div>}
         </div>
       </div>
@@ -107,7 +107,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
           <span key={s.k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 10px', borderRadius: 999, border: '1px solid var(--border-subtle)', background: 'var(--surface-card)' }}>
             <span className="muted">{s.label}</span>
             <span className="mono muted">×{WEIGHTS[i + 1]}</span>
-            <b className="mono heading">{preview.data?.steps[i + 1] ? f1(preview.data.steps[i + 1].estimate_h) + 'h' : '–'}</b>
+            <b className="mono heading">{preview.data?.steps[i + 1] ? f2(preview.data.steps[i + 1].estimate_h) + 'h' : '–'}</b>
           </span>
         ))}
       </div>
@@ -134,7 +134,7 @@ function AddFunction({ epic, m }: { epic: string; m: Schemas['MatrixView'] }) {
                   <div style={{ fontSize: 11, color: fg }}>{note}</div>
                 </div>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Avatar a={a} size={18} />{a.name}</span>
-                <span className="mono heading">{f1(s.estimate_h)}h</span>
+                <span className="mono heading">{f2(s.estimate_h)}h</span>
                 <DateField value={s.start} onChange={(v) => setDate(i, 'start', v)} aria-label={`${STEPS[i].label} planned start`} />
                 <DateField value={s.end} onChange={(v) => setDate(i, 'end', v)} aria-label={`${STEPS[i].label} planned end`} />
               </div>

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import tracker.application.ports.AllocationRepository;
 import tracker.domain.Allocation;
+import tracker.domain.Numbers;
 
 @Repository
 class JdbcAllocationRepository implements AllocationRepository {
@@ -41,7 +42,7 @@ class JdbcAllocationRepository implements AllocationRepository {
                 ON CONFLICT (member_id, epic_key, effective_from)
                 DO UPDATE SET hours_per_day = excluded.hours_per_day, set_by = excluded.set_by, set_at = excluded.set_at
                 """).param("member", a.memberId()).param("epic", a.epicKey()).param("from", a.effectiveFrom())
-                .param("hours", a.hoursPerDay()).param("by", setBy).param("at", setAt).update();
+                .param("hours", Numbers.hours(a.hoursPerDay())).param("by", setBy).param("at", setAt).update();
     }
 
     private static Allocation map(java.sql.ResultSet r, int row) throws java.sql.SQLException {

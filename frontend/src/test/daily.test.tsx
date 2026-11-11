@@ -19,10 +19,14 @@ const ticket = (key: string, who: string, name = 'Requirement study', extra: obj
 const task = (key: string, name: string, extra: object) => ({ key, name, state: 'current', pct: 40, closed: 2, total: 5, late: 0, unmatched: 0, functions: [], tickets: [], ...extra });
 const done = (pre: string) => [step(`${pre}1`, 'create', 'C'), step(`${pre}2`, 'balr', 'C'), step(`${pre}3`, 'fixb', 'C')];
 
-function content(date: string, note: string) {
+const progress = (pct: number, plan: number, act: number) => ({ pct, plan_to_date_h: plan, actual_to_date_h: act, diff_h: act - plan });
+
+/** `kept`: whether the burndowns keep their progress; a snapshot captured before has it for the whole anken only. */
+function content(date: string, note: string, kept = true) {
   return {
     epic: 'PAY-1100', title: 'Payment flow revision', date, pct: 62, plan_to_date_h: 100, actual_to_date_h: 106, diff_h: 6,
-    burndowns: [{ phase: null, chart }, { phase: 'Implement_Coding', chart }],
+    burndowns: [{ phase: null, chart, progress: kept ? progress(62, 100, 106) : null },
+      { phase: 'Implement_Coding', chart, progress: kept ? progress(48, 40, 37.5) : null }],
     groups: [
       { name: 'Prepare', state: 'done', pct: 100, closed: 9, total: 9, late: 0, sub_phases: [] }, // captured before Tasks were rolled up
       { name: 'Implement_Coding', state: 'current', pct: 48, closed: 20, total: 60, late: 1, sub_phases: [
@@ -65,7 +69,7 @@ describe('Daily Overview', () => {
         const date = new URL(request.url).searchParams.get('date');
         asked.push(date);
         return HttpResponse.json(date
-          ? { content: content(date, 'Asked the card team'), live: false, captured_at: snapshots[0].captured_at, captured_by: 'auto', today: '2026-10-07', auto_capture: '18:00', snapshots, daily_phases: [] }
+          ? { content: content(date, 'Asked the card team', false), live: false, captured_at: snapshots[0].captured_at, captured_by: 'auto', today: '2026-10-07', auto_capture: '18:00', snapshots, daily_phases: [] }
           : live([]));
       }),
       http.put('*/api/v1/daily/notes/:key', async ({ request }) => { note = await request.json(); return HttpResponse.json({ key: 'PAY-1173', note: 'Send today' }); }),
@@ -73,7 +77,7 @@ describe('Daily Overview', () => {
     const { router } = renderApp('/daily?anken=PAY-1100');
     expect(await screen.findByRole('heading', { name: 'Payment flow revision' })).toBeTruthy();
     expect(screen.getByText('62%')).toBeTruthy();
-    expect(screen.getByText('+6h')).toBeTruthy();
+    expect(screen.getByText('+6.00h')).toBeTruthy();
     expect(screen.getByText(/Live · not captured yet/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
 
@@ -84,7 +88,9 @@ describe('Daily Overview', () => {
     expect(within(fo).getByText('48% · 20/60 done')).toBeTruthy();
     expect(within(fo).getByText('· 1 late')).toBeTruthy();
     expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
-    expect(within(fo).getByRole('button', { name: 'WIP · 2d late' })).toBeTruthy();
+    expect(within(fo).getByRole('button', { name: 'WIP · 2d late 10/02' })).toBeTruthy(); // a WIP or NYS step: with its deadline
+    expect(within(fo).getAllByRole('button', { name: 'NYS 10/02' }).length).toBeGreaterThan(0);
+    expect(within(fo).getAllByRole('button', { name: 'Done' }).length).toBeGreaterThan(0); // a done step: no date
     expect(within(fo).queryByText(/R3 · Team/)).toBeNull();
     expect(within(fo).getAllByText('Requirement study')).toHaveLength(3); // the Task heading and one row per ticket
     expect(within(fo).getByRole('button', { name: 'Resolved · 1d late' })).toBeTruthy(); // a late single ticket: as a late cell
@@ -129,9 +135,14 @@ describe('Daily Overview', () => {
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Phase' }), { target: { value: 'Implement_Coding' } });
     await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
+    // the header follows the burndown's phase
+    expect(screen.getByText('Progress · Implement_Coding')).toBeTruthy();
+    expect(screen.getByText('−2.50h')).toBeTruthy();
+    expect(screen.getByText('plan to date 40.00h · actual 37.50h')).toBeTruthy();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Day' }), { target: { value: '2026-10-06' } });
     expect(await screen.findByText('Past snapshot')).toBeTruthy();
+    expect(screen.getByText('not captured for this phase')).toBeTruthy();
     expect(asked).toContain('2026-10-06');
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
     expect(within(screen.getByRole('region', { name: 'QnA' })).getByText('Asked the card team')).toBeTruthy(); // read-only

@@ -1,4 +1,5 @@
 import type { LeaveTypeKey, Status, StepKind, Tone } from '../api/types';
+import { f2 } from './dates';
 
 /** Display vocabulary: labels and colour tokens for the enums the API returns. */
 
@@ -67,10 +68,10 @@ export const STATE_LABEL: Record<string, string> = {
   LATE: 'Late', EARLY: 'Early', ON_TRACK: 'On track', NOT_STARTED: 'Not started', DONE: 'Done', UNKNOWN: '—',
 };
 
-/** A signed number of hours: "+1h", "−14h" (the sign is always shown). */
+/** A signed number of hours: "+1.00h", "−14.25h" (the sign is always shown). */
 export const signedH = (n: number) => {
-  const r = Math.round(n * 10) / 10;
-  return (r < 0 ? '−' : '+') + Math.abs(r) + 'h';
+  const r = f2(n);
+  return (r.startsWith('-') ? '−' : '+') + r.replace('-', '') + 'h';
 };
 
 /** "1 working day", "3 working days". */

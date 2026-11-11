@@ -84,13 +84,13 @@ public final class Burndown {
         items.forEach(i -> members.add(i.memberId()));
         for (String m : members) {
             for (Map.Entry<String, DayPlan> e : plan.member(m).entrySet()) {
-                burn.merge(snap(days, e.getKey()), e.getValue().total, Double::sum);
+                burn.merge(snap(days, e.getKey()), e.getValue().total, Numbers::sum);
             }
         }
         for (Item i : items) {
             for (Worklog w : i.worklogs()) {
                 if (w.date().compareTo(today) <= 0) {
-                    logged.merge(snap(days, w.date()), w.hours(), Double::sum);
+                    logged.merge(snap(days, w.date()), w.hours(), Numbers::sum);
                 }
             }
         }

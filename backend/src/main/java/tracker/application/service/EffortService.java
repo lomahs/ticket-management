@@ -88,7 +88,7 @@ public class EffortService {
             for (Worklog w : i.worklogs()) {
                 if (start.compareTo(w.date()) <= 0 && w.date().compareTo(end) <= 0) {
                     logs.computeIfAbsent(Timesheet.logKey(w.memberId(), w.date()), k -> new HashMap<>())
-                            .merge(i.epicKey(), w.hours(), Double::sum);
+                            .merge(i.epicKey(), w.hours(), Numbers::sum);
                 }
             }
         }

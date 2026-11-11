@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { SCHEDULE_LABEL, STATE_LABEL, signedH } from '../../../shared/format/labels';
-import { f1 } from '../../../shared/format/dates';
+import { f2 } from '../../../shared/format/dates';
 import type { ScheduleFilter } from '../search';
 
 type Rollup = Schemas['ScheduleRollup'];
@@ -53,7 +53,7 @@ export function PhaseSchedule({ epic, phase, s }: { epic: string; phase: string;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 14px', padding: '0 14px 8px', fontSize: 12 }}>
       <span style={{ color: 'var(--text-muted)' }}>
-        plan to date {f1(s.plan_to_date_h)}h · actual {f1(s.actual_to_date_h)}h · {signedH(s.diff_h)} ({SCHEDULE_LABEL[s.effort]})
+        plan to date {f2(s.plan_to_date_h)}h · actual {f2(s.actual_to_date_h)}h · {signedH(s.diff_h)} ({SCHEDULE_LABEL[s.effort]})
       </span>
       <span style={{ padding: '1px 7px', borderRadius: 99, fontWeight: 600, fontSize: 11, background: (STATE_TONE[s.state] ?? neutral).bg, color: (STATE_TONE[s.state] ?? neutral).fg }}>
         {STATE_LABEL[s.state]}

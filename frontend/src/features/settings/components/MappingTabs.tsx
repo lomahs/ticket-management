@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, Select, TextField, type Option } from '../../../shared/ds';
-import { f1 } from '../../../shared/format/dates';
+import { f2 } from '../../../shared/format/dates';
 import { STATUS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -68,7 +68,7 @@ function FieldMappingForm({ v }: { v: Schemas['FieldMappingView'] }) {
           const k = f.key as Target;
           const r = results[k];
           const [text, fg] = !r ? ['', 'var(--text-muted)'] : r.status === 'ok'
-            ? ['✓ ' + (r.value == null ? '(empty)' : f.expects === 'Hours' ? f1(Number(r.value)) + 'h' : String(r.value)), 'var(--text-heading)']
+            ? ['✓ ' + (r.value == null ? '(empty)' : f.expects === 'Hours' ? f2(Number(r.value)) + 'h' : String(r.value)), 'var(--text-heading)']
             : RESULT[r.status] ?? [r.status, 'var(--hl-red-fg)'];
           const set = (val: string) => { setMap((m) => ({ ...m, [k]: val })); check.reset(); };
           return (

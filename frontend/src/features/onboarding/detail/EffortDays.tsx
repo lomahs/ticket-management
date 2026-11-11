@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { Schemas } from '../../../shared/api/types';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import type { DetailPlanView } from './api';
 
 type Day = Schemas['DayLoad'];
@@ -72,8 +72,8 @@ export function EffortDays({ v, name }: { v: DetailPlanView; name: (id: string) 
                       onMouseEnter={(e) => setHover({ id, rect: e.currentTarget.getBoundingClientRect() })} onMouseLeave={() => setHover(null)}
                       onFocus={(e) => setHover({ id, rect: e.currentTarget.getBoundingClientRect() })} onBlur={() => setHover(null)}
                       style={{ ...CELL, ...tone(x.planned_h, off ? 0 : x.allocated_h, off), cursor: empty ? undefined : 'default' }}>
-                      {off && x.planned_h <= 0 && x.other_h <= 0 ? '' : x.planned_h > 0 ? f1(x.planned_h) : '–'}
-                      {x.other_h > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{`+${f1(x.other_h)} other`}</div>}
+                      {off && x.planned_h <= 0 && x.other_h <= 0 ? '' : x.planned_h > 0 ? f2(x.planned_h) : '–'}
+                      {x.other_h > 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{`+${f2(x.other_h)} other`}</div>}
                       {hover?.id === id && !empty && <DayTasks d={x} at={hover.rect} title={`${name(m)} · ${dm(d)}${x.off ? ` · ${x.off}` : ''}`} />}
                     </td>
                   );
@@ -99,7 +99,7 @@ function DayTasks({ d, title, at }: { d: Day; title: string; at: DOMRect }) {
   const line = (i: Day['items'][number], n: number) => (
     <div key={n} style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
       <span className="ellipsis" style={{ maxWidth: TIP_W - 80 }}>{i.key && !i.other ? `${i.key} · ${i.title}` : i.title}</span>
-      <span style={{ fontWeight: 600 }}>{`${f1(i.hours)}h`}</span>
+      <span style={{ fontWeight: 600 }}>{`${f2(i.hours)}h`}</span>
     </div>
   );
   const below = at.bottom < window.innerHeight * 0.6;

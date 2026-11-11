@@ -5,7 +5,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import type { TaskCard, Tone } from '../../../shared/api/types';
 import { Button, DateRangeField, Icon, IconButton, TextField } from '../../../shared/ds';
-import { dm, f1, hrs } from '../../../shared/format/dates';
+import { dm, f2, hrs } from '../../../shared/format/dates';
 import { STEPS, TONE, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket, useTicketKey } from '../../../shared/state/ticket';
 import { Avatar, av, Dot } from '../../../shared/ui/bits';
@@ -446,7 +446,7 @@ function Cell({ c }: { c: TaskCard }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div title={`Original estimate ${hrs(c.estimate_h)} · Time spent ${hrs(c.logged_h)} · Remaining ${hrs(c.remaining_h)}`} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
           <span style={{ font: '600 10px/1 var(--font-text)', color: 'var(--text-muted)' }}>Remain</span>
-          <span style={{ font: '600 13px/1 var(--font-mono)', color: c.over ? 'var(--hl-red-fg)' : 'var(--text-body)' }}>{f1(c.remaining_h)}h</span>
+          <span style={{ font: '600 13px/1 var(--font-mono)', color: c.over ? 'var(--hl-red-fg)' : 'var(--text-body)' }}>{f2(c.remaining_h)}h</span>
         </div>
         <span className="spacer" />
         <Avatar a={a} size={20} title={a.name} />

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dm, longDate, parseYmd, relTime, ym, ymd, ymdSpan } from './dates';
+import { dm, f2, hrs, longDate, parseYmd, relTime, ym, ymd, ymdSpan } from './dates';
+import { signedH } from './labels';
 
 describe('relTime', () => {
   const now = Date.parse('2026-11-06T12:00:00Z');
@@ -35,5 +36,21 @@ describe('Japanese date order', () => {
     expect(parseYmd('2026/13/01')).toBeNull();
     expect(parseYmd('10/07/2026')).toBeNull();
     expect(parseYmd('')).toBeNull();
+  });
+});
+
+describe('hours', () => {
+  it('rounds half-up to two decimals and always shows them', () => {
+    expect(f2(8)).toBe('8.00');
+    expect(f2(7.5)).toBe('7.50');
+    expect(f2(1 / 3)).toBe('0.33');
+    expect(f2(1.005)).toBe('1.01'); // not 1.00 from floating point
+    expect(f2(0.1 + 0.2)).toBe('0.30');
+    expect(f2(-0.001)).toBe('0.00'); // no "-0.00"
+    expect(hrs(2.675)).toBe('2.68h');
+    expect(hrs(null)).toBe('–');
+    expect(signedH(1.5)).toBe('+1.50h');
+    expect(signedH(-14)).toBe('−14.00h');
+    expect(signedH(-0.001)).toBe('+0.00h');
   });
 });

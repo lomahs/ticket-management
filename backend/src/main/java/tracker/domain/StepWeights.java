@@ -99,6 +99,6 @@ public record StepWeights(Map<StepKind, Double> weights, Map<StepKind, Role> pic
 
     /** Hours of a function the BA carries: each step's hours × the step's BA share. */
     public double baTotal(double createH, int steps) {
-        return stepsOf(steps).stream().mapToDouble(k -> stepHours(createH, k) * shareOf(k).ba() / 100).sum();
+        return Numbers.hours(stepsOf(steps).stream().mapToDouble(k -> Numbers.hours(stepHours(createH, k) * shareOf(k).ba() / 100)).sum());
     }
 }

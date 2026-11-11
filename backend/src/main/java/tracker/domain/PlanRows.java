@@ -51,13 +51,18 @@ public final class PlanRows {
         return edits.stream().filter(e -> e.rowId() == id && e.step() == k).findFirst().orElse(null);
     }
 
-    /** Hours of a step for the BA and the BAL by its shares (a ticket is all its member's, kept as the BA). */
+    /**
+     * Hours of a step for the BA and the BAL by its shares (a ticket is all its member's, kept as the BA), in hundredths: with
+     * shares of 100% in all, the BAL's part is what the BA's leaves, so the two add up to the step.
+     */
     public static double[] split(RowStep st, StepWeights w) {
         if (st.kind() == null) {
-            return new double[]{st.hours(), 0};
+            return new double[]{Numbers.hours(st.hours()), 0};
         }
         StepWeights.Share s = w.shareOf(st.kind());
-        return new double[]{st.hours() * s.ba() / 100, st.hours() * s.bal() / 100};
+        double ba = Numbers.hours(st.hours() * s.ba() / 100);
+        double bal = s.ba() + s.bal() == 100 ? Numbers.hours(st.hours() - ba) : Numbers.hours(st.hours() * s.bal() / 100);
+        return new double[]{ba, bal};
     }
 
     /**
@@ -102,7 +107,7 @@ public final class PlanRows {
             }
             if (bal != null && h[1] > 0) {
                 if (bal.equals(ba)) {
-                    shares.set(0, new Share(ba, h[0] + h[1]));
+                    shares.set(0, new Share(ba, Numbers.hours(h[0] + h[1])));
                 } else {
                     shares.add(new Share(bal, h[1], true));
                 }

@@ -2,7 +2,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { useMemberMap } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { IconButton } from '../../../shared/ds';
-import { dm, f1 } from '../../../shared/format/dates';
+import { dm, f2 } from '../../../shared/format/dates';
 import { STEPS, statusOf } from '../../../shared/format/labels';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -65,7 +65,7 @@ function Body({ f, today, planOf, close, openTicket }: {
   const nToday = steps.filter((x) => x.c && x.plan && dueToday(x.c, x.plan, today)).length;
   const stats = [
     ['Steps closed', `${cards.filter((c) => c.status === 'C').length} / ${STEPS.length}`],
-    ['Effort', `${f1(cards.reduce((a, c) => a + c.logged_h, 0))} / ${f1(cards.reduce((a, c) => a + c.estimate_h, 0))}h`],
+    ['Effort', `${f2(cards.reduce((a, c) => a + c.logged_h, 0))} / ${f2(cards.reduce((a, c) => a + c.estimate_h, 0))}h`],
     ['To do today', String(nToday)],
   ];
   return (
@@ -124,7 +124,7 @@ function Body({ f, today, planOf, close, openTicket }: {
                   <span className="key">{c.key}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Avatar a={w} size={16} />{w.name}</span>
                   <span className="spacer" />
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>{f1(c.logged_h)} / {f1(c.estimate_h)}h</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{f2(c.logged_h)} / {f2(c.estimate_h)}h</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr)', gap: '2px 10px', fontSize: 12 }}>
                   <span className="muted">Plan</span><span className="heading">{plan.start && plan.end ? `${dm(plan.start)} – ${dm(plan.end)}` : 'No plan dates'}</span>

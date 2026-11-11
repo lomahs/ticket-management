@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
-import { f1, hrs } from '../../../shared/format/dates';
+import { f2, hrs } from '../../../shared/format/dates';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { Avatar, av } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
@@ -41,7 +41,7 @@ function Bars({ list }: { list: Schemas['EffortBar'][] }) {
               <div style={{ position: 'absolute', left: 0, top: 5, height: 8, width: (b.logged_h / mx) * 100 + '%', borderRadius: 4, background: b.logged_h > b.estimate_h ? 'var(--hl-red-fg)' : 'var(--surface-accent)' }} />
             </div>
             <span style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-heading)' }}>
-              {f1(b.logged_h)} / {hrs(b.estimate_h)} <b style={{ color: r > 1 ? 'var(--hl-red-fg)' : 'var(--text-muted)' }}>{Math.round(r * 100)}%</b>
+              {f2(b.logged_h)} / {hrs(b.estimate_h)} <b style={{ color: r > 1 ? 'var(--hl-red-fg)' : 'var(--text-muted)' }}>{Math.round(r * 100)}%</b>
             </span>
           </div>
         );
@@ -54,7 +54,7 @@ function Analysis({ a }: { a: Schemas['EffortAnalysis'] }) {
   const members = useMemberMap();
   const k = a.kpis;
   const kpis: [string, string, string][] = [
-    ['Logged / estimate', k.estimate_h ? pct(k.logged_h / k.estimate_h) : '–', `${f1(k.logged_h)} / ${hrs(k.estimate_h)} on started sub-tasks`],
+    ['Logged / estimate', k.estimate_h ? pct(k.logged_h / k.estimate_h) : '–', `${f2(k.logged_h)} / ${hrs(k.estimate_h)} on started sub-tasks`],
     ['Team rework rate', pct(k.rework_rate), 'Fix comment hours ÷ Create hours'],
     ['Avg review rounds', k.avg_rounds == null ? '–' : k.avg_rounds.toFixed(1), `${k.fix_tickets} Fix comment tickets`],
     ['Over estimate', String(k.over_subtasks), 'sub-tasks'],

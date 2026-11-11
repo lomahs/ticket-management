@@ -4,7 +4,7 @@ import { errorMessage } from '../../../shared/api/errors';
 import { useCan, useMemberMap } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, Icon, Select } from '../../../shared/ds';
-import { D, dm, f1, WDN } from '../../../shared/format/dates';
+import { D, dm, f2, WDN } from '../../../shared/format/dates';
 import { signedH } from '../../../shared/format/labels';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { useToast } from '../../../shared/state/toast';
@@ -37,7 +37,10 @@ export function DailyPage() {
   );
 }
 
-/** One anken: today live, or a captured day (`date`); the burndown's phase and the Function overview's tab are in the URL too. */
+/**
+ * One anken: today live, or a captured day (`date`); the burndown's phase and the Function overview's tab are in the URL too.
+ * The header's progress and effort vs plan follow the burndown's phase.
+ */
 function DailyOf({ anken }: { anken: string }) {
   const { date, phase, tab } = route.useSearch();
   const navigate = route.useNavigate();
@@ -49,7 +52,7 @@ function DailyOf({ anken }: { anken: string }) {
   const chart = c.burndowns.find((b) => (b.phase ?? ALL) === (phase ?? ALL)) ?? c.burndowns[0];
   return (
     <>
-      <Header v={v} />
+      <Header v={v} b={chart} />
       <Toolbar v={v} anken={anken} pick={(d) => navigate({ search: (s) => ({ ...s, date: d || undefined }) })} />
       <section className="card" aria-label="Effort burndown" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -76,8 +79,11 @@ function DailyOf({ anken }: { anken: string }) {
   );
 }
 
-function Header({ v }: { v: Schemas['DailyView'] }) {
+/** A snapshot captured before the burndowns kept their progress has it for the whole anken only. */
+function Header({ v, b }: { v: Schemas['DailyView']; b: Schemas['DailyBurndown'] }) {
   const c = v.content;
+  const p = b.progress ?? (b.phase == null ? c : null);
+  const of = b.phase ? ` · ${b.phase}` : '';
   const kpi = { display: 'grid', gridTemplateRows: '16px 44px 16px', gap: 6, alignContent: 'center' } as const;
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '20px 24px', borderRadius: 14 }}>
@@ -89,17 +95,17 @@ function Header({ v }: { v: Schemas['DailyView'] }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,220px) minmax(0,320px)', paddingTop: 18, borderTop: '1px solid var(--border-subtle)' }}>
         <div style={{ ...kpi, paddingRight: 24 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Overall progress</span>
-          <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{c.pct}%</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.phase ? 'Progress' : 'Overall progress'}{of}</span>
+          <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{p ? `${p.pct}%` : '–'}</span>
           <div style={{ alignSelf: 'center', height: 6, borderRadius: 99, background: 'var(--border-subtle)', overflow: 'hidden' }}>
-            <div style={{ height: 6, width: c.pct + '%', background: 'var(--text-heading)' }} />
+            <div style={{ height: 6, width: (p?.pct ?? 0) + '%', background: 'var(--text-heading)' }} />
           </div>
         </div>
         <div style={{ ...kpi, padding: '0 24px', borderLeft: '1px solid var(--border-subtle)' }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Effort vs plan</span>
-          <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{signedH(c.diff_h)}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Effort vs plan{of}</span>
+          <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{p ? signedH(p.diff_h) : '–'}</span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-            plan to date {f1(c.plan_to_date_h)}h · actual {f1(c.actual_to_date_h)}h
+            {p ? `plan to date ${f2(p.plan_to_date_h)}h · actual ${f2(p.actual_to_date_h)}h` : 'not captured for this phase'}
           </span>
         </div>
       </div>

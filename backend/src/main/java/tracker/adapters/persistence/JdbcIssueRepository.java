@@ -16,6 +16,7 @@ import tracker.domain.EventField;
 import tracker.domain.Issue;
 import tracker.domain.IssueEvent;
 import tracker.domain.IssueKind;
+import tracker.domain.Numbers;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.Worklog;
@@ -113,7 +114,7 @@ class JdbcIssueRepository implements IssueRepository {
                 .param("key", i.key()).param("project", i.project()).param("epicKey", i.epicKey()).param("parentKey", i.parentKey())
                 .param("kind", i.kind().value()).param("summary", i.summary()).param("phase", i.phase())
                 .param("status", i.status().value()).param("jiraStatus", i.jiraStatus()).param("assigneeId", i.assigneeId())
-                .param("plannedStart", i.plannedStart()).param("plannedEnd", i.plannedEnd()).param("estimateH", i.estimateH()).param("remainingH", i.remainingH())
+                .param("plannedStart", i.plannedStart()).param("plannedEnd", i.plannedEnd()).param("estimateH", Numbers.hours(i.estimateH())).param("remainingH", Numbers.hours(i.remainingH()))
                 .param("created", i.created()).param("functionId", i.functionId()).param("functionName", i.functionName())
                 .param("step", i.step() != null ? i.step().value() : null).param("reporterId", i.reporterId())
                 .param("labels", String.join(" ", i.labels()))
@@ -121,7 +122,7 @@ class JdbcIssueRepository implements IssueRepository {
         jdbc.sql("DELETE FROM worklogs WHERE issue_key = :key").param("key", i.key()).update();
         jdbc.sql("DELETE FROM issue_events WHERE issue_key = :key").param("key", i.key()).update();
         template.batchUpdate("INSERT INTO worklogs (issue_key, date, member_id, hours, note) VALUES (?, ?, ?, ?, ?)",
-                i.worklogs().stream().map(w -> new Object[]{i.key(), w.date(), w.memberId(), w.hours(), w.note()}).toList());
+                i.worklogs().stream().map(w -> new Object[]{i.key(), w.date(), w.memberId(), Numbers.hours(w.hours()), w.note()}).toList());
         template.batchUpdate("INSERT INTO issue_events (issue_key, at, field, from_value, to_value) VALUES (?, ?, ?, ?, ?)",
                 i.events().stream().map(e -> new Object[]{i.key(), e.at(), e.field().value(), e.fromValue(), e.toValue()}).toList());
     }
