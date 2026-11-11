@@ -1,13 +1,12 @@
 import { Link } from '@tanstack/react-router';
-import { useState, type CSSProperties } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMemberMap } from '../../../shared/api/queries';
-import type { Schemas, Status } from '../../../shared/api/types';
-import { Icon, type IconName } from '../../../shared/ds';
+import type { Member, Schemas } from '../../../shared/api/types';
+import { Icon } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { STEPS, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
-import { Avatar, av } from '../../../shared/ui/bits';
-import { ACTIVE_RING, chip, Legend, lateChip } from './chips';
+import { C, CountChip, Initial, SchedPill, StopDot, type Sched } from './metro';
 
 type Group = Schemas['DailyGroup'];
 type Task = Schemas['DailySubPhase'];
@@ -15,85 +14,50 @@ type Fn = Schemas['DailyFunction'];
 type Ticket = Schemas['DailyTicket'];
 type Step = Schemas['DailyStep'];
 
-/** Function · BA · one column per step of the tab's longest flow (3 or 5). */
-const fnCols = (n: number) => `minmax(220px,2fr) 160px repeat(${n},minmax(96px,1fr))`;
-const ONE_COLS = 'minmax(240px,2fr) 160px 150px 110px';
-const PAD = '0 20px';
-
-type Dir = 'asc' | 'desc';
-interface Sort<K extends string> { key: K; dir: Dir }
-type FnKey = 'name' | 'owner';
-type OneKey = 'name' | 'owner' | 'status' | 'end';
-const STATUS_ORDER: Record<string, number> = { N: 0, W: 1, R: 2, C: 3 };
-
-/** Asc, then desc, then the server's order again. */
-function next<K extends string>(s: Sort<K> | null, key: K): Sort<K> | null {
-  if (s?.key !== key) return { key, dir: 'asc' };
-  return s.dir === 'asc' ? { key, dir: 'desc' } : null;
-}
-
-function sorted<T, K extends string>(items: T[], s: Sort<K> | null, value: (t: T, k: K) => string | number) {
-  if (!s) return items;
-  const sign = s.dir === 'asc' ? 1 : -1;
-  return [...items].sort((a, b) => {
-    const x = value(a, s.key);
-    const y = value(b, s.key);
-    return (x < y ? -1 : x > y ? 1 : 0) * sign;
-  });
-}
+/** Name · the step columns · Schedule. */
+const COLS = '240px minmax(0,1fr) 128px';
+const JM_STEPS = new Set(['jmr', 'fixj']);
+const stepLabel = (k: string) => STEPS.find((s) => s.k === k)?.short ?? k;
 
 /**
- * The anken's Daily phases, one tab each (none ticked: the phase groups that have started), in the server's order; the tab
- * in the URL, else the first in progress, else the first. A tab lists its Tasks: the functions as a matrix of their steps,
- * then the single tickets. A past day (`live` false) has no group for a Daily phase that had not started then.
+ * The functions and tickets of the phase picked in Process (or of every phase), one card per Task. A Task opens by itself
+ * when something in it is late or in progress, and stays closed when it is done or has not started; Expand all / Collapse
+ * all override that. Functions run on 5 step columns: a 3-step flow ends on Fix BAL, the JM columns greyed out.
  */
-export function FunctionOverview({ groups, daily, live, tab, pick }: {
-  groups: Group[]; daily: string[]; live: boolean; tab: string | undefined; pick: (tab: string) => void;
-}) {
-  const [fnSort, setFnSort] = useState<Sort<FnKey> | null>(null);
-  const [oneSort, setOneSort] = useState<Sort<OneKey> | null>(null);
-  const shown = daily.length ? groups.filter((g) => daily.includes(g.name)) : groups.filter((g) => g.state !== 'not_started');
-  const active = shown.find((g) => g.name === tab) ?? shown.find((g) => g.state === 'current') ?? shown[0];
-  const none = !daily.length ? 'No phase has started yet.'
-    : live ? 'No phase to show. Pick the phases in Settings → Structure.' : 'None of the Daily phases had started on this day.';
+export function FunctionOverview({ groups, phase, none }: { groups: Group[]; phase: string | undefined; none: string | null }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const picked = phase != null ? groups.filter((g) => g.name === phase) : [];
+  const shown = picked.length ? picked : groups;
+  const tasks = shown.flatMap((g) => g.sub_phases);
+  const setAll = (v: boolean) => setOpen(Object.fromEntries(tasks.map((t) => [t.key, v])));
   return (
-    <section className="card" aria-label="Function overview" style={{ overflow: 'hidden', borderRadius: 14, padding: 0 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ font: '700 18px/1.2 var(--font-display)', color: 'var(--text-heading)' }}>Function overview</span>
-          {active && (
-            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-              {active.pct}% · {active.closed}/{active.total} done{active.late > 0 && <b style={{ color: 'var(--hl-red-fg)' }}> · {active.late} late</b>}
-            </span>
-          )}
-          <span className="spacer" />
-          <Legend />
-        </div>
-        {shown.length > 0 && (
-          <div className="seg" role="tablist" aria-label="Phases" style={{ alignSelf: 'flex-start', flexWrap: 'wrap', borderRadius: 10 }}>
-            {shown.map((g) => {
-              const on = g === active;
-              return (
-                <button key={g.name} type="button" role="tab" aria-selected={on} onClick={() => pick(g.name)} style={{
-                  height: 30, padding: '0 14px', borderRadius: 8, font: '600 13px/1 var(--font-text)',
-                  background: on ? 'var(--button-primary-bg)' : 'transparent', color: on ? 'var(--button-primary-fg)' : 'var(--text-heading)',
-                }}>
-                  {g.name} <span style={{ fontWeight: 500, opacity: 0.7 }}>{g.pct}%</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+    <section aria-label="Function overview" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 6, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, font: '700 22px/1.2 var(--font-display)', color: 'var(--text-heading)' }}>Function overview</h2>
+        <span className="spacer" />
+        <Legend />
+        <span aria-hidden="true" style={{ width: 1, height: 22, background: 'var(--border-subtle)' }} />
+        <span style={{ display: 'inline-flex', gap: 2 }}>
+          <button type="button" className="do-mini" onClick={() => setAll(true)}><Icon name="chevrons-up-down" size={14} />Expand all</button>
+          <button type="button" className="do-mini" onClick={() => setAll(false)}><Icon name="chevrons-down-up" size={14} />Collapse all</button>
+        </span>
       </div>
-      {!active ? (
-        <div className="empty-row" style={{ borderTop: 0 }}>
-          {none}
-        </div>
+      {none ? (
+        <div className="do-acc" style={{ padding: '22px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>{none}</div>
       ) : (
-        <div role="tabpanel" aria-label={active.name} style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 900 }}>
-            {!active.sub_phases.length ? <EmptyGroup g={active} />
-              : <TabBody g={active} fnSort={fnSort} setFnSort={setFnSort} oneSort={oneSort} setOneSort={setOneSort} />}
+        <div style={{ overflowX: 'auto', margin: '0 -4px', padding: '0 4px 6px' }}>
+          <div style={{ minWidth: 980, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {shown.map((g) => (
+              <div key={g.name} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {shown.length > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '10px 2px 0' }}>
+                    <b style={{ font: '800 14px/1 var(--font-text)', color: 'var(--text-heading)' }}>{g.name}</b>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.state === 'not_started' ? 'not started' : `${g.pct}% · ${g.closed}/${g.total} done`}</span>
+                  </div>
+                )}
+                <PhaseBody g={g} open={open} toggle={(k, v) => setOpen((o) => ({ ...o, [k]: v }))} />
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -101,132 +65,125 @@ export function FunctionOverview({ groups, daily, live, tab, pick }: {
   );
 }
 
-/** The matrix's step count: the longest flow among the group's functions (3 or 5). */
-const stepsOf = (g: Group) => Math.max(0, ...g.sub_phases.flatMap((t) => t.functions.map((f) => f.steps.length)));
-
-/** A group captured before Tasks were rolled up (an older snapshot keeps a done group without its Tasks): one row. */
-function EmptyGroup({ g }: { g: Group }) {
-  const badge = g.state === 'not_started' ? { s: 'N' as const, label: 'Not started' } : g.state === 'done' ? { s: 'C' as const, label: 'Done' } : null;
+function Legend() {
+  const item = (dot: ReactNode, label: string) => <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>{dot}{label}</span>;
+  const ring = (col: string) => <span style={{ width: 14, height: 14, borderRadius: '50%', boxShadow: `inset 0 0 0 2px ${col}` }} />;
+  const fill = (col: string) => <span style={{ width: 14, height: 14, borderRadius: '50%', background: col }} />;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 40, padding: PAD, borderBottom: '1px solid var(--border-subtle)' }}>
-      <span style={nameStyle}>{g.name}</span>
-      {badge && <span style={{ ...chip(badge.s), padding: '2px 10px', borderRadius: 6, font: '700 12px/1.3 var(--font-text)' }}>{badge.label}</span>}
-    </div>
-  );
-}
-
-const head: CSSProperties = { display: 'grid', gap: '0 10px', alignItems: 'center', padding: '8px 20px 6px', borderBottom: '1px solid var(--border-subtle)' };
-
-/**
- * A tab: the matrix (one column header, then each Task with functions as a heading row and its functions), then the single
- * tickets the same way. A Task with both kinds is headed in each part; its note on unlisted sub-tasks goes under its last part.
- */
-function TabBody({ g, fnSort, setFnSort, oneSort, setOneSort }: {
-  g: Group;
-  fnSort: Sort<FnKey> | null; setFnSort: (s: Sort<FnKey> | null) => void; oneSort: Sort<OneKey> | null; setOneSort: (s: Sort<OneKey> | null) => void;
-}) {
-  const members = useMemberMap();
-  const name = (id?: string | null) => (members[id ?? '']?.name ?? id ?? '').toLowerCase();
-  const n = stepsOf(g);
-  const fnTasks = g.sub_phases.filter((t) => t.functions.length > 0);
-  const oneTasks = g.sub_phases.filter((t) => t.tickets.length > 0);
-  const bare = g.sub_phases.filter((t) => !t.functions.length && !t.tickets.length);
-  return (
-    <>
-      {fnTasks.length > 0 && (
-        <>
-          <div style={{ ...head, gridTemplateColumns: fnCols(n) }}>
-            <Head label="Function" on={fnSort?.key === 'name' ? fnSort.dir : null} click={() => setFnSort(next(fnSort, 'name'))} />
-            <Head label="BA" on={fnSort?.key === 'owner' ? fnSort.dir : null} click={() => setFnSort(next(fnSort, 'owner'))} />
-            {STEPS.slice(0, n).map((st) => <span key={st.k} style={{ textAlign: 'center', font: '600 12px/1.2 var(--font-text)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{st.short}</span>)}
-          </div>
-          {fnTasks.map((t) => (
-            <div key={t.key}>
-              <TaskHead t={t} />
-              {sorted(t.functions, fnSort, (f: Fn, k) => (k === 'name' ? f.name.toLowerCase() : name(f.ba_id))).map((f) => <FunctionRow key={f.id} f={f} n={n} />)}
-              {!t.tickets.length && <Unmatched t={t} />}
-            </div>
-          ))}
-        </>
-      )}
-      {oneTasks.length > 0 && (
-        <>
-          <div style={{ ...head, gridTemplateColumns: ONE_COLS }}>
-            {([['name', 'Ticket'], ['owner', 'Assignee'], ['status', 'Status'], ['end', 'Planned end']] as [OneKey, string][]).map(([k, l]) => (
-              <Head key={k} label={l} on={oneSort?.key === k ? oneSort.dir : null} click={() => setOneSort(next(oneSort, k))} center={k === 'status'} />
-            ))}
-          </div>
-          {oneTasks.map((t) => (
-            <div key={t.key}>
-              <TaskHead t={t} />
-              {sorted(t.tickets, oneSort, (x: Ticket, k) => (
-                k === 'name' ? x.name.toLowerCase() : k === 'owner' ? name(x.assignee_id) : k === 'status' ? STATUS_ORDER[x.status] ?? 0
-                  : x.planned_end ?? '9999')).map((x) => <TicketRow key={x.key} t={x} />)}
-              <Unmatched t={t} />
-            </div>
-          ))}
-        </>
-      )}
-      {bare.map((t) => <div key={t.key}><TaskHead t={t} /><Unmatched t={t} /></div>)}
-    </>
-  );
-}
-
-/** A Task's heading row: its name and done / total. */
-function TaskHead({ t }: { t: Task }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '8px 20px', background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-subtle)' }}>
-      <span className="ellipsis" style={{ font: '700 14px/1.3 var(--font-text)', color: 'var(--text-heading)' }} title={t.key}>{t.name}</span>
-      <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t.closed} / {t.total} done</span>
-    </div>
-  );
-}
-
-/** The Task's sub-tasks whose title does not follow the name rule: a count and a link to Ticket Check. */
-function Unmatched({ t }: { t: Task }) {
-  if (t.unmatched <= 0) return null;
-  return (
-    <div style={{ padding: '6px 20px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-      {`${t.unmatched} sub-task${t.unmatched === 1 ? '' : 's'} outside the name rule, not listed here. `}
-      <Link to="/ticket-check" search={{ check: 'rule' }}>See them in Ticket Check</Link>
-    </div>
-  );
-}
-
-function Head({ label, on, click, center }: { label: string; on: Dir | null; click: () => void; center?: boolean }) {
-  const icon: IconName = on === 'asc' ? 'arrow-up' : on === 'desc' ? 'arrow-down' : 'arrow-up-down';
-  return (
-    <button type="button" onClick={click} className="hv-underline" style={{
-      display: 'flex', alignItems: 'center', gap: 4, justifyContent: center ? 'center' : 'flex-start', padding: 0, border: 0, background: 'none',
-      font: '600 12px/1.2 var(--font-text)', color: on ? 'var(--text-heading)' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap',
-    }}>
-      {label}<span style={{ display: 'inline-flex', opacity: on ? 1 : 0.45 }}><Icon name={icon} size={12} /></span>
-    </button>
-  );
-}
-
-function Owner({ id }: { id?: string | null }) {
-  const members = useMemberMap();
-  const a = av(members[id ?? ''], id ?? '—');
-  return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-      <Avatar a={a} size={24} fs={12} />
-      <span className="ellipsis" style={{ fontSize: 14, color: 'var(--text-heading)' }}>{a.name}</span>
+    <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--text-muted)' }}>
+      {item(<span className="do-dot" style={{ width: 14, height: 14, background: C.done }}><Icon name="check" size={9} strokeWidth={3.2} /></span>, 'Done')}
+      {item(fill(C.wip), 'Now')}
+      {item(fill(C.late), 'Late')}
+      {item(ring(C.jm), 'JM step')}
     </span>
   );
 }
 
-const nameStyle: CSSProperties = { font: '600 15px/1.3 var(--font-text)', color: 'var(--text-heading)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
+function PhaseBody({ g, open, toggle }: { g: Group; open: Record<string, boolean>; toggle: (key: string, v: boolean) => void }) {
+  if (g.state === 'not_started' && !g.sub_phases.length) {
+    return (
+      <div className="do-acc" style={{ padding: '22px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+        <b style={{ color: 'var(--text-heading)' }}>{g.name}</b> has not started: its Tasks and functions show here once they are planned.
+      </div>
+    );
+  }
+  if (!g.sub_phases.length) {
+    // a group captured before Tasks were rolled up (an older snapshot): one summary card
+    const s: Sched = g.state === 'done' ? 'done' : g.late ? 'late' : 'ok';
+    return (
+      <div className="do-acc" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px' }}>
+        <b style={{ font: '700 15px/1.2 var(--font-text)', color: 'var(--text-heading)' }}>{g.name}</b>
+        <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{g.closed}/{g.total} done</span>
+        <span className="spacer" />
+        <SchedPill s={s} late={0} />
+      </div>
+    );
+  }
+  return <>{g.sub_phases.map((t) => <TaskCard key={t.key} t={t} open={open[t.key]} toggle={(v) => toggle(t.key, v)} />)}</>;
+}
 
-/** A coloured status cell or chip: red and outlined when late. Its text wraps rather than spill into the next column. */
-const cellStyle = (status: string, late: boolean): CSSProperties => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28, boxSizing: 'border-box', padding: '4px 6px', borderRadius: 6,
-  cursor: 'pointer', font: '600 13px/1.2 var(--font-text)', textAlign: 'center', minWidth: 0, ...(late ? lateChip : { ...chip(status as Status), border: 0 }),
-});
+/** Where a row stands: done, late (the most days late), not started, else on track. */
+function schedOf(items: { status: string; late: boolean; late_days: number }[]): [Sched, number] {
+  if (items.every((s) => s.status === 'C')) return ['done', 0];
+  const late = Math.max(0, ...items.filter((s) => s.status !== 'C' && s.late).map((s) => s.late_days));
+  if (late) return ['late', late];
+  if (items.every((s) => s.status === 'N')) return ['nys', 0];
+  return ['ok', 0];
+}
 
-/** "WIP · 2d late"; in a narrow column the days late go to a second line. */
-function LateLabel({ label, days }: { label: string; days: number }) {
-  return <span>{label} ·{' '}<span style={{ whiteSpace: 'nowrap' }}>{days}d late</span></span>;
+const fnSteps = (f: Fn) => f.steps.filter((s): s is Step => s != null);
+
+/** A Task's card: a header that keeps its summary when collapsed, and its rows when open. */
+function TaskCard({ t, open, toggle }: { t: Task; open: boolean | undefined; toggle: (v: boolean) => void }) {
+  const rows = t.functions.length ? t.functions.map((f) => schedOf(fnSteps(f))[0]) : t.tickets.map((x) => schedOf([x])[0]);
+  const late = rows.filter((s) => s === 'late').length || (rows.length ? 0 : t.late);
+  const running = rows.filter((s) => s === 'ok').length || (!rows.length && t.pct > 0 && t.pct < 100 ? 1 : 0);
+  const done = t.total > 0 && t.closed >= t.total;
+  const expanded = open ?? ((late > 0 || running > 0) && !done);
+  return (
+    <div className="do-acc">
+      <button type="button" className="do-acc-h" aria-expanded={expanded} onClick={() => toggle(!expanded)}>
+        <Icon name="chevron-right" size={16} style={{ color: 'var(--text-muted)', transition: 'transform var(--duration-fast) var(--easing-standard)', transform: expanded ? 'rotate(90deg)' : 'none' }} />
+        <b style={{ font: '700 15px/1.2 var(--font-text)', color: 'var(--text-heading)' }}>{t.name}</b>
+        <span style={{ font: '500 12px var(--font-mono)', color: 'var(--text-muted)' }}>{t.key}</span>
+        <span aria-hidden="true" style={{ width: 110, height: 6, borderRadius: 99, background: 'var(--border-subtle)', overflow: 'hidden', marginLeft: 6 }}>
+          <span style={{ display: 'block', height: 6, width: `${t.pct}%`, background: 'var(--text-heading)', borderRadius: 99 }} />
+        </span>
+        <span style={{ font: '700 13px/1 var(--font-text)', color: 'var(--text-heading)' }}>{t.pct}%</span>
+        <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{t.closed}/{t.total} done</span>
+        <span className="spacer" />
+        {late > 0 && <CountChip tone="late">{late} late</CountChip>}
+        {running > 0 && <CountChip tone="run">{running} in progress</CountChip>}
+        {done && <SchedPill s="done" />}
+      </button>
+      {expanded && (
+        <div className="do-acc-b">
+          {t.functions.length > 0 && <Functions fns={t.functions} />}
+          {t.tickets.length > 0 && <Tickets tickets={t.tickets} />}
+          <Unmatched t={t} />
+          {!t.functions.length && !t.tickets.length && !t.unmatched && (
+            <div style={{ padding: '12px 18px', fontSize: 12.5, color: 'var(--text-muted)' }}>No functions or tickets listed.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The Task's sub-tasks whose title does not follow the name rule: a warning with a link to Ticket Check. */
+function Unmatched({ t }: { t: Task }) {
+  if (t.unmatched <= 0) return null;
+  return (
+    <div role="note" className="do-callout">
+      <span style={{ display: 'flex', color: 'var(--do-warn-fg)' }}><Icon name="triangle-alert" size={16} /></span>
+      <span><b style={{ color: 'var(--text-heading)' }}>{t.unmatched} sub-task{t.unmatched === 1 ? '' : 's'}</b> of {t.name} do not follow the name rule, so they are not listed here.</span>
+      <span className="spacer" />
+      <Link to="/ticket-check" search={{ check: 'rule' }} style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Review in Ticket Check →</Link>
+    </div>
+  );
+}
+
+const firstStart = (f: Fn) => fnSteps(f)[0]?.planned_start ?? '9999';
+
+function Functions({ fns }: { fns: Fn[] }) {
+  const short = fns.every((f) => f.steps.length < STEPS.length);
+  const rows = [...fns].sort((a, b) => firstStart(a).localeCompare(firstStart(b)) || a.name.localeCompare(b.name));
+  return (
+    <>
+      <div className="do-head" style={{ gridTemplateColumns: COLS }}>
+        <span>Function <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>· sorted by Create start</span></span>
+        <span style={{ display: 'grid', gridTemplateColumns: `repeat(${STEPS.length},1fr)`, textAlign: 'center' }}>
+          {STEPS.map((s, i) => (short && i >= 3 ? (
+            <span key={s.k} style={{ color: 'var(--text-disabled)', background: 'var(--do-zone)', margin: '-10px 0 -8px', padding: '10px 0 8px' }}>
+              {s.short} <span className="do-tag" style={{ marginLeft: 4 }}>N/A</span>
+            </span>
+          ) : <span key={s.k} style={JM_STEPS.has(s.k) ? { color: C.jm } : undefined}>{s.short}</span>))}
+        </span>
+        <span>Schedule</span>
+      </div>
+      <div className="do-rows">{rows.map((f) => <FunctionLine key={f.id} f={f} />)}</div>
+    </>
+  );
 }
 
 /**
@@ -241,62 +198,121 @@ function jmRoundAt(steps: Fn['steps']): number {
   return review.assignee_id ? steps.findIndex((c) => c?.step === 'fixj') : -1;
 }
 
-/** A function and its steps; a function on a shorter flow than the tab's (3 of 5) says it has no JM steps. */
-function FunctionRow({ f, n }: { f: Fn; n: number }) {
-  const active = jmRoundAt(f.steps);
+function NameCell({ who, title, sub, m }: { who: string | null | undefined; title: string; sub: ReactNode; m: Member | undefined }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: fnCols(n), gap: '0 10px', alignItems: 'center', padding: '6px 20px', borderBottom: '1px solid var(--border-subtle)', minHeight: 44, boxSizing: 'border-box' }}>
-      <span style={nameStyle} title={`${f.id} ${f.name}`}>{f.name}</span>
-      <Owner id={f.ba_id} />
-      {f.steps.map((c, i) => (c
-        ? <StepCell key={i} c={c} active={i === active} />
-        : <span key={i} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>—</span>))}
-      {f.steps.length < n && (
-        <span style={{ gridColumn: `span ${n - f.steps.length}`, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No JM steps</span>
-      )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <Initial m={m} id={who} />
+      <div style={{ minWidth: 0 }}>
+        <div className="ellipsis" style={{ font: '700 14px/1.35 var(--font-text)', color: 'var(--text-heading)' }} title={title}>{title}</div>
+        <div style={{ font: '500 12.5px/1.4 var(--font-text)', color: 'var(--text-body)', marginTop: 2 }}>{sub}</div>
+      </div>
     </div>
   );
 }
 
-/**
- * A step: its status (late: red, with the days late), or just Done; a WIP or NYS step shows its deadline (Planned End) under
- * it. The step where the JM round is now is ringed, and a fix step's review rounds are in its tooltip.
- */
-function StepCell({ c, active }: { c: Step; active: boolean }) {
-  const open = useOpenTicket();
+/** One function on the 5 step columns: done stops, the step it is on now (with its holder), the stops ahead; its schedule. */
+function FunctionLine({ f }: { f: Fn }) {
   const members = useMemberMap();
-  const st = statusOf(c.status);
-  const closed = c.status === 'C';
-  const late = c.late && !closed;
-  const where = c.with_jm ? 'JM' : 'Team';
-  const due = (c.status === 'W' || c.status === 'N') && c.planned_end ? dm(c.planned_end) : '';
-  const stepName = STEPS.find((s) => s.k === c.step)?.label ?? c.step;
-  const now = active ? ` · now: ${c.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '';
-  const tip = `${c.key} · ${stepName} · ${st.label}${late ? ` · ${c.late_days} working days late` : ''} · ${members[c.assignee_id ?? '']?.name ?? 'unassigned'}`
-    + ` · plan ${dm(c.planned_start) || '?'} – ${dm(c.planned_end) || '?'}${c.rounds ? ` · round ${c.rounds}, with ${where}` : ''}${now}`;
+  const open = useOpenTicket();
+  const n = STEPS.length;
+  const have = f.steps.length;
+  const cur = f.steps.findIndex((s) => s != null && s.status !== 'C');
+  const round = jmRoundAt(f.steps);
+  const [sched, late] = schedOf(fnSteps(f));
+  const now = cur >= 0 ? f.steps[cur] : null;
+  const segs: ReactNode[] = [];
+  for (let i = 0; i < have - 1; i++) {
+    const s = f.steps[i];
+    const next = f.steps[i + 1];
+    const bg = s?.status === 'C' && next?.status === 'C' ? C.done
+      : s?.status === 'C' && i + 1 === cur ? (next?.late ? C.late : C.done) : C.line;
+    segs.push(<span key={`s${i}`} className="do-seg" style={{ left: `${((i + 0.5) / n) * 100}%`, width: `${100 / n}%`, background: bg }} />);
+  }
+  if (have < n) {
+    segs.push(<span key="zone" className="do-zone" style={{ left: `${(have / n) * 100}%` }} />);
+    segs.push(<span key="flag" className="do-flag" title="Last step of this flow" style={{ left: `calc(${((have - 0.5) / n) * 100}% + 16px)` }}><Icon name="flag" size={14} /></span>);
+  }
   return (
-    <button type="button" title={tip} onClick={() => open(c.key)} className="hv-bright"
-      style={{ ...cellStyle(c.status, late), flexDirection: 'column', gap: 2, boxShadow: active ? ACTIVE_RING : undefined }}>
-      {closed ? 'Done' : late ? <LateLabel label={st.label} days={c.late_days} /> : st.label}
-      {due && ' '}{due && <span style={{ font: '500 11px/1.2 var(--font-mono)', opacity: late ? 1 : 0.8 }}>{due}</span>}
+    <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
+      <NameCell who={f.ba_id} m={members[f.ba_id ?? '']} title={f.name}
+        sub={now ? <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{stepLabel(now.step)}</b> · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</> : 'All steps done'} />
+      <div className="do-track" style={{ gridTemplateColumns: `repeat(${n},1fr)` }}>
+        {segs}
+        {Array.from({ length: n }, (_, i) => {
+          const s = f.steps[i];
+          if (!s) return <span key={i} />;
+          return <StepStop key={i} s={s} now={i === cur} round={i === round} m={members[s.assignee_id ?? '']} open={() => open(s.key)} />;
+        })}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
+        <SchedPill s={sched} late={late} />
+        <span style={{ font: '500 12px/1.3 var(--font-mono)', color: 'var(--text-body)' }}>finish {dm(fnSteps(f).at(-1)?.planned_end) || '–'}</span>
+      </div>
+    </div>
+  );
+}
+
+/** A step's stop; it opens the sub-task. Its tooltip says the step, status, holder, plan, rounds and where the JM round is. */
+function StepStop({ s, now, round, m, open }: { s: Step; now: boolean; round: boolean; m: Member | undefined; open: () => void }) {
+  const jm = JM_STEPS.has(s.step);
+  const late = s.late && s.status !== 'C' ? s.late_days : 0;
+  const col = late ? C.late : jm ? C.jm : C.wip;
+  const kind = s.status === 'C' ? 'done' : now ? 'now' : s.status === 'W' || s.status === 'R' ? 'open' : 'todo';
+  const st = statusOf(s.status);
+  const where = s.with_jm ? 'JM' : 'Team';
+  const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''} · ${m?.name ?? 'unassigned'}`
+    + ` · plan ${dm(s.planned_start) || '?'} – ${dm(s.planned_end) || '?'}${s.rounds ? ` · round ${s.rounds}, with ${where}` : ''}`
+    + (round ? ` · now: ${s.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '');
+  return (
+    <button type="button" className="do-st" title={tip} aria-label={`${stepLabel(s.step)} · ${s.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}`} onClick={open}>
+      <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? (jm ? C.jm : C.lineStrong) : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
+      <span className="do-dl">{dm(s.planned_end)}</span>
+      {late > 0 && <span style={{ font: '800 10.5px/1 var(--font-text)', color: C.late }}>+{late}d</span>}
+      {!late && s.rounds > 1 && <span style={{ font: '700 10.5px/1 var(--font-text)', color: 'var(--text-muted)' }}>↻{s.rounds}</span>}
     </button>
   );
 }
 
-/** A single ticket; a done one shows just Done, without its date. */
-function TicketRow({ t }: { t: Ticket }) {
-  const open = useOpenTicket();
-  const st = statusOf(t.status);
-  const done = t.status === 'C';
-  const late = t.late && !done;
+/** Single tickets: one stop each, at their Planned End. */
+function Tickets({ tickets }: { tickets: Ticket[] }) {
+  const rows = [...tickets].sort((a, b) => (a.planned_start ?? '9999').localeCompare(b.planned_start ?? '9999') || a.key.localeCompare(b.key));
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: ONE_COLS, gap: '0 10px', alignItems: 'center', padding: '6px 20px', borderBottom: '1px solid var(--border-subtle)', minHeight: 44, boxSizing: 'border-box' }}>
-      <span style={nameStyle} title={`${t.key} ${t.name}`}>{t.name}</span>
-      <Owner id={t.assignee_id} />
-      <button type="button" onClick={() => open(t.key)} title={`${t.key} · ${st.label}${late ? ` · ${t.late_days} working days late` : ''}`} className="hv-bright" style={cellStyle(t.status, late)}>
-        {done ? 'Done' : late ? <LateLabel label={st.label} days={t.late_days} /> : st.label}
-      </button>
-      <span style={{ font: '500 14px/1 var(--font-mono)', color: late ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{done ? '' : dm(t.planned_end)}</span>
+    <>
+      <div className="do-head" style={{ gridTemplateColumns: COLS }}>
+        <span>Ticket <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>· sorted by plan start</span></span>
+        <span style={{ textAlign: 'center' }}>Plan end</span>
+        <span>Schedule</span>
+      </div>
+      <div className="do-rows">{rows.map((x) => <TicketLine key={x.key} x={x} />)}</div>
+    </>
+  );
+}
+
+function TicketLine({ x }: { x: Ticket }) {
+  const members = useMemberMap();
+  const open = useOpenTicket();
+  const m = members[x.assignee_id ?? ''];
+  const [sched, late] = schedOf([x]);
+  const st = statusOf(x.status);
+  const col = late ? C.late : C.wip;
+  const kind = x.status === 'C' ? 'done' : x.status === 'N' ? 'todo' : 'now';
+  return (
+    <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
+      <NameCell who={x.assignee_id} m={m} title={`${x.name} · ${x.key}`}
+        sub={x.status === 'C' ? 'Done' : <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{st.label}</b> · {m?.name ?? 'unassigned'}</>} />
+      <div className="do-track">
+        <button type="button" className="do-st" onClick={() => open(x.key)}
+          title={`${x.key} · ${st.label}${late ? ` · ${late} working days late` : ''} · plan ${dm(x.planned_start) || '?'} – ${dm(x.planned_end) || '?'}`}
+          aria-label={`${x.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}`}>
+          <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? C.lineStrong : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
+          <span className="do-dl">{dm(x.planned_end)}</span>
+          {late > 0 && <span style={{ font: '800 10.5px/1 var(--font-text)', color: C.late }}>+{late}d</span>}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
+        <SchedPill s={sched} late={late} />
+        <span style={{ font: '500 12px/1.3 var(--font-mono)', color: 'var(--text-body)' }}>finish {dm(x.planned_end) || '–'}</span>
+      </div>
     </div>
   );
 }

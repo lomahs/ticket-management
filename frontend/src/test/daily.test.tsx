@@ -61,7 +61,7 @@ const live = (daily: string[]) => ({
 });
 
 describe('Daily Overview', () => {
-  it('shows the live day, switches to a captured day and saves a note', async () => {
+  it('shows the live day: Process, burndown, the Tasks as cards, the issues; a phase filters them; a note is saved', async () => {
     const asked: (string | null)[] = [];
     let note: unknown;
     server.use(
@@ -76,86 +76,87 @@ describe('Daily Overview', () => {
     );
     const { router } = renderApp('/daily?anken=PAY-1100');
     expect(await screen.findByRole('heading', { name: 'Payment flow revision' })).toBeTruthy();
-    expect(screen.getByText('62%')).toBeTruthy();
+    expect(screen.getAllByText('62%').length).toBeGreaterThan(0);
     expect(screen.getByText('+6.00h')).toBeTruthy();
     expect(screen.getByText(/Live · not captured yet/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Capture' })).toBeTruthy();
 
+    // Process: All phases, then each phase; All is picked
+    const proc = screen.getByRole('region', { name: 'Process' });
+    const hubs = within(proc).getAllByRole('button', { pressed: false }).concat(within(proc).getAllByRole('button', { pressed: true }));
+    expect(hubs).toHaveLength(3);
+    expect(within(proc).getByRole('button', { name: /All phases/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(proc).getByRole('button', { name: /Implement_Coding/ }).textContent).toContain('▼ −2.50h behind');
+    expect(within(screen.getByRole('region', { name: 'Effort burndown' })).getByText('All phases')).toBeTruthy();
+
+    // Function overview: every phase; a Task opens by itself when something in it is late or in progress
     const fo = screen.getByRole('region', { name: 'Function overview' });
-    expect(within(fo).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Prepare 100%', 'Implement_Coding 48%']);
-    expect(within(fo).getByRole('tab', { name: 'Implement_Coding 48%' }).getAttribute('aria-selected')).toBe('true'); // the first current
-    expect(within(fo).getByRole('tab', { name: 'Prepare 100%' }).getAttribute('aria-selected')).toBe('false');
-    expect(within(fo).getByText('48% · 20/60 done')).toBeTruthy();
-    expect(within(fo).getByText('· 1 late')).toBeTruthy();
+    const card = (name: RegExp) => within(fo).getByRole('button', { name });
+    expect(card(/^Payment flow revision/).getAttribute('aria-expanded')).toBe('true');
+    expect(card(/^Payment flow revision/).textContent).toContain('1 late');
+    expect(card(/^Requirement study/).getAttribute('aria-expanded')).toBe('true'); // a late ticket
+    expect(card(/^Design review/).getAttribute('aria-expanded')).toBe('false'); // done
     expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
-    expect(within(fo).getByRole('button', { name: 'WIP · 2d late 10/02' })).toBeTruthy(); // a WIP or NYS step: with its deadline
-    expect(within(fo).getAllByRole('button', { name: 'NYS 10/02' }).length).toBeGreaterThan(0);
-    expect(within(fo).getAllByRole('button', { name: 'Done' }).length).toBeGreaterThan(0); // a done step: no date
-    expect(within(fo).queryByText(/R3 · Team/)).toBeNull();
-    expect(within(fo).getAllByText('Requirement study')).toHaveLength(3); // the Task heading and one row per ticket
-    expect(within(fo).getByRole('button', { name: 'Resolved · 1d late' })).toBeTruthy(); // a late single ticket: as a late cell
-    // one column header per tab, the Tasks as heading rows under it
-    expect(within(fo).getAllByRole('button', { name: 'Function' })).toHaveLength(1);
-    expect(within(fo).getAllByRole('button', { name: 'Ticket' })).toHaveLength(1);
-    expect(within(fo).getByText('Receipt screens')).toBeTruthy();
-    // a done sub-task shows just Done: no Closed, no dates
-    expect(within(fo).queryByText('Closed')).toBeNull();
-    expect(within(fo).queryByText('09/04')).toBeNull();
+    expect(within(fo).getByRole('button', { name: 'Fix BAL · WIP · 2d late' })).toBeTruthy();
+    expect(within(fo).getAllByRole('button', { name: 'Create · Done' }).length).toBeGreaterThan(0);
     // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
     expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
     expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
-    expect(within(fo).queryAllByTitle(/now:/)).toHaveLength(2); // F03's JM Review has not started
-    expect(within(fo).getByText('No JM steps')).toBeTruthy(); // F06 runs the 3-step flow
-    expect(within(fo).getByText(/2 sub-tasks outside the name rule, not listed here/)).toBeTruthy();
-    expect(within(fo).getByRole('link', { name: 'See them in Ticket Check' }).getAttribute('href')).toBe('/ticket-check?check=rule');
-    // a done group of an older snapshot has no Tasks: one Done row
-    fireEvent.click(within(fo).getByRole('tab', { name: 'Prepare 100%' }));
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: 'Prepare' }));
-    const panel = within(fo).getByRole('tabpanel', { name: 'Prepare' });
-    expect(within(panel).getByText('Prepare')).toBeTruthy();
-    expect(within(panel).getAllByText('Done')).toHaveLength(1);
+    expect(within(fo).getAllByTitle('Last step of this flow')).toHaveLength(1); // F06 runs the 3-step flow
+    expect(within(fo).getByRole('button', { name: 'Resolved · 1d late' })).toBeTruthy(); // a late single ticket
+    expect(within(fo).getByText(/do not follow the name rule/).textContent).toContain('2 sub-tasks');
+    expect(within(fo).getByRole('link', { name: 'Review in Ticket Check →' }).getAttribute('href')).toBe('/ticket-check?check=rule');
+    // functions are sorted by their Create start
+    const rows = within(fo).getAllByText(/^(Domestic card payment|Refund|Installments|Execute test case)$/).map((e) => e.textContent);
+    expect(rows).toHaveLength(4);
+    fireEvent.click(within(fo).getByRole('button', { name: /Collapse all/ }));
     expect(within(fo).queryByText('Domestic card payment')).toBeNull();
+    fireEvent.click(within(fo).getByRole('button', { name: /Expand all/ }));
+    expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
+    expect(card(/^Design review/).getAttribute('aria-expanded')).toBe('true');
 
-    const bug = screen.getByRole('region', { name: 'Bug' });
-    const typed = screen.getByRole('region', { name: 'QnA' });
-    const wr = screen.getByRole('region', { name: 'WorkRequest' });
-    expect(bug.compareDocumentPosition(typed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(typed.compareDocumentPosition(wr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(bug).getByText('No bugs yet')).toBeTruthy();
-    expect(within(bug).queryByText(/with JM|with the team/)).toBeNull(); // no counts on an empty section
-    expect(within(typed).getByText('1 with JM')).toBeTruthy();
-    expect(within(typed).getByText('1 with the team')).toBeTruthy();
-    expect(within(typed).getByText('JM · 4d')).toBeTruthy();
-    expect(within(typed).getByText('Team · 1d')).toBeTruthy();
-    expect(within(typed).getByText('Tanaka')).toBeTruthy(); // the assignee: plain text
-    const field = within(typed).getByLabelText('Note on PAY-1173');
-    fireEvent.change(field, { target: { value: 'Send today' } });
-    fireEvent.blur(field);
+    // Issues: one card, a tab per type, totals, status and holder in one pill
+    const issues = screen.getByRole('region', { name: 'Issues' });
+    expect(within(issues).getByRole('tab', { name: /QnA/ }).getAttribute('aria-selected')).toBe('true');
+    expect(within(issues).getByTitle('With JM (the client)').textContent).toBe('WIP · JM · 4d');
+    expect(within(issues).getByTitle('With the team').textContent).toBe('WIP · FPT · 1d');
+    expect(within(issues).getByText('Waiting for the card team', { selector: '.do-note' })).toBeTruthy();
+    fireEvent.click(within(issues).getByRole('button', { name: 'Edit note on PAY-1173' }));
+    const dialog = screen.getByRole('dialog', { name: 'Note on PAY-1173' });
+    fireEvent.change(within(dialog).getByLabelText('Note on PAY-1173'), { target: { value: 'Send today' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save note' }));
     await waitFor(() => expect(note).toEqual({ note: 'Send today' }));
+    fireEvent.click(within(issues).getByRole('tab', { name: /Bugs/ }));
+    expect(within(issues).getByText('No open bugs right now')).toBeTruthy();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Phase' }), { target: { value: 'Implement_Coding' } });
+    // a phase picked in Process filters the header, the burndown and the Function overview
+    fireEvent.click(within(proc).getByRole('button', { name: /Implement_Coding/ }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
-    // the header follows the burndown's phase
     expect(screen.getByText('Progress · Implement_Coding')).toBeTruthy();
     expect(screen.getByText('−2.50h')).toBeTruthy();
-    expect(screen.getByText('plan to date 40.00h · actual 37.50h')).toBeTruthy();
+    expect(screen.getByText('40.00h')).toBeTruthy();
+    expect(screen.getByText('37.50h')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Effort burndown' })).getByText('Implement_Coding')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Function overview' })).queryByText('Design review')).toBeTruthy();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Day' }), { target: { value: '2026-10-06' } });
     expect(await screen.findByText('Past snapshot')).toBeTruthy();
     expect(screen.getByText('not captured for this phase')).toBeTruthy();
     expect(asked).toContain('2026-10-06');
     expect(screen.queryByRole('button', { name: 'Capture' })).toBeNull();
-    expect(within(screen.getByRole('region', { name: 'QnA' })).getByText('Asked the card team')).toBeTruthy(); // read-only
-    expect(screen.queryByLabelText('Note on PAY-1171')).toBeNull();
+    const past = screen.getByRole('region', { name: 'Issues' });
+    fireEvent.click(within(past).getByRole('tab', { name: /QnA/ }));
+    expect(within(past).getByText('Asked the card team', { selector: '.do-note' })).toBeTruthy(); // read-only
+    expect(within(past).queryByRole('button', { name: /Edit note/ })).toBeNull();
   });
 
-  it('shows only the Daily phases as tabs, and an unknown tab falls back to the first current', async () => {
+  it('shows only the Daily phases in Process, and an unknown phase falls back to all phases', async () => {
     server.use(http.get('*/api/v1/daily', () => HttpResponse.json(live(['Implement_Coding']))));
-    renderApp('/daily?anken=PAY-1100&tab=Nope');
-    const fo = await screen.findByRole('region', { name: 'Function overview' });
-    expect(within(fo).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Implement_Coding 48%']);
-    expect(within(fo).getByRole('tab', { name: 'Implement_Coding 48%' }).getAttribute('aria-selected')).toBe('true');
-    expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
+    renderApp('/daily?anken=PAY-1100&phase=Nope');
+    const proc = await screen.findByRole('region', { name: 'Process' });
+    expect(within(proc).queryByRole('button', { name: /Prepare/ })).toBeNull();
+    expect(within(proc).getByRole('button', { name: /All phases/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(screen.getByRole('region', { name: 'Function overview' })).getByText('Domestic card payment')).toBeTruthy();
   });
 
   it('says so when no Daily phase is in the anken', async () => {
@@ -163,7 +164,7 @@ describe('Daily Overview', () => {
     renderApp('/daily?anken=PAY-1100');
     const fo = await screen.findByRole('region', { name: 'Function overview' });
     expect(within(fo).getByText('No phase to show. Pick the phases in Settings → Structure.')).toBeTruthy();
-    expect(within(fo).queryByRole('tab')).toBeNull();
+    expect(within(fo).queryByRole('button', { name: /^Payment flow revision/ })).toBeNull();
   });
 
   it('says so when no Daily phase had started on a past day', async () => {
@@ -171,7 +172,6 @@ describe('Daily Overview', () => {
     renderApp('/daily?anken=PAY-1100&date=2026-10-06');
     const fo = await screen.findByRole('region', { name: 'Function overview' });
     expect(within(fo).getByText('None of the Daily phases had started on this day.')).toBeTruthy();
-    expect(within(fo).queryByRole('tab')).toBeNull();
   });
 
   it('asks for an anken under "All my anken"', async () => {

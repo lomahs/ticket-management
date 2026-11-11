@@ -13,7 +13,9 @@ import { PickAnken } from '../../../shared/ui/PickAnken';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { dailyQuery, useCapture } from '../api';
 import { FunctionOverview } from './FunctionOverview';
-import { TypedSections } from './TypedSection';
+import { Issues } from './Issues';
+import { C } from './metro';
+import { Process } from './Process';
 
 const route = getRouteApi('/app/daily');
 const ALL = '';
@@ -38,43 +40,54 @@ export function DailyPage() {
 }
 
 /**
- * One anken: today live, or a captured day (`date`); the burndown's phase and the Function overview's tab are in the URL too.
- * The header's progress and effort vs plan follow the burndown's phase.
+ * One anken: today live, or a captured day (`date`). The phase picked in Process (`phase`, none: all phases) sets what the
+ * header, the burndown and the Function overview show.
  */
 function DailyOf({ anken }: { anken: string }) {
-  const { date, phase, tab } = route.useSearch();
+  const { date, phase } = route.useSearch();
   const navigate = route.useNavigate();
   const q = useQuery(dailyQuery(anken, date));
   if (q.isPending) return <Loading />;
   if (q.isError) return <QueryError error={q.error} />;
   const v = q.data;
   const c = v.content;
-  const chart = c.burndowns.find((b) => (b.phase ?? ALL) === (phase ?? ALL)) ?? c.burndowns[0];
+  const daily = v.daily_phases;
+  // the anken's Daily phases (Settings → Structure), else every phase group, in the server's order
+  const groups = daily.length ? c.groups.filter((g) => daily.includes(g.name)) : c.groups;
+  const none = groups.length ? null
+    : !daily.length ? 'No phase has started yet.'
+      : v.live ? 'No phase to show. Pick the phases in Settings → Structure.' : 'None of the Daily phases had started on this day.';
+  const picked = phase != null && groups.some((g) => g.name === phase) ? phase : undefined;
+  const all = c.burndowns.find((b) => b.phase == null) ?? c.burndowns[0];
+  const chart = picked == null ? all : c.burndowns.find((b) => b.phase === picked);
   return (
     <>
-      <Header v={v} b={chart} />
+      <Header v={v} b={chart ?? all} />
       <Toolbar v={v} anken={anken} pick={(d) => navigate({ search: (s) => ({ ...s, date: d || undefined }) })} />
+      <Process groups={groups} burndowns={c.burndowns} pct={c.pct} phase={picked} pick={(p) => navigate({ search: (s) => ({ ...s, phase: p }) })} />
       <section className="card" aria-label="Effort burndown" style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ font: '700 18px/1.2 var(--font-display)', color: 'var(--text-heading)' }}>Effort burndown</span>
+          <span className="do-pill" style={{ background: 'var(--do-wip-bg)', color: 'var(--do-wip)', fontWeight: 700, fontSize: 12 }}>
+            {picked ?? 'All phases'}<span style={{ fontWeight: 500, opacity: 0.8 }}>· chosen in Process</span>
+          </span>
           <span className="spacer" />
           <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-muted)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 0, borderTop: '2px dashed var(--text-muted)' }} />Plan</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 3, borderRadius: 2, background: 'var(--st-wip)' }} />Remaining</span>
           </div>
-          <Select
-            aria-label="Phase"
-            style={{ width: 200 }}
-            value={chart.phase ?? ALL}
-            options={c.burndowns.map((b) => ({ value: b.phase ?? ALL, label: b.phase ?? 'All phases' }))}
-            onChange={(p) => navigate({ search: (s) => ({ ...s, phase: p || undefined }) })}
-          />
         </div>
-        <BurndownChart b={chart.chart} today={c.date} todayLabel={v.live ? 'Today' : day(c.date)} height={260}
-          empty="No sub-tasks with a Planned Start, a Planned End and an estimate." />
+        {chart ? (
+          <BurndownChart b={chart.chart} today={c.date} todayLabel={v.live ? 'Today' : day(c.date)} height={260}
+            empty="No sub-tasks with a Planned Start, a Planned End and an estimate." />
+        ) : (
+          <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+            <b style={{ color: 'var(--text-heading)' }}>{picked}</b> has not started: no sub-tasks with a plan and an estimate yet.
+          </div>
+        )}
       </section>
-      <FunctionOverview groups={c.groups} daily={v.daily_phases} live={v.live} tab={tab} pick={(t) => navigate({ search: (s) => ({ ...s, tab: t }) })} />
-      <TypedSections typed={c.typed} anken={anken} editable={v.live} />
+      <FunctionOverview groups={groups} phase={picked} none={none} />
+      <Issues typed={c.typed} anken={anken} editable={v.live} />
     </>
   );
 }
@@ -97,16 +110,20 @@ function Header({ v, b }: { v: Schemas['DailyView']; b: Schemas['DailyBurndown']
         <div style={{ ...kpi, paddingRight: 24 }}>
           <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.phase ? 'Progress' : 'Overall progress'}{of}</span>
           <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{p ? `${p.pct}%` : '–'}</span>
-          <div style={{ alignSelf: 'center', height: 6, borderRadius: 99, background: 'var(--border-subtle)', overflow: 'hidden' }}>
-            <div style={{ height: 6, width: (p?.pct ?? 0) + '%', background: 'var(--text-heading)' }} />
+          <div style={{ alignSelf: 'center', height: 10, borderRadius: 99, background: 'var(--border-subtle)', overflow: 'hidden' }}>
+            <div style={{ height: 10, width: (p?.pct ?? 0) + '%', background: 'var(--text-heading)', borderRadius: 99 }} />
           </div>
         </div>
         <div style={{ ...kpi, padding: '0 24px', borderLeft: '1px solid var(--border-subtle)' }}>
           <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Effort vs plan{of}</span>
-          <span style={{ font: '700 40px/44px var(--font-display)', color: 'var(--text-heading)' }}>{p ? signedH(p.diff_h) : '–'}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-            {p ? `plan to date ${f2(p.plan_to_date_h)}h · actual ${f2(p.actual_to_date_h)}h` : 'not captured for this phase'}
-          </span>
+          <span style={{ font: '700 40px/44px var(--font-display)', color: !p ? 'var(--text-heading)' : p.diff_h >= 0 ? C.done : C.late }}>{p ? signedH(p.diff_h) : '–'}</span>
+          {p ? (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              Plan <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.plan_to_date_h)}h</b>
+              <span aria-hidden="true" style={{ margin: '0 8px', color: 'var(--border-strong)' }}>|</span>
+              Actual <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.actual_to_date_h)}h</b>
+            </span>
+          ) : <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>not captured for this phase</span>}
         </div>
       </div>
     </div>
@@ -129,13 +146,15 @@ function Toolbar({ v, anken, pick }: { v: Schemas['DailyView']; anken: string; p
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', paddingBottom: 4, borderBottom: '1px solid var(--border-subtle)' }}>
       <Icon name="camera" size={14} color="var(--text-muted)" />
       <Select aria-label="Day" style={{ width: 240 }} value={v.live ? ALL : v.content.date} options={options} onChange={pick} />
-      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{v.live ? 'Live' : 'Snapshot'} · {captured}</span>
       {!v.live && (
         <span style={{ padding: '2px 8px', borderRadius: 99, background: 'var(--surface-tint)', color: 'var(--text-heading)', font: '600 11px/1.4 var(--font-text)' }}>
           Past snapshot
         </span>
       )}
       <span className="spacer" />
+      <span className="do-pill" style={{ height: 26, background: v.live ? 'var(--do-wip-bg)' : 'var(--surface-hover)', color: v.live ? 'var(--do-wip)' : 'var(--text-body)', fontWeight: 600, fontSize: 12 }}>
+        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor' }} />{v.live ? 'Live' : 'Snapshot'} · {captured}
+      </span>
       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{v.auto_capture === 'off' ? 'Auto capture off' : `Auto capture daily at ${v.auto_capture}`}</span>
       {v.live && canCapture && (
         <Button appearance="secondary" size="sm" iconBefore="camera" disabled={capture.isPending}
