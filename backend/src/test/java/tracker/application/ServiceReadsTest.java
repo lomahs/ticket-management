@@ -405,8 +405,8 @@ class ServiceReadsTest {
         Burndown.BurndownChart b = all.burndown();
         assertThat(b.days().get(0).planRemainingH()).isEqualTo(b.estimateH()); // the baseline, the day before the anken starts
         assertThat(b.days().get(b.days().size() - 1).planRemainingH()).isZero();
-        // nothing was captured: only today has an actual point
-        assertThat(b.days()).allMatch(d -> d.date().equals(all.today()) == (d.actualRemainingH() != null));
+        // nothing was captured: the days up to today are rebuilt from the worklogs
+        assertThat(b.days()).allMatch(d -> d.date().compareTo(all.today()) <= 0 == (d.actualRemainingH() != null));
         String phase = all.phases().get(0);
         EffortService.BurndownView inPhase = effort.burndown(ALL, "PAY-1100", phase, null, null);
         assertThat(inPhase.tasks()).isNotEmpty();

@@ -10,8 +10,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Effort burndown over the shown working days from the day before the scope's start to the latest Planned End.
  * The first day is the baseline: nothing is planned on it, so the plan still has the whole estimate left.
- * Plan: the estimate less the hours planned up to the day ({@link PlanDays}). Actual: Jira's remaining estimate, live today
- * and as the Daily Overview capture saw it on an earlier day; a day without a capture has no actual point.
+ * Plan: the estimate less the hours planned up to the day ({@link PlanDays}). Actual: Jira's remaining estimate, live today;
+ * on an earlier day as the Daily Overview capture saw it, else rebuilt from the worklogs as Jira keeps it: what remains now
+ * plus the hours logged after that day.
  */
 public final class Burndown {
     private Burndown() {
@@ -31,7 +32,7 @@ public final class Burndown {
      *
      * @param plannedH         planned to burn on this day
      * @param loggedH          logged on this day (logs outside the range count on its first or last day)
-     * @param actualRemainingH null after today, and before today on a day without a capture
+     * @param actualRemainingH null after today
      */
     public record BurndownDay(String date, double plannedH, double loggedH, double planRemainingH, @Nullable Double actualRemainingH) {
     }
@@ -97,7 +98,7 @@ public final class Burndown {
             if (d.compareTo(today) <= 0) {
                 planToday = planRem;
             }
-            Double actual = d.equals(today) ? Double.valueOf(now) : d.compareTo(today) < 0 ? captured(items, d) : null;
+            Double actual = d.equals(today) ? Double.valueOf(now) : d.compareTo(today) < 0 ? Double.valueOf(actualOn(items, d, today)) : null;
             out.add(new BurndownDay(d, Numbers.round(burn.get(d), 2), Numbers.round(logged.get(d), 2), Numbers.round(planRem, 2),
                     actual == null ? null : Numbers.round(actual, 2)));
         }
@@ -105,11 +106,25 @@ public final class Burndown {
                 Numbers.round(now, 2), out);
     }
 
-    /** The remaining hours the capture of {@code day} saw; an item it did not see counts its estimate. null without a capture. */
-    private static @Nullable Double captured(List<Item> items, String day) {
-        if (items.stream().noneMatch(i -> i.remainingOn().containsKey(day))) {
-            return null;
+    /**
+     * The remaining hours at the end of {@code day} (before {@code today}): each item's as the capture of that day saw it, else
+     * what remains now plus the hours logged after that day up to today.
+     */
+    private static double actualOn(List<Item> items, String day, String today) {
+        double sum = 0;
+        for (Item i : items) {
+            Double seen = i.remainingOn().get(day);
+            if (seen != null) {
+                sum += seen;
+                continue;
+            }
+            sum += i.remainingH();
+            for (Worklog w : i.worklogs()) {
+                if (w.date().compareTo(day) > 0 && w.date().compareTo(today) <= 0) {
+                    sum += w.hours();
+                }
+            }
         }
-        return items.stream().mapToDouble(i -> i.remainingOn().getOrDefault(day, i.estimateH())).sum();
+        return sum;
     }
 }

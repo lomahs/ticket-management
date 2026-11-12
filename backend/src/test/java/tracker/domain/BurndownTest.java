@@ -28,8 +28,9 @@ class BurndownTest {
                 .containsExactly("2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09");
         assertThat(r.days()).extracting(Burndown.BurndownDay::plannedH).containsExactly(0.0, 4.0, 4.0, 2.0, 4.0, 0.0);
         assertThat(r.days()).extracting(Burndown.BurndownDay::planRemainingH).containsExactly(14.0, 10.0, 6.0, 4.0, 0.0, 0.0);
-        // 10/02: no capture; 10/05: both captured; 10/06: PAY-2 was not captured, its estimate counts; 10/07: today, live
-        assertThat(r.days()).extracting(Burndown.BurndownDay::actualRemainingH).containsExactly(null, 11.0, 10.5, 10.0, null, null);
+        // 10/02: no capture, rebuilt: what remains now plus the hours logged since (PAY-1: 6 + 3, PAY-2: 4); 10/05: both
+        // captured; 10/06: PAY-1 captured, PAY-2 rebuilt; 10/07: today, live
+        assertThat(r.days()).extracting(Burndown.BurndownDay::actualRemainingH).containsExactly(13.0, 11.0, 10.5, 10.0, null, null);
         assertThat(r.days()).extracting(Burndown.BurndownDay::loggedH).containsExactly(0.0, 3.0, 0.0, 0.0, 0.0, 0.0);
         assertThat(r.estimateH()).isEqualTo(14);
         assertThat(r.planRemainingH()).isEqualTo(4);
@@ -45,7 +46,8 @@ class BurndownTest {
         assertThat(r.days()).extracting(Burndown.BurndownDay::date).containsExactly("2026-10-10", "2026-10-12");
         assertThat(r.days()).extracting(Burndown.BurndownDay::plannedH).containsExactly(0.0, 6.0);
         assertThat(r.days()).extracting(Burndown.BurndownDay::loggedH).containsExactly(1.0, 2.0);
-        assertThat(r.days()).allMatch(d -> d.actualRemainingH() == null);
+        // rebuilt from the logs up to today: 3 left now, 2h logged on 10/30
+        assertThat(r.days()).extracting(Burndown.BurndownDay::actualRemainingH).containsExactly(5.0, 5.0);
         assertThat(r.actualRemainingH()).isEqualTo(3);
     }
 

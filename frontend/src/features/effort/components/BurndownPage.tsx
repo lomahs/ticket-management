@@ -97,7 +97,7 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div className="title">Effort burndown</div>
-            <div className="eyebrow">Remaining hours from the day before the start. Plan counts down by the hours planned per day (Detail Planning, else the estimate spread evenly); actual is Jira's remaining estimate, today live and on earlier days as the Daily Overview capture saw it.</div>
+            <div className="eyebrow">Remaining hours from the day before the start. Plan counts down by the hours planned per day (Detail Planning, else the estimate spread evenly); actual is Jira's remaining estimate: today live, an earlier day as its Daily Overview capture saw it, else what remains now plus the hours logged since.</div>
           </div>
           <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-muted)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 0, borderTop: '2px dashed var(--text-muted)' }} />Plan</span>

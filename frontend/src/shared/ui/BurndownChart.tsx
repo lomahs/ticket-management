@@ -3,9 +3,9 @@ import type { Schemas } from '../api/types';
 import { D, dm, f2, WDN } from '../format/dates';
 
 /**
- * Remaining effort per working day: the plan (dashed) and the actual remaining (solid, a dot on each day that has one: today
- * and the captured days), with a marker on `today`. Point k is the end of day k, drawn at the centre of its column; day 0 is
- * the baseline, the day before the start.
+ * Remaining effort per working day: the plan (dashed) and the actual remaining (solid; a dot when it has a single day), with a
+ * marker on `today`. Point k is the end of day k, drawn at the centre of its column; day 0 is the baseline, the day before the
+ * start.
  */
 export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, empty }: {
   b: Schemas['BurndownChart']; today: string; todayLabel?: string; height?: number; empty: string;
@@ -57,8 +57,8 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
           <polyline points={pts(plan.map((h, k) => [k, h] as const))} fill="none" stroke="var(--text-muted)" strokeWidth={2} strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
           {act.length > 1 && <polyline points={pts(act)} fill="none" stroke="var(--st-wip)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
         </svg>
-        {act.map(([k, h]) => (
-          <span key={k} style={{ position: 'absolute', left: ((k + 0.5) / N) * 100 + '%', top: (1 - Math.max(0, h) / yMax) * 100 + '%', width: 7, height: 7,
+        {act.length === 1 && act.map(([k, h]) => (
+          <span key={k} data-actual={days[k].date} style={{ position: 'absolute', left: ((k + 0.5) / N) * 100 + '%', top: (1 - Math.max(0, h) / yMax) * 100 + '%', width: 7, height: 7,
             marginLeft: -3.5, marginTop: -3.5, borderRadius: '50%', background: 'var(--st-wip)', pointerEvents: 'none' }} />
         ))}
         {hd && hov != null && <Tip d={hd} baseline={hov === 0} left={((hov + 0.5) / N) * 100} flip={hov > N * 0.6} />}
