@@ -97,7 +97,7 @@ describe('Daily Overview', () => {
     expect(card(/^Requirement study/).getAttribute('aria-expanded')).toBe('true'); // a late ticket
     expect(card(/^Design review/).getAttribute('aria-expanded')).toBe('false'); // done
     expect(within(fo).getByText('Domestic card payment')).toBeTruthy();
-    expect(within(fo).getByRole('button', { name: 'Fix BAL · WIP · 2d late' })).toBeTruthy();
+    expect(within(fo).getByRole('button', { name: 'Fix Comment BAL · WIP · 2d late' })).toBeTruthy();
     expect(within(fo).getAllByRole('button', { name: 'Create · Done' }).length).toBeGreaterThan(0);
     // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
     expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();

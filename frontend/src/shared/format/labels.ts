@@ -15,9 +15,9 @@ export const TONE: Record<Tone, string> = {
 export const STEPS: { k: StepKind; label: string; short: string; color: string }[] = [
   { k: 'create', label: 'Create', short: 'Create', color: 'oklch(0.55 0.14 255)' },
   { k: 'balr', label: 'BAL Review', short: 'BAL Review', color: 'oklch(0.56 0.15 300)' },
-  { k: 'fixb', label: 'Fix comment BAL', short: 'Fix BAL', color: 'oklch(0.62 0.15 50)' },
+  { k: 'fixb', label: 'Fix comment BAL', short: 'Fix Comment BAL', color: 'oklch(0.62 0.15 50)' },
   { k: 'jmr', label: 'JM Review', short: 'JM Review', color: 'oklch(0.54 0.12 165)' },
-  { k: 'fixj', label: 'Fix comment JM', short: 'Fix JM', color: 'oklch(0.58 0.17 20)' },
+  { k: 'fixj', label: 'Fix comment JM', short: 'Fix Comment JM', color: 'oklch(0.58 0.17 20)' },
 ];
 export const OTHER_STEP = { label: 'Other task', color: 'oklch(0.62 0.02 260)' };
 export const stepLabel = (k?: string | null) => STEPS.find((s) => s.k === k)?.label ?? '';
