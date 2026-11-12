@@ -6,7 +6,7 @@ import { Icon } from '../../../shared/ds';
 import { dm } from '../../../shared/format/dates';
 import { STEPS, statusOf } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
-import { C, CountChip, Initial, SchedPill, StopDot, type Sched } from './metro';
+import { C, CountChip, Initial, SchedPill, StopDot, type Sched, type StopKind } from './metro';
 
 type Group = Schemas['DailyGroup'];
 type Task = Schemas['DailySubPhase'];
@@ -18,13 +18,17 @@ type Step = Schemas['DailyStep'];
 const COLS = '240px minmax(0,1fr) 128px';
 const JM_STEPS = new Set(['jmr', 'fixj']);
 const stepLabel = (k: string) => STEPS.find((s) => s.k === k)?.short ?? k;
+/** "10/01 – 10/02": a stop's Planned Start – Planned End. */
+const plan = (x: { planned_start?: string | null; planned_end?: string | null }) =>
+  (x.planned_start || x.planned_end ? `${dm(x.planned_start) || '?'} – ${dm(x.planned_end) || '?'}` : '');
 
 /**
  * The functions and tickets of the phase picked in Process (or of every phase), one card per Task. A Task opens by itself
  * when something in it is late or in progress, and stays closed when it is done or has not started; Expand all / Collapse
- * all override that. Functions run on 5 step columns: a 3-step flow ends on Fix BAL, the JM columns greyed out.
+ * all override that. Functions run on 5 step columns: a 3-step flow ends on Fix BAL, the JM columns greyed out. `today` is the
+ * day shown (live or captured): a stop whose Planned End falls on it is due.
  */
-export function FunctionOverview({ groups, phase, none }: { groups: Group[]; phase: string | undefined; none: string | null }) {
+export function FunctionOverview({ groups, phase, none, today }: { groups: Group[]; phase: string | undefined; none: string | null; today: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const picked = phase != null ? groups.filter((g) => g.name === phase) : [];
   const shown = picked.length ? picked : groups;
@@ -55,7 +59,7 @@ export function FunctionOverview({ groups, phase, none }: { groups: Group[]; pha
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{g.state === 'not_started' ? 'not started' : `${g.pct}% · ${g.closed}/${g.total} done`}</span>
                   </div>
                 )}
-                <PhaseBody g={g} open={open} toggle={(k, v) => setOpen((o) => ({ ...o, [k]: v }))} />
+                <PhaseBody g={g} today={today} open={open} toggle={(k, v) => setOpen((o) => ({ ...o, [k]: v }))} />
               </div>
             ))}
           </div>
@@ -73,13 +77,14 @@ function Legend() {
     <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--text-muted)' }}>
       {item(<span className="do-dot" style={{ width: 14, height: 14, background: C.done }}><Icon name="check" size={9} strokeWidth={3.2} /></span>, 'Done')}
       {item(fill(C.wip), 'Now')}
+      {item(fill(C.due), 'Due today')}
       {item(fill(C.late), 'Late')}
       {item(ring(C.jm), 'JM step')}
     </span>
   );
 }
 
-function PhaseBody({ g, open, toggle }: { g: Group; open: Record<string, boolean>; toggle: (key: string, v: boolean) => void }) {
+function PhaseBody({ g, today, open, toggle }: { g: Group; today: string; open: Record<string, boolean>; toggle: (key: string, v: boolean) => void }) {
   if (g.state === 'not_started' && !g.sub_phases.length) {
     return (
       <div className="do-acc" style={{ padding: '22px 18px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
@@ -99,7 +104,7 @@ function PhaseBody({ g, open, toggle }: { g: Group; open: Record<string, boolean
       </div>
     );
   }
-  return <>{g.sub_phases.map((t) => <TaskCard key={t.key} t={t} open={open[t.key]} toggle={(v) => toggle(t.key, v)} />)}</>;
+  return <>{g.sub_phases.map((t) => <TaskCard key={t.key} t={t} today={today} open={open[t.key]} toggle={(v) => toggle(t.key, v)} />)}</>;
 }
 
 /** Where a row stands: done, late (the most days late), not started, else on track. */
@@ -114,7 +119,7 @@ function schedOf(items: { status: string; late: boolean; late_days: number }[]):
 const fnSteps = (f: Fn) => f.steps.filter((s): s is Step => s != null);
 
 /** A Task's card: a header that keeps its summary when collapsed, and its rows when open. */
-function TaskCard({ t, open, toggle }: { t: Task; open: boolean | undefined; toggle: (v: boolean) => void }) {
+function TaskCard({ t, today, open, toggle }: { t: Task; today: string; open: boolean | undefined; toggle: (v: boolean) => void }) {
   const rows = t.functions.length ? t.functions.map((f) => schedOf(fnSteps(f))[0]) : t.tickets.map((x) => schedOf([x])[0]);
   const late = rows.filter((s) => s === 'late').length || (rows.length ? 0 : t.late);
   const running = rows.filter((s) => s === 'ok').length || (!rows.length && t.pct > 0 && t.pct < 100 ? 1 : 0);
@@ -138,8 +143,8 @@ function TaskCard({ t, open, toggle }: { t: Task; open: boolean | undefined; tog
       </button>
       {expanded && (
         <div className="do-acc-b">
-          {t.functions.length > 0 && <Functions fns={t.functions} />}
-          {t.tickets.length > 0 && <Tickets tickets={t.tickets} />}
+          {t.functions.length > 0 && <Functions fns={t.functions} today={today} />}
+          {t.tickets.length > 0 && <Tickets tickets={t.tickets} today={today} />}
           <Unmatched t={t} />
           {!t.functions.length && !t.tickets.length && !t.unmatched && (
             <div style={{ padding: '12px 18px', fontSize: 12.5, color: 'var(--text-muted)' }}>No functions or tickets listed.</div>
@@ -165,7 +170,7 @@ function Unmatched({ t }: { t: Task }) {
 
 const firstStart = (f: Fn) => fnSteps(f)[0]?.planned_start ?? '9999';
 
-function Functions({ fns }: { fns: Fn[] }) {
+function Functions({ fns, today }: { fns: Fn[]; today: string }) {
   const short = fns.every((f) => f.steps.length < STEPS.length);
   const rows = [...fns].sort((a, b) => firstStart(a).localeCompare(firstStart(b)) || a.name.localeCompare(b.name));
   return (
@@ -181,7 +186,7 @@ function Functions({ fns }: { fns: Fn[] }) {
         </span>
         <span>Schedule</span>
       </div>
-      <div className="do-rows">{rows.map((f) => <FunctionLine key={f.id} f={f} />)}</div>
+      <div className="do-rows">{rows.map((f) => <FunctionLine key={f.id} f={f} today={today} />)}</div>
     </>
   );
 }
@@ -211,7 +216,7 @@ function NameCell({ who, title, sub, m }: { who: string | null | undefined; titl
 }
 
 /** One function on the 5 step columns: done stops, the step it is on now (with its holder), the stops ahead; its schedule. */
-function FunctionLine({ f }: { f: Fn }) {
+function FunctionLine({ f, today }: { f: Fn; today: string }) {
   const members = useMemberMap();
   const open = useOpenTicket();
   const n = STEPS.length;
@@ -241,7 +246,7 @@ function FunctionLine({ f }: { f: Fn }) {
         {Array.from({ length: n }, (_, i) => {
           const s = f.steps[i];
           if (!s) return <span key={i} />;
-          return <StepStop key={i} s={s} now={i === cur} round={i === round} m={members[s.assignee_id ?? '']} open={() => open(s.key)} />;
+          return <StepStop key={i} s={s} today={today} now={i === cur} round={i === round} m={members[s.assignee_id ?? '']} open={() => open(s.key)} />;
         })}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
@@ -252,60 +257,66 @@ function FunctionLine({ f }: { f: Fn }) {
   );
 }
 
-/** A step's stop; it opens the sub-task. Its tooltip says the step, status, holder, plan, rounds and where the JM round is. */
-function StepStop({ s, now, round, m, open }: { s: Step; now: boolean; round: boolean; m: Member | undefined; open: () => void }) {
+/**
+ * A step's stop; it opens the sub-task. Only a started step is filled (NYS stays a ring, red when late), and a step due today
+ * is yellow. Its tooltip says the step, status, holder, plan, rounds and where the JM round is.
+ */
+function StepStop({ s, today, now, round, m, open }: { s: Step; today: string; now: boolean; round: boolean; m: Member | undefined; open: () => void }) {
   const jm = JM_STEPS.has(s.step);
   const late = s.late && s.status !== 'C' ? s.late_days : 0;
-  const col = late ? C.late : jm ? C.jm : C.wip;
-  const kind = s.status === 'C' ? 'done' : now ? 'now' : s.status === 'W' || s.status === 'R' ? 'open' : 'todo';
+  const due = s.status !== 'C' && s.planned_end === today;
+  const started = s.status !== 'N';
+  const col = late ? C.late : due ? C.due : jm ? C.jm : C.wip;
+  const kind: StopKind = s.status === 'C' ? 'done' : now && (started || due) ? 'now' : due ? 'due' : started ? 'open' : 'todo';
   const st = statusOf(s.status);
   const where = s.with_jm ? 'JM' : 'Team';
-  const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''} · ${m?.name ?? 'unassigned'}`
+  const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''}${due ? ' · due today' : ''} · ${m?.name ?? 'unassigned'}`
     + ` · plan ${dm(s.planned_start) || '?'} – ${dm(s.planned_end) || '?'}${s.rounds ? ` · round ${s.rounds}, with ${where}` : ''}`
     + (round ? ` · now: ${s.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '');
   return (
-    <button type="button" className="do-st" title={tip} aria-label={`${stepLabel(s.step)} · ${s.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}`} onClick={open}>
-      <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? (jm ? C.jm : C.lineStrong) : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
-      <span className="do-dl">{dm(s.planned_end)}</span>
+    <button type="button" className="do-st" title={tip} aria-label={`${stepLabel(s.step)} · ${s.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}${due ? ' · due today' : ''}`} onClick={open}>
+      <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? (late ? C.late : jm ? C.jm : C.lineStrong) : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
+      <span className="do-dl">{plan(s)}</span>
       {late > 0 && <span style={{ font: '800 10.5px/1 var(--font-text)', color: C.late }}>+{late}d</span>}
       {!late && s.rounds > 1 && <span style={{ font: '700 10.5px/1 var(--font-text)', color: 'var(--text-muted)' }}>↻{s.rounds}</span>}
     </button>
   );
 }
 
-/** Single tickets: one stop each, at their Planned End. */
-function Tickets({ tickets }: { tickets: Ticket[] }) {
+/** Single tickets: one stop each, with their plan. */
+function Tickets({ tickets, today }: { tickets: Ticket[]; today: string }) {
   const rows = [...tickets].sort((a, b) => (a.planned_start ?? '9999').localeCompare(b.planned_start ?? '9999') || a.key.localeCompare(b.key));
   return (
     <>
       <div className="do-head" style={{ gridTemplateColumns: COLS }}>
         <span>Ticket <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>· sorted by plan start</span></span>
-        <span style={{ textAlign: 'center' }}>Plan end</span>
+        <span style={{ textAlign: 'center' }}>Plan</span>
         <span>Schedule</span>
       </div>
-      <div className="do-rows">{rows.map((x) => <TicketLine key={x.key} x={x} />)}</div>
+      <div className="do-rows">{rows.map((x) => <TicketLine key={x.key} x={x} today={today} />)}</div>
     </>
   );
 }
 
-function TicketLine({ x }: { x: Ticket }) {
+function TicketLine({ x, today }: { x: Ticket; today: string }) {
   const members = useMemberMap();
   const open = useOpenTicket();
   const m = members[x.assignee_id ?? ''];
   const [sched, late] = schedOf([x]);
   const st = statusOf(x.status);
-  const col = late ? C.late : C.wip;
-  const kind = x.status === 'C' ? 'done' : x.status === 'N' ? 'todo' : 'now';
+  const due = x.status !== 'C' && x.planned_end === today;
+  const col = late ? C.late : due ? C.due : C.wip;
+  const kind: StopKind = x.status === 'C' ? 'done' : x.status !== 'N' || due ? 'now' : 'todo';
   return (
     <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
       <NameCell who={x.assignee_id} m={m} title={`${x.name} · ${x.key}`}
         sub={x.status === 'C' ? 'Done' : <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{st.label}</b> · {m?.name ?? 'unassigned'}</>} />
       <div className="do-track">
         <button type="button" className="do-st" onClick={() => open(x.key)}
-          title={`${x.key} · ${st.label}${late ? ` · ${late} working days late` : ''} · plan ${dm(x.planned_start) || '?'} – ${dm(x.planned_end) || '?'}`}
-          aria-label={`${x.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}`}>
-          <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? C.lineStrong : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
-          <span className="do-dl">{dm(x.planned_end)}</span>
+          title={`${x.key} · ${st.label}${late ? ` · ${late} working days late` : ''}${due ? ' · due today' : ''} · plan ${dm(x.planned_start) || '?'} – ${dm(x.planned_end) || '?'}`}
+          aria-label={`${x.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}${due ? ' · due today' : ''}`}>
+          <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? (late ? C.late : C.lineStrong) : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
+          <span className="do-dl">{plan(x)}</span>
           {late > 0 && <span style={{ font: '800 10.5px/1 var(--font-text)', color: C.late }}>+{late}d</span>}
         </button>
       </div>

@@ -39,7 +39,7 @@ function content(date: string, note: string, kept = true) {
           { id: 'F05', name: 'Installments', ba_id: 'an', steps: [
             ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N')] },
           { id: 'F06', name: 'Execute test case', ba_id: 'an', steps: [
-            step('PAY-1241', 'create', 'C'), step('PAY-1242', 'balr', 'W'), step('PAY-1243', 'fixb', 'N')] }] }),
+            step('PAY-1241', 'create', 'C'), step('PAY-1242', 'balr', 'W'), step('PAY-1243', 'fixb', 'N', { planned_end: '2026-10-07' })] }] }),
         task('PAY-1300', 'Receipt screens', { functions: [
           { id: 'F07', name: 'Receipt screen', ba_id: 'binh', steps: [
             ...done('PAY-130'), step('PAY-1304', 'jmr', 'N', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1305', 'fixj', 'N')] }] }),
@@ -103,6 +103,13 @@ describe('Daily Overview', () => {
     expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
     expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
     expect(within(fo).getAllByTitle('Last step of this flow')).toHaveLength(1); // F06 runs the 3-step flow
+    // a stop shows its plan; only a started step is filled, NYS stays a ring; a step due on the day shown is yellow
+    expect(within(fo).getAllByText('10/01 – 10/02').length).toBeGreaterThan(0);
+    expect(within(fo).getByTitle(/^PAY-1304 /).querySelector('.do-now')).toBeNull(); // Receipt screen is on its NYS JM Review
+    expect(within(fo).getByTitle(/^PAY-1242 /).querySelector('.do-now')).toBeTruthy();
+    const due = within(fo).getByRole('button', { name: 'Fix Comment BAL · NYS · due today' });
+    expect(due.textContent).toContain('10/01 – 10/07');
+    expect((due.querySelector('.do-dot') as HTMLElement).style.background).toBe('var(--do-due)');
     expect(within(fo).getByRole('button', { name: 'Resolved · 1d late' })).toBeTruthy(); // a late single ticket
     expect(within(fo).getByText(/do not follow the name rule/).textContent).toContain('2 sub-tasks');
     expect(within(fo).getByRole('link', { name: 'Review in Ticket Check →' }).getAttribute('href')).toBe('/ticket-check?check=rule');

@@ -121,6 +121,8 @@
   --do-red: #dc2626; --do-red-bg: #fee2e2; --do-red-strong: #b91c1c; --do-wip-strong: #1d4ed8;
   --do-line: #e5e7eb; --do-line-strong: #c9ced6; --do-card: #f9fafb; --do-zone: #f3f4f6;
   --do-warn-bg: #fff7e6; --do-warn-bd: #f5d9a0; --do-warn-fg: #8a5a00;
+  /* a stop whose Planned End is the day shown */
+  --do-due: #eab308; --do-due-fg: #422006;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -157,4 +159,5 @@
   --do-red: #ff9b92; --do-red-bg: #45211f; --do-red-strong: #ff9b92; --do-wip-strong: #8db8ff;
   --do-line: rgba(233, 235, 238, .16); --do-line-strong: rgba(233, 235, 238, .34); --do-card: rgba(233, 235, 238, .035); --do-zone: rgba(233, 235, 238, .045);
   --do-warn-bg: #3f3214; --do-warn-bd: rgba(242, 198, 107, .35); --do-warn-fg: #f2c66b;
+  --do-due: #facc15; --do-due-fg: #422006;
 }

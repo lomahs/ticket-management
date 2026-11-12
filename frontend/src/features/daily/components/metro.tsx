@@ -7,7 +7,7 @@ export type Sched = 'done' | 'late' | 'ok' | 'nys';
 
 /** Daily Overview colours that a dark theme swaps through the tokens. */
 export const C = {
-  done: 'var(--do-clo)', wip: 'var(--st-wip)', late: 'var(--do-red)', jm: 'var(--do-jm)',
+  done: 'var(--do-clo)', wip: 'var(--st-wip)', late: 'var(--do-red)', jm: 'var(--do-jm)', due: 'var(--do-due)',
   line: 'var(--do-line)', lineStrong: 'var(--do-line-strong)',
 } as const;
 
@@ -60,12 +60,19 @@ export function CountChip({ tone, children }: { tone: 'late' | 'run'; children: 
   );
 }
 
-/** The stops a line is drawn between: done, now (with the holder's initial), open but not now, not started. */
-export function StopDot({ kind, col = C.wip, initial }: { kind: 'done' | 'now' | 'open' | 'todo'; col?: string; initial?: string }) {
+export type StopKind = 'done' | 'now' | 'open' | 'due' | 'todo';
+
+/**
+ * The stops a line is drawn between: done, now (with the holder's initial), open but not now, due on the day shown but not
+ * now, not started. Only a due stop is filled in yellow; its initial reads in dark on it.
+ */
+export function StopDot({ kind, col = C.wip, initial }: { kind: StopKind; col?: string; initial?: string }) {
   if (kind === 'done') {
     return <span className="do-dot" style={{ width: 20, height: 20, background: C.done }}><Icon name="check" size={11} strokeWidth={3.2} /></span>;
   }
-  if (kind === 'now') return <span className="do-dot do-now" style={{ width: 26, height: 26, background: col, ...glow(col) }}>{initial}</span>;
+  const fg = col === C.due ? { color: 'var(--do-due-fg)' } : undefined;
+  if (kind === 'now') return <span className="do-dot do-now" style={{ width: 26, height: 26, background: col, ...fg, ...glow(col) }}>{initial}</span>;
+  if (kind === 'due') return <span className="do-dot" style={{ width: 18, height: 18, background: col }} />;
   if (kind === 'open') return <span className="do-dot" style={{ width: 18, height: 18, background: 'var(--surface-card)', boxShadow: `inset 0 0 0 2.5px ${col}` }} />;
   return <span className="do-dot" style={{ width: 16, height: 16, background: 'var(--surface-card)', boxShadow: `inset 0 0 0 2px ${col}` }} />;
 }

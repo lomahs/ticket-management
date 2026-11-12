@@ -86,7 +86,7 @@ function DailyOf({ anken }: { anken: string }) {
           </div>
         )}
       </section>
-      <FunctionOverview groups={groups} phase={picked} none={none} />
+      <FunctionOverview groups={groups} phase={picked} none={none} today={c.date} />
       <Issues typed={c.typed} anken={anken} editable={v.live} />
     </>
   );
