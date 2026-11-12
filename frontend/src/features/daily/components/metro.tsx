@@ -64,7 +64,7 @@ export type StopKind = 'done' | 'now' | 'open' | 'due' | 'todo';
 
 /**
  * The stops a line is drawn between: done, now (with the holder's initial), open but not now, due on the day shown but not
- * now, not started. Only a due stop is filled in yellow; its initial reads in dark on it.
+ * now (the small dot filled in yellow), not started. On a yellow now, the initial reads in dark.
  */
 export function StopDot({ kind, col = C.wip, initial }: { kind: StopKind; col?: string; initial?: string }) {
   if (kind === 'done') {
@@ -72,7 +72,7 @@ export function StopDot({ kind, col = C.wip, initial }: { kind: StopKind; col?: 
   }
   const fg = col === C.due ? { color: 'var(--do-due-fg)' } : undefined;
   if (kind === 'now') return <span className="do-dot do-now" style={{ width: 26, height: 26, background: col, ...fg, ...glow(col) }}>{initial}</span>;
-  if (kind === 'due') return <span className="do-dot" style={{ width: 18, height: 18, background: col }} />;
+  if (kind === 'due') return <span className="do-dot" style={{ width: 16, height: 16, background: col }} />;
   if (kind === 'open') return <span className="do-dot" style={{ width: 18, height: 18, background: 'var(--surface-card)', boxShadow: `inset 0 0 0 2.5px ${col}` }} />;
   return <span className="do-dot" style={{ width: 16, height: 16, background: 'var(--surface-card)', boxShadow: `inset 0 0 0 2px ${col}` }} />;
 }

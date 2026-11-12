@@ -258,8 +258,8 @@ function FunctionLine({ f, today }: { f: Fn; today: string }) {
 }
 
 /**
- * A step's stop; it opens the sub-task. Only a started step is filled (NYS stays a ring, red when late), and a step due today
- * is yellow. Its tooltip says the step, status, holder, plan, rounds and where the JM round is.
+ * A step's stop; it opens the sub-task. Only a started step shows its holder and the highlight (NYS stays a ring, red when
+ * late); a step due today that is not that is a small yellow dot. Its tooltip says the step, status, holder, plan, rounds and where the JM round is.
  */
 function StepStop({ s, today, now, round, m, open }: { s: Step; today: string; now: boolean; round: boolean; m: Member | undefined; open: () => void }) {
   const jm = JM_STEPS.has(s.step);
@@ -267,7 +267,7 @@ function StepStop({ s, today, now, round, m, open }: { s: Step; today: string; n
   const due = s.status !== 'C' && s.planned_end === today;
   const started = s.status !== 'N';
   const col = late ? C.late : due ? C.due : jm ? C.jm : C.wip;
-  const kind: StopKind = s.status === 'C' ? 'done' : now && (started || due) ? 'now' : due ? 'due' : started ? 'open' : 'todo';
+  const kind: StopKind = s.status === 'C' ? 'done' : now && started ? 'now' : due ? 'due' : started ? 'open' : 'todo';
   const st = statusOf(s.status);
   const where = s.with_jm ? 'JM' : 'Team';
   const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''}${due ? ' · due today' : ''} · ${m?.name ?? 'unassigned'}`
@@ -306,7 +306,7 @@ function TicketLine({ x, today }: { x: Ticket; today: string }) {
   const st = statusOf(x.status);
   const due = x.status !== 'C' && x.planned_end === today;
   const col = late ? C.late : due ? C.due : C.wip;
-  const kind: StopKind = x.status === 'C' ? 'done' : x.status !== 'N' || due ? 'now' : 'todo';
+  const kind: StopKind = x.status === 'C' ? 'done' : x.status !== 'N' ? 'now' : due ? 'due' : 'todo';
   return (
     <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
       <NameCell who={x.assignee_id} m={m} title={`${x.name} · ${x.key}`}
