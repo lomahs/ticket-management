@@ -158,7 +158,8 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
             </div>
           )}
         </div>
-        <div title={offTitle} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {/* minmax(0, …): a select is as wide as its longest option, which would widen the panel past its width */}
+        <div title={offTitle} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
           <Select label="Status" disabled={disabled} options={(Object.keys(STATUS) as Status[]).map((k) => ({ value: k, label: STATUS[k].label }))}
             value={value('status')} onChange={edit('status')} />
           <Select label="Assignee" disabled={disabled} options={people(members, saved.assignee_id)}
