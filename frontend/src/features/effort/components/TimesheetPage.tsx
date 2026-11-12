@@ -1,31 +1,35 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap, useMeta } from '../../../shared/api/queries';
 import { useAnkenScope } from '../../../shared/state/anken';
-import { IconButton } from '../../../shared/ds';
+import { Icon, IconButton } from '../../../shared/ds';
 import { add, dm, dow, f2, hrs, mondayOf, monLabel, monthDays, shiftMon, WDN, ymdSpan } from '../../../shared/format/dates';
-import { dayHeadStyle, hatch, stepLabel } from '../../../shared/format/labels';
+import { dayHeadStyle, stepLabel } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
-import { Avatar, av, Legend, Seg } from '../../../shared/ui/bits';
+import { Avatar, av, Seg } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { dayDetailQuery, timesheetQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 
 const route = getRouteApi('/app/effort/timesheet');
 const PER_SCREEN = 10;
+/** The member column and the Week total column, in px: the days share what is left. */
+const MEMBER_W = 212;
+const TOTAL_W = 150;
+const SIDE = MEMBER_W + TOTAL_W;
 const STATE_LABEL: Record<string, string> = { ok: 'On allocation', under: 'Under allocation', over: 'Over allocation', no_allocation: 'No allocation' };
+type Show = 'over' | 'under' | 'no_allocation';
+type Row = Schemas['TimesheetView']['rows'][number];
+type Cell = Row['cells'][number];
 interface Pop { member: string; date: string; top: number; left: number; pinned: boolean }
 
-const CELL: Record<string, { bg: string; fg: string }> = {
-  under: { bg: 'var(--hl-amber)', fg: 'var(--hl-amber-fg)' },
-  no_allocation: { bg: hatch('var(--border-subtle)') + ',var(--surface-hover)', fg: 'var(--text-muted)' },
-  weekend: { bg: 'var(--surface-hover)', fg: 'var(--text-disabled)' },
-  off: { bg: hatch('var(--border-subtle)') + ',var(--surface-hover)', fg: 'var(--text-disabled)' },
-  over: { bg: 'var(--hl-red)', fg: 'var(--hl-red-fg)' },
-  ok: { bg: 'var(--hl-ok)', fg: 'var(--text-heading)' },
-};
+const SHOWS: { key: Show; label: string; mark: ReactNode; has: (r: Row) => boolean }[] = [
+  { key: 'over', label: 'Over-allocated', mark: <Icon name="triangle-alert" size={12} strokeWidth={2.4} />, has: (r) => r.over_days > 0 },
+  { key: 'under', label: 'Under-allocated', mark: <span className="ts-dot under" />, has: (r) => r.under_days > 0 },
+  { key: 'no_allocation', label: 'No allocation', mark: <span className="ts-dot no_allocation" />, has: (r) => r.cells.some((c) => c.state === 'no_allocation') },
+];
 
 export function TimesheetPage() {
   const search = route.useSearch();
@@ -41,12 +45,14 @@ export function TimesheetPage() {
     search: (p) => (isWeek ? { ...p, from: add(from, 7 * dir) } : { ...p, month: shiftMon(from.slice(0, 7), dir) }),
   });
   const setView = (v: 'week' | 'month') => navigate({ search: (p) => ({ ...p, view: v, from: v === 'week' ? from : undefined, month: v === 'month' ? from.slice(0, 7) : undefined }) });
+  const setShow = (show: Show | undefined) => navigate({ search: (p) => ({ ...p, show }), replace: true });
+  const rows = q.data?.rows ?? [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
       <EffortHeader tab="timesheet" />
-      <section className="card card-clip" aria-label="Timesheet">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+      <section className="card card-clip ts" aria-label="Timesheet">
+        <div className="ts-bar">
           <div style={{ marginRight: 6 }}><Seg items={[['week', 'Week'], ['month', 'Month']]} value={view} onPick={setView} /></div>
           <IconButton icon="chevron-left" label="Previous" appearance="secondary" size="sm" onClick={() => step(-1)} />
           <span style={{ fontWeight: 700, color: 'var(--text-heading)', minWidth: 120, textAlign: 'center' }}>
@@ -54,93 +60,148 @@ export function TimesheetPage() {
           </span>
           <IconButton icon="chevron-right" label="Next" appearance="secondary" size="sm" onClick={() => step(1)} />
           <span className="spacer" />
-          <div className="legend">
-            <Legend items={[
-              { label: 'On allocation', bg: 'var(--hl-ok)' }, { label: 'Under allocation', bg: 'var(--hl-amber)' }, { label: 'Over allocation', bg: 'var(--hl-red)' },
-              { label: 'No allocation', bg: CELL.no_allocation.bg }, { label: 'Day off', bg: 'var(--surface-hover)' },
-            ]} />
-            <span>Hover a cell for worklogs · click to pin</span>
+          <div className="ts-filters" role="group" aria-label="Show">
+            <button type="button" className="ts-f" aria-pressed={!search.show} onClick={() => setShow(undefined)}>
+              All<span className="ts-fn">{rows.length}</span>
+            </button>
+            {SHOWS.map((f) => (
+              <button key={f.key} type="button" className={`ts-f f-${f.key}`} aria-pressed={search.show === f.key} onClick={() => setShow(f.key)}>
+                {f.mark}{f.label}<span className="ts-fn">{rows.filter(f.has).length}</span>
+              </button>
+            ))}
           </div>
+          <HowToRead />
         </div>
-        {q.isPending ? <Loading /> : q.isError ? <div style={{ padding: 16 }}><QueryError error={q.error} /></div> : <Grid v={q.data} fit={isWeek || q.data.days.length <= PER_SCREEN} />}
+        {q.isPending ? <Loading /> : q.isError ? <div style={{ padding: 16 }}><QueryError error={q.error} /></div>
+          : <Grid v={q.data} show={search.show} fit={isWeek || q.data.days.length <= PER_SCREEN} />}
       </section>
     </div>
   );
 }
 
-function Grid({ v, fit }: { v: Schemas['TimesheetView']; fit: boolean }) {
+/** The legend, behind an (i): how to read a day, and what each tint says. */
+function HowToRead() {
+  const row = (sw: ReactNode, text: string) => <span className="ts-tip-r">{sw}<span>{text}</span></span>;
+  return (
+    <button type="button" className="ts-info" aria-label="How to read the timesheet">
+      <Icon name="info" size={17} />
+      <span className="ts-tip" role="tooltip">
+        <b className="ts-tip-h">How to read a day</b>
+        {row(<span className="ts-v ts-tip-v"><b className="ts-a">5.50h</b><span className="ts-p">/ 4.58h</span></span>, 'Actual logged in Jira / Plan of the day')}
+        <span className="ts-tip-h2">Against the allocation of the day</span>
+        {row(<span className="ts-sw"><span className="ts-mark"><span className="ts-dot ok" /></span></span>, 'On allocation')}
+        {row(<span className="ts-sw st-under"><span className="ts-mark"><span className="ts-dot under" /></span></span>, 'Under allocation')}
+        {row(<span className="ts-sw st-over"><span className="ts-mark ts-warn"><Icon name="triangle-alert" size={12} strokeWidth={2.4} /></span></span>, 'Over allocation: burnout risk')}
+        {row(<span className="ts-sw st-no_allocation"><span className="ts-mark"><span className="ts-dot no_allocation" /></span></span>, 'No allocation: logged on an anken without allocation')}
+        {row(<span className="ts-sw st-off"><span className="ts-off">Off</span></span>, 'Day off')}
+        <span className="ts-tip-f">Hover a cell for worklogs · click to pin</span>
+      </span>
+    </button>
+  );
+}
+
+/** What a day cell shows: actual (none when nothing can be logged yet) and plan; the tint and mark come from the state. */
+function dayText(c: Cell): { actual: string | null; plan: string | null } {
+  if (c.state === 'off') return { actual: null, plan: null };
+  const counted = c.state === 'ok' || c.state === 'under' || c.state === 'over' || c.state === 'no_allocation';
+  return {
+    actual: counted || c.logged_h > 0 ? hrs(c.logged_h) : null,
+    plan: c.planned_h ? hrs(c.planned_h) : null,
+  };
+}
+
+function Mark({ state }: { state: string }) {
+  if (state === 'over') return <span className="ts-mark ts-warn" aria-hidden="true"><Icon name="triangle-alert" size={12} strokeWidth={2.4} /></span>;
+  if (state === 'ok' || state === 'under' || state === 'no_allocation') return <span className="ts-mark" aria-hidden="true"><span className={`ts-dot ${state}`} /></span>;
+  return null;
+}
+
+function Grid({ v, show, fit }: { v: Schemas['TimesheetView']; show: Show | undefined; fit: boolean }) {
   const members = useMemberMap();
   const [hover, setHover] = useState<Pop | null>(null);
   const [pin, setPin] = useState<Pop | null>(null);
   const n = v.days.length;
   const ti = v.days.findIndex((d) => d.is_today);
+  const pick = SHOWS.find((f) => f.key === show);
+  const rows = pick ? v.rows.filter(pick.has) : v.rows;
   const pos = (e: MouseEvent<HTMLElement>, member: string, date: string, pinned: boolean): Pop => {
     const r = e.currentTarget.getBoundingClientRect();
     return { member, date, pinned, top: Math.max(8, Math.min(r.bottom + 6, innerHeight - 360)), left: Math.max(8, Math.min(r.left + r.width / 2 - 180, innerWidth - 376)) };
   };
   const pop = pin ?? hover;
+  const cols = { gridTemplateColumns: `${MEMBER_W}px repeat(${n}, minmax(0, 1fr)) ${TOTAL_W}px` };
   return (
     <>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ width: fit ? '100%' : `calc((100% - 260px) * ${(n / PER_SCREEN).toFixed(4)} + 260px)`, minWidth: 560, position: 'relative' }}>
-          {ti >= 0 && <div className="today-frame" style={{ left: `calc(150px + (100% - 260px) * ${(ti / n).toFixed(5)})`, width: `calc((100% - 260px) / ${n})` }} />}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
-            <div className="sticky-col" style={{ width: 150, padding: '8px 14px', fontSize: 11, color: 'var(--text-muted)' }}>Member</div>
+        <div className={`ts-grid${n > 7 ? ' dense' : ''}`} style={{ width: fit ? '100%' : `calc((100% - ${SIDE}px) * ${(n / PER_SCREEN).toFixed(4)} + ${SIDE}px)` }}>
+          {ti >= 0 && <span className="ts-frame" aria-hidden="true"
+            style={{ left: `calc(${MEMBER_W}px + (100% - ${SIDE}px) * ${(ti / n).toFixed(5)} + 2px)`, width: `calc((100% - ${SIDE}px) / ${n} - 4px)` }} />}
+          <div className="ts-row ts-head" style={cols}>
+            <div className="sticky-col ts-mh">Member<span>each day: actual / plan</span></div>
             {v.days.map((d) => {
               const h = dayHeadStyle(d);
               return (
-                <div key={d.date} className="day-head" title={h.tip} style={{ flex: '1 1 0', minWidth: 0, padding: '4px 0', background: h.bg, color: h.fg }}>
-                  <div>{WDN[dow(d.date)]}</div><div className="n" style={{ fontWeight: h.fw }}>{d.date.slice(8, 10)}</div>
+                <div key={d.date} className={`ts-dh${d.is_today ? ' today' : ''}`} title={d.is_today ? 'Today' : h.tip}
+                  style={d.is_today ? undefined : { background: h.bg, color: h.fg }}>
+                  <span className="ts-dd">{WDN[dow(d.date)]}</span>
+                  <span className="ts-dn">{d.date.slice(8, 10)}</span>
+                  {d.is_today ? <span className="ts-today">Today</span> : d.extra_note ? <span className="ts-xtra">Extra day</span> : null}
                 </div>
               );
             })}
-            <div style={{ width: 110, flex: 'none', boxSizing: 'border-box', padding: '8px 12px', borderLeft: '1px solid var(--border-subtle)', fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>Logged</div>
+            <div className="ts-th">Week total<span>actual / plan</span></div>
           </div>
-          {v.rows.map((r) => {
+          {rows.map((r) => {
             const m = members[r.member_id];
+            const plan = r.cells.reduce((t, c) => t + c.planned_h, 0);
+            const unallocated = r.cells.filter((c) => c.state === 'no_allocation').length;
             return (
-              <div key={r.member_id} style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div className="sticky-col" style={{ width: 150, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Avatar a={av(m, r.member_id)} size={22} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: 'var(--text-heading)' }}>{m?.name ?? r.member_id}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {m?.role ?? '—'}</div>
-                    {(r.over_days > 0 || r.under_days > 0) && (
-                      <div style={{ fontSize: 10, color: r.over_days ? 'var(--hl-red-fg)' : 'var(--hl-amber-fg)', whiteSpace: 'nowrap' }}>{r.over_days} days over · {r.under_days} days under</div>
+              <div key={r.member_id} className="ts-row" style={cols}>
+                <div className="sticky-col ts-m">
+                  <Avatar a={av(m, r.member_id)} size={28} />
+                  <div className="ts-mn">
+                    <div className="ts-name"><span className="ellipsis">{m?.name ?? r.member_id}</span>{m?.role && <span className="ts-role">{m.role}</span>}</div>
+                    {(r.over_days > 0 || r.under_days > 0 || unallocated > 0) && (
+                      <div className="ts-tags">
+                        {r.over_days > 0 && <span className="ts-tag over"><Icon name="triangle-alert" size={10} strokeWidth={2.6} />{r.over_days}d over</span>}
+                        {r.under_days > 0 && <span className="ts-tag under">{r.under_days}d under</span>}
+                        {!r.over_days && !r.under_days && <span className="ts-tag no_allocation">{unallocated}d without allocation</span>}
+                      </div>
                     )}
                   </div>
                 </div>
-                {r.cells.map((c) => {
-                  const s = CELL[c.state] ?? { bg: 'transparent', fg: 'var(--text-heading)' };
+                {r.cells.map((c, i) => {
                   const clickable = c.state !== 'future' && (c.logged_h > 0 || (c.state !== 'weekend' && c.state !== 'off'));
-                  const value = c.state === 'off' ? 'off' : c.state === 'future' || c.state === 'weekend' || !c.logged_h ? '' : hrs(c.logged_h);
-                  const planned = c.planned_h ? `plan ${hrs(c.planned_h)}` : c.state === 'weekend' || c.state === 'off' ? '' : 'plan –';
+                  const { actual, plan: planned } = dayText(c);
                   // The state is told by colour, so screen readers hear it after what the cell shows.
-                  const name = [value, planned, STATE_LABEL[c.state]].filter(Boolean).join(' · ');
+                  const name = [c.state === 'off' ? 'off' : actual, planned ? `plan ${planned}` : c.state === 'weekend' || c.state === 'off' ? '' : 'plan –', STATE_LABEL[c.state]]
+                    .filter(Boolean).join(' · ');
                   return (
-                    <button key={c.date} className="hv-dim2" aria-label={name || undefined}
+                    <button key={c.date} type="button" className={`ts-c st-${c.state}${i === ti ? ' today' : ''}`} aria-label={name || undefined}
                       title={`${m?.name ?? r.member_id} · ${WDN[dow(c.date)]} ${dm(c.date)} · ${hrs(c.logged_h)} logged${c.target_h > 0 ? ` · target ${hrs(c.target_h)}` : ''}${c.unallocated_h > 0 ? ` · +${hrs(c.unallocated_h)} on anken without allocation` : ''}${c.off_reason ? ' · ' + c.off_reason : ''}`}
                       onClick={(e) => clickable && setPin(pos(e, r.member_id, c.date, true))}
                       onMouseEnter={(e) => clickable && !pin && setHover(pos(e, r.member_id, c.date, false))}
                       onMouseLeave={() => setHover(null)}
-                      style={{
-                        flex: '1 1 0', minWidth: 0, boxSizing: 'border-box', height: 46, padding: '0 2px', border: 0, borderLeft: '1px solid var(--border-subtle)',
-                        background: s.bg, color: s.fg, font: '600 12px/1 var(--font-text)', cursor: clickable ? 'pointer' : 'default',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden',
-                      }}>
-                      <span>{value}</span>
-                      <span style={{ font: '500 10px/1 var(--font-text)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{planned}</span>
+                      style={{ cursor: clickable ? 'pointer' : 'default' }}>
+                      <Mark state={c.state} />
+                      {c.state === 'off' ? <span className="ts-off">Off</span>
+                        : !actual && !planned ? <span className="ts-none">{c.state === 'weekend' ? '' : '–'}</span>
+                          : <span className="ts-v"><b className={`ts-a${actual ? '' : ' nil'}`}>{actual ?? '–'}</b><span className="ts-p"><span className="ts-sl">/ </span>{planned ?? '–'}</span></span>}
                     </button>
                   );
                 })}
-                <div style={{ width: 110, flex: 'none', boxSizing: 'border-box', padding: '6px 12px', borderLeft: '1px solid var(--border-subtle)', textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontWeight: 700, color: 'var(--text-heading)' }}>{hrs(r.logged_h)}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>of {hrs(r.target_h)}</span>
+                <div className="ts-t">
+                  {r.logged_h || plan ? (
+                    <>
+                      <span className="ts-v"><b>{hrs(r.logged_h)}</b><span>/ {hrs(plan)}</span></span>
+                      <span className="ts-ta">{r.target_h ? `allocated ${hrs(r.target_h)} to date` : 'nothing allocated to date'}</span>
+                    </>
+                  ) : <span className="ts-none">–</span>}
                 </div>
               </div>
             );
           })}
+          {!rows.length && <div className="ts-empty">{v.rows.length ? 'No member matches this filter.' : 'No member in this scope.'}</div>}
         </div>
       </div>
       {pop && (

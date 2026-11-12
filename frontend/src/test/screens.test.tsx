@@ -604,31 +604,52 @@ describe('screens render API data at their URLs', () => {
     expect(screen.queryByRole('region', { name: 'Related tasks' })).toBeNull();
   });
 
-  it('timesheet shows under and no allocation', async () => {
-    const cell = (date: string, state: string, logged_h: number, target_h: number, unallocated_h = 0) => ({
-      date, state, logged_h, target_h, unallocated_h, planned_h: 0, off_reason: null,
+  it('timesheet shows actual / plan per day, tints only what needs a look, and filters the members', async () => {
+    const cell = (date: string, state: string, logged_h: number, target_h: number, unallocated_h = 0, planned_h = 0) => ({
+      date, state, logged_h, target_h, unallocated_h, planned_h, off_reason: null,
     });
     server.use(
       http.get('*/api/v1/effort/timesheet', () => HttpResponse.json({
-        start: '2026-10-05', end: '2026-10-06',
-        days: ['2026-10-05', '2026-10-06'].map((date) => ({ date, is_today: false })),
-        rows: [{
-          member_id: 'binh', logged_h: 5, target_h: 8, over_days: 0, under_days: 1,
-          cells: [cell('2026-10-05', 'under', 5, 8, 1.5), cell('2026-10-06', 'no_allocation', 0, 0)],
-        }],
+        start: '2026-10-05', end: '2026-10-07',
+        days: ['2026-10-05', '2026-10-06', '2026-10-07'].map((date) => ({ date, is_today: date === '2026-10-07', extra_note: null })),
+        rows: [
+          {
+            member_id: 'binh', logged_h: 5, target_h: 8, over_days: 0, under_days: 1,
+            cells: [cell('2026-10-05', 'under', 5, 8, 1.5, 4.5), cell('2026-10-06', 'no_allocation', 0, 0), cell('2026-10-07', 'future', 0, 0, 0, 3)],
+          },
+          {
+            member_id: 'an', logged_h: 13, target_h: 8, over_days: 1, under_days: 0,
+            cells: [cell('2026-10-05', 'over', 13, 8, 0, 6.2), cell('2026-10-06', 'ok', 8, 8), cell('2026-10-07', 'empty', 0, 0)],
+          },
+        ],
       })),
     );
-    renderApp('/effort/timesheet?from=2026-10-05');
+    const { router } = renderApp('/effort/timesheet?from=2026-10-05');
     const under = await screen.findByRole('button', { name: /Under allocation/ });
-    expect(under.getAttribute('aria-label')).toMatch(/^5\.00h · plan .+ · Under allocation$/); // hours and plan stay in the name
+    expect(under.getAttribute('aria-label')).toBe('5.00h · plan 4.50h · Under allocation'); // hours and plan stay in the name
+    expect(under.textContent).toBe('5.00h/ 4.50h');
     expect(under.getAttribute('title')).toContain('target 8.00h');
     expect(under.getAttribute('title')).toContain('+1.50h on anken without allocation');
-    expect(screen.getByRole('button', { name: /No allocation/ })).toBeTruthy();
-    expect(screen.getByText('0 days over · 1 days under')).toBeTruthy();
-    const legend = within(screen.getByRole('region', { name: 'Timesheet' }));
-    for (const l of ['On allocation', 'Under allocation', 'Over allocation', 'No allocation']) {
-      expect(legend.getAllByText(l).length).toBeGreaterThan(0);
-    }
+    expect(screen.getByRole('button', { name: '0.00h · plan – · No allocation' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'plan 3.00h' }).className).toContain('today'); // nothing logged yet today
+    expect(screen.getByText('1d under')).toBeTruthy();
+    expect(screen.getByText('1d over')).toBeTruthy();
+    // the week total: actual / plan, and what was allocated to date
+    expect(screen.getAllByText('allocated 8.00h to date').map((e) => e.parentElement?.textContent))
+      .toEqual(['5.00h/ 7.50hallocated 8.00h to date', '13.00h/ 6.20hallocated 8.00h to date']);
+    const tip = within(screen.getByRole('button', { name: 'How to read the timesheet' }));
+    for (const l of ['On allocation', 'Under allocation', 'Over allocation: burnout risk', 'Day off']) expect(tip.getByText(l)).toBeTruthy();
+
+    const show = within(screen.getByRole('group', { name: 'Show' }));
+    expect(show.getByRole('button', { name: /^All/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(show.getByRole('button', { name: /Over-allocated/ }).textContent).toBe('Over-allocated1');
+    fireEvent.click(show.getByRole('button', { name: /Over-allocated/ }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ show: 'over' }));
+    expect(screen.queryByRole('button', { name: /Under allocation/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Over allocation/ })).toBeTruthy();
+    fireEvent.click(show.getByRole('button', { name: /No allocation/ }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Over allocation/ })).toBeNull());
+    expect(screen.getByRole('button', { name: '0.00h · plan – · No allocation' })).toBeTruthy();
   });
 
   it('capacity shows no allocation', async () => {
