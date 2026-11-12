@@ -203,6 +203,37 @@ describe('ticket panel', () => {
     expect(screen.getByText('Effort: Under-burn · plan to date 6.00h · actual 2.00h · −4.00h')).toBeTruthy();
   });
 
+  describe('effort bar: actual remain against plan remain', () => {
+    // estimate 10h, 4h planned by today: the plan leaves 6h
+    const serve = (remaining: number) => server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({
+      ...fixtures.ticket, card: { ...fixtures.ticket.card, estimate_h: 10, logged_h: 4, remaining_h: remaining, schedule: issue({ plan_to_date_h: 4 }) },
+    })));
+    const gapBar = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-gap]');
+
+    it('is red when more remains than the plan leaves', async () => {
+      serve(8);
+      const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
+      expect(await screen.findByText('Behind plan')).toBeTruthy();
+      expect(screen.getByText('+2.00h')).toBeTruthy();
+      expect(gapBar(container)?.style.background).toContain('hl-red-fg');
+    });
+
+    it('is green when less remains than the plan leaves', async () => {
+      serve(5);
+      const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
+      expect(await screen.findByText('Ahead of plan')).toBeTruthy();
+      expect(screen.getByText('−1.00h')).toBeTruthy();
+      expect(gapBar(container)?.style.background).toContain('hl-ok-fg');
+    });
+
+    it('stays blue only when both are equal', async () => {
+      serve(6);
+      const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
+      expect(await screen.findByText('On plan')).toBeTruthy();
+      expect(gapBar(container)).toBeNull();
+    });
+  });
+
   it('says so without a plan or an estimate', async () => {
     serveTicket(issue({ start: 'no_plan', finish: 'no_plan', effort: 'no_estimate' }));
     renderApp('/my-work?member=binh&ticket=PAY-1213');
