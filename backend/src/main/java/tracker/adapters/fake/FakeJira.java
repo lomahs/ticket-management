@@ -81,6 +81,9 @@ public final class FakeJira implements JiraReader, JiraWriter {
         fields.put(FIELDS.plannedStart, i.ps);
         fields.put(FIELDS.plannedEnd, i.pe);
         fields.put(FIELDS.effort, i.estH != 0 ? (Object) (long) (i.estH * 3600) : null);
+        // as Jira keeps it by default: each worklog takes its hours off the remaining estimate, down to 0
+        double logged = i.worklogs.stream().mapToDouble(FakeIssue.Log::hours).sum();
+        fields.put(FIELDS.remaining, i.estH != 0 ? (Object) (long) (Math.max(0, i.estH - logged) * 3600) : null);
         List<ChangeSnapshot> changes = new ArrayList<>();
         for (FakeIssue.Change c : i.changes) {
             if (c.field().equals("assignee")) {

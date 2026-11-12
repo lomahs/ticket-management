@@ -67,7 +67,7 @@ class GoldenTest {
             for (int i = 0; i < f.cells().size(); i++) {
                 Issue c = f.cells().get(i);
                 if (c != null) {
-                    IssueSchedule s = ScheduleRules.of(c, Effort.planOwner(f, c, MEMBERS), Dataset.DEMO_TODAY, CAL, T.effortDiffH());
+                    IssueSchedule s = ScheduleRules.of(c, Effort.planOwner(f, c, MEMBERS), Dataset.DEMO_TODAY, CAL, null);
                     flags.put(c.key(), Flags.issueFlags(c, i == f.current(), MEMBERS, Dataset.DEMO_TODAY, T, s));
                 }
             }

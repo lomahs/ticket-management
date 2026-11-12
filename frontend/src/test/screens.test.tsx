@@ -242,7 +242,7 @@ describe('screens render API data at their URLs', () => {
       });
     }));
     const { router } = renderApp('/effort/burndown?anken=PAY-1100');
-    expect(await screen.findByText('Behind plan')).toBeTruthy();
+    expect(await screen.findByText('Delay')).toBeTruthy();
     expect(screen.getByText('+2.00h')).toBeTruthy();
     expect(screen.getByRole('img', { name: /4\.00h planned and 6\.00h actually remaining of 12\.00h/ })).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: 'Sub-phase' })).toBeNull(); // only once a phase is picked
@@ -441,20 +441,19 @@ describe('screens render API data at their URLs', () => {
       expect(screen.queryByRole('button', { name: 'Copy from…' })).toBeNull();
     });
 
-    it('Alerts tab edits the effort deviation threshold', async () => {
-      const alerts = { soon_days: 2, effort_warn_pct: 80, held_days: 3, review_rounds: 3, capacity_pct: 100, effort_diff_h: 1 };
+    it('Alerts tab saves the thresholds; the effort deviation is gone', async () => {
+      const alerts = { soon_days: 2, effort_warn_pct: 80, held_days: 3, review_rounds: 3, capacity_pct: 100 };
       const puts: unknown[] = [];
       server.use(
         http.get('*/api/v1/settings/alerts', () => HttpResponse.json(alerts)),
         http.put('*/api/v1/settings/alerts', async ({ request }) => { const b = await request.json(); puts.push(b); return HttpResponse.json(b); }),
       );
       renderApp('/settings/alerts');
-      const field = (await screen.findByLabelText('Effort deviation (hours)')) as HTMLInputElement;
-      expect(field.value).toBe('1');
-      expect(screen.getByText('A sub-task is under- or over-burn when logged hours differ from plan-to-date by more than this.')).toBeTruthy();
-      fireEvent.change(field, { target: { value: '2.5' } });
+      const field = (await screen.findByLabelText('Due soon (working days)')) as HTMLInputElement;
+      expect(screen.queryByLabelText('Effort deviation (hours)')).toBeNull();
+      fireEvent.change(field, { target: { value: '3' } });
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-      await waitFor(() => expect(puts).toEqual([{ ...alerts, effort_diff_h: 2.5 }]));
+      await waitFor(() => expect(puts).toEqual([{ ...alerts, soon_days: 3 }]));
     });
 
     it('picking the default leaves the global switcher alone', async () => {

@@ -20,6 +20,7 @@ import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.DailySnapshotRepository;
+import tracker.application.ports.RemainingDayRepository;
 import tracker.application.ports.TicketNoteRepository;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AnkenScope;
@@ -52,14 +53,16 @@ public class DailyService {
 
     private final TrackerContextLoader context;
     private final DailySnapshotRepository snapshots;
+    private final RemainingDayRepository remainingDays;
     private final TicketNoteRepository notes;
     private final SettingsStore settings;
     private final Clock clock;
 
-    public DailyService(TrackerContextLoader context, DailySnapshotRepository snapshots, TicketNoteRepository notes, SettingsStore settings,
-                        Clock clock) {
+    public DailyService(TrackerContextLoader context, DailySnapshotRepository snapshots, RemainingDayRepository remainingDays,
+                        TicketNoteRepository notes, SettingsStore settings, Clock clock) {
         this.context = context;
         this.snapshots = snapshots;
+        this.remainingDays = remainingDays;
         this.notes = notes;
         this.settings = settings;
         this.clock = clock;
@@ -117,11 +120,11 @@ public class DailyService {
 
     /**
      * @param pct   logged / (logged + remaining) over the sub-tasks
-     * @param diffH actual − plan to date in hours: positive is more effort than planned
+     * @param diffH actual remain − plan remain in hours: positive is behind the plan
      */
-    public record DailyProgress(int pct, double planToDateH, double actualToDateH, double diffH) {
+    public record DailyProgress(int pct, double planRemainH, double actualRemainH, double diffH) {
         static DailyProgress of(PhaseRollup r) {
-            return new DailyProgress(r.pct(), r.schedule().planToDateH(), r.schedule().actualToDateH(), r.schedule().diffH());
+            return new DailyProgress(r.pct(), r.schedule().planRemainH(), r.schedule().actualRemainH(), r.schedule().diffH());
         }
     }
 
@@ -136,9 +139,9 @@ public class DailyService {
      * What a snapshot keeps: the anken on {@code date}.
      *
      * @param pct  logged / (logged + remaining) over every sub-task of the anken
-     * @param diffH actual − plan to date in hours: positive is more effort than planned
+     * @param diffH actual remain − plan remain in hours: positive is behind the plan
      */
-    public record DailyContent(String epic, String title, String date, int pct, double planToDateH, double actualToDateH, double diffH,
+    public record DailyContent(String epic, String title, String date, int pct, double planRemainH, double actualRemainH, double diffH,
                                List<DailyBurndown> burndowns, List<DailyGroup> groups, List<DailyTyped> typed) {
     }
 
@@ -177,10 +180,17 @@ public class DailyService {
         return new DailyView(saved, false, captured.capturedAt(), captured.capturedBy(), ctx.today, auto, list, daily);
     }
 
-    /** Captures today's Daily Overview of {@code epic}, replacing an earlier capture of today. */
+    /**
+     * Captures today's Daily Overview of {@code epic}, replacing an earlier capture of today, and the remaining estimate of each
+     * of its sub-tasks (0 once Closed), which the burndowns read back for this day.
+     */
     public DailyView capture(AnkenScope scope, String epic, String by) {
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
+        Map<String, Double> remaining = new LinkedHashMap<>();
+        ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic))
+                .forEach(i -> remaining.put(i.key(), i.status() == Status.CLOSED ? 0 : i.remainingH()));
+        remainingDays.save(ctx.today, remaining);
         snapshots.save(epic, ctx.today, now(), by, content(ctx, epic));
         return view(scope, epic, null);
     }
@@ -209,10 +219,10 @@ public class DailyService {
     }
 
     private DailyContent content(TrackerContext ctx, String epic) {
-        double thr = ctx.settings.thresholds.effortDiffH();
         WorkStructure st = ctx.settings.structureOf(epic);
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
         List<Issue> subs = ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic)).toList();
+        Map<String, Map<String, Double>> seen = remainingDays.find(subs.stream().map(Issue::key).toList());
         Map<String, String> typeOf = new HashMap<>();
         parents.forEach(p -> typeOf.put(p.key(), st.typeOfTask(p.summary())));
         Map<String, List<Issue>> subsOf = new HashMap<>();
@@ -232,7 +242,7 @@ public class DailyService {
         List<DailyGroup> groups = new ArrayList<>();
         List<DailyBurndown> burndowns = new ArrayList<>();
         for (String g : PhaseGroups.ordered(subsByGroup, st.phases())) {
-            PhaseRollup r = Overview.phaseRollup(g, subsByGroup.get(g), ctx.schedule, thr);
+            PhaseRollup r = Overview.phaseRollup(g, subsByGroup.get(g), ctx.schedule);
             Overview.Schedule state = r.schedule().state();
             if (state == Overview.Schedule.UNKNOWN) {
                 continue;
@@ -240,19 +250,19 @@ public class DailyService {
             List<DailySubPhase> subPhases = tasksByGroup.get(g).stream()
                     .filter(t -> subsOf.containsKey(t.key()))
                     .sorted(Comparator.comparing((Issue t) -> earliestStart(subsOf.get(t.key()))).thenComparing(Issue::key))
-                    .map(t -> subPhase(ctx, t, subsOf.get(t.key()), thr)).toList();
+                    .map(t -> subPhase(ctx, t, subsOf.get(t.key()))).toList();
             groups.add(new DailyGroup(g, stateOf(state), r.pct(), r.closed(), r.total(), r.schedule().overdue(), subPhases));
-            burndowns.add(new DailyBurndown(g, burndown(ctx, subsByGroup.get(g)), DailyProgress.of(r)));
+            burndowns.add(new DailyBurndown(g, burndown(ctx, subsByGroup.get(g), seen), DailyProgress.of(r)));
         }
 
         Map<String, String> noted = notes.find(subs.stream().map(Issue::key).toList());
         List<DailyTyped> typed = typed(ctx, parents, typeOf, subsOf).stream()
                 .map(t -> new DailyTyped(t.type(), t.key(), t.summary(), t.assigneeId(), t.withJm(), t.status(), t.created(), t.heldDays(),
                         t.closedOn(), noted.getOrDefault(t.key(), ""))).toList();
-        PhaseRollup all = Overview.phaseRollup(epic, subs, ctx.schedule, thr);
-        burndowns.addFirst(new DailyBurndown(null, burndown(ctx, subs), DailyProgress.of(all)));
+        PhaseRollup all = Overview.phaseRollup(epic, subs, ctx.schedule);
+        burndowns.addFirst(new DailyBurndown(null, burndown(ctx, subs, seen), DailyProgress.of(all)));
         String title = ctx.anken(epic).map(tracker.domain.Anken::title).orElse(epic);
-        return new DailyContent(epic, title, ctx.today, all.pct(), all.schedule().planToDateH(), all.schedule().actualToDateH(),
+        return new DailyContent(epic, title, ctx.today, all.pct(), all.schedule().planRemainH(), all.schedule().actualRemainH(),
                 all.schedule().diffH(), burndowns, groups, typed);
     }
 
@@ -273,7 +283,7 @@ public class DailyService {
         return m != null && m.role() == Role.JM;
     }
 
-    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs, double thr) {
+    private static DailySubPhase subPhase(TrackerContext ctx, Issue task, List<Issue> subs) {
         List<DailyFunction> fns = ctx.functions.stream().filter(f -> task.key().equals(f.parentKey()))
                 .map(f -> function(ctx, f)).toList();
         List<DailyTicket> tickets = subs.stream().filter(Issue::single)
@@ -284,7 +294,7 @@ public class DailyService {
                             f.late(), f.lateDays());
                 }).toList();
         int unmatched = (int) subs.stream().filter(i -> i.functionId() == null && !i.single()).count();
-        PhaseRollup r = Overview.phaseRollup(task.key(), subs, ctx.schedule, thr);
+        PhaseRollup r = Overview.phaseRollup(task.key(), subs, ctx.schedule);
         return new DailySubPhase(task.key(), PhaseGroups.taskName(task.summary()), stateOf(r.schedule().state()), r.pct(), r.closed(),
                 r.total(), r.schedule().overdue(), fns, tickets, unmatched);
     }
@@ -330,11 +340,11 @@ public class DailyService {
         return out;
     }
 
-    private static BurndownChart burndown(TrackerContext ctx, List<Issue> subs) {
+    /** @param seen key → day → the remaining estimate a capture saw */
+    private static BurndownChart burndown(TrackerContext ctx, List<Issue> subs, Map<String, Map<String, Double>> seen) {
         List<Burndown.Item> items = subs.stream()
                 .filter(i -> Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0 && !Steps.isJmReview(i))
-                .map(i -> new Burndown.Item(i.key(), Objects.requireNonNullElse(ctx.planOwner(i), ""), i.plannedStart(), i.plannedEnd(),
-                        i.estimateH(), i.worklogs())).toList();
+                .map(i -> ctx.burndownItem(i, seen.getOrDefault(i.key(), Map.of()))).toList();
         return Burndown.compute(items, ctx.cal, ctx.today, null);
     }
 }

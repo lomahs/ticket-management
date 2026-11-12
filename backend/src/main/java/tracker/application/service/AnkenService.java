@@ -132,9 +132,8 @@ public class AnkenService {
             String g = groups.get(i.parentKey() == null ? "" : i.parentKey());
             byPhase.computeIfAbsent(g != null ? g : PhaseGroups.OTHER, x -> new ArrayList<>()).add(i);
         }
-        double t = ctx.settings.thresholds.effortDiffH();
         List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structureOf(key).phases()).stream()
-                .map(n -> Overview.phaseRollup(n, byPhase.get(n), ctx.schedule, t)).toList();
+                .map(n -> Overview.phaseRollup(n, byPhase.get(n), ctx.schedule)).toList();
         List<Issue> late = subs.stream().filter(i -> ctx.flags.get(i.key()).late()).toList();
         List<Function> fns = ctx.functions.stream().filter(f -> f.epicKey().equals(key)).toList();
         Set<String> lateKeys = new HashSet<>(late.stream().map(Issue::key).toList());
@@ -154,7 +153,7 @@ public class AnkenService {
                 phases, ctx.members.keySet().stream().filter(assignees::contains).toList(), !fns.isEmpty(),
                 ctx.ankenMembers.getOrDefault(key, Set.of()).stream().sorted()
                         .filter(id -> ctx.members.containsKey(id) && ctx.members.get(id).role() == Role.PIM).toList(),
-                Overview.scheduleRollup(subs, ctx.schedule, t));
+                Overview.scheduleRollup(subs, ctx.schedule));
     }
 
     /** Assignees of open sub-tasks and authors of worklogs on the epic who are not in its anken, most open sub-tasks first. */
@@ -256,8 +255,7 @@ public class AnkenService {
     private static List<PhaseTask> phaseTasks(TrackerContext ctx, String epic, List<Issue> subs) {
         Map<String, String> groups = groupOfTask(ctx, epic);
         return ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).map(t -> {
-            PhaseRollup r = Overview.phaseRollup(t.key(), subs.stream().filter(i -> t.key().equals(i.parentKey())).toList(), ctx.schedule,
-                    ctx.settings.thresholds.effortDiffH());
+            PhaseRollup r = Overview.phaseRollup(t.key(), subs.stream().filter(i -> t.key().equals(i.parentKey())).toList(), ctx.schedule);
             return new PhaseTask(t.key(), t.summary(), PhaseGroups.taskName(t.summary()), groups.get(t.key()), t.status().value(), r.pct(), r.closed(), r.total(),
                     r.start(), r.end());
         }).sorted(Comparator.comparing((PhaseTask t) -> t.start() == null ? "9999" : t.start()).thenComparing(PhaseTask::key))

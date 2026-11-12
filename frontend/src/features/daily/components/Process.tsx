@@ -98,18 +98,19 @@ function Hub({ name, sigma = false, state, pct, b, on, pick }: {
   let tick: number | null = null;
   if (state === 'done') ring = `conic-gradient(${C.done} 100%, var(--do-nys-bg) 0)`;
   else if (p && est > 0) {
-    const a = Math.min(100, (p.actual_to_date_h / est) * 100);
-    tick = Math.min(100, (p.plan_to_date_h / est) * 100);
+    // what is burnt: the estimate less what is left, actual and by plan
+    const a = Math.min(100, Math.max(0, ((est - p.actual_remain_h) / est) * 100));
+    tick = Math.min(100, Math.max(0, ((est - p.plan_remain_h) / est) * 100));
     ring = a < tick
       ? `conic-gradient(${C.wip} 0 ${a}%, ${C.late} ${a}% ${tick}%, var(--do-nys-bg) ${tick}%)`
       : `conic-gradient(${C.wip} 0 ${tick}%, ${C.done} ${tick}% ${a}%, var(--do-nys-bg) ${a}%)`;
   } else ring = `conic-gradient(${C.wip} ${pct}%, var(--do-nys-bg) 0)`;
-  const ahead = (p?.diff_h ?? 0) >= 0;
+  const ahead = (p?.diff_h ?? 0) <= 0;
   // a phase not started with nothing to be ahead or behind on says NYS, not "+0.00h ahead"
   const nys = state === 'nys' && p != null && f2(p.diff_h) === '0.00';
   const span = b ? `${dm(b.chart.start) || '?'} → ${dm(b.chart.end) || '?'}` : '';
-  const tip = [name, span, p && est > 0 ? `effort ${f2(p.actual_to_date_h)}h of ${f2(est)}h estimated · plan by today ${f2(p.plan_to_date_h)}h` : '',
-    nys ? 'NYS' : p ? `${signedH(p.diff_h)} ${ahead ? 'ahead' : 'behind'}` : ''].filter(Boolean).join(' · ');
+  const tip = [name, span, p && est > 0 ? `${f2(p.actual_remain_h)}h left of ${f2(est)}h estimated · plan leaves ${f2(p.plan_remain_h)}h` : '',
+    nys ? 'NYS' : p ? `${signedH(p.diff_h)} ${ahead ? 'ahead' : 'delay'}` : ''].filter(Boolean).join(' · ');
   const donut: CSSProperties = { position: 'relative', display: 'grid', placeItems: 'center', width: 66, height: 66, borderRadius: '50%', background: ring,
     ...(state === 'run' ? glow(C.wip) : {}) };
   return (
@@ -130,12 +131,12 @@ function Hub({ name, sigma = false, state, pct, b, on, pick }: {
       {nys && <span className="do-pill" style={{ height: 22, background: 'var(--do-nys-bg)', color: 'var(--do-nys)', fontWeight: 800 }}>NYS</span>}
       {p && !nys && (
         <span className="do-pill" style={{ height: 22, background: ahead ? 'var(--do-clo-bg)' : 'var(--do-red-bg)', color: ahead ? 'var(--do-clo)' : 'var(--do-red)', fontWeight: 800 }}>
-          {ahead ? '▲' : '▼'} {signedH(p.diff_h)} {ahead ? 'ahead' : 'behind'}
+          {ahead ? '▲' : '▼'} {signedH(p.diff_h)} {ahead ? 'ahead' : 'delay'}
         </span>
       )}
       <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, font: '500 11px/1.25 var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
         {span && <span>{span}</span>}
-        {p && est > 0 && <span>{f2(p.actual_to_date_h)}h / {f2(est)}h</span>}
+        {p && est > 0 && <span>{f2(p.actual_remain_h)}h left / {f2(est)}h</span>}
       </span>
       {arrow}
     </button>

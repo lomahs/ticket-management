@@ -9,7 +9,7 @@ const card = (over: Partial<TaskCard> = {}): TaskCard => ({
   actual_start: '2026-10-01', actual_end: '2026-10-07', is_current: true, late: true, late_days: 1, soon: false, over: true, tone: 'delay',
   held_days: 2, rounds: 3,
   schedule: {
-    start: 'on_time_start', start_days: 0, finish: 'overdue', finish_days: 1, effort: 'on_plan', plan_to_date_h: 4, actual_to_date_h: 4, diff_h: 0,
+    start: 'on_time_start', start_days: 0, finish: 'overdue', finish_days: 1, effort: 'on_plan', plan_remain_h: 4, actual_remain_h: 4, diff_h: 0,
   },
   ...over,
 });

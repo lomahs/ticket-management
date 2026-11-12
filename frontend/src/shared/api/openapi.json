@@ -3798,11 +3798,6 @@
             "format" : "double",
             "minimum" : 0
           },
-          "effort_diff_h" : {
-            "type" : "number",
-            "format" : "double",
-            "minimum" : 0
-          },
           "effort_warn_pct" : {
             "type" : "number",
             "format" : "double",
@@ -3824,7 +3819,7 @@
             "minimum" : 0
           }
         },
-        "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
+        "required" : [ "capacity_pct", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
       "AllocationIn" : {
         "type" : "object",
@@ -4704,7 +4699,7 @@
       "DailyContent" : {
         "type" : "object",
         "properties" : {
-          "actual_to_date_h" : {
+          "actual_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -4734,7 +4729,7 @@
             "type" : "integer",
             "format" : "int32"
           },
-          "plan_to_date_h" : {
+          "plan_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -4748,7 +4743,7 @@
             }
           }
         },
-        "required" : [ "actual_to_date_h", "burndowns", "date", "diff_h", "epic", "groups", "pct", "plan_to_date_h", "title", "typed" ]
+        "required" : [ "actual_remain_h", "burndowns", "date", "diff_h", "epic", "groups", "pct", "plan_remain_h", "title", "typed" ]
       },
       "DailyFunction" : {
         "type" : "object",
@@ -4812,7 +4807,7 @@
       "DailyProgress" : {
         "type" : "object",
         "properties" : {
-          "actual_to_date_h" : {
+          "actual_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -4824,12 +4819,12 @@
             "type" : "integer",
             "format" : "int32"
           },
-          "plan_to_date_h" : {
+          "plan_remain_h" : {
             "type" : "number",
             "format" : "double"
           }
         },
-        "required" : [ "actual_to_date_h", "diff_h", "pct", "plan_to_date_h" ]
+        "required" : [ "actual_remain_h", "diff_h", "pct", "plan_remain_h" ]
       },
       "DailyStep" : {
         "type" : "object",
@@ -6233,7 +6228,7 @@
       "IssueSchedule" : {
         "type" : "object",
         "properties" : {
-          "actual_to_date_h" : {
+          "actual_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -6253,7 +6248,7 @@
             "type" : "integer",
             "format" : "int32"
           },
-          "plan_to_date_h" : {
+          "plan_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -6266,7 +6261,7 @@
             "format" : "int32"
           }
         },
-        "required" : [ "actual_to_date_h", "diff_h", "effort", "finish", "finish_days", "plan_to_date_h", "start", "start_days" ]
+        "required" : [ "actual_remain_h", "diff_h", "effort", "finish", "finish_days", "plan_remain_h", "start", "start_days" ]
       },
       "JiraField" : {
         "type" : "object",
@@ -7985,7 +7980,7 @@
       "ScheduleRollup" : {
         "type" : "object",
         "properties" : {
-          "actual_to_date_h" : {
+          "actual_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -8017,7 +8012,7 @@
             "type" : "integer",
             "format" : "int32"
           },
-          "plan_to_date_h" : {
+          "plan_remain_h" : {
             "type" : "number",
             "format" : "double"
           },
@@ -8026,7 +8021,7 @@
             "enum" : [ "UNKNOWN", "NOT_STARTED", "EARLY", "ON_TRACK", "LATE", "DONE" ]
           }
         },
-        "required" : [ "actual_to_date_h", "diff_h", "early_finish", "early_start", "effort", "late_finish", "late_start", "overdue", "plan_to_date_h", "state" ]
+        "required" : [ "actual_remain_h", "diff_h", "early_finish", "early_start", "effort", "late_finish", "late_start", "overdue", "plan_remain_h", "state" ]
       },
       "ScheduleVersion" : {
         "type" : "object",
@@ -8724,10 +8719,6 @@
             "type" : "number",
             "format" : "double"
           },
-          "effort_diff_h" : {
-            "type" : "number",
-            "format" : "double"
-          },
           "effort_warn_pct" : {
             "type" : "number",
             "format" : "double"
@@ -8745,7 +8736,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "capacity_pct", "effort_diff_h", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
+        "required" : [ "capacity_pct", "effort_warn_pct", "held_days", "review_rounds", "soon_days" ]
       },
       "TicketBoard" : {
         "type" : "object",

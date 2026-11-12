@@ -17,6 +17,7 @@ import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
+import tracker.application.ports.RemainingDayRepository;
 import tracker.application.service.PlanningService.DayHead;
 import tracker.domain.Analysis.EffortBar;
 import tracker.domain.Analysis.Rework;
@@ -49,10 +50,12 @@ public class EffortService {
     private final TrackerContextLoader context;
 
     private final AllocationService allocations;
+    private final RemainingDayRepository remainingDays;
 
-    public EffortService(TrackerContextLoader context, AllocationService allocations) {
+    public EffortService(TrackerContextLoader context, AllocationService allocations, RemainingDayRepository remainingDays) {
         this.context = context;
         this.allocations = allocations;
+        this.remainingDays = remainingDays;
     }
 
     public static final int MAX_DAYS = 62;
@@ -274,11 +277,12 @@ public class EffortService {
         chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.planOwner(i), "")));
         List<String> members = ctx.people.stream().filter(workers::contains).toList();
         String who = Text.hasText(member) ? member : null;
+        Map<String, Map<String, Double>> seen = remainingDays.find(chart.stream().map(Issue::key).toList());
         List<Burndown.Item> items = new ArrayList<>();
         for (Issue i : chart) {
             String w = Objects.requireNonNullElse(ctx.planOwner(i), "");
             if (who == null || who.equals(w)) {
-                items.add(new Burndown.Item(i.key(), w, i.plannedStart(), i.plannedEnd(), i.estimateH(), i.worklogs()));
+                items.add(ctx.burndownItem(i, seen.getOrDefault(i.key(), Map.of())));
             }
         }
         String from = chart.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);

@@ -14,7 +14,7 @@ class ScheduleRulesTest {
     static final WorkCalendar CAL = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M, List.of());
 
     private static IssueSchedule of(Issue i) {
-        return ScheduleRules.of(i, null, TODAY, CAL, 1.0);
+        return ScheduleRules.of(i, null, TODAY, CAL, null);
     }
 
     @Test
@@ -27,8 +27,8 @@ class ScheduleRulesTest {
         IssueSchedule early = of(review);
         assertThat(early.start()).isEqualTo(StartState.NOT_DUE);
         assertThat(early.finish()).isEqualTo(FinishState.OPEN);
-        assertThat(ScheduleRules.of(review, null, "2026-10-12", CAL, 1.0).start()).isEqualTo(StartState.NOT_DUE);
-        IssueSchedule next = ScheduleRules.of(review, null, "2026-10-13", CAL, 1.0);
+        assertThat(ScheduleRules.of(review, null, "2026-10-12", CAL, null).start()).isEqualTo(StartState.NOT_DUE);
+        IssueSchedule next = ScheduleRules.of(review, null, "2026-10-13", CAL, null);
         assertThat(next.start()).isEqualTo(StartState.LATE_START);
         assertThat(next.startDays()).isEqualTo(1);
     }
@@ -63,22 +63,43 @@ class ScheduleRulesTest {
                 .logged(5).events(Fixtures.statusTo("2026-09-28", "W"), Fixtures.statusTo("2026-10-01", "R")).build());
         assertThat(s.finish()).isEqualTo(FinishState.EARLY_FINISH);
         assertThat(s.finishDays()).isEqualTo(1);
-        assertThat(s.planToDateH()).isEqualTo(10);
-        assertThat(s.actualToDateH()).isEqualTo(5);
-        assertThat(s.diffH()).isEqualTo(-5);
+        assertThat(s.planRemainH()).isZero();
+        assertThat(s.actualRemainH()).isEqualTo(10); // Jira's remaining estimate was never lowered
+        assertThat(s.diffH()).isEqualTo(10);
         assertThat(s.effort()).isEqualTo(EffortState.UNDER_BURN);
     }
 
     @Test
     void effortExampleFromTheSpec() {
-        IssueSchedule under = of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").logged(4).build());
-        assertThat(under.planToDateH()).isEqualTo(6);
-        assertThat(under.diffH()).isEqualTo(-2);
-        assertThat(under.effort()).isEqualTo(EffortState.UNDER_BURN);
-        assertThat(of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").logged(8).build()).effort())
-                .isEqualTo(EffortState.OVER_BURN);
-        assertThat(of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").logged(6.5).build()).effort())
-                .isEqualTo(EffortState.ON_PLAN);
+        // 9h planned 5h on Tuesday 10/06 and 4h on Wednesday 10/07: 4h left after Day 1, 0h after Day 2
+        Map<String, Double> plan = Map.of("2026-10-06", 5.0, "2026-10-07", 4.0);
+        Fixtures.I task = Fixtures.issue().est(9).ps("2026-10-06").pe("2026-10-07");
+        IssueSchedule day1 = ScheduleRules.of(task.remaining(5).build(), null, "2026-10-06", CAL, plan);
+        assertThat(day1.planRemainH()).isEqualTo(4);
+        assertThat(day1.actualRemainH()).isEqualTo(5);
+        assertThat(day1.diffH()).isEqualTo(1);
+        assertThat(day1.effort()).isEqualTo(EffortState.UNDER_BURN);
+        assertThat(ScheduleRules.of(task.remaining(1).build(), null, "2026-10-07", CAL, plan).effort()).isEqualTo(EffortState.UNDER_BURN);
+        assertThat(ScheduleRules.of(task.remaining(0).build(), null, "2026-10-07", CAL, plan).effort()).isEqualTo(EffortState.ON_PLAN);
+        assertThat(ScheduleRules.of(task.remaining(3).build(), null, "2026-10-06", CAL, plan).effort()).isEqualTo(EffortState.OVER_BURN);
+    }
+
+    @Test
+    void savedHoursPerDayCountOnlyWhileTheyFitTheSubtask() {
+        Fixtures.I task = Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").remaining(10);
+        // all on Monday and Tuesday: nothing left by plan on Wednesday
+        assertThat(ScheduleRules.of(task.build(), null, TODAY, CAL, Map.of("2026-10-05", 6.0, "2026-10-06", 4.0)).planRemainH()).isZero();
+        // the estimate changed in Jira since (8h saved for 10h): spread evenly, 2h a day, 4h left
+        assertThat(ScheduleRules.of(task.build(), null, TODAY, CAL, Map.of("2026-10-05", 4.0, "2026-10-06", 4.0)).planRemainH()).isEqualTo(4);
+        // a day outside the planned dates: spread evenly
+        assertThat(ScheduleRules.of(task.build(), null, TODAY, CAL, Map.of("2026-10-02", 6.0, "2026-10-06", 4.0)).planRemainH()).isEqualTo(4);
+    }
+
+    @Test
+    void aClosedSubtaskHasNothingLeft() {
+        IssueSchedule s = of(Fixtures.issue().status(Status.CLOSED).est(10).ps("2026-10-05").pe("2026-10-09").remaining(2).build());
+        assertThat(s.actualRemainH()).isZero();
+        assertThat(s.effort()).isEqualTo(EffortState.OVER_BURN);
     }
 
     @Test
@@ -103,16 +124,17 @@ class ScheduleRulesTest {
         Issue i = Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").build();
         WorkCalendar half = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M,
                 List.of(new Leave(1, "an", "2026-10-06", LeaveType.HALF, "")));
-        assertThat(ScheduleRules.of(i, null, TODAY, half, 1.0).planToDateH()).isEqualTo(6);
+        assertThat(ScheduleRules.of(i, null, TODAY, half, null).planRemainH()).isEqualTo(4);
         WorkCalendar full = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M,
                 List.of(new Leave(1, "an", "2026-10-06", LeaveType.FULL, "")));
-        assertThat(ScheduleRules.of(i, null, TODAY, full, 1.0).planToDateH()).isEqualTo(5);
+        assertThat(ScheduleRules.of(i, null, TODAY, full, null).planRemainH()).isEqualTo(5);
     }
 
     @Test
     void effortLabelUsesTheRoundedDiff() {
-        IssueSchedule s = of(Fixtures.issue().est(7).ps("2026-10-05").pe("2026-10-09").logged(5.2).build());
-        assertThat(s.diffH()).isEqualTo(1.0);
+        // 7h over five days: 2.8h left by plan on Wednesday
+        IssueSchedule s = of(Fixtures.issue().est(7).ps("2026-10-05").pe("2026-10-09").remaining(2.801).build());
+        assertThat(s.diffH()).isZero();
         assertThat(s.effort()).isEqualTo(EffortState.ON_PLAN);
     }
 
@@ -132,15 +154,13 @@ class ScheduleRulesTest {
                 .events(Fixtures.statusTo("2026-10-01", "W"), Fixtures.statusTo("2026-10-05", "R")).build());
         assertThat(onDay.finish()).isEqualTo(FinishState.ON_TIME_FINISH);
         assertThat(onDay.finishDays()).isZero();
-        // plan 6h, actual 5h: |diff| == t
-        assertThat(of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").logged(5).build()).effort())
-                .isEqualTo(EffortState.ON_PLAN);
         IssueSchedule future = of(Fixtures.issue().status(Status.NYS).est(10).ps("2026-10-12").pe("2026-10-16").build());
-        assertThat(future.planToDateH()).isZero();
+        assertThat(future.planRemainH()).isEqualTo(10);
+        assertThat(future.effort()).isEqualTo(EffortState.ON_PLAN);
         WorkCalendar other = new WorkCalendar(List.of(1, 2, 3, 4, 5), Map.of(), Map.of(), M,
                 List.of(new Leave(1, "chi", "2026-10-06", LeaveType.FULL, "")));
-        assertThat(ScheduleRules.of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").build(), null, TODAY, other, 1.0)
-                .planToDateH()).isEqualTo(6);
+        assertThat(ScheduleRules.of(Fixtures.issue().est(10).ps("2026-10-05").pe("2026-10-09").build(), null, TODAY, other, null)
+                .planRemainH()).isEqualTo(4);
         IssueSchedule onlyStart = of(Fixtures.issue().ps("2026-10-05").pe(null).build());
         assertThat(onlyStart.effort()).isEqualTo(EffortState.NO_PLAN);
         assertThat(onlyStart.finish()).isEqualTo(FinishState.NO_PLAN);

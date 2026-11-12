@@ -11,6 +11,7 @@ import org.jspecify.annotations.Nullable;
 
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
+import tracker.domain.Burndown;
 import tracker.domain.Capacity;
 import tracker.domain.Effort;
 import tracker.domain.Flags;
@@ -22,10 +23,12 @@ import tracker.domain.IssueSchedule;
 import tracker.domain.Leave;
 import tracker.domain.Member;
 import tracker.domain.Numbers;
+import tracker.domain.PlanDays;
 import tracker.domain.ScheduleRules;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
+import tracker.domain.Text;
 import tracker.domain.WorkCalendar;
 
 /** The loaded team context: members, calendar, the issues of the anken in scope and the flags derived from them. */
@@ -50,9 +53,12 @@ public final class TrackerContext {
     private final Map<String, String> planOwner = new LinkedHashMap<>();
     private final Map<String, List<Effort.PlanShare>> planShares = new LinkedHashMap<>();
     private final Map<String, Function> functionOf = new LinkedHashMap<>();
+    /** Detail Planning's hours per day of the pushed sub-tasks, by key. */
+    private final Map<String, Map<String, Double>> savedPlanDays;
 
     TrackerContext(String today, TrackerSettings settings, Map<String, Member> members, List<Anken> anken, List<Issue> issues,
-                   List<Leave> leaves, WorkCalendar cal, List<String> people, Map<String, Set<String>> ankenMembers) {
+                   List<Leave> leaves, WorkCalendar cal, List<String> people, Map<String, Set<String>> ankenMembers,
+                   Map<String, Map<String, Double>> savedPlanDays) {
         this.today = today;
         this.settings = settings;
         this.members = members;
@@ -62,6 +68,7 @@ public final class TrackerContext {
         this.cal = cal;
         this.people = people;
         this.ankenMembers = ankenMembers;
+        this.savedPlanDays = savedPlanDays;
     }
 
     /** Whether the member is in the anken of {@code epic}; false for an epic outside the scope. */
@@ -125,6 +132,21 @@ public final class TrackerContext {
         return out;
     }
 
+    /** The hours planned on each day of {@code i}, which its plan remain counts down by ({@link PlanDays#of}). */
+    public Map<String, Double> planDays(Issue i) {
+        return PlanDays.of(i, worker(i, planOwner(i)), savedPlanDays.get(i.key()), cal);
+    }
+
+    /** {@code i} for a burndown, with the remaining estimate the Daily Overview captures saw, by day. */
+    public Burndown.Item burndownItem(Issue i, Map<String, Double> remainingOn) {
+        return new Burndown.Item(i.key(), i.plannedStart(), i.plannedEnd(), i.estimateH(), planDays(i), i.worklogs(),
+                i.status() == Status.CLOSED ? 0 : i.remainingH(), remainingOn);
+    }
+
+    private static String worker(Issue i, @Nullable String planOwner) {
+        return Text.hasText(planOwner) ? planOwner : Text.orElse(i.assigneeId(), "");
+    }
+
     public TaskCard card(Issue i) {
         IssueFlags f = flags.get(i.key());
         String[] span = Flags.actualSpan(i);
@@ -167,7 +189,7 @@ public final class TrackerContext {
 
     /** Computes and keeps the schedule labels of {@code i}; its plan owner must be known already. */
     private IssueSchedule schedule(Issue i) {
-        IssueSchedule s = ScheduleRules.of(i, planOwner(i), today, cal, settings.thresholds.effortDiffH());
+        IssueSchedule s = ScheduleRules.of(i, planOwner(i), today, cal, savedPlanDays.get(i.key()));
         schedule.put(i.key(), s);
         return s;
     }

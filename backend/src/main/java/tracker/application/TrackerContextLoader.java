@@ -14,6 +14,7 @@ import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.MemberRepository;
+import tracker.application.ports.PlanDayRepository;
 import tracker.application.ports.SettingsRepository;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.Anken;
@@ -33,16 +34,19 @@ public class TrackerContextLoader {
     private final AnkenRepository anken;
     private final IssueRepository issues;
     private final AnkenMemberRepository ankenMembers;
+    private final PlanDayRepository planDays;
     private final Clock clock;
 
     public TrackerContextLoader(SettingsRepository settings, MemberRepository members, CalendarRepository calendar,
-                                AnkenRepository anken, IssueRepository issues, AnkenMemberRepository ankenMembers, Clock clock) {
+                                AnkenRepository anken, IssueRepository issues, AnkenMemberRepository ankenMembers, PlanDayRepository planDays,
+                                Clock clock) {
         this.settings = settings;
         this.members = members;
         this.calendar = calendar;
         this.anken = anken;
         this.issues = issues;
         this.ankenMembers = ankenMembers;
+        this.planDays = planDays;
         this.clock = clock;
     }
 
@@ -96,7 +100,7 @@ public class TrackerContextLoader {
         Map<String, Set<String>> membersOf = membersOf(epics);
         List<Issue> loaded = issues.findByEpics(epics).stream().map(i -> Effort.withoutJm(i, team)).toList();
         TrackerContext ctx = new TrackerContext(today(), s, team, tracking, loaded, leaves,
-                calendar(s, team, leaves), people(membersOf), membersOf);
+                calendar(s, team, leaves), people(membersOf), membersOf, planDays.find(loaded.stream().map(Issue::key).toList()));
         ctx.deriveFlags();
         return ctx;
     }

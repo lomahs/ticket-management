@@ -381,8 +381,7 @@ public class SettingsApi {
 
     public record AlertsIn(@NotNull @DecimalMin("0") Double soonDays, @NotNull @DecimalMin("0") Double effortWarnPct,
                            @NotNull @DecimalMin("0") Double heldDays, @NotNull @DecimalMin("0") Double reviewRounds,
-                           @NotNull @DecimalMin("0") Double capacityPct,
-                           @NotNull @DecimalMin("0") Double effortDiffH) {
+                           @NotNull @DecimalMin("0") Double capacityPct) {
     }
 
     @Open(Rule.ADMIN)
@@ -407,6 +406,6 @@ public class SettingsApi {
     @PutMapping("/settings/alerts")
     public Thresholds saveAlerts(@RequestBody @Valid AlertsIn body) {
         return teamSettings.saveAlerts(new Thresholds(body.soonDays(), body.effortWarnPct(), body.heldDays(), body.reviewRounds(),
-                body.capacityPct(), body.effortDiffH()));
+                body.capacityPct()));
     }
 }

@@ -118,17 +118,17 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
     apply.mutate(review, { onSuccess: () => setDraft({}) });
   };
   const sc = c.schedule;
-  // Jira's remaining estimate against what the plan leaves by today (estimate − plan to date): the gap is red when
-  // behind, green when ahead. Without planned dates or an estimate there is no plan to compare with.
+  // Jira's remaining estimate against what the plan leaves at the end of today, as the effort label judges them: the gap is
+  // red on a delay, green when ahead. Without planned dates or an estimate there is no plan to compare with.
   const planned = sc.effort !== 'no_plan' && sc.effort !== 'no_estimate';
   const actRem = c.remaining_h;
-  const planRem = planned ? Math.max(0, c.estimate_h - sc.plan_to_date_h) : actRem;
-  const gap = Math.round((actRem - planRem) * 100) / 100;
+  const planRem = planned ? sc.plan_remain_h : actRem;
+  const gap = planned ? sc.diff_h : 0;
   const tot = Math.max(c.estimate_h, actRem) || 1;
   const inn = tot - Math.max(actRem, planRem);
   const gapFg = gap > 0 ? 'var(--hl-red-fg)' : 'var(--hl-ok-fg)';
   const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
-    : `${SCHEDULE_LABEL[sc.effort]} · plan to date ${f2(sc.plan_to_date_h)}h · actual ${f2(sc.actual_to_date_h)}h · ${signedH(sc.diff_h)}`;
+    : `${SCHEDULE_LABEL[sc.effort]} · plan remain ${f2(sc.plan_remain_h)}h · actual remain ${f2(sc.actual_remain_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
   const disabled = !canWrite || preview.isPending || applying;
 
@@ -204,15 +204,15 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
           </div>
           <div style={{ display: 'flex', gap: 2, height: 8, borderRadius: 99, background: 'var(--border-subtle)', marginTop: 8, overflow: 'hidden' }}>
             <div style={{ height: 8, width: (inn / tot) * 100 + '%', background: 'var(--st-wip)' }} />
-            {gap !== 0 && <div data-gap={gap > 0 ? 'behind' : 'ahead'} style={{ height: 8, width: (Math.abs(gap) / tot) * 100 + '%', background: gapFg }} />}
+            {gap !== 0 && <div data-gap={gap > 0 ? 'delay' : 'ahead'} style={{ height: 8, width: (Math.abs(gap) / tot) * 100 + '%', background: gapFg }} />}
           </div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
             <span>Actual remain <b className="mono heading">{hrs(actRem)}</b></span>
             {planned && <span>Plan remain <b className="mono heading">{hrs(planRem)}</b></span>}
-            {planned && (gap === 0 ? <span>On plan</span> : (
+            {planned && (gap === 0 ? <span>{SCHEDULE_LABEL.on_plan}</span> : (
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: gapFg }} />
-                {gap > 0 ? 'Behind plan' : 'Ahead of plan'} <b className="mono" style={{ color: gapFg }}>{signedH(gap)}</b>
+                {SCHEDULE_LABEL[sc.effort]} <b className="mono" style={{ color: gapFg }}>{signedH(gap)}</b>
               </span>
             ))}
           </div>

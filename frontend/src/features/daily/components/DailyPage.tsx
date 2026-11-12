@@ -116,12 +116,12 @@ function Header({ v, b }: { v: Schemas['DailyView']; b: Schemas['DailyBurndown']
         </div>
         <div style={{ ...kpi, padding: '0 24px', borderLeft: '1px solid var(--border-subtle)' }}>
           <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Effort vs plan{of}</span>
-          <span style={{ font: '700 40px/44px var(--font-display)', color: !p ? 'var(--text-heading)' : p.diff_h >= 0 ? C.done : C.late }}>{p ? signedH(p.diff_h) : '–'}</span>
+          <span style={{ font: '700 40px/44px var(--font-display)', color: !p ? 'var(--text-heading)' : p.diff_h <= 0 ? C.done : C.late }}>{p ? signedH(p.diff_h) : '–'}</span>
           {p ? (
             <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              Plan <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.plan_to_date_h)}h</b>
+              Plan remain <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.plan_remain_h)}h</b>
               <span aria-hidden="true" style={{ margin: '0 8px', color: 'var(--border-strong)' }}>|</span>
-              Actual <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.actual_to_date_h)}h</b>
+              Actual remain <b style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-heading)' }}>{f2(p.actual_remain_h)}h</b>
             </span>
           ) : <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>not captured for this phase</span>}
         </div>

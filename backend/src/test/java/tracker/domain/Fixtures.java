@@ -24,7 +24,7 @@ final class Fixtures {
     /** The flags of {@code i} on {@link #TODAY}, from its schedule labels with the default thresholds. */
     static IssueFlags flags(Issue i, boolean current, String planOwner) {
         Thresholds t = Thresholds.defaults();
-        IssueSchedule s = ScheduleRules.of(i, planOwner, TODAY, CAL, t.effortDiffH());
+        IssueSchedule s = ScheduleRules.of(i, planOwner, TODAY, CAL, null);
         return Flags.issueFlags(i, current, MEMBERS, TODAY, t, s);
     }
 

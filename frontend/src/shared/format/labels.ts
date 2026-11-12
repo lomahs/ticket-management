@@ -59,7 +59,7 @@ export const dayHeadStyle = (d: { is_today: boolean; extra_note?: string | null 
 export const SCHEDULE_LABEL: Record<string, string> = {
   early_start: 'Early start', late_start: 'Late start', on_time_start: 'On time', not_due: 'Not due',
   early_finish: 'Early finish', late_finish: 'Late finish', on_time_finish: 'On time', overdue: 'Overdue', open: 'Open',
-  under_burn: 'Under-burn', over_burn: 'Over-burn', on_plan: 'On plan',
+  under_burn: 'Delay', over_burn: 'Ahead', on_plan: 'On plan',
   no_plan: 'No plan', no_estimate: 'No estimate',
 };
 

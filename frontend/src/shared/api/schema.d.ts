@@ -1647,8 +1647,6 @@ export interface components {
             /** Format: double */
             capacity_pct: number;
             /** Format: double */
-            effort_diff_h: number;
-            /** Format: double */
             effort_warn_pct: number;
             /** Format: double */
             held_days: number;
@@ -1927,7 +1925,7 @@ export interface components {
         };
         DailyContent: {
             /** Format: double */
-            actual_to_date_h: number;
+            actual_remain_h: number;
             burndowns: components["schemas"]["DailyBurndown"][];
             date: string;
             /** Format: double */
@@ -1937,7 +1935,7 @@ export interface components {
             /** Format: int32 */
             pct: number;
             /** Format: double */
-            plan_to_date_h: number;
+            plan_remain_h: number;
             title: string;
             typed: components["schemas"]["DailyTyped"][];
         };
@@ -1962,13 +1960,13 @@ export interface components {
         };
         DailyProgress: {
             /** Format: double */
-            actual_to_date_h: number;
+            actual_remain_h: number;
             /** Format: double */
             diff_h: number;
             /** Format: int32 */
             pct: number;
             /** Format: double */
-            plan_to_date_h: number;
+            plan_remain_h: number;
         };
         DailyStep: {
             assignee_id: string | null;
@@ -2418,7 +2416,7 @@ export interface components {
         };
         IssueSchedule: {
             /** Format: double */
-            actual_to_date_h: number;
+            actual_remain_h: number;
             /** Format: double */
             diff_h: number;
             /** @enum {string} */
@@ -2428,7 +2426,7 @@ export interface components {
             /** Format: int32 */
             finish_days: number;
             /** Format: double */
-            plan_to_date_h: number;
+            plan_remain_h: number;
             /** @enum {string} */
             start: "early_start" | "late_start" | "on_time_start" | "not_due" | "no_plan";
             /** Format: int32 */
@@ -2993,7 +2991,7 @@ export interface components {
         };
         ScheduleRollup: {
             /** Format: double */
-            actual_to_date_h: number;
+            actual_remain_h: number;
             /** Format: double */
             diff_h: number;
             /** Format: int32 */
@@ -3009,7 +3007,7 @@ export interface components {
             /** Format: int32 */
             overdue: number;
             /** Format: double */
-            plan_to_date_h: number;
+            plan_remain_h: number;
             /** @enum {string} */
             state: "UNKNOWN" | "NOT_STARTED" | "EARLY" | "ON_TRACK" | "LATE" | "DONE";
         };
@@ -3255,8 +3253,6 @@ export interface components {
         Thresholds: {
             /** Format: double */
             capacity_pct: number;
-            /** Format: double */
-            effort_diff_h: number;
             /** Format: double */
             effort_warn_pct: number;
             /** Format: double */

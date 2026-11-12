@@ -4,6 +4,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
 import { Select } from '../../../shared/ds';
 import { dm, f2 } from '../../../shared/format/dates';
+import { SCHEDULE_LABEL } from '../../../shared/format/labels';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { Seg } from '../../../shared/ui/bits';
 import { BurndownChart } from '../../../shared/ui/BurndownChart';
@@ -75,10 +76,10 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
   const kpis = [
     { label: 'Total estimate', value: f2(E) + 'h', sub: `${v.subtasks} sub-tasks · ${dm(b.start)} – ${dm(b.end)}`, fg: 'var(--text-heading)' },
     { label: 'Planned remaining', value: f2(b.plan_remaining_h) + 'h', sub: 'by plan, end of ' + dm(v.today), fg: 'var(--text-heading)' },
-    { label: 'Actual remaining', value: f2(b.actual_remaining_h) + 'h', sub: 'estimate − logged', fg: 'var(--st-wip)' },
-    gap > 0.05 ? { label: 'Behind plan', value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--hl-red-fg)' }
-      : gap < -0.05 ? { label: 'Ahead of plan', value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--tn-res)' }
-        : { label: 'On plan', value: signed(0), sub: 'actual vs planned remaining', fg: 'var(--text-heading)' },
+    { label: 'Actual remaining', value: f2(b.actual_remaining_h) + 'h', sub: 'Jira remaining estimate', fg: 'var(--st-wip)' },
+    gap > 0.005 ? { label: SCHEDULE_LABEL.under_burn, value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--hl-red-fg)' }
+      : gap < -0.005 ? { label: SCHEDULE_LABEL.over_burn, value: signed(gap), sub: 'actual vs planned remaining', fg: 'var(--tn-res)' }
+        : { label: SCHEDULE_LABEL.on_plan, value: signed(0), sub: 'actual vs planned remaining', fg: 'var(--text-heading)' },
   ];
 
   return (
@@ -96,7 +97,7 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div className="title">Effort burndown</div>
-            <div className="eyebrow">Remaining hours from the day before the start. Plan spreads each estimate evenly over its Planned Start–End; actual subtracts logged hours.</div>
+            <div className="eyebrow">Remaining hours from the day before the start. Plan counts down by the hours planned per day (Detail Planning, else the estimate spread evenly); actual is Jira's remaining estimate, today live and on earlier days as the Daily Overview capture saw it.</div>
           </div>
           <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-muted)' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 0, borderTop: '2px dashed var(--text-muted)' }} />Plan</span>

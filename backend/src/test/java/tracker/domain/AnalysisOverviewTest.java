@@ -55,20 +55,20 @@ class AnalysisOverviewTest {
     private static Map<String, IssueSchedule> sched(Issue... issues) {
         Map<String, IssueSchedule> m = new HashMap<>();
         for (Issue i : issues) {
-            m.put(i.key(), ScheduleRules.of(i, null, TODAY, Fixtures.CAL, 1.0));
+            m.put(i.key(), ScheduleRules.of(i, null, TODAY, Fixtures.CAL, null));
         }
         return m;
     }
 
     private static Overview.ScheduleRollup roll(Issue... issues) {
-        return Overview.scheduleRollup(List.of(issues), sched(issues), 1.0);
+        return Overview.scheduleRollup(List.of(issues), sched(issues));
     }
 
     @Test
     void phaseRollupUsesSpentOverSpentPlusRemaining() {
         Issue a = issue().key("A").status(Status.CLOSED).ps("2026-09-01").pe("2026-09-05").logged(6).remaining(0).build();
         Issue b = issue().key("B").status(Status.WIP).ps("2026-09-03").pe("2026-09-11").logged(2).remaining(2).build();
-        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, b), sched(a, b), 1.0);
+        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, b), sched(a, b));
         assertThat(p).usingRecursiveComparison().ignoringFields("schedule")
                 .isEqualTo(new Overview.PhaseRollup("Prepare", 80, 1, 2, "2026-09-01", "2026-09-11", 8.0, 2.0, null));
         assertThat(p.schedule().overdue()).isEqualTo(1);
@@ -78,7 +78,7 @@ class AnalysisOverviewTest {
     void phaseProgressIgnoresJmReview() {
         Issue a = issue().key("A").fid("F1").step(StepKind.CREATE).status(Status.CLOSED).logged(6).remaining(0).build();
         Issue jm = issue().key("B").fid("F1").step(StepKind.JM_REVIEW).status(Status.WIP).logged(1).remaining(3).build();
-        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, jm), sched(a, jm), 1.0);
+        Overview.PhaseRollup p = Overview.phaseRollup("Prepare", List.of(a, jm), sched(a, jm));
         assertThat(p.pct()).isEqualTo(100);
         assertThat(List.of(p.closed(), p.total())).containsExactly(1, 1);
         assertThat(p.spentH()).isEqualTo(6.0);
@@ -87,12 +87,12 @@ class AnalysisOverviewTest {
 
     @Test
     void phaseRollupOfNoSubtasksIsZero() {
-        Overview.PhaseRollup p = Overview.phaseRollup("X", List.of(), Map.of(), 1.0);
+        Overview.PhaseRollup p = Overview.phaseRollup("X", List.of(), Map.of());
         assertThat(p).usingRecursiveComparison().ignoringFields("schedule")
                 .isEqualTo(new Overview.PhaseRollup("X", 0, 0, 0, null, null, 0, 0, null));
         assertThat(p.schedule().state()).isEqualTo(Overview.Schedule.UNKNOWN);
         Issue i = issue().remaining(0).build();
-        assertThat(Overview.phaseRollup("X", List.of(i), sched(i), 1.0).pct()).isZero();
+        assertThat(Overview.phaseRollup("X", List.of(i), sched(i)).pct()).isZero();
     }
 
     @Test
@@ -105,9 +105,9 @@ class AnalysisOverviewTest {
         Map<String, IssueSchedule> s = sched(overdue, early, idle);
         assertThat(r.overdue()).isEqualTo(1);
         assertThat(r.earlyFinish()).isEqualTo(1);
-        assertThat(r.planToDateH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::planToDateH).sum(), 2));
-        assertThat(r.actualToDateH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::actualToDateH).sum(), 2));
-        assertThat(r.diffH()).isEqualTo(Numbers.round(r.actualToDateH() - r.planToDateH(), 2));
+        assertThat(r.planRemainH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::planRemainH).sum(), 2));
+        assertThat(r.actualRemainH()).isEqualTo(Numbers.round(s.values().stream().mapToDouble(IssueSchedule::actualRemainH).sum(), 2));
+        assertThat(r.diffH()).isEqualTo(Numbers.round(r.actualRemainH() - r.planRemainH(), 2));
         assertThat(r.state()).isEqualTo(Overview.Schedule.LATE);
     }
 
@@ -164,17 +164,18 @@ class AnalysisOverviewTest {
     }
 
     @Test
-    void rollupEffortUsesTheThresholdInclusively() {
-        Issue over = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(8).build();
-        double d = roll(over).diffH();
-        assertThat(d).isPositive();
-        assertThat(Overview.scheduleRollup(List.of(over), sched(over), d).effort()).isEqualTo(EffortState.ON_PLAN);
-        assertThat(Overview.scheduleRollup(List.of(over), sched(over), d - 0.01).effort()).isEqualTo(EffortState.OVER_BURN);
-        Issue under = issue().key("B").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).logged(4).build();
-        double u = roll(under).diffH();
-        assertThat(u).isNegative();
-        assertThat(Overview.scheduleRollup(List.of(under), sched(under), -u).effort()).isEqualTo(EffortState.ON_PLAN);
-        assertThat(Overview.scheduleRollup(List.of(under), sched(under), -u - 0.01).effort()).isEqualTo(EffortState.UNDER_BURN);
+    void rollupEffortComparesTheSumsOfTheRemainsWithoutAThreshold() {
+        // plan by Wednesday 10/07: 10h over Mon-Fri leaves 4h
+        Issue ahead = issue().key("A").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).remaining(3).build();
+        Issue behind = issue().key("B").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).remaining(5).build();
+        Overview.ScheduleRollup even = roll(ahead, behind);
+        assertThat(even.planRemainH()).isEqualTo(8);
+        assertThat(even.actualRemainH()).isEqualTo(8);
+        assertThat(even.effort()).isEqualTo(EffortState.ON_PLAN);
+        Issue hair = issue().key("C").status(Status.WIP).ps("2026-10-05").pe("2026-10-09").est(10).remaining(4.01).build();
+        assertThat(roll(hair).diffH()).isEqualTo(0.01);
+        assertThat(roll(hair).effort()).isEqualTo(EffortState.UNDER_BURN);
+        assertThat(roll(ahead).effort()).isEqualTo(EffortState.OVER_BURN);
     }
 
     @Test
@@ -186,8 +187,8 @@ class AnalysisOverviewTest {
         Overview.ScheduleRollup after = roll(base, noPlan, noEstimate);
         assertThat(sched(noPlan).get("B").effort()).isEqualTo(EffortState.NO_PLAN);
         assertThat(sched(noEstimate).get("C").effort()).isEqualTo(EffortState.NO_ESTIMATE);
-        assertThat(after.planToDateH()).isEqualTo(before.planToDateH());
-        assertThat(after.actualToDateH()).isEqualTo(before.actualToDateH());
+        assertThat(after.planRemainH()).isEqualTo(before.planRemainH());
+        assertThat(after.actualRemainH()).isEqualTo(before.actualRemainH());
     }
 
     @Test

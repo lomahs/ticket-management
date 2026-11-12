@@ -27,6 +27,7 @@ import tracker.application.ports.JiraWriteLog;
 import tracker.application.ports.JiraWriter;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
+import tracker.application.ports.PlanDayRepository;
 import tracker.application.service.ReplanService;
 import tracker.application.service.ReplanService.ReplanIn;
 import tracker.application.service.ReplanService.ReplanItem;
@@ -42,6 +43,7 @@ import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
 import tracker.application.service.AllocationService;
 import tracker.application.service.DetailPlanService;
+import tracker.application.service.PlanDayLinker;
 import tracker.application.service.DetailPlanService.AnkenAllocation;
 import tracker.application.service.DetailPlanService.DayLoad;
 import tracker.application.service.DetailPlanService.NewRowIn;
@@ -95,6 +97,10 @@ class DetailPlanningTest {
     ReplanService replan;
     @Autowired
     IssueRepository issues;
+    @Autowired
+    PlanDayRepository planDays;
+    @Autowired
+    PlanDayLinker linker;
     @Autowired
     TicketService tickets;
     @Autowired
@@ -423,6 +429,16 @@ class DetailPlanningTest {
         assertThat(pay.parentKey()).isEqualTo(task("ITB Create test case"));
         assertThat(estimationRows.findByEpic(EPIC)).allMatch(EstimationRow::pushed);
         assertThat(detail.view(ALL, EPIC).plan()).isEmpty();
+        // each sub-task keeps the plan's hours per day: within its dates, adding up to its estimate, which its plan remain uses
+        Map<String, Double> days = planDays.find(List.of(run.key())).get(run.key());
+        assertThat(days.keySet()).allMatch(d -> d.compareTo(run.plannedStart()) >= 0 && d.compareTo(run.plannedEnd()) <= 0);
+        assertThat(days.values().stream().mapToDouble(Double::doubleValue).sum()).isCloseTo(16.0, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(loader.load(ALL).planDays(run)).isEqualTo(days);
+        // a push made before the hours were kept is linked by its Task, function name and step
+        Map<String, Double> createDays = planDays.find(List.of(create.key())).get(create.key());
+        planDays.save(create.key(), Map.of());
+        linker.linkPushed();
+        assertThat(planDays.find(List.of(create.key())).get(create.key())).isEqualTo(createDays);
     }
 
     /** A 40h sub-task in Jira under ITA Execute. */
@@ -744,7 +760,7 @@ class DetailPlanningTest {
             return jira.send(req);
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
-        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, clock);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays, clock);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));

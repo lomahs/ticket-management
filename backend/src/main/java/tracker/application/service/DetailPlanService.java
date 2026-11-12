@@ -26,6 +26,7 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
+import tracker.application.ports.PlanDayRepository;
 import tracker.domain.Allocations;
 import tracker.domain.AutoAllocator;
 import tracker.domain.Anken;
@@ -73,11 +74,12 @@ public class DetailPlanService {
     private final TicketService tickets;
     private final OnboardingRepository onboarding;
     private final EstimationService estimations;
+    private final PlanDayRepository planDays;
     private final Clock clock;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
                              AllocationService allocations, TicketService tickets, OnboardingRepository onboarding,
-                             EstimationService estimations, Clock clock) {
+                             EstimationService estimations, PlanDayRepository planDays, Clock clock) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
@@ -85,6 +87,7 @@ public class DetailPlanService {
         this.tickets = tickets;
         this.onboarding = onboarding;
         this.estimations = estimations;
+        this.planDays = planDays;
         this.clock = clock;
     }
 
@@ -197,7 +200,7 @@ public class DetailPlanService {
 
     /** The computed plan of an anken's unpushed rows, with what it needs to be pushed. */
     record Computed(TrackerContext ctx, @Nullable ScheduleVersion schedule, List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf,
-                    Map<String, String> names, List<Placed> placed, StepWeights weights, DetailPlanView view) {
+                    Map<String, String> names, List<Placed> placed, List<DetailScheduler.Part> parts, StepWeights weights, DetailPlanView view) {
     }
 
     /** The plan as it shows; an anken planned before plans were saved is planned and saved once, as soon as it can be. */
@@ -479,7 +482,7 @@ public class DetailPlanService {
         }
         DetailPlanView view = new DetailPlanView(all, tasks, plan, stepRows, over, allocated, overDay, checks, days, stale, problems, byHand,
                 affected, leftOut);
-        return new Computed(ctx, schedule, rows, stepsOf, names, placed, w, view);
+        return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
     /**
@@ -830,12 +833,14 @@ public class DetailPlanService {
 
     /**
      * Creates the sub-tasks of the unpushed rows under their Tasks; a row is marked pushed once all its sub-tasks exist, also
-     * when Jira refuses a request half-way.
+     * when Jira refuses a request half-way. Each sub-task created keeps the plan's hours per day, which its plan remain counts
+     * down by.
      */
     public BatchResult push(Viewer actor, AnkenScope scope, String epic) {
         Computed c = pushable(scope, epic);
         List<NewTicket> creates = newTickets(c, labels(epic));
         return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
+            created.forEach((ref, key) -> planDays.save(key, hoursByDay(c.parts(), ref)));
             List<Long> done = new ArrayList<>();
             for (EstimationRow r : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
                 List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == r.id()).toList();
@@ -847,6 +852,13 @@ public class DetailPlanService {
                 estimation.markPushed(done, Instant.now(clock).toString());
             }
         });
+    }
+
+    /** The hours per day of the step {@code ref}, all its people together. */
+    static Map<String, Double> hoursByDay(List<DetailScheduler.Part> parts, String ref) {
+        Map<String, Double> out = new TreeMap<>();
+        parts.stream().filter(p -> p.ref().equals(ref)).forEach(p -> out.merge(p.date(), p.hours(), Numbers::sum));
+        return out;
     }
 
     /** The labels entered at the onboarding's Setting Phase; none for an anken that was not onboarded. */

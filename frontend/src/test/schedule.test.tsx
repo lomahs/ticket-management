@@ -8,12 +8,12 @@ afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); });
 afterAll(() => server.close());
 
 const rollup = (over: object = {}) => ({
-  plan_to_date_h: 0, actual_to_date_h: 0, diff_h: 0, effort: 'on_plan', overdue: 0,
+  plan_remain_h: 0, actual_remain_h: 0, diff_h: 0, effort: 'on_plan', overdue: 0,
   late_start: 0, early_start: 0, late_finish: 0, early_finish: 0, state: 'ON_TRACK', ...over,
 });
 const issue = (over: object = {}) => ({
   start: 'on_time_start', start_days: 0, finish: 'open', finish_days: 0, effort: 'on_plan',
-  plan_to_date_h: 0, actual_to_date_h: 0, diff_h: 0, ...over,
+  plan_remain_h: 0, actual_remain_h: 0, diff_h: 0, ...over,
 });
 const phase = (name: string, schedule: object) => ({
   name, pct: 40, closed: 2, total: 5, start: '2026-10-01', end: '2026-10-20', spent_h: 4, remaining_h: 6, schedule,
@@ -37,22 +37,22 @@ const tasks = [
 describe('schedule state on the overview', () => {
   it('card shows state, effort and overdue link', async () => {
     serveAnken(
-      { schedule: rollup({ state: 'LATE', diff_h: -14, effort: 'under_burn', overdue: 3 }) },
+      { schedule: rollup({ state: 'LATE', diff_h: 14, effort: 'under_burn', overdue: 3 }) },
       [phase('ITA', rollup())],
     );
     renderApp('/anken');
     expect(await screen.findByText('Late')).toBeTruthy();
-    expect(screen.getByText('Effort: −14.00h (Under-burn)')).toBeTruthy();
+    expect(screen.getByText('Effort: +14.00h (Delay)')).toBeTruthy();
     const link = screen.getByRole('link', { name: 'Overdue 3' });
     expect(link.getAttribute('href')).toBe('/anken/PAY-1100/tickets?label=overdue');
-    expect(screen.getByRole('link', { name: 'Effort: −14.00h (Under-burn)' }).getAttribute('href'))
+    expect(screen.getByRole('link', { name: 'Effort: +14.00h (Delay)' }).getAttribute('href'))
       .toBe('/anken/PAY-1100/tickets?label=under_burn');
   });
 
-  it('links an over-burn effort but not an on-plan one', async () => {
-    serveAnken({ schedule: rollup({ diff_h: 1, effort: 'over_burn' }) }, [phase('ITA', rollup())]);
+  it('links an ahead effort but not an on-plan one', async () => {
+    serveAnken({ schedule: rollup({ diff_h: -1, effort: 'over_burn' }) }, [phase('ITA', rollup())]);
     renderApp('/anken');
-    expect((await screen.findByRole('link', { name: 'Effort: +1.00h (Over-burn)' })).getAttribute('href'))
+    expect((await screen.findByRole('link', { name: 'Effort: −1.00h (Ahead)' })).getAttribute('href'))
       .toBe('/anken/PAY-1100/tickets?label=over_burn');
     cleanup();
     serveAnken({ schedule: rollup() }, [phase('ITA', rollup())]);
@@ -74,21 +74,21 @@ describe('schedule state on the overview', () => {
   });
 
   it('shows a positive effort deviation with its sign', async () => {
-    serveAnken({ schedule: rollup({ diff_h: 1, effort: 'over_burn' }) }, [phase('ITA', rollup())]);
+    serveAnken({ schedule: rollup({ diff_h: 1, effort: 'under_burn' }) }, [phase('ITA', rollup())]);
     renderApp('/anken');
-    expect(await screen.findByText('Effort: +1.00h (Over-burn)')).toBeTruthy();
+    expect(await screen.findByText('Effort: +1.00h (Delay)')).toBeTruthy();
   });
 
   it('phase chips link to the ticket list', async () => {
     serveAnken(
       { schedule: rollup() },
-      [phase('ITA', rollup({ plan_to_date_h: 6, actual_to_date_h: 7.5, diff_h: 1.5, effort: 'over_burn', state: 'LATE', late_start: 2, early_finish: 0 }))],
+      [phase('ITA', rollup({ plan_remain_h: 6, actual_remain_h: 7.5, diff_h: 1.5, effort: 'under_burn', state: 'LATE', late_start: 2, early_finish: 0 }))],
     );
     renderApp('/anken/PAY-1100');
     const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
-    expect(within(detail).getByText('plan to date 6.00h · actual 7.50h ·', { exact: false })).toBeTruthy();
-    expect(within(detail).getByRole('link', { name: '+1.50h (Over-burn)' }).getAttribute('href'))
-      .toBe('/anken/PAY-1100/tickets?label=over_burn&phase=ITA');
+    expect(within(detail).getByText('plan remain 6.00h · actual remain 7.50h ·', { exact: false })).toBeTruthy();
+    expect(within(detail).getByRole('link', { name: '+1.50h (Delay)' }).getAttribute('href'))
+      .toBe('/anken/PAY-1100/tickets?label=under_burn&phase=ITA');
     const chip = within(detail).getByRole('link', { name: 'Late start 2' });
     expect(chip.getAttribute('href')).toBe('/anken/PAY-1100/tickets?label=late_start&phase=ITA');
     expect(within(detail).getByText('Late')).toBeTruthy();
@@ -134,12 +134,12 @@ describe('ticket list', () => {
     const asked: string[] = [];
     server.use(http.get('*/api/v1/anken/PAY-1100/tickets', ({ request }) => {
       asked.push(new URL(request.url).search);
-      return HttpResponse.json([{ ...late, schedule: issue({ effort: 'over_burn', diff_h: 2.5 }) }]);
+      return HttpResponse.json([{ ...late, schedule: issue({ effort: 'under_burn', diff_h: 2.5 }) }]);
     }));
-    renderApp('/anken/PAY-1100/tickets?label=over_burn&phase=ITA');
-    expect(await screen.findByRole('heading', { name: 'Over-burn · PAY-1100 · ITA' })).toBeTruthy();
+    renderApp('/anken/PAY-1100/tickets?label=under_burn&phase=ITA');
+    expect(await screen.findByRole('heading', { name: 'Delay · PAY-1100 · ITA' })).toBeTruthy();
     expect(await screen.findByText('+2.50h')).toBeTruthy();
-    expect(asked).toEqual(['?label=over_burn&phase=ITA']);
+    expect(asked).toEqual(['?label=under_burn&phase=ITA']);
   });
 
   it('says so when no ticket has the label', async () => {
@@ -205,25 +205,27 @@ describe('ticket panel', () => {
   it('ticket panel shows the three labels', async () => {
     serveTicket(issue({
       start: 'late_start', start_days: 2, finish: 'overdue', finish_days: 1, effort: 'under_burn',
-      plan_to_date_h: 6, actual_to_date_h: 2, diff_h: -4,
+      plan_remain_h: 2, actual_remain_h: 6, diff_h: 4,
     }));
     renderApp('/my-work?member=binh&ticket=PAY-1213');
     expect(await screen.findByText('Start: Late start · 2 working days')).toBeTruthy();
     expect(screen.getByText('Finish: Overdue · 1 working day')).toBeTruthy();
-    expect(screen.getByText('Effort: Under-burn · plan to date 6.00h · actual 2.00h · −4.00h')).toBeTruthy();
+    expect(screen.getByText('Effort: Delay · plan remain 2.00h · actual remain 6.00h · +4.00h')).toBeTruthy();
   });
 
   describe('effort bar: actual remain against plan remain', () => {
     // estimate 10h, 4h planned by today: the plan leaves 6h
     const serve = (remaining: number) => server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({
-      ...fixtures.ticket, card: { ...fixtures.ticket.card, estimate_h: 10, logged_h: 4, remaining_h: remaining, schedule: issue({ plan_to_date_h: 4 }) },
+      ...fixtures.ticket, card: { ...fixtures.ticket.card, estimate_h: 10, logged_h: 4, remaining_h: remaining, schedule: issue({
+        plan_remain_h: 6, actual_remain_h: remaining, diff_h: remaining - 6,
+        effort: remaining > 6 ? 'under_burn' : remaining < 6 ? 'over_burn' : 'on_plan' }) },
     })));
     const gapBar = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-gap]');
 
     it('is red when more remains than the plan leaves', async () => {
       serve(8);
       const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
-      expect(await screen.findByText('Behind plan')).toBeTruthy();
+      expect(await screen.findByText('Delay')).toBeTruthy();
       expect(screen.getByText('+2.00h')).toBeTruthy();
       expect(gapBar(container)?.style.background).toContain('hl-red-fg');
     });
@@ -231,7 +233,7 @@ describe('ticket panel', () => {
     it('is green when less remains than the plan leaves', async () => {
       serve(5);
       const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
-      expect(await screen.findByText('Ahead of plan')).toBeTruthy();
+      expect(await screen.findByText('Ahead')).toBeTruthy();
       expect(screen.getByText('−1.00h')).toBeTruthy();
       expect(gapBar(container)?.style.background).toContain('hl-ok-fg');
     });

@@ -19,14 +19,14 @@ const ticket = (key: string, who: string, name = 'Requirement study', extra: obj
 const task = (key: string, name: string, extra: object) => ({ key, name, state: 'current', pct: 40, closed: 2, total: 5, late: 0, unmatched: 0, functions: [], tickets: [], ...extra });
 const done = (pre: string) => [step(`${pre}1`, 'create', 'C'), step(`${pre}2`, 'balr', 'C'), step(`${pre}3`, 'fixb', 'C')];
 
-const progress = (pct: number, plan: number, act: number) => ({ pct, plan_to_date_h: plan, actual_to_date_h: act, diff_h: act - plan });
+const progress = (pct: number, plan: number, act: number) => ({ pct, plan_remain_h: plan, actual_remain_h: act, diff_h: act - plan });
 
 /** `kept`: whether the burndowns keep their progress; a snapshot captured before has it for the whole anken only. */
 function content(date: string, note: string, kept = true) {
   return {
-    epic: 'PAY-1100', title: 'Payment flow revision', date, pct: 62, plan_to_date_h: 100, actual_to_date_h: 106, diff_h: 6,
+    epic: 'PAY-1100', title: 'Payment flow revision', date, pct: 62, plan_remain_h: 100, actual_remain_h: 106, diff_h: 6,
     burndowns: [{ phase: null, chart, progress: kept ? progress(62, 100, 106) : null },
-      { phase: 'Implement_Coding', chart, progress: kept ? progress(48, 40, 37.5) : null }],
+      { phase: 'Implement_Coding', chart, progress: kept ? progress(48, 37.5, 40) : null }],
     groups: [
       { name: 'Prepare', state: 'done', pct: 100, closed: 9, total: 9, late: 0, sub_phases: [] }, // captured before Tasks were rolled up
       { name: 'Implement_Coding', state: 'current', pct: 48, closed: 20, total: 60, late: 1, sub_phases: [
@@ -86,7 +86,7 @@ describe('Daily Overview', () => {
     const hubs = within(proc).getAllByRole('button', { pressed: false }).concat(within(proc).getAllByRole('button', { pressed: true }));
     expect(hubs).toHaveLength(3);
     expect(within(proc).getByRole('button', { name: /All phases/ }).getAttribute('aria-pressed')).toBe('true');
-    expect(within(proc).getByRole('button', { name: /Implement_Coding/ }).textContent).toContain('▼ −2.50h behind');
+    expect(within(proc).getByRole('button', { name: /Implement_Coding/ }).textContent).toContain('▼ +2.50h delay');
     expect(within(screen.getByRole('region', { name: 'Effort burndown' })).getByText('All phases')).toBeTruthy();
 
     // Function overview: every phase; a Task opens by itself when something in it is late or in progress
@@ -133,7 +133,7 @@ describe('Daily Overview', () => {
     fireEvent.click(within(proc).getByRole('button', { name: /Implement_Coding/ }));
     await waitFor(() => expect(router.state.location.search).toMatchObject({ phase: 'Implement_Coding' }));
     expect(screen.getByText('Progress · Implement_Coding')).toBeTruthy();
-    expect(screen.getByText('−2.50h')).toBeTruthy();
+    expect(screen.getByText('+2.50h')).toBeTruthy();
     expect(screen.getByText('40.00h')).toBeTruthy();
     expect(screen.getByText('37.50h')).toBeTruthy();
     expect(within(screen.getByRole('region', { name: 'Effort burndown' })).getByText('Implement_Coding')).toBeTruthy();

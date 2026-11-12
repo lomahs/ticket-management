@@ -3,8 +3,9 @@ import type { Schemas } from '../api/types';
 import { D, dm, f2, WDN } from '../format/dates';
 
 /**
- * Remaining effort per working day: the plan (dashed) and the actual remaining (solid), with a marker on `today`.
- * Point k is the end of day k, drawn at the centre of its column; day 0 is the baseline, the day before the start.
+ * Remaining effort per working day: the plan (dashed) and the actual remaining (solid, a dot on each day that has one: today
+ * and the captured days), with a marker on `today`. Point k is the end of day k, drawn at the centre of its column; day 0 is
+ * the baseline, the day before the start.
  */
 export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, empty }: {
   b: Schemas['BurndownChart']; today: string; todayLabel?: string; height?: number; empty: string;
@@ -15,13 +16,13 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
   if (!N) return <div className="empty-row">{empty}</div>;
   const E = b.estimate_h;
   const plan = days.map((d) => d.plan_remaining_h);
-  const act = days.flatMap((d) => (d.actual_remaining_h == null ? [] : [d.actual_remaining_h]));
-  const ti = act.length - 1;
+  const act = days.flatMap((d, k) => (d.actual_remaining_h == null ? [] : [[k, d.actual_remaining_h] as const]));
+  const ti = days.findLastIndex((d) => d.date <= today);
   const step = E > 400 ? 100 : E > 200 ? 50 : E > 80 ? 20 : 10;
   const yMax = Math.max(step, Math.ceil(E / step) * step);
   const X = (k: number) => (N ? ((k + 0.5) / N) * 1000 : 0).toFixed(1);
   const Y = (h: number) => (300 - (Math.max(0, h) / yMax) * 300).toFixed(1);
-  const pts = (a: number[]) => a.map((h, k) => X(k) + ',' + Y(h)).join(' ');
+  const pts = (a: (readonly [number, number])[]) => a.map(([k, h]) => X(k) + ',' + Y(h)).join(' ');
   const every = Math.max(1, Math.ceil(N / 10));
   const showToday = ti >= 0 && !!b.end && today <= b.end;
   const hd = hov != null && hov < N ? days[hov] : null;
@@ -53,9 +54,13 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
           </div>
         )}
         <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
-          <polyline points={pts(plan)} fill="none" stroke="var(--text-muted)" strokeWidth={2} strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
-          {ti >= 0 && <polyline points={pts(act)} fill="none" stroke="var(--st-wip)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+          <polyline points={pts(plan.map((h, k) => [k, h] as const))} fill="none" stroke="var(--text-muted)" strokeWidth={2} strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
+          {act.length > 1 && <polyline points={pts(act)} fill="none" stroke="var(--st-wip)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
         </svg>
+        {act.map(([k, h]) => (
+          <span key={k} style={{ position: 'absolute', left: ((k + 0.5) / N) * 100 + '%', top: (1 - Math.max(0, h) / yMax) * 100 + '%', width: 7, height: 7,
+            marginLeft: -3.5, marginTop: -3.5, borderRadius: '50%', background: 'var(--st-wip)', pointerEvents: 'none' }} />
+        ))}
         {hd && hov != null && <Tip d={hd} baseline={hov === 0} left={((hov + 0.5) / N) * 100} flip={hov > N * 0.6} />}
       </div>
       <div />

@@ -3,6 +3,7 @@ package tracker.application.ports;
 import java.util.List;
 
 import tracker.domain.AutoPicks;
+import tracker.domain.DetailScheduler;
 import tracker.domain.EstimationRow;
 import tracker.domain.SavedPlan;
 import tracker.domain.StepEdit;
@@ -40,6 +41,9 @@ public interface EstimationRepository {
 
     /** The plan Auto allocate saved for the epic's unpushed rows. */
     SavedPlan savedPlan(String epic);
+
+    /** The hours per person and day Auto allocate saved for the epic's pushed rows. */
+    List<DetailScheduler.Part> pushedParts(String epic);
 
     /** Replaces the saved plan of the epic's unpushed rows. */
     void savePlan(String epic, SavedPlan plan);

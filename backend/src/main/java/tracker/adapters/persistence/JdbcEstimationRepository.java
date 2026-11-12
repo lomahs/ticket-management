@@ -146,6 +146,15 @@ class JdbcEstimationRepository implements EstimationRepository {
     }
 
     @Override
+    public List<Part> pushedParts(String epic) {
+        return jdbc.sql("""
+                SELECT p.* FROM estimation_plan_parts p JOIN estimation_rows r ON r.id = p.row_id
+                WHERE r.epic_key = :epic AND r.pushed_at IS NOT NULL ORDER BY p.rowid
+                """).param("epic", epic)
+                .query((r, n) -> new Part(r.getString("ref"), r.getString("member_id"), r.getString("day"), r.getDouble("hours"))).list();
+    }
+
+    @Override
     @Transactional
     public void savePlan(String epic, SavedPlan plan) {
         deleteSavedPlan(epic);

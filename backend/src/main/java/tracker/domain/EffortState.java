@@ -1,7 +1,10 @@
 package tracker.domain;
 
+/** Remaining hours against the plan remain ({@link ScheduleRules#effortOf}). */
 public enum EffortState {
+    /** Delay: more left than the plan leaves. */
     UNDER_BURN("under_burn"),
+    /** Ahead: less left than the plan leaves. */
     OVER_BURN("over_burn"),
     ON_PLAN("on_plan"),
     NO_PLAN("no_plan"),

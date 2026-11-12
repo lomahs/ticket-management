@@ -133,7 +133,7 @@ class ServiceReadsTest {
         assertThat(List.of(p.plan(), p.forecast(), p.slipDays(), p.lateFunctions(), p.hasFunctions()))
                 .containsExactly("2026-11-20", "2026-11-25", 3, 6, true);
         assertThat(p.phases()).extracting(x -> x.name()).containsExactly("Prepare", "Implement_Coding", "Function Unit Test");
-        assertThat(p.phases().get(1).pct()).isEqualTo(43); // logged / (logged + remaining), JM Review left out
+        assertThat(p.phases().get(1).pct()).isEqualTo(72); // logged / (logged + remaining), JM Review left out
         assertThat(p.phases().get(1).closed()).isEqualTo(22); // the 12 JM Reviews are left out
         assertThat(p.phases().get(1).total()).isEqualTo(48);
         assertThat(p.memberIds()).containsExactlyInAnyOrder("an", "binh", "chi", "dung", "minh", "tanaka");
@@ -405,7 +405,8 @@ class ServiceReadsTest {
         Burndown.BurndownChart b = all.burndown();
         assertThat(b.days().get(0).planRemainingH()).isEqualTo(b.estimateH()); // the baseline, the day before the anken starts
         assertThat(b.days().get(b.days().size() - 1).planRemainingH()).isZero();
-        assertThat(b.days()).allMatch(d -> d.date().compareTo(all.today()) <= 0 == (d.actualRemainingH() != null));
+        // nothing was captured: only today has an actual point
+        assertThat(b.days()).allMatch(d -> d.date().equals(all.today()) == (d.actualRemainingH() != null));
         String phase = all.phases().get(0);
         EffortService.BurndownView inPhase = effort.burndown(ALL, "PAY-1100", phase, null, null);
         assertThat(inPhase.tasks()).isNotEmpty();

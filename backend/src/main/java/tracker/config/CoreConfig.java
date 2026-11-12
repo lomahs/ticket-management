@@ -17,6 +17,7 @@ import tracker.application.ports.SecretBox;
 import tracker.application.service.AccessService;
 import tracker.application.service.AnkenMemberSeeder;
 import tracker.application.service.AnkenSettingsInitializer;
+import tracker.application.service.PlanDayLinker;
 
 /** Beans every profile needs: the team's clock and the encryption of the stored Jira token. */
 @Configuration(proxyBeanMethods = false)
@@ -59,5 +60,12 @@ public class CoreConfig {
     @Order(0)
     public ApplicationRunner ankenMemberSeed(AnkenMemberSeeder seeder) {
         return args -> seeder.seedOnce();
+    }
+
+    /** Gives the sub-tasks Detail Planning pushed before the push kept their hours per day those hours. */
+    @Bean
+    @Order(10)
+    public ApplicationRunner planDayLink(PlanDayLinker linker) {
+        return args -> linker.linkPushed();
     }
 }

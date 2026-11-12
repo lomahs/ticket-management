@@ -1,6 +1,6 @@
 package tracker.domain;
 
-import java.util.List;
+import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 
@@ -9,8 +9,15 @@ public final class ScheduleRules {
     private ScheduleRules() {
     }
 
-    /** @param workerId who does the work (spreads the plan over their working days); else the assignee, else nobody */
-    public static IssueSchedule of(Issue i, @Nullable String workerId, String today, WorkCalendar cal, double thresholdH) {
+    /**
+     * The effort label compares, at the end of {@code today}, Jira's remaining estimate (0 once Closed) with the plan remain
+     * ({@link PlanDays#remainAt}); any difference counts: more left than planned is a delay (under-burn), less is ahead
+     * (over-burn).
+     *
+     * @param workerId who does the work (spreads the plan over their working days); else the assignee, else nobody
+     * @param saved    Detail Planning's hours per day of {@code i} ({@link PlanDays#of}); null when it has none
+     */
+    public static IssueSchedule of(Issue i, @Nullable String workerId, String today, WorkCalendar cal, @Nullable Map<String, Double> saved) {
         String worker = Text.hasText(workerId) ? workerId : Text.orElse(i.assigneeId(), "");
         String[] span = Flags.actualSpan(i);
         String actualStart = span != null ? span[0] : null;
@@ -63,20 +70,14 @@ public final class ScheduleRules {
         if (i.estimateH() == 0) {
             return new IssueSchedule(start, startDays, finish, finishDays, EffortState.NO_ESTIMATE, 0, 0, 0);
         }
-        double plan = Numbers.round(planToDate(i, worker, today, cal), 2);
-        double actual = Numbers.round(
-                i.worklogs().stream().filter(w -> w.date().compareTo(today) <= 0).mapToDouble(Worklog::hours).sum(), 2);
+        double plan = PlanDays.remainAt(i.estimateH(), PlanDays.of(i, worker, saved, cal), today);
+        double actual = i.status() == Status.CLOSED ? 0 : Numbers.round(i.remainingH(), 2);
         double diff = Numbers.round(actual - plan, 2);
-        EffortState effort = Math.abs(diff) <= thresholdH ? EffortState.ON_PLAN
-                : diff < 0 ? EffortState.UNDER_BURN : EffortState.OVER_BURN;
-        return new IssueSchedule(start, startDays, finish, finishDays, effort,
-                plan, actual, diff);
+        return new IssueSchedule(start, startDays, finish, finishDays, effortOf(diff), plan, actual, diff);
     }
 
-    private static double planToDate(Issue i, String worker, String today, WorkCalendar cal) {
-        Capacity.Plan plan = Capacity.dailyPlan(
-                List.of(new Capacity.PlanItem(i.key(), worker, i.plannedStart(), i.plannedEnd(), i.estimateH())), cal);
-        return plan.member(worker).entrySet().stream().filter(e -> e.getKey().compareTo(today) <= 0)
-                .mapToDouble(e -> e.getValue().total).sum();
+    /** On plan only when the remains are equal (to the hundredth); more left than planned is under-burn (a delay). */
+    public static EffortState effortOf(double diffH) {
+        return diffH == 0 ? EffortState.ON_PLAN : diffH > 0 ? EffortState.UNDER_BURN : EffortState.OVER_BURN;
     }
 }

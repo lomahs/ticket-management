@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -15,6 +16,7 @@ import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.DailySnapshotRepository;
+import tracker.application.ports.RemainingDayRepository;
 import tracker.application.service.DailyService;
 import tracker.application.service.JiraSettingsService;
 import tracker.application.service.DailyService.DailyContent;
@@ -23,6 +25,8 @@ import tracker.application.service.DailyService.DailySubPhase;
 import tracker.application.service.DailyService.DailyTyped;
 import tracker.application.service.DailyService.DailyView;
 import tracker.domain.AnkenScope;
+import tracker.domain.Issue;
+import tracker.domain.Status;
 import tracker.domain.WorkStructure;
 
 /** The Daily Overview on the demo data; captures and notes write, so the context is dropped afterwards. */
@@ -37,6 +41,10 @@ class DailyServiceTest {
     DailySnapshotRepository snapshots;
     @Autowired
     JiraSettingsService jiraSettings;
+    @Autowired
+    RemainingDayRepository remainingDays;
+    @Autowired
+    TrackerContextLoader contexts;
 
     static DailyGroup group(DailyContent c, String name) {
         return c.groups().stream().filter(g -> g.name().equals(name)).findFirst().orElseThrow();
@@ -53,7 +61,7 @@ class DailyServiceTest {
                         org.assertj.core.groups.Tuple.tuple("Implement_Coding", "current"),
                         org.assertj.core.groups.Tuple.tuple("Function Unit Test", "current"));
         assertThat(v.content().pct()).isBetween(1, 99);
-        assertThat(v.content().diffH()).isEqualTo(v.content().actualToDateH() - v.content().planToDateH(),
+        assertThat(v.content().diffH()).isEqualTo(v.content().actualRemainH() - v.content().planRemainH(),
                 org.assertj.core.data.Offset.offset(0.011));
         assertThat(v.content().burndowns()).extracting(DailyService.DailyBurndown::phase)
                 .containsExactly(null, "Prepare", "Implement_Coding", "Function Unit Test");
@@ -63,12 +71,12 @@ class DailyServiceTest {
     void eachBurndownCarriesTheProgressOfItsSubTasks() {
         DailyContent c = daily.view(ALL, "PAY-1100", null).content();
         assertThat(c.burndowns().getFirst().progress())
-                .isEqualTo(new DailyService.DailyProgress(c.pct(), c.planToDateH(), c.actualToDateH(), c.diffH()));
+                .isEqualTo(new DailyService.DailyProgress(c.pct(), c.planRemainH(), c.actualRemainH(), c.diffH()));
         for (DailyService.DailyBurndown b : c.burndowns().subList(1, c.burndowns().size())) {
             DailyService.DailyProgress p = b.progress();
             assertThat(p).isNotNull();
             assertThat(p.pct()).isEqualTo(group(c, b.phase()).pct());
-            assertThat(p.diffH()).isEqualTo(p.actualToDateH() - p.planToDateH(), org.assertj.core.data.Offset.offset(0.011));
+            assertThat(p.diffH()).isEqualTo(p.actualRemainH() - p.planRemainH(), org.assertj.core.data.Offset.offset(0.011));
         }
     }
 
@@ -137,6 +145,11 @@ class DailyServiceTest {
         assertThat(captured.snapshots()).extracting(DailyService.SnapshotOption::date, DailyService.SnapshotOption::capturedBy)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("2026-10-07", "minh"));
         assertThat(daily.uncaptured()).doesNotContain("PAY-1100").contains("PAY-1300");
+        // the capture keeps each sub-task's remaining estimate of the day, 0 once Closed
+        List<Issue> subs = contexts.load(ALL).subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100")).toList();
+        Map<String, Map<String, Double>> seen = remainingDays.find(subs.stream().map(Issue::key).toList());
+        assertThat(seen.keySet()).containsExactlyInAnyOrderElementsOf(subs.stream().map(Issue::key).toList());
+        assertThat(subs).allMatch(i -> seen.get(i.key()).get("2026-10-07") == (i.status() == Status.CLOSED ? 0 : i.remainingH()));
 
         // a past day: the stored content, notes as they were, and nothing recomputed
         DailyContent then = captured.content();

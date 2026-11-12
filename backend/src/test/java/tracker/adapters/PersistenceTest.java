@@ -101,7 +101,7 @@ class PersistenceTest {
 
     @Test
     void flywayAppliedTheSchema() {
-        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17");
+        assertThat(jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = 1").query(String.class).list()).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18");
     }
 
     @Test
@@ -427,11 +427,11 @@ class PersistenceTest {
     }
 
     @Test
-    void missingThresholdDefaultsToOneHour() {
-        // a document written before the effort threshold existed
+    void theRemovedEffortThresholdIsIgnored() {
+        // a document written while the effort threshold existed
         jdbc.sql("INSERT INTO settings (id, value) VALUES (1, :v)").param("v",
-                "{\"thresholds\":{\"soon_days\":4,\"effort_warn_pct\":70,\"held_days\":3,\"review_rounds\":3,\"capacity_pct\":100}}").update();
-        assertThat(settings.load().thresholds.effortDiffH()).isEqualTo(1.0);
+                "{\"thresholds\":{\"soon_days\":4,\"effort_warn_pct\":70,\"held_days\":3,\"review_rounds\":3,\"capacity_pct\":100,\"effort_diff_h\":1}}")
+                .update();
         assertThat(settings.load().thresholds.soonDays()).isEqualTo(4);
     }
 

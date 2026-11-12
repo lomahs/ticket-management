@@ -2,27 +2,28 @@ package tracker.domain;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
-
-import tracker.domain.Capacity.DayPlan;
-import tracker.domain.Capacity.PlanItem;
 
 /**
  * Effort burndown over the shown working days from the day before the scope's start to the latest Planned End.
  * The first day is the baseline: nothing is planned on it, so the plan still has the whole estimate left.
- * Plan: each estimate spread evenly over its worker's working days ({@link Capacity#dailyPlan}). Actual: estimate − logged hours.
+ * Plan: the estimate less the hours planned up to the day ({@link PlanDays}). Actual: Jira's remaining estimate, live today
+ * and as the Daily Overview capture saw it on an earlier day; a day without a capture has no actual point.
  */
 public final class Burndown {
     private Burndown() {
     }
 
-    /** @param memberId the worker; "" when the sub-task has none */
-    public record Item(String key, String memberId, String start, String end, double estimateH, List<Worklog> worklogs) {
+    /**
+     * @param planDays    the hours planned on each day ({@link PlanDays#of})
+     * @param remainingH  Jira's remaining estimate now (0 once Closed)
+     * @param remainingOn the remaining estimate the captures saw, by day
+     */
+    public record Item(String key, String start, String end, double estimateH, Map<String, Double> planDays, List<Worklog> worklogs,
+                       double remainingH, Map<String, Double> remainingOn) {
     }
 
     /**
@@ -30,12 +31,12 @@ public final class Burndown {
      *
      * @param plannedH         planned to burn on this day
      * @param loggedH          logged on this day (logs outside the range count on its first or last day)
-     * @param actualRemainingH null after today
+     * @param actualRemainingH null after today, and before today on a day without a capture
      */
     public record BurndownDay(String date, double plannedH, double loggedH, double planRemainingH, @Nullable Double actualRemainingH) {
     }
 
-    /** @param planRemainingH and actualRemainingH: at the end of today (the estimate when today is before the range) */
+    /** @param planRemainingH and actualRemainingH: at the end of today (the plan is the estimate when today is before the range) */
     public record BurndownChart(double estimateH, @Nullable String start, @Nullable String end, double planRemainingH, double actualRemainingH,
                          List<BurndownDay> days) {
     }
@@ -78,40 +79,37 @@ public final class Burndown {
             burn.put(d, 0.0);
             logged.put(d, 0.0);
         });
-        Capacity.Plan plan = Capacity.dailyPlan(items.stream()
-                .map(i -> new PlanItem(i.key(), i.memberId(), i.start(), i.end(), i.estimateH())).toList(), cal);
-        Set<String> members = new LinkedHashSet<>();
-        items.forEach(i -> members.add(i.memberId()));
-        for (String m : members) {
-            for (Map.Entry<String, DayPlan> e : plan.member(m).entrySet()) {
-                burn.merge(snap(days, e.getKey()), e.getValue().total, Numbers::sum);
-            }
-        }
         for (Item i : items) {
+            i.planDays().forEach((d, h) -> burn.merge(snap(days, d), h, Numbers::sum));
             for (Worklog w : i.worklogs()) {
                 if (w.date().compareTo(today) <= 0) {
                     logged.merge(snap(days, w.date()), w.hours(), Numbers::sum);
                 }
             }
         }
+        double now = items.stream().mapToDouble(Item::remainingH).sum();
         List<BurndownDay> out = new ArrayList<>();
         double planned = 0;
-        double spent = 0;
         double planToday = est;
-        double actToday = est;
         for (String d : days) {
             planned += burn.get(d);
-            spent += logged.get(d);
             double planRem = Math.max(0, est - planned);
-            boolean past = d.compareTo(today) <= 0;
-            if (past) {
+            if (d.compareTo(today) <= 0) {
                 planToday = planRem;
-                actToday = est - spent;
             }
+            Double actual = d.equals(today) ? Double.valueOf(now) : d.compareTo(today) < 0 ? captured(items, d) : null;
             out.add(new BurndownDay(d, Numbers.round(burn.get(d), 2), Numbers.round(logged.get(d), 2), Numbers.round(planRem, 2),
-                    past ? Numbers.round(est - spent, 2) : null));
+                    actual == null ? null : Numbers.round(actual, 2)));
         }
         return new BurndownChart(Numbers.round(est, 2), days.get(0), days.get(days.size() - 1), Numbers.round(planToday, 2),
-                Numbers.round(actToday, 2), out);
+                Numbers.round(now, 2), out);
+    }
+
+    /** The remaining hours the capture of {@code day} saw; an item it did not see counts its estimate. null without a capture. */
+    private static @Nullable Double captured(List<Item> items, String day) {
+        if (items.stream().noneMatch(i -> i.remainingOn().containsKey(day))) {
+            return null;
+        }
+        return items.stream().mapToDouble(i -> i.remainingOn().getOrDefault(day, i.estimateH())).sum();
     }
 }

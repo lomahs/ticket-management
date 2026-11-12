@@ -30,7 +30,7 @@ export function ScheduleSummary({ epic, s }: { epic: string; s: Rollup }) {
   );
 }
 
-/** "+1h (Over-burn)"; a link to the ticket list (of the phase, when given) for an under- or over-burn. */
+/** "+1h (Delay)": actual remain − plan remain; a link to the ticket list (of the phase, when given) for a delay or ahead. */
 function EffortText({ epic, s, phase, prefix = '' }: { epic: string; s: Rollup; phase?: string; prefix?: string }) {
   const text = `${prefix}${signedH(s.diff_h)} (${SCHEDULE_LABEL[s.effort]})`;
   if (s.effort !== 'under_burn' && s.effort !== 'over_burn') return text;
@@ -50,12 +50,12 @@ export function CountLink({ epic, label, n, phase }: { epic: string; label: Sche
   );
 }
 
-/** A phase's plan against actual to date, and the counts of its sub-tasks per label. */
+/** A phase's plan remain against its actual remain, and the counts of its sub-tasks per label. */
 export function PhaseSchedule({ epic, phase, s }: { epic: string; phase: string; s: Rollup }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 14px', padding: '0 14px 8px', fontSize: 12 }}>
       <span style={{ color: 'var(--text-muted)' }}>
-        plan to date {f2(s.plan_to_date_h)}h · actual {f2(s.actual_to_date_h)}h · <EffortText epic={epic} s={s} phase={phase} />
+        plan remain {f2(s.plan_remain_h)}h · actual remain {f2(s.actual_remain_h)}h · <EffortText epic={epic} s={s} phase={phase} />
       </span>
       <span style={{ padding: '1px 7px', borderRadius: 99, fontWeight: 600, fontSize: 11, background: (STATE_TONE[s.state] ?? neutral).bg, color: (STATE_TONE[s.state] ?? neutral).fg }}>
         {STATE_LABEL[s.state]}
