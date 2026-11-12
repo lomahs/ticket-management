@@ -371,7 +371,6 @@ function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
   const ba = av(members[r.ba_id ?? ''], r.ba_id ?? '–');
   const bal = av(members[r.bal_id ?? ''], r.bal_id ?? '–');
   const n = r.cells.length; // 3 or 5 steps
-  const stepText = r.current >= n ? `All ${n} steps done` : `Step ${r.current + 1}/${n} · ${STEPS[r.current].label}`;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: MX_GRID, minWidth: 1010, borderBottom: '1px solid var(--border-subtle)' }}>
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, minWidth: 0 }}>
@@ -385,10 +384,6 @@ function FnRow({ r }: { r: Schemas['FunctionRow'] }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 20, padding: '0 8px', borderRadius: 999, background: `var(--tn-${ft}-bg)`, font: '600 11px/1 var(--font-text)', color: 'var(--text-heading)', whiteSpace: 'nowrap' }}>
             <Dot c={`var(--tn-${ft})`} size={7} />{fl}
           </span>
-          <span title={stepText} className="ellipsis" style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--text-muted)' }}>{stepText}</span>
-          <div title={r.cells.map((c, i) => `${STEPS[i].label}: ${c ? statusOf(c.status).label : '—'}`).join(' · ')} style={{ display: 'flex', gap: 2 }}>
-            {r.cells.map((c, i) => <span key={i} style={{ width: 10, height: 6, borderRadius: 3, background: c ? `var(--tn-${c.tone})` : 'var(--border-subtle)' }} />)}
-          </div>
         </div>
       </div>
       {r.cells.map((c, i) => (c ? <Cell key={c.key} c={c} /> : <div key={i} style={{ margin: 3, borderRadius: 10, border: '1px dashed var(--border-subtle)' }} title="Sub-task not in Jira" />))}

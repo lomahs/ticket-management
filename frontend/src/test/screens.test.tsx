@@ -155,7 +155,7 @@ describe('screens render API data at their URLs', () => {
     server.use(http.get('*/api/v1/anken/PAY-1100/matrix', () => HttpResponse.json(m)));
     renderApp('/anken/PAY-1100/matrix');
     expect(await screen.findByText('No JM steps')).toBeTruthy();
-    expect(screen.getByTitle(/^Step 2\/3 · BAL Review$/)).toBeTruthy();
+    expect(screen.queryByTitle(/^Step \d\/\d/)).toBeNull(); // no step count on the row
   });
 
   it('opens the ticket panel over the matrix when a cell is clicked', async () => {
