@@ -1556,6 +1556,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tickets/subtask-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["subtaskTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tickets/{key}": {
         parameters: {
             query?: never;
@@ -2430,6 +2446,11 @@ export interface components {
             token?: string | null;
             url: string;
         };
+        JiraIssueType: {
+            id: string;
+            name: string;
+            subtask: boolean;
+        };
         JiraLogEntry: {
             actor_email: string;
             actor_name: string;
@@ -2690,6 +2711,7 @@ export interface components {
             assignee_id: string;
             /** Format: double */
             estimate_h?: number | null;
+            issueTypeId?: string;
             parent_key?: string | null;
             parent_ref?: string | null;
             planned_end?: string | null;
@@ -3142,6 +3164,10 @@ export interface components {
             phases: string[];
             seen: components["schemas"]["SeenTask"][];
             tasks: components["schemas"]["TaskTemplate"][];
+        };
+        SubtaskTypes: {
+            default_id: string | null;
+            types: components["schemas"]["JiraIssueType"][];
         };
         SyncIn: {
             full?: boolean | null;
@@ -6221,6 +6247,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TicketBoard"];
+                };
+            };
+        };
+    };
+    subtaskTypes: {
+        parameters: {
+            query: {
+                anken: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtaskTypes"];
                 };
             };
         };

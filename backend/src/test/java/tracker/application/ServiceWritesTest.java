@@ -105,13 +105,14 @@ class ServiceWritesTest {
     }
 
     @Test
-    void createsAThreeStepFunction() {
+    void createsAThreeStepFunction(@Autowired JiraWriteLog log) {
         FunctionDraft d = new FunctionDraft("PAY-1102", "Execute test case", "an", "minh", null, 8,
                 new ArrayList<>(Collections.nCopies(3, null)), 3);
         assertThat(anken.previewFunction(ALL, "PAY-1100", d).steps()).extracting(AnkenService.PreviewStep::step)
                 .containsExactly("create", "balr", "fixb");
         List<String> keys = anken.createFunction(ADMIN, ALL, "PAY-1100", d);
         assertThat(keys).hasSize(3);
+        assertThat(log.recent(3, false)).allSatisfy(e -> assertThat(e.body()).contains("\"issuetype\":{\"id\":\"10003\"}"));
         AnkenService.MatrixView m = anken.matrix(ALL, "PAY-1100", null, null, null);
         AnkenService.FunctionRow made = m.functions().stream().filter(f -> f.id().equals("Execute test case")).findFirst().orElseThrow();
         assertThat(made.cells()).extracting(TaskCard::key).containsExactlyElementsOf(keys);
@@ -363,6 +364,24 @@ class ServiceWritesTest {
         assertThat(log.recent(10, false)).extracting(e -> e.source() + " " + e.method() + " " + e.status()).containsExactly(
                 "tickets POST 201", "tickets POST 201", "tickets POST 201", "tickets PUT 204");
         assertThat(log.recent(10, false).get(1).body()).contains("\"parent\":{\"key\":\"PAY-1501\"}");
+    }
+
+    /** The project lists a Bug sub-task type before Sub-task: a new sub-task is a Sub-task unless another type is picked. */
+    @Test
+    void newSubtaskIsASubtaskUnlessAnotherTypeIsPicked() {
+        TicketService.SubtaskTypes types = tickets.subtaskTypes(ALL, "PAY-1100");
+        assertThat(types.types()).extracting(tracker.application.dto.JiraIssueType::name).containsExactly("Sub-bug", "Sub-task");
+        assertThat(types.defaultId()).isEqualTo("10003");
+
+        TicketService.NewTicket bug = new TicketService.NewTicket("s2", true, "PAY-1101", null, "Refund rounding", "an", null, null, null, null,
+                List.of(), "10004");
+        TicketService.BatchPreview p = tickets.previewBatch(ALL, "PAY-1100", List.of(), List.of(newSub("s1", "PAY-1101", null, "Collect sample data"), bug));
+        assertThat(p.creates().get(0).request().body()).contains("\"issuetype\":{\"id\":\"10003\"}");
+        assertThat(p.creates().get(1).request().body()).contains("\"issuetype\":{\"id\":\"10004\"}");
+
+        TicketService.NewTicket task = new TicketService.NewTicket("s1", true, "PAY-1101", null, "X", "an", null, null, null, null, List.of(), "10001");
+        assertThatThrownBy(() -> tickets.previewBatch(ALL, "PAY-1100", List.of(), List.of(task))).isInstanceOf(Invalid.class)
+                .hasMessageContaining("10001 is not a sub-task type of project PAY");
     }
 
     /** The Tickets screen renames a ticket: the summary is reviewed against Jira's and written with the other fields. */

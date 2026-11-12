@@ -23,6 +23,7 @@ import tracker.application.TaskCard;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.dto.IssueSnapshot;
+import tracker.application.dto.JiraIssueType;
 import tracker.application.dto.JiraRequest;
 import tracker.application.dto.JiraTransition;
 import tracker.application.dto.UserSnapshot;
@@ -382,14 +383,31 @@ public class TicketService {
      * A Task (under the epic) or a sub-task to create.
      *
      * @param ref       the client's id for it, so a sub-task can name a new Task as {@code parentRef}
-     * @param parentKey the Task of a new sub-task, when it exists already
+     * @param parentKey   the Task of a new sub-task, when it exists already
+     * @param issueTypeId the sub-task type picked for a new sub-task; null: the project's default ({@link JiraIssueType#defaultSubtask})
      */
     public record NewTicket(String ref, boolean subtask, @Nullable String parentKey, @Nullable String parentRef, String summary,
                             String assigneeId, @Nullable String reporterId, @Nullable String plannedStart, @Nullable String plannedEnd,
-                            @Nullable Double estimateH, List<String> labels) {
+                            @Nullable Double estimateH, List<String> labels, @Nullable String issueTypeId) {
         public NewTicket {
             labels = labels == null ? List.of() : List.copyOf(labels);
         }
+
+        public NewTicket(String ref, boolean subtask, @Nullable String parentKey, @Nullable String parentRef, String summary, String assigneeId,
+                         @Nullable String reporterId, @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH,
+                         List<String> labels) {
+            this(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, labels, null);
+        }
+    }
+
+    /** The sub-task types the anken's project can create, and the one a new sub-task gets when none is picked. */
+    public record SubtaskTypes(List<JiraIssueType> types, @Nullable String defaultId) {
+    }
+
+    /** Read from Jira when sub-tasks are added on the Tickets screen. */
+    public SubtaskTypes subtaskTypes(AnkenScope scope, String epic) {
+        List<JiraIssueType> types = reader.issueTypes(epicOf(context.load(scope), epic).project());
+        return new SubtaskTypes(types.stream().filter(JiraIssueType::subtask).toList(), JiraIssueType.defaultSubtask(types));
     }
 
     /** @param parent the Task (or epic) key, or {@code <new:ref>} for a Task created in the same batch */
@@ -421,11 +439,10 @@ public class TicketService {
         }
         Anken a = epicOf(ctx, epic);
         FieldMapping fm = ctx.settings.fieldMapping;
-        List<tracker.application.dto.JiraIssueType> types = reader.issueTypes(a.project());
-        String taskType = types.stream().filter(t -> !t.subtask() && t.name().equalsIgnoreCase("Task")).map(tracker.application.dto.JiraIssueType::id)
+        List<JiraIssueType> types = reader.issueTypes(a.project());
+        String taskType = types.stream().filter(t -> !t.subtask() && t.name().equalsIgnoreCase("Task")).map(JiraIssueType::id)
                 .findFirst().orElse(null);
-        String subtaskType = types.stream().filter(tracker.application.dto.JiraIssueType::subtask).map(tracker.application.dto.JiraIssueType::id)
-                .findFirst().orElse(null);
+        String subtaskType = JiraIssueType.defaultSubtask(types);
         Map<String, NewTicket> newTasks = new LinkedHashMap<>();
         List<NewTicketPreview> out = new ArrayList<>();
         for (int n = 0; n < creates.size(); n++) {
@@ -448,6 +465,9 @@ public class TicketService {
                 }
                 if (subtaskType == null) {
                     throw new Invalid("Project " + a.project() + " has no sub-task issue type", at + "subtask");
+                }
+                if (Text.hasText(c.issueTypeId()) && types.stream().noneMatch(t -> t.subtask() && t.id().equals(c.issueTypeId()))) {
+                    throw new Invalid(c.issueTypeId() + " is not a sub-task type of project " + a.project(), at + "issue_type_id");
                 }
             } else {
                 parent = epic;
@@ -485,7 +505,7 @@ public class TicketService {
                 throw new Invalid("A label cannot be empty or contain spaces", at + "labels");
             }
             out.add(new NewTicketPreview(c.ref(), c.subtask(), parent, c.summary().strip(),
-                    JiraRequests.createIssue(a.project(), c.subtask() ? subtaskType : taskType, parent, c.summary().strip(), values, labels, fm)));
+                    JiraRequests.createIssue(a.project(), c.subtask() ? Text.orElse(c.issueTypeId(), subtaskType) : taskType, parent, c.summary().strip(), values, labels, fm)));
         }
         return out;
     }

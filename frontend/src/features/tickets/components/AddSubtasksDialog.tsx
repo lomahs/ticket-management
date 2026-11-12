@@ -1,10 +1,11 @@
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, IconButton, Select, TextField, type Option } from '../../../shared/ds';
 import { dm, f2 } from '../../../shared/format/dates';
 import { functionPreviewQuery } from '../../matrix';
+import { subtaskTypesQuery } from '../api';
 import { newRef, type NewRow } from '../model/draft';
 import { useDebounced } from '../../../shared/state/debounce';
 
@@ -14,13 +15,18 @@ export interface ParentTask { key?: string; ref?: string; summary: string; workf
 
 /**
  * Sub-tasks for one Task, as drafts. Under a workflow Task each function name becomes its step sub-tasks (3 or 5), named and
- * planned like Add function does; otherwise (or for a Task that is new itself) one sub-task at a time.
+ * planned like Add function does; otherwise (or for a Task that is new itself) one sub-task at a time. Type: one of the project's
+ * sub-task types, read from Jira; the Sub-task type until another is picked.
  */
 export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
   epic: string; task: ParentTask; people: Option[]; members: Schemas['Member'][]; add: (rows: NewRow[]) => void; close: () => void;
 }) {
   const canFunctions = task.workflow && !!task.key;
   const [mode, setMode] = useState<'fn5' | 'fn3' | 'single'>(canFunctions ? 'fn5' : 'single');
+  const types = useQuery(subtaskTypesQuery(epic));
+  const [picked, setType] = useState('');
+  const type = picked || types.data?.default_id || '';
+  const typed = (rows: NewRow[]) => rows.map((r) => ({ ...r, issue_type_id: type || undefined }));
   const parent = task.key ? { parent_key: task.key } : { parent_ref: task.ref };
   return (
     <div className="scrim" onClick={close}>
@@ -32,6 +38,11 @@ export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
             <div className="eyebrow ellipsis">{task.key ?? 'New task'} · {task.summary}</div>
           </div>
           <IconButton icon="x" label="Close" size="sm" onClick={close} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+          <Select label="Type" value={type} onChange={setType} disabled={!types.data} style={{ width: 220 }}
+            options={types.data ? types.data.types.map((t) => ({ value: t.id, label: t.name })) : [{ value: '', label: types.isError ? 'Sub-task (default)' : 'Loading…' }]} />
+          {types.isError && <span className="eyebrow" style={{ paddingBottom: 8 }}>Could not read the types from Jira: the project's Sub-task type is used.</span>}
         </div>
         {canFunctions && (
           <div className="seg" role="group" aria-label="Kind" style={{ alignSelf: 'flex-start' }}>
@@ -45,8 +56,8 @@ export function AddSubtasksDialog({ epic, task, people, members, add, close }: {
         )}
         {mode !== 'single' && task.key
           ? <Functions key={mode} epic={epic} parentKey={task.key} steps={mode === 'fn3' ? 3 : 5} people={people} members={members}
-            add={(rows) => { add(rows); close(); }} close={close} />
-          : <Single people={people} add={(row) => { add([{ ...row, ...parent }]); close(); }} close={close} />}
+            add={(rows) => { add(typed(rows)); close(); }} close={close} />
+          : <Single people={people} add={(row) => { add(typed([{ ...row, ...parent }])); close(); }} close={close} />}
       </div>
     </div>
   );

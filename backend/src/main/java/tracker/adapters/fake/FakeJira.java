@@ -149,6 +149,8 @@ public final class FakeJira implements JiraReader, JiraWriter {
     private static final Map<String, String> TRANSITION_NAMES = Map.of("N", "Reopen", "W", "Start progress", "R", "Resolve", "C", "Close");
     static final String TASK_TYPE = "10001";
     static final String SUBTASK_TYPE = "10003";
+    /** A second sub-task type, listed first as real projects can: a new sub-task must not land on it by default. */
+    static final String SUB_BUG_TYPE = "10004";
 
     @Override
     public synchronized List<JiraTransition> transitions(String key) {
@@ -165,7 +167,8 @@ public final class FakeJira implements JiraReader, JiraWriter {
 
     @Override
     public List<JiraIssueType> issueTypes(String project) {
-        return List.of(new JiraIssueType(TASK_TYPE, "Task", false), new JiraIssueType(SUBTASK_TYPE, "Sub-task", true));
+        return List.of(new JiraIssueType(TASK_TYPE, "Task", false), new JiraIssueType(SUB_BUG_TYPE, "Sub-bug", true),
+                new JiraIssueType(SUBTASK_TYPE, "Sub-task", true));
     }
 
     // --- JiraWriter -------------------------------------------------------------------------------------------------
@@ -278,7 +281,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
                 throw new JiraRejected(400, "The parent of a Task must be an epic: " + parentKey);
             }
             project = Dataset.EPICS.get(parentKey).project();
-        } else if (SUBTASK_TYPE.equals(type)) {
+        } else if (SUBTASK_TYPE.equals(type) || SUB_BUG_TYPE.equals(type)) {
             FakeIssue parent = issue(parentKey);
             if (!Dataset.EPICS.containsKey(parent.parent)) {
                 throw new JiraRejected(400, "The parent of a sub-task must be a Task: " + parentKey);

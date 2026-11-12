@@ -27,6 +27,7 @@ import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.BatchResult;
 import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.NewTicket;
+import tracker.application.service.TicketService.SubtaskTypes;
 import tracker.application.service.TicketService.TicketBoard;
 import tracker.application.service.TicketService.TicketChangePreview;
 import tracker.application.service.TicketService.TicketUpdate;
@@ -81,9 +82,10 @@ public class TicketsApi {
                               @NotNull @Size(max = 255) String summary, @NotNull String assigneeId, @Nullable String reporterId,
                               @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedStart,
                               @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String plannedEnd,
-                              @Nullable @PositiveOrZero Double estimateH) {
+                              @Nullable @PositiveOrZero Double estimateH, @Nullable String issueTypeId) {
         NewTicket ticket() {
-            return new NewTicket(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, List.of());
+            return new NewTicket(ref, subtask, parentKey, parentRef, summary, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, List.of(),
+                    issueTypeId);
         }
     }
 
@@ -136,6 +138,13 @@ public class TicketsApi {
     @GetMapping("/tickets/board")
     public TicketBoard board(@RequestParam String anken, Viewer viewer) {
         return tickets.board(scopes.scope(viewer, anken), anken);
+    }
+
+    /** The sub-task types of the anken's Jira project, read from Jira, for Add sub-tasks. */
+    @Requires(feature = Feature.TICKET, level = Level.READ)
+    @GetMapping("/tickets/subtask-types")
+    public SubtaskTypes subtaskTypes(@RequestParam String anken, Viewer viewer) {
+        return tickets.subtaskTypes(scopes.scope(viewer, anken), anken);
     }
 
     /** Reads the changed tickets from Jira and shows what the batch would change and create, with the requests. Admins. */

@@ -10,6 +10,13 @@ export const boardQuery = (epic: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/tickets/board', { params: { query: { anken: epic } } })),
 });
 
+/** The sub-task types of the anken's Jira project, read from Jira, and the one a new sub-task gets by default. */
+export const subtaskTypesQuery = (epic: string) => ({
+  queryKey: ['tickets', 'subtask-types', epic] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/tickets/subtask-types', { params: { query: { anken: epic } } })),
+  staleTime: 10 * 60_000,
+});
+
 /** Reads every changed ticket from Jira and returns what the batch would change and create, with the requests. */
 export function usePreviewBatch() {
   return useMutation({

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -578,7 +579,7 @@ public class AnkenService {
                 throw new Invalid(ctx.members.get(s.assigneeId()).name() + " has no Jira account", "assignee");
             }
         }
-        String type = reader.issueTypes(project).stream().filter(JiraIssueType::subtask).map(JiraIssueType::id).findFirst()
+        String type = Optional.ofNullable(JiraIssueType.defaultSubtask(reader.issueTypes(project)))
                 .orElseThrow(() -> new Invalid("Project " + project + " has no sub-task issue type", "parent"));
         List<String> keys = new ArrayList<>();
         try {

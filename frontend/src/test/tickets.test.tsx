@@ -17,6 +17,8 @@ const board = {
     subtasks: [row('PAY-1104', 'Kick-off with JM'), row('PAY-1105', 'Collect sample data', { assignee_id: 'binh' })] }],
   templates: [{ match: '[Prepare] Work requests', phase: 'Prepare', workflow: false, exists: false }],
 };
+const subtaskTypes = http.get('*/api/v1/tickets/subtask-types', () => HttpResponse.json({
+  types: [{ id: '10004', name: 'Sub-bug', subtask: true }, { id: '10003', name: 'Sub-task', subtask: true }], default_id: '10003' }));
 
 describe('Tickets', () => {
   it('keeps edits and new tasks as drafts, reviews the batch and commits exactly what was reviewed', async () => {
@@ -65,12 +67,43 @@ describe('Tickets', () => {
     expect(await screen.findByText(/PAY-1100 is committed to Jira/)).toBeTruthy();
   });
 
+  it('adds a sub-task as Sub-task, or as the type picked', async () => {
+    let previewed: { creates: { issue_type_id?: string }[] } | undefined;
+    server.use(
+      http.get('*/api/v1/tickets/board', () => HttpResponse.json(board)),
+      subtaskTypes,
+      http.post('*/api/v1/tickets/batch/preview', async ({ request }) => {
+        previewed = await request.json() as typeof previewed;
+        return HttpResponse.json({ updates: [], creates: [] });
+      }),
+    );
+    renderApp('/tickets/PAY-1100');
+    const add = async (summary: string, type?: string) => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Create' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /Sub-tasks/ }));
+      const pick = await screen.findByRole('dialog', { name: 'Sub-tasks under a Task' });
+      fireEvent.change(within(pick).getByLabelText('Under the Task'), { target: { value: 'PAY-1101' } });
+      fireEvent.click(within(pick).getByRole('button', { name: 'Next' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add sub-tasks' });
+      await waitFor(() => expect((within(dialog).getByLabelText('Type') as HTMLSelectElement).value).toBe('10003'));
+      if (type) fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: type } });
+      fireEvent.change(within(dialog).getByLabelText('Summary'), { target: { value: summary } });
+      fireEvent.change(within(dialog).getByLabelText('Assignee'), { target: { value: 'an' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Add sub-task' }));
+    };
+    await add('Collect refunds');
+    await add('Refund rounding', '10004');
+    fireEvent.click(await screen.findByRole('button', { name: 'Review & commit' }));
+    await waitFor(() => expect(previewed?.creates.map((c) => c.issue_type_id)).toEqual(['10003', '10004']));
+  });
+
   it('adds 3-step functions under a workflow Task', async () => {
     const bodies: { steps?: number; jm?: string | null }[] = [];
     const wf = { ...board, tasks: [{ task: row('PAY-1102', '[Implement_Coding] Payment flow', { estimate_h: 0 }), phase: 'Implement_Coding',
       workflow: true, subtasks: [] }] };
     server.use(
       http.get('*/api/v1/tickets/board', () => HttpResponse.json(wf)),
+      subtaskTypes,
       http.post('*/api/v1/anken/PAY-1100/functions/preview', async ({ request }) => {
         bodies.push(await request.json() as { steps?: number });
         return HttpResponse.json({ phase: 'Implement_Coding', function_id: 'F13', prefix: 'PAY', steps: [] });

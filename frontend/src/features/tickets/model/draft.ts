@@ -19,6 +19,8 @@ export interface NewRow {
   planned_start: string;
   planned_end: string;
   estimate_h: string;
+  /** A sub-task's Jira issue type; none: the project's Sub-task type. */
+  issue_type_id?: string;
 }
 
 /** A row's value of a field as the board has it. */
@@ -47,7 +49,7 @@ export const updatesOf = (edits: Edits): Schemas['UpdateIn'][] => Object.entries
 export const createsOf = (rows: NewRow[]): Schemas['NewTicketIn'][] => [...rows].sort((a, b) => Number(a.subtask) - Number(b.subtask)).map((r) => ({
   ref: r.ref, subtask: r.subtask, parent_key: r.parent_key, parent_ref: r.parent_ref, summary: r.summary.trim(), assignee_id: r.assignee_id,
   reporter_id: r.reporter_id || undefined, planned_start: r.planned_start || undefined, planned_end: r.planned_end || undefined,
-  estimate_h: r.estimate_h !== '' ? Number(r.estimate_h) : undefined,
+  estimate_h: r.estimate_h !== '' ? Number(r.estimate_h) : undefined, issue_type_id: r.subtask ? r.issue_type_id || undefined : undefined,
 }));
 
 let n = 0;
