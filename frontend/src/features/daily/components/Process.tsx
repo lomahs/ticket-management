@@ -105,9 +105,11 @@ function Hub({ name, sigma = false, state, pct, b, on, pick }: {
       : `conic-gradient(${C.wip} 0 ${tick}%, ${C.done} ${tick}% ${a}%, var(--do-nys-bg) ${a}%)`;
   } else ring = `conic-gradient(${C.wip} ${pct}%, var(--do-nys-bg) 0)`;
   const ahead = (p?.diff_h ?? 0) >= 0;
+  // a phase not started with nothing to be ahead or behind on says NYS, not "+0.00h ahead"
+  const nys = state === 'nys' && p != null && f2(p.diff_h) === '0.00';
   const span = b ? `${dm(b.chart.start) || '?'} → ${dm(b.chart.end) || '?'}` : '';
   const tip = [name, span, p && est > 0 ? `effort ${f2(p.actual_to_date_h)}h of ${f2(est)}h estimated · plan by today ${f2(p.plan_to_date_h)}h` : '',
-    p ? `${signedH(p.diff_h)} ${ahead ? 'ahead' : 'behind'}` : ''].filter(Boolean).join(' · ');
+    nys ? 'NYS' : p ? `${signedH(p.diff_h)} ${ahead ? 'ahead' : 'behind'}` : ''].filter(Boolean).join(' · ');
   const donut: CSSProperties = { position: 'relative', display: 'grid', placeItems: 'center', width: 66, height: 66, borderRadius: '50%', background: ring,
     ...(state === 'run' ? glow(C.wip) : {}) };
   return (
@@ -125,7 +127,8 @@ function Hub({ name, sigma = false, state, pct, b, on, pick }: {
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, font: '800 14px/1.2 var(--font-text)', color: 'var(--text-heading)', textAlign: 'center' }}>
         {name}{sigma && <span className="do-tag">Σ</span>}
       </span>
-      {p && (
+      {nys && <span className="do-pill" style={{ height: 22, background: 'var(--do-nys-bg)', color: 'var(--do-nys)', fontWeight: 800 }}>NYS</span>}
+      {p && !nys && (
         <span className="do-pill" style={{ height: 22, background: ahead ? 'var(--do-clo-bg)' : 'var(--do-red-bg)', color: ahead ? 'var(--do-clo)' : 'var(--do-red)', fontWeight: 800 }}>
           {ahead ? '▲' : '▼'} {signedH(p.diff_h)} {ahead ? 'ahead' : 'behind'}
         </span>

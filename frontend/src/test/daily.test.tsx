@@ -159,6 +159,18 @@ describe('Daily Overview', () => {
     expect(within(screen.getByRole('region', { name: 'Function overview' })).getByText('Domestic card payment')).toBeTruthy();
   });
 
+  it('says NYS for a phase not started with nothing ahead or behind', async () => {
+    const c = content('2026-10-07', '');
+    c.groups.push({ name: 'UAT', state: 'not_started', pct: 0, closed: 0, total: 4, late: 0, sub_phases: [] });
+    c.burndowns.push({ phase: 'UAT', chart, progress: progress(0, 0, 0) });
+    server.use(http.get('*/api/v1/daily', () => HttpResponse.json({ ...live([]), content: c })));
+    renderApp('/daily?anken=PAY-1100');
+    const proc = await screen.findByRole('region', { name: 'Process' });
+    const uat = within(proc).getByRole('button', { name: /UAT/ });
+    expect(uat.textContent).toContain('NYS');
+    expect(uat.textContent).not.toContain('+0.00h');
+  });
+
   it('says so when no Daily phase is in the anken', async () => {
     server.use(http.get('*/api/v1/daily', () => HttpResponse.json(live(['UAT']))));
     renderApp('/daily?anken=PAY-1100');
