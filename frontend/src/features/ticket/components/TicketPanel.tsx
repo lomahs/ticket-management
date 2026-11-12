@@ -118,15 +118,11 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
     apply.mutate(review, { onSuccess: () => setDraft({}) });
   };
   const sc = c.schedule;
-  // Jira's remaining estimate against what the plan leaves at the end of today, as the effort label judges them: the gap is
-  // red on a delay, green when ahead. Without planned dates or an estimate there is no plan to compare with.
-  const planned = sc.effort !== 'no_plan' && sc.effort !== 'no_estimate';
-  const actRem = c.remaining_h;
-  const planRem = planned ? sc.plan_remain_h : actRem;
-  const gap = planned ? sc.diff_h : 0;
-  const tot = Math.max(c.estimate_h, actRem) || 1;
-  const inn = tot - Math.max(actRem, planRem);
-  const gapFg = gap > 0 ? 'var(--hl-red-fg)' : 'var(--hl-ok-fg)';
+  // Jira's Time tracking: the bar is logged + remaining, blue for the hours logged within the original estimate, orange for
+  // those beyond it, grey for what remains
+  const tot = c.logged_h + c.remaining_h || 1;
+  const within = c.estimate_h > 0 ? Math.min(c.logged_h, c.estimate_h) : c.logged_h;
+  const beyond = c.logged_h - within;
   const effortLine = sc.effort === 'no_plan' ? 'No planned dates' : sc.effort === 'no_estimate' ? 'No estimate'
     : `${SCHEDULE_LABEL[sc.effort]} · plan remain ${f2(sc.plan_remain_h)}h · actual remain ${f2(sc.actual_remain_h)}h · ${signedH(sc.diff_h)}`;
   const offTitle = off;
@@ -202,19 +198,18 @@ function TicketBody({ ticketKey, back, close }: { ticketKey: string; back: Ticke
             <span className="spacer" />
             <span style={{ font: '600 13px/1 var(--font-mono)', color: c.over ? 'var(--hl-red-fg)' : 'var(--text-heading)' }}>{f2(c.logged_h)} / {hrs(c.estimate_h)}</span>
           </div>
-          <div style={{ display: 'flex', gap: 2, height: 8, borderRadius: 99, background: 'var(--border-subtle)', marginTop: 8, overflow: 'hidden' }}>
-            <div style={{ height: 8, width: (inn / tot) * 100 + '%', background: 'var(--st-wip)' }} />
-            {gap !== 0 && <div data-gap={gap > 0 ? 'delay' : 'ahead'} style={{ height: 8, width: (Math.abs(gap) / tot) * 100 + '%', background: gapFg }} />}
+          <div role="img" aria-label={`${hrs(c.logged_h)} logged, ${hrs(c.remaining_h)} remaining`}
+            style={{ display: 'flex', height: 8, borderRadius: 99, background: 'var(--border-subtle)', marginTop: 8, overflow: 'hidden' }}>
+            <div data-part="logged" style={{ height: 8, width: (within / tot) * 100 + '%', background: 'var(--st-wip)' }} />
+            {beyond > 0 && <div data-part="beyond" style={{ height: 8, width: (beyond / tot) * 100 + '%', background: 'var(--hl-amber-fg)' }} />}
           </div>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-            <span>Actual remain <b className="mono heading">{hrs(actRem)}</b></span>
-            {planned && <span>Plan remain <b className="mono heading">{hrs(planRem)}</b></span>}
-            {planned && (gap === 0 ? <span>{SCHEDULE_LABEL.on_plan}</span> : (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: gapFg }} />
-                {SCHEDULE_LABEL[sc.effort]} <b className="mono" style={{ color: gapFg }}>{signedH(gap)}</b>
-              </span>
-            ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span><b className="mono heading">{hrs(c.logged_h)}</b> logged</span>
+            <span><b className="mono heading">{hrs(c.remaining_h)}</b> remaining</span>
+          </div>
+          <div data-part="estimate" style={{ marginTop: 2, fontSize: 11, color: 'var(--text-muted)' }}>
+            Original estimate <b className="mono heading">{c.estimate_h > 0 ? hrs(c.estimate_h) : '—'}</b>
+            {beyond > 0 && <span style={{ color: 'var(--hl-amber-fg)', fontWeight: 600 }}>{` · ${hrs(beyond)} over`}</span>}
           </div>
         </div>
         {t.history.length > 0 && (

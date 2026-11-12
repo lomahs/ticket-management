@@ -213,36 +213,29 @@ describe('ticket panel', () => {
     expect(screen.getByText('Effort: Delay · plan remain 2.00h · actual remain 6.00h · +4.00h')).toBeTruthy();
   });
 
-  describe('effort bar: actual remain against plan remain', () => {
-    // estimate 10h, 4h planned by today: the plan leaves 6h
-    const serve = (remaining: number) => server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({
-      ...fixtures.ticket, card: { ...fixtures.ticket.card, estimate_h: 10, logged_h: 4, remaining_h: remaining, schedule: issue({
-        plan_remain_h: 6, actual_remain_h: remaining, diff_h: remaining - 6,
-        effort: remaining > 6 ? 'under_burn' : remaining < 6 ? 'over_burn' : 'on_plan' }) },
+  describe('effort bar: Jira time tracking', () => {
+    const serve = (logged: number, remaining: number) => server.use(http.get('*/api/v1/tickets/PAY-1213', () => HttpResponse.json({
+      ...fixtures.ticket, card: { ...fixtures.ticket.card, estimate_h: 8, logged_h: logged, remaining_h: remaining, schedule: issue() },
     })));
-    const gapBar = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-gap]');
+    const part = (c: HTMLElement, name: string) => c.querySelector<HTMLElement>(`[data-part="${name}"]`);
 
-    it('is red when more remains than the plan leaves', async () => {
-      serve(8);
+    it('fills the logged hours over logged + remaining', async () => {
+      serve(6, 2);
       const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
-      expect(await screen.findByText('Delay')).toBeTruthy();
-      expect(screen.getByText('+2.00h')).toBeTruthy();
-      expect(gapBar(container)?.style.background).toContain('hl-red-fg');
+      expect(await screen.findByRole('img', { name: '6.00h logged, 2.00h remaining' })).toBeTruthy();
+      expect(part(container, 'logged')?.style.width).toBe('75%');
+      expect(part(container, 'beyond')).toBeNull();
+      expect(part(container, 'estimate')?.textContent).toBe('Original estimate 8.00h');
     });
 
-    it('is green when less remains than the plan leaves', async () => {
-      serve(5);
+    it('shows the hours logged beyond the original estimate in orange', async () => {
+      serve(9, 1);
       const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
-      expect(await screen.findByText('Ahead')).toBeTruthy();
-      expect(screen.getByText('−1.00h')).toBeTruthy();
-      expect(gapBar(container)?.style.background).toContain('hl-ok-fg');
-    });
-
-    it('stays blue only when both are equal', async () => {
-      serve(6);
-      const { container } = renderApp('/my-work?member=binh&ticket=PAY-1213');
-      expect(await screen.findByText('On plan')).toBeTruthy();
-      expect(gapBar(container)).toBeNull();
+      expect(await screen.findByRole('img', { name: '9.00h logged, 1.00h remaining' })).toBeTruthy();
+      expect(part(container, 'logged')?.style.width).toBe('80%');
+      expect(part(container, 'beyond')?.style.width).toBe('10%');
+      expect(part(container, 'beyond')?.style.background).toContain('hl-amber-fg');
+      expect(part(container, 'estimate')?.textContent).toBe('Original estimate 8.00h · 1.00h over');
     });
   });
 
