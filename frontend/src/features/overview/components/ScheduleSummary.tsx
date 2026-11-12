@@ -22,19 +22,21 @@ export function ScheduleSummary({ epic, s }: { epic: string; s: Rollup }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 10px', fontSize: 12 }}>
       <span style={{ padding: '2px 8px', borderRadius: 99, fontWeight: 600, background: tone.bg, color: tone.fg }}>{STATE_LABEL[s.state]}</span>
-      <EffortText epic={epic} s={s} />
+      <span style={{ color: 'var(--text-muted)' }}>
+        <EffortText epic={epic} s={s} prefix="Effort: " />
+      </span>
       <CountLink epic={epic} label="overdue" n={s.overdue} />
     </div>
   );
 }
 
-/** "Effort: +1h (Over-burn)"; a link to the ticket list for an under- or over-burn. */
-function EffortText({ epic, s }: { epic: string; s: Rollup }) {
-  const text = `Effort: ${signedH(s.diff_h)} (${SCHEDULE_LABEL[s.effort]})`;
-  if (s.effort !== 'under_burn' && s.effort !== 'over_burn') return <span style={{ color: 'var(--text-muted)' }}>{text}</span>;
+/** "+1h (Over-burn)"; a link to the ticket list (of the phase, when given) for an under- or over-burn. */
+function EffortText({ epic, s, phase, prefix = '' }: { epic: string; s: Rollup; phase?: string; prefix?: string }) {
+  const text = `${prefix}${signedH(s.diff_h)} (${SCHEDULE_LABEL[s.effort]})`;
+  if (s.effort !== 'under_burn' && s.effort !== 'over_burn') return text;
   return (
-    <Link to="/anken/$epic/tickets" params={{ epic }} search={{ label: s.effort }} onClick={(e) => e.stopPropagation()}
-      style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>{text}</Link>
+    <Link to="/anken/$epic/tickets" params={{ epic }} search={{ label: s.effort, phase }} onClick={(e) => e.stopPropagation()}
+      style={{ color: 'inherit', textDecoration: 'underline' }}>{text}</Link>
   );
 }
 
@@ -53,7 +55,7 @@ export function PhaseSchedule({ epic, phase, s }: { epic: string; phase: string;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 14px', padding: '0 14px 8px', fontSize: 12 }}>
       <span style={{ color: 'var(--text-muted)' }}>
-        plan to date {f2(s.plan_to_date_h)}h · actual {f2(s.actual_to_date_h)}h · {signedH(s.diff_h)} ({SCHEDULE_LABEL[s.effort]})
+        plan to date {f2(s.plan_to_date_h)}h · actual {f2(s.actual_to_date_h)}h · <EffortText epic={epic} s={s} phase={phase} />
       </span>
       <span style={{ padding: '1px 7px', borderRadius: 99, fontWeight: 600, fontSize: 11, background: (STATE_TONE[s.state] ?? neutral).bg, color: (STATE_TONE[s.state] ?? neutral).fg }}>
         {STATE_LABEL[s.state]}

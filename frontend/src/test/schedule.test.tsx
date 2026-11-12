@@ -86,12 +86,22 @@ describe('schedule state on the overview', () => {
     );
     renderApp('/anken/PAY-1100');
     const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
-    expect(within(detail).getByText('plan to date 6.00h · actual 7.50h · +1.50h (Over-burn)')).toBeTruthy();
+    expect(within(detail).getByText('plan to date 6.00h · actual 7.50h ·', { exact: false })).toBeTruthy();
+    expect(within(detail).getByRole('link', { name: '+1.50h (Over-burn)' }).getAttribute('href'))
+      .toBe('/anken/PAY-1100/tickets?label=over_burn&phase=ITA');
     const chip = within(detail).getByRole('link', { name: 'Late start 2' });
     expect(chip.getAttribute('href')).toBe('/anken/PAY-1100/tickets?label=late_start&phase=ITA');
     expect(within(detail).getByText('Late')).toBeTruthy();
     expect(within(detail).getByText('Early finish 0')).toBeTruthy();
     expect(within(detail).queryByRole('link', { name: 'Early finish 0' })).toBeNull();
+  });
+
+  it('a phase on plan shows its effort as plain text', async () => {
+    serveAnken({ schedule: rollup() }, [phase('ITA', rollup({ diff_h: 0.5, effort: 'on_plan' }))]);
+    renderApp('/anken/PAY-1100');
+    const detail = await screen.findByRole('region', { name: 'PAY-1100 details' });
+    expect(within(detail).getByText('+0.50h (On plan)', { exact: false })).toBeTruthy();
+    expect(within(detail).queryByRole('link', { name: /On plan/ })).toBeNull();
   });
 });
 
