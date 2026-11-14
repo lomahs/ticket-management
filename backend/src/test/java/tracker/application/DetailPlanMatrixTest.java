@@ -44,6 +44,7 @@ import tracker.domain.IssueKind;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.StepKind;
 import tracker.domain.Viewer;
 
 /** The detail plan as a function–step × day matrix: lines of the unpushed rows and of the sub-tasks in Jira. Demo "today" is 2026-10-07. */
@@ -83,10 +84,14 @@ class DetailPlanMatrixTest {
 
     /** Login (5 steps, 8h) and Run (a ticket, 16h) under ITA Tasks, Pay (3 steps) under ITB; ITA from Monday 12, ITB from Monday 19. */
     List<EstimationRow> scheduled() {
+        return scheduled("2026-10-12");
+    }
+
+    List<EstimationRow> scheduled(String itaStart) {
         task("ITB Execute");
         estimation.save(ALL, EPIC, List.of(row(0, "Login", 5, 8, task("ITA Create test case")), row(1, "Run", null, 16, task("ITA Execute")),
                 row(2, "Pay", 3, 8, task("ITB Create test case"))));
-        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", itaStart, List.of("an", "binh", "minh")),
                 new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
         return estimationRows.findByEpic(EPIC);
     }
@@ -115,6 +120,12 @@ class DetailPlanMatrixTest {
     String jiraSubtask() {
         return tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("s", true, task("ITA Execute"), null, "[PAY] Export", "an",
                 null, "2026-10-06", "2026-10-08", 16.0, List.of()))).created().get("s");
+    }
+
+    /** A step of the function F99 ("Probe") in Jira under ITA Execute, assigned to An. */
+    Issue probe(String key, StepKind step, Status status, String start, String end, double estimate) {
+        return new Issue(key, "PAY", EPIC, task("ITA Execute"), IssueKind.SUBTASK, "[PAY] " + key, "", status, "an", start, end, estimate,
+                status == Status.CLOSED ? 0 : estimate, "2026-10-01", status.value(), "F99", "Probe", step, List.of(), List.of(), "an", List.of());
     }
 
     @Test
@@ -218,21 +229,76 @@ class DetailPlanMatrixTest {
         assertThat(l.closed()).isTrue();
         assertThat(l.totalH()).isEqualTo(l.spentH());
         assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] PAY-9002"));
+        // a Closed step that (by its plan) ends after the next open step starts does not put that step out of order
+        issues.save(probe("PAY-9111", StepKind.CREATE, Status.CLOSED, "2026-10-14", "2026-10-15", 8));
+        issues.save(probe("PAY-9112", StepKind.BAL_REVIEW, Status.WIP, "2026-10-12", "2026-10-13", 2));
+        v = detail.view(ALL, EPIC);
+        assertThat(line(v, "PAY-9111").end()).isGreaterThan(line(v, "PAY-9112").start());
+        assertThat(line(v, "PAY-9112").outOfOrder()).isFalse();
+        assertThat(v.pushBlockers()).noneMatch(b -> b.endsWith("starts before the step before it ends") && b.startsWith("[PAY] PAY-91"));
+    }
+
+    @Test
+    void aJiraStepIsInOrderByItsDaysFromTodayOn() {
+        scheduled();
+        issues.save(probe("PAY-9121", StepKind.CREATE, Status.WIP, "2026-10-12", "2026-10-13", 16));
+        issues.save(probe("PAY-9122", StepKind.BAL_REVIEW, Status.WIP, "2026-10-05", "2026-10-06", 2)); // only days before today
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(line(v, "PAY-9122").start()).isLessThan(line(v, "PAY-9121").end());
+        assertThat(line(v, "PAY-9122").outOfOrder()).isFalse(); // its days are locked: nothing to fix
+        assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] PAY-9122: starts before"));
+    }
+
+    @Test
+    void aPendingPicAloneKeepsJirasPlan() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 8.0));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, null, "binh"));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 8, false), new DayHours("2026-10-07", 8, false));
+        assertThat(l.pending()).isTrue();
+        assertThat(l.picId()).isEqualTo("binh");
+    }
+
+    @Test
+    void aPendingPicTakesTheHoursFromTodayOn() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 8.0));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, null, "binh"));
+        // the day before today stays An's; today on is Bình's
+        assertThat(hoursOf(detail.view(ALL, EPIC), "[PAY] Export")).containsExactly(Map.entry("an 2026-10-06", 8.0),
+                Map.entry("binh 2026-10-07", 8.0));
+    }
+
+    @Test
+    void onlyDaysFromTodayOnAreOverTheAllocation() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 16.0)); // a locked day, far over An's allocation
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-08", 16, false)));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(hoursOf(v, "[PAY] Export")).containsEntry("an 2026-10-06", 16.0).containsEntry("an 2026-10-08", 16.0);
+        assertThat(v.overDay()).extracting(o -> o.memberId() + " " + o.date()).contains("an 2026-10-08");
+        assertThat(v.overDay()).allMatch(o -> o.date().compareTo("2026-10-07") >= 0);
     }
 
     @Test
     void windowRunsOverMasterAndCells() {
-        List<EstimationRow> rows = scheduled();
+        List<EstimationRow> rows = scheduled("2026-08-03"); // ITA from Monday 3 August, before every open sub-task of the demo
+        long login = rows.get(0).id();
         long run = rows.get(1).id();
         assign(rows, new RowAssign(run, "an", null, null));
-        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2027-01-04", 2, false))); // a Monday after every master End
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2027-01-04", 2, false), // a Monday after every master End
+                new Cell(login + ":balr", "2026-07-06", 2, false)));
+        detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, null, null, true)); // a removed step's cells do not count
+        issues.save(probe("PAY-9131", StepKind.CREATE, Status.CLOSED, "2026-07-06", "2026-07-10", 8)); // nor do a Closed one's
         DetailPlanView v = detail.view(ALL, EPIC);
-        // the demo's sub-tasks of PAY-1100 in Jira are lines too: their planned days may start before the master schedule
-        String first = v.lines().stream().flatMap(l -> l.cells().stream()).map(DayHours::day).min(String::compareTo).orElseThrow();
-        String start = first.compareTo("2026-10-12") < 0 ? first : "2026-10-12";
-        assertThat(v.window().getFirst()).isEqualTo(start);
+        assertThat(line(v, "PAY-9131").cells()).isNotEmpty();
+        assertThat(v.window().getFirst()).isEqualTo("2026-08-03");
         assertThat(v.window().getLast()).isEqualTo("2027-01-04");
-        assertThat(v.window()).contains("2026-10-12", "2026-10-13").doesNotContain("2026-10-17", "2026-10-18");
+        assertThat(v.window()).contains("2026-10-12", "2026-10-13").doesNotContain("2026-07-06", "2026-10-17", "2026-10-18");
         // working days only: weekends aside, unless the calendar makes one a working day (the demo's Saturday 2026-10-10)
         TrackerContext ctx = loader.load(ALL);
         assertThat(v.window()).allMatch(ctx.cal::visible);

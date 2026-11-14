@@ -387,7 +387,7 @@ public class DetailPlanService {
         List<Placed> placed = built.placed();
         List<DetailScheduler.Part> parts = built.parts();
         Map<String, Map<String, Double>> ledger = ledger(parts);
-        List<DayOverrun> overDay = overDay(ledger, parts, hours);
+        List<DayOverrun> overDay = overDay(ledger, parts, hours, ctx.today);
         List<Overrun> over = DetailScheduler.overBudget(placed.stream().filter(p -> phases.containsKey(p.phase())).toList(),
                 givenBefore(ctx, epic, Set.of()), phases, epic, a, ctx.cal);
         List<OverrunAllocation> allocated = over.stream()
@@ -421,8 +421,8 @@ public class DetailPlanService {
     }
 
     /**
-     * Working days from the earliest of the master schedule's first Start and the first cell of any line to the latest of its last
-     * End and the last cell; none without either.
+     * Working days from the earliest of the master schedule's first Start and the first cell of a line to the latest of its last
+     * End and the last cell (removed and Closed lines aside); none without either.
      */
     private static List<String> window(TrackerContext ctx, @Nullable ScheduleVersion schedule, List<MatrixLine> lines) {
         String from = null;
@@ -431,7 +431,7 @@ public class DetailPlanService {
             from = min(from, p.start());
             to = max(to, p.end());
         }
-        for (MatrixLine l : lines) {
+        for (MatrixLine l : lines.stream().filter(l -> !l.removed() && !l.closed()).toList()) {
             for (DayHours c : l.cells()) {
                 from = min(from, c.day());
                 to = max(to, c.day());
@@ -474,10 +474,15 @@ public class DetailPlanService {
         return out;
     }
 
-    /** The days the plan gives a member hours on where the ledger has more than the member's hours on the anken. */
-    private static List<DayOverrun> overDay(Map<String, Map<String, Double>> ledger, List<DetailScheduler.Part> parts, DetailScheduler.Hours hours) {
+    /**
+     * The days from {@code today} on that the plan gives a member hours on where the ledger has more than the member's hours on
+     * the anken (the days before are locked).
+     */
+    private static List<DayOverrun> overDay(Map<String, Map<String, Double>> ledger, List<DetailScheduler.Part> parts, DetailScheduler.Hours hours,
+                                            String today) {
         Map<String, Set<String>> touched = new TreeMap<>();
-        parts.forEach(p -> touched.computeIfAbsent(p.memberId(), k -> new TreeSet<>()).add(p.date()));
+        parts.stream().filter(p -> p.date().compareTo(today) >= 0)
+                .forEach(p -> touched.computeIfAbsent(p.memberId(), k -> new TreeSet<>()).add(p.date()));
         List<DayOverrun> out = new ArrayList<>();
         touched.forEach((m, days) -> days.forEach(d -> {
             double h = ledger.get(m).get(d);

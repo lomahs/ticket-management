@@ -46,8 +46,13 @@ final class PlanLines {
     record Built(List<MatrixLine> lines, List<DetailScheduler.Part> parts, List<Placed> placed) {
     }
 
-    /** A line before Planned, Not yet, Start, End and the step order are worked out from its cells. */
-    private record Draft(MatrixLine base, DetailMatrix.Line line, List<Effort.PlanShare> shares, @Nullable StepKind kind) {
+    /**
+     * A line before Planned, Not yet, Start, End and the step order are worked out from its cells.
+     *
+     * @param shares     who carries its cells from today on; {@code pastShares} before today (a pending PIC takes over from today)
+     */
+    private record Draft(MatrixLine base, DetailMatrix.Line line, List<Effort.PlanShare> shares, List<Effort.PlanShare> pastShares,
+                         @Nullable StepKind kind) {
     }
 
     static Built build(TrackerContext ctx, String epic, List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf,
@@ -67,12 +72,15 @@ final class PlanLines {
                         false, false, false, st.removed(), st.edit() != null && st.edit().effortH() != null);
                 DetailMatrix.Line line = new DetailMatrix.Line(st.ref(), "row:" + r.id(), st.kind() == null ? 0 : st.kind().ordinal(), false,
                         st.hours(), 0, map(cells));
-                drafts.add(new Draft(base, line, st.removed() ? List.of() : PlanRows.shares(st, r.baId(), r.balId(), w), st.kind()));
+                List<Effort.PlanShare> shares = st.removed() ? List.of() : PlanRows.shares(st, r.baId(), r.balId(), w);
+                drafts.add(new Draft(base, line, shares, shares, st.kind()));
             }
         }
         drafts.addAll(jira(ctx, epic, jiraCells, edits));
 
-        Set<String> outOfOrder = DetailMatrix.outOfOrder(drafts.stream().filter(d -> !d.base().removed()).map(Draft::line).toList());
+        // removed and Closed lines count for nothing; a Jira line's days before today are locked, so only its days from today on
+        Set<String> outOfOrder = DetailMatrix.outOfOrder(drafts.stream().filter(d -> !d.base().removed() && !d.base().closed())
+                .map(d -> d.base().issueKey() == null ? d.line() : fromToday(d.line(), ctx.today)).toList());
         List<MatrixLine> lines = new ArrayList<>();
         List<DetailScheduler.Part> parts = new ArrayList<>();
         List<Placed> placed = new ArrayList<>();
@@ -84,10 +92,12 @@ final class PlanLines {
             lines.add(new MatrixLine(b.ref(), b.rowId(), b.issueKey(), b.phase(), b.function(), b.step(), b.summary(), b.picId(), b.reporterId(),
                     b.totalH(), b.spentH(), DetailMatrix.plannedH(l, ctx.today), DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
                     b.logged(), b.closed(), b.pending(), outOfOrder.contains(b.ref()), b.removed(), b.edited()));
-            for (Effort.PlanShare sh : d.shares()) {
-                for (DayHours c : b.cells()) {
+            for (DayHours c : b.cells()) {
+                for (Effort.PlanShare sh : c.day().compareTo(ctx.today) < 0 ? d.pastShares() : d.shares()) {
                     parts.add(new DetailScheduler.Part(b.ref(), sh.memberId(), c.day(), c.hours() * sh.fraction()));
                 }
+            }
+            for (Effort.PlanShare sh : d.shares()) {
                 if (b.issueKey() == null && start != null && end != null) {
                     double sum = b.cells().stream().mapToDouble(DayHours::hours).sum();
                     placed.add(new Placed(b.ref(), b.phase(), d.kind(), sh.memberId(), sum * sh.fraction(), start, end));
@@ -99,8 +109,8 @@ final class PlanLines {
 
     /**
      * Every sub-task of the anken in Jira, grouped by phase then function. Days before today are Jira's plan (Detail Planning's
-     * days as pushed, else {@link TrackerContext#planDays}); from today on the pending cells when the sub-task has changes not
-     * pushed yet, else the same plan.
+     * days as pushed, else {@link TrackerContext#planDays}); from today on the pending cells when the sub-task has any, else the
+     * same plan (a pending Remaining or PIC alone keeps it).
      */
     private static List<Draft> jira(TrackerContext ctx, String epic, Map<String, List<Cell>> jiraCells, List<JiraEdit> edits) {
         Map<String, String> groups = DetailPlanService.groupOfTask(ctx, epic);
@@ -127,16 +137,17 @@ final class PlanLines {
 
     private static Draft jiraLine(TrackerContext ctx, String phase, String chain, Issue i, @Nullable List<Cell> pendingCells,
                                   @Nullable JiraEdit edit) {
-        boolean pending = (pendingCells != null && !pendingCells.isEmpty()) || edit != null;
+        boolean hasCells = pendingCells != null && !pendingCells.isEmpty();
+        boolean pending = hasCells || edit != null;
         Map<String, Double> saved = ctx.savedPlanDays(i);
         Map<String, Double> plan = saved != null ? saved : ctx.planDays(i);
         List<DayHours> cells = new ArrayList<>();
         plan.forEach((d, h) -> {
-            if (d.compareTo(ctx.today) < 0 || !pending) {
+            if (d.compareTo(ctx.today) < 0 || !hasCells) {
                 cells.add(new DayHours(d, h, false));
             }
         });
-        if (pending && pendingCells != null) {
+        if (hasCells) {
             pendingCells.stream().filter(c -> c.day().compareTo(ctx.today) >= 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
         }
         List<DayHours> days = sorted(cells);
@@ -154,7 +165,8 @@ final class PlanLines {
                 logged.entrySet().stream().map(e -> new DayHours(e.getKey(), Numbers.hours(e.getValue()), false)).toList(), closed, pending,
                 false, false, false);
         DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days));
-        return new Draft(base, line, closed ? List.of() : shares(ctx.planShares(i), i.assigneeId(), pic), i.step());
+        List<Effort.PlanShare> past = closed ? List.of() : ctx.planShares(i);
+        return new Draft(base, line, closed ? List.of() : shares(past, i.assigneeId(), pic), past, i.step());
     }
 
     /** The shares of a sub-task in Jira, the one of its assignee moved to the PIC not pushed yet. */
@@ -165,6 +177,13 @@ final class PlanLines {
         Map<String, Double> out = new LinkedHashMap<>();
         shares.forEach(sh -> out.merge(sh.memberId().equals(assignee) ? pic : sh.memberId(), sh.fraction(), Double::sum));
         return out.entrySet().stream().map(e -> new Effort.PlanShare(e.getKey(), e.getValue())).toList();
+    }
+
+    /** {@code l} with its cells from {@code today} on only. */
+    private static DetailMatrix.Line fromToday(DetailMatrix.Line l, String today) {
+        Map<String, Double> cells = new TreeMap<>(l.cells());
+        cells.keySet().removeIf(d -> d.compareTo(today) < 0);
+        return new DetailMatrix.Line(l.ref(), l.chain(), l.order(), l.jira(), l.totalH(), l.spentH(), cells);
     }
 
     /** The function a sub-task is a step of, else the sub-task alone. */
