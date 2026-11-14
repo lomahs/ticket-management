@@ -89,8 +89,10 @@ final class PlanLines {
             DetailMatrix.Line l = d.line();
             String start = DetailMatrix.start(l);
             String end = DetailMatrix.end(l);
+            // a Closed sub-task is done: nothing is left to plan, whatever its plan in Jira says
             lines.add(new MatrixLine(b.ref(), b.rowId(), b.issueKey(), b.phase(), b.function(), b.step(), b.summary(), b.picId(), b.reporterId(),
-                    b.totalH(), b.spentH(), DetailMatrix.plannedH(l, ctx.today), DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
+                    b.totalH(), b.spentH(), b.closed() ? b.totalH() : DetailMatrix.plannedH(l, ctx.today),
+                    b.closed() ? 0 : DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
                     b.logged(), b.closed(), b.pending(), outOfOrder.contains(b.ref()), b.removed(), b.edited()));
             for (DayHours c : b.cells()) {
                 for (Effort.PlanShare sh : c.day().compareTo(ctx.today) < 0 ? d.pastShares() : d.shares()) {
@@ -109,8 +111,8 @@ final class PlanLines {
 
     /**
      * Every sub-task of the anken in Jira, grouped by phase then function. Days before today are Jira's plan (Detail Planning's
-     * days as pushed, else {@link TrackerContext#planDays}); from today on the pending cells when the sub-task has any, else the
-     * same plan (a pending Remaining or PIC alone keeps it).
+     * days as pushed when they all lie within its Planned Start and End in Jira, else {@link TrackerContext#planDays}); from today
+     * on the pending cells when the sub-task has any, else the same plan (a pending Remaining or PIC alone keeps it).
      */
     private static List<Draft> jira(TrackerContext ctx, String epic, Map<String, List<Cell>> jiraCells, List<JiraEdit> edits) {
         Map<String, String> groups = DetailPlanService.groupOfTask(ctx, epic);
@@ -140,7 +142,7 @@ final class PlanLines {
         boolean hasCells = pendingCells != null && !pendingCells.isEmpty();
         boolean pending = hasCells || edit != null;
         Map<String, Double> saved = ctx.savedPlanDays(i);
-        Map<String, Double> plan = saved != null ? saved : ctx.planDays(i);
+        Map<String, Double> plan = saved != null && within(saved, i) ? saved : ctx.planDays(i);
         List<DayHours> cells = new ArrayList<>();
         plan.forEach((d, h) -> {
             if (d.compareTo(ctx.today) < 0 || !hasCells) {
@@ -164,9 +166,17 @@ final class PlanLines {
                 i.step() == null ? null : i.step().value(), i.summary(), pic, i.reporterId(), total, spent, 0, 0, null, null, days,
                 logged.entrySet().stream().map(e -> new DayHours(e.getKey(), Numbers.hours(e.getValue()), false)).toList(), closed, pending,
                 false, false, false);
-        DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days));
+        DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days),
+                logged.getOrDefault(ctx.today, 0.0));
         List<Effort.PlanShare> past = closed ? List.of() : ctx.planShares(i);
         return new Draft(base, line, closed ? List.of() : shares(past, i.assigneeId(), pic), past, i.step());
+    }
+
+    /** Whether every saved day is within the sub-task's Planned Start and End in Jira (none are without both). */
+    private static boolean within(Map<String, Double> days, Issue i) {
+        String from = i.plannedStart();
+        String to = i.plannedEnd();
+        return Text.hasText(from) && Text.hasText(to) && days.keySet().stream().allMatch(d -> d.compareTo(from) >= 0 && d.compareTo(to) <= 0);
     }
 
     /** The shares of a sub-task in Jira, the one of its assignee moved to the PIC not pushed yet. */
@@ -183,7 +193,7 @@ final class PlanLines {
     private static DetailMatrix.Line fromToday(DetailMatrix.Line l, String today) {
         Map<String, Double> cells = new TreeMap<>(l.cells());
         cells.keySet().removeIf(d -> d.compareTo(today) < 0);
-        return new DetailMatrix.Line(l.ref(), l.chain(), l.order(), l.jira(), l.totalH(), l.spentH(), cells);
+        return new DetailMatrix.Line(l.ref(), l.chain(), l.order(), l.jira(), l.totalH(), l.spentH(), cells, l.loggedTodayH());
     }
 
     /** The function a sub-task is a step of, else the sub-task alone. */

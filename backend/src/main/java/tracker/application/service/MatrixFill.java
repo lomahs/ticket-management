@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.jspecify.annotations.Nullable;
@@ -128,16 +129,58 @@ final class MatrixFill {
         if (kind == StepKind.JM_REVIEW) { // counts for nobody: over its PIC's working days
             shares = List.of();
         } else {
-            shares = shares(h, jiraShares.getOrDefault(l.issueKey(), List.of()));
-            if (shares.isEmpty() && pic != null) { // counted, all its PIC's
-                shares = List.of(new DetailScheduler.Share(pic, Numbers.hours(h)));
-            }
+            shares = shares(h, completed(jiraShares.getOrDefault(l.issueKey(), List.of()), pic));
             if (shares.isEmpty()) {
                 return null;
             }
         }
         String who = pic != null ? pic : shares.isEmpty() ? null : shares.getFirst().memberId();
         return who == null ? null : new DetailScheduler.Step(l.ref(), l.phase(), kind, shares, who, h, null, null);
+    }
+
+    /** The fractions, the part they leave short of 100 % (a missing BAL, or nobody at all) given to {@code pic}. */
+    static List<Effort.PlanShare> completed(List<Effort.PlanShare> fractions, @Nullable String pic) {
+        double missing = 1 - fractions.stream().mapToDouble(Effort.PlanShare::fraction).sum();
+        if (pic == null || missing < 1e-9) {
+            return fractions;
+        }
+        Map<String, Double> out = new LinkedHashMap<>();
+        fractions.forEach(f -> out.merge(f.memberId(), f.fraction(), Double::sum));
+        out.merge(pic, missing, Double::sum);
+        return out.entrySet().stream().map(e -> new Effort.PlanShare(e.getKey(), e.getValue())).toList();
+    }
+
+    /**
+     * Ref → day → the hours left on the days Auto allocate trims of a sub-task in Jira planned over its total (Not yet below 0):
+     * hours come off its latest days from {@code today} on until Not yet is 0, today's down to the hours logged today at most.
+     * Only Jira's own plan (a sub-task without pending cells) or Auto allocate's cells are trimmed, never cells typed by hand.
+     *
+     * @param withCells the sub-tasks that have pending cells
+     */
+    static Map<String, Map<String, Double>> trims(List<MatrixLine> lines, Set<String> withCells, String today) {
+        Map<String, Map<String, Double>> out = new TreeMap<>();
+        for (MatrixLine l : lines) {
+            if (l.issueKey() == null || l.closed() || l.removed() || l.notYetH() >= -EPS) {
+                continue;
+            }
+            boolean jirasOwn = !withCells.contains(l.issueKey());
+            double loggedToday = l.logged().stream().filter(d -> d.day().equals(today)).mapToDouble(DayHours::hours).sum();
+            double over = -l.notYetH();
+            List<DayHours> latestFirst = new ArrayList<>(l.cells().stream().filter(d -> d.day().compareTo(today) >= 0 && (jirasOwn || d.auto())).toList());
+            latestFirst.sort(Comparator.comparing(DayHours::day).reversed());
+            for (DayHours d : latestFirst) {
+                if (over < 0.005) {
+                    break;
+                }
+                double counts = d.day().equals(today) ? Math.max(0, d.hours() - loggedToday) : d.hours();
+                double take = Numbers.hours(Math.min(counts, over));
+                if (take > 0) {
+                    out.computeIfAbsent(l.ref(), k -> new TreeMap<>()).put(d.day(), Numbers.hours(d.hours() - take));
+                    over = Numbers.hours(over - take);
+                }
+            }
+        }
+        return out;
     }
 
     private static int order(MatrixLine l) {

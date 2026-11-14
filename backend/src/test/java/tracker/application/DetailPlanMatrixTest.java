@@ -251,6 +251,9 @@ class DetailPlanMatrixTest {
         MatrixLine l = line(v, "PAY-9002");
         assertThat(l.closed()).isTrue();
         assertThat(l.totalH()).isEqualTo(l.spentH());
+        assertThat(l.cells()).isNotEmpty(); // its plan in Jira, 40h, over a Total of 0h: nothing is left to plan all the same
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.plannedH()).isEqualTo(l.totalH());
         assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] PAY-9002"));
         // a Closed step that (by its plan) ends after the next open step starts does not put that step out of order
         issues.save(probe("PAY-9111", StepKind.CREATE, Status.CLOSED, "2026-10-14", "2026-10-15", 8));
@@ -259,6 +262,39 @@ class DetailPlanMatrixTest {
         assertThat(line(v, "PAY-9111").end()).isGreaterThan(line(v, "PAY-9112").start());
         assertThat(line(v, "PAY-9112").outOfOrder()).isFalse();
         assertThat(v.pushBlockers()).noneMatch(b -> b.endsWith("starts before the step before it ends") && b.startsWith("[PAY] PAY-91"));
+    }
+
+    /** {@code i} with this Original estimate, Remaining and worklogs. */
+    void rewrite(String key, double estimate, double remaining, List<Worklog> logs) {
+        Issue i = issues.findByKey(key).orElseThrow();
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), estimate, remaining, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                logs, i.events(), i.reporterId(), i.labels()));
+    }
+
+    @Test
+    void todaysCellCountsNetOfTheHoursLoggedToday() {
+        scheduled();
+        String key = jiraSubtask();
+        rewrite(key, 8, 5, List.of(new Worklog("2026-10-07", "an", 3, ""))); // Jira took today's 3h off Remaining
+        planDays.save(key, Map.of("2026-10-07", 4.0, "2026-10-08", 4.0));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        MatrixLine l = line(v, key);
+        assertThat(l.totalH()).isEqualTo(8);
+        assertThat(l.plannedH()).isEqualTo(8); // 3h spent, 1h of today's 4h left, 4h tomorrow
+        assertThat(l.notYetH()).isZero();
+        assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] Export:"));
+    }
+
+    @Test
+    void savedPlanDaysOutsideJirasDatesAreIgnored() {
+        scheduled();
+        String key = jiraSubtask(); // 16h, planned 2026-10-06..08 in Jira
+        planDays.save(key, Map.of("2026-10-05", 8.0, "2026-10-09", 8.0)); // pushed, then Jira's dates moved
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.cells()).isNotEmpty().allMatch(c -> c.day().compareTo("2026-10-06") >= 0 && c.day().compareTo("2026-10-08") <= 0);
+        assertThat(l.start()).isEqualTo("2026-10-06");
+        assertThat(l.end()).isEqualTo("2026-10-08");
     }
 
     @Test
@@ -333,6 +369,29 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void theWindowRunsFromTodayForALateAnken() {
+        scheduled("2026-08-03");
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        // a master schedule ending before today, cells before today, every open sub-task in Jira Closed
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-08-03", List.of("an")), new PhaseRowIn("ITB", "2026-08-10", List.of("an"))),
+                "Earlier");
+        closeDemoSubtasks();
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2026-08-04", 2, false)));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        TrackerContext ctx = loader.load(ALL);
+        List<String> ahead = new java.util.ArrayList<>();
+        for (LocalDate d = LocalDate.parse("2026-10-08"); ahead.size() < 20; d = d.plusDays(1)) {
+            if (ctx.cal.visible(d.toString())) {
+                ahead.add(d.toString());
+            }
+        }
+        assertThat(v.window()).contains("2026-08-04", "2026-10-07").containsAll(ahead);
+        assertThat(v.window().getLast()).isEqualTo(ahead.getLast());
+    }
+
+    @Test
     void typedCellsAreSavedAndZeroClears() {
         List<EstimationRow> rows = scheduled();
         long run = rows.get(1).id();
@@ -354,6 +413,25 @@ class DetailPlanMatrixTest {
                 .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "ref");
         assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-06", 1))))
                 .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "day");
+    }
+
+    @Test
+    void aCellFarOutsideThePlanOrOverADayIsRefused() {
+        List<EstimationRow> rows = scheduled();
+        String run = String.valueOf(rows.get(1).id());
+        assign(rows, new RowAssign(rows.get(1).id(), "an", null, null));
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "2027-10-12", 1)))) // past today + 366 days
+                .isInstanceOf(AppError.Invalid.class).hasMessage("2027-10-12 is outside the plan").hasFieldOrPropertyWithValue("field", "day");
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "2026-01-05", 1)))) // before the window
+                .isInstanceOf(AppError.Invalid.class).hasMessage("2026-01-05 is outside the plan").hasFieldOrPropertyWithValue("field", "day");
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "12/10/2026", 1))))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "day");
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "2026-10-12", 24.5))))
+                .isInstanceOf(AppError.Invalid.class).hasMessage("At most 24 hours a day").hasFieldOrPropertyWithValue("field", "hours");
+        assertThat(cells.rowCells(EPIC)).isEmpty();
+        // within today + 366 days, after the window: fine; 24h too
+        DetailPlanView v = detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "2027-10-08", 8), new CellIn(run, "2026-10-12", 24)));
+        assertThat(line(v, run).cells()).extracting(DayHours::day).containsExactly("2026-10-12", "2027-10-08");
     }
 
     @Test
@@ -494,6 +572,48 @@ class DetailPlanMatrixTest {
         assertThat(cells.jiraCells(EPIC)).doesNotContainKey("PAY-1176");
         assertThat(line(v, "PAY-1180").notYetH()).isZero();
         assertThat(v.lines()).filteredOn(l -> l.rowId() != null).allMatch(l -> Math.abs(l.notYetH()) < 0.01);
+    }
+
+    @Test
+    void autoAllocateTrimsJirasOwnPlanOfAnOverPlannedLine() {
+        staffed();
+        String key = jiraSubtask(); // planned 2026-10-06..08
+        rewrite(key, 8, 2, List.of(new Worklog("2026-10-06", "an", 6, ""))); // 2h left in Jira
+        planDays.save(key, Map.of("2026-10-06", 4.0, "2026-10-07", 2.0, "2026-10-08", 2.0)); // 4h from today on
+        assertThat(line(detail.view(ALL, EPIC), key).notYetH()).isEqualTo(-2);
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        MatrixLine l = line(v, key);
+        assertThat(l.notYetH()).isZero();
+        // the latest day goes first; the past stays
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 4, false), new DayHours("2026-10-07", 2, false));
+        assertThat(l.pending()).isTrue();
+        assertThat(cells.jiraCells(EPIC).get(key)).containsExactlyInAnyOrder(new Cell(key, "2026-10-07", 2, false),
+                new Cell(key, "2026-10-08", 0, false));
+    }
+
+    @Test
+    void autoAllocateTrimsOnlyItsOwnCellsOfAPendingLine() {
+        staffed();
+        String key = jiraSubtask();
+        rewrite(key, 8, 2, List.of(new Worklog("2026-10-06", "an", 6, "")));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-08", 3, false), new Cell(key, "2026-10-09", 2, true))); // 5h for 2h left
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        MatrixLine l = line(v, key);
+        // Auto allocate's 2h go; the 3h typed stay, over the total
+        assertThat(l.cells()).filteredOn(c -> c.day().compareTo("2026-10-07") >= 0).containsExactly(new DayHours("2026-10-08", 3, false));
+        assertThat(l.notYetH()).isEqualTo(-1);
+    }
+
+    @Test
+    void autoAllocateGivesTheMissingShareOfAJiraStepToItsPic() {
+        staffed();
+        // a function in Jira with no BAL: its Fix (BA 70 %, BAL 30 %) has An's share only
+        issues.save(probe("PAY-9501", StepKind.CREATE, Status.CLOSED, "2026-09-28", "2026-09-29", 8));
+        issues.save(probe("PAY-9503", StepKind.FIX_BAL, Status.WIP, "2026-10-01", "2026-10-02", 10));
+        assertThat(line(detail.view(ALL, EPIC), "PAY-9503").notYetH()).isEqualTo(10);
+        MatrixLine l = line(detail.autoAllocate(ALL, EPIC), "PAY-9503");
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.cells()).filteredOn(c -> c.day().compareTo("2026-10-07") >= 0).isNotEmpty();
     }
 
     @Test
@@ -689,6 +809,31 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void aPicOrTotalEditAloneSendsNoDates() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of());
+        String export = smallSubtask("Export");
+        String imports = smallSubtask("Import");
+        for (String key : List.of(export, imports)) { // Jira's End moved to Friday 9 since the plan was pushed
+            tickets.applyBatch(ADMIN, ALL, EPIC, List.of(new TicketService.ExpectedUpdate(key,
+                    List.of(new TicketService.ExpectedChange(tracker.domain.TicketField.PLANNED_END, "2026-10-08", "2026-10-09")))), List.of());
+        }
+        rewrite(export, 3, 2, List.of(new Worklog("2026-10-06", "an", 1, "")));
+        rewrite(imports, 3, 2, List.of(new Worklog("2026-10-06", "an", 1, "")));
+        planDays.save(export, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0, "2026-10-08", 1.0));
+        planDays.save(imports, Map.of("2026-10-06", 1.0, "2026-10-07", 2.0, "2026-10-08", 2.0));
+        detail.editJiraLine(ALL, EPIC, export, new JiraLineIn(null, "binh"));
+        detail.editJiraLine(ALL, EPIC, imports, new JiraLineIn(5.0, null)); // Remaining 4h: the 4h planned from today on
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(line(v, export).end()).isEqualTo("2026-10-08");
+        assertThat(v.pushBlockers()).isEmpty();
+        Map<String, List<String>> fields = new TreeMap<>();
+        detail.pushPreview(ALL, EPIC).updates().forEach(u -> fields.put(u.key(), u.changes().stream().map(c -> c.field().value()).toList()));
+        assertThat(fields).containsOnly(Map.entry(export, List.of("assignee")), Map.entry(imports, List.of("remaining")));
+    }
+
+    @Test
     void pushOnlyJiraChanges() {
         scheduled();
         closeDemoSubtasks();
@@ -697,8 +842,11 @@ class DetailPlanMatrixTest {
         planDays.save(key, Map.of("2026-10-06", 1.0));
         detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2)));
         assertThat(detail.view(ALL, EPIC).lines()).noneMatch(x -> x.rowId() != null);
-        assertThat(detail.push(ADMIN, ALL, EPIC).updated()).isNotNull();
+        // only its hours per day changed: nothing goes to Jira, the plan is kept
+        assertThat(detail.push(ADMIN, ALL, EPIC).updated()).isEmpty();
         assertThat(cells.jiraCells(EPIC)).isEmpty();
+        assertThat(cells.jiraEdits(EPIC)).isEmpty();
+        assertThat(line(detail.view(ALL, EPIC), key).pending()).isFalse();
         assertThat(planDays.find(List.of(key)).get(key)).containsEntry("2026-10-08", 2.0);
     }
 

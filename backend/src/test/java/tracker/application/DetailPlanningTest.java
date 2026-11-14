@@ -477,7 +477,10 @@ class DetailPlanningTest {
         assertThat(al.memberId()).isEqualTo("an");
         assertThat(al.date()).isEqualTo("2026-10-12"); // the phase's Start
         assertThat(al.ankens().get(0)).isEqualTo(new AnkenAllocation(EPIC, loader.load(ALL).anken(EPIC).orElseThrow().title(), 8.0));
-        assertThat(al.ankens().subList(1, al.ankens().size())).allMatch(x -> !x.epicKey().equals(EPIC) && x.hoursPerDay() > 0);
+        assertThat(al.ankens().subList(1, al.ankens().size())).isNotEmpty().allMatch(x -> !x.epicKey().equals(EPIC) && x.hoursPerDay() > 0);
+        // a viewer who sees this anken only is not shown the others
+        DetailPlanView scoped = detail.view(new AnkenScope(Set.of(EPIC)), EPIC);
+        assertThat(scoped.allocated()).singleElement().satisfies(x -> assertThat(x.ankens()).extracting(AnkenAllocation::epicKey).containsExactly(EPIC));
     }
 
     @Test

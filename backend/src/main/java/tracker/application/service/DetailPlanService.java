@@ -412,13 +412,34 @@ public class DetailPlanService {
     }
 
     /**
-     * Fills the Not yet of every line ({@link MatrixFill}) as Auto allocate's cells, all written at once. Hours added on a day
-     * that already has a cell join it, which keeps whether it was typed; a sub-task in Jira without pending cells first keeps
-     * Jira's plan from today on. Refused when the people of an unpushed row cannot take it; a sub-task in Jira they cannot
-     * take keeps its Not yet.
+     * Trims the sub-tasks in Jira planned over their total ({@link MatrixFill#trims}), then fills the Not yet of every line
+     * ({@link MatrixFill}) as Auto allocate's cells, all in one transaction. Hours added on a day that already has a cell join it,
+     * which keeps whether it was typed; a sub-task in Jira without pending cells first keeps Jira's plan from today on. Refused
+     * (nothing written) when the people of an unpushed row cannot take it; a sub-task in Jira they cannot take keeps its Not yet.
      */
     private void fill(AnkenScope scope, String epic, Allocations a) {
-        Computed c = compute(scope, epic);
+        tx.executeWithoutResult(status -> {
+            Computed c = compute(scope, epic);
+            fill(epic, trim(epic, c) ? compute(scope, epic) : c, a); // what was trimmed is free again
+        });
+    }
+
+    /** Writes Auto allocate's trims of the sub-tasks in Jira planned over their total; whether there were any. */
+    private boolean trim(String epic, Computed c) {
+        Map<String, List<Cell>> pending = cells.jiraCells(epic);
+        Map<String, Map<String, Double>> cut = MatrixFill.trims(c.view().lines(), pending.keySet(), c.ctx().today);
+        cut.forEach((key, days) -> {
+            MatrixLine l = line(c, key);
+            Map<String, Boolean> auto = new HashMap<>();
+            l.cells().forEach(d -> auto.put(d.day(), d.auto()));
+            seed(epic, l, pending, c.ctx().today);
+            cells.saveJiraCells(epic, days.entrySet().stream().map(e -> new Cell(key, e.getKey(), e.getValue(), auto.getOrDefault(e.getKey(), false)))
+                    .toList());
+        });
+        return !cut.isEmpty();
+    }
+
+    private void fill(String epic, Computed c, Allocations a) {
         TrackerContext ctx = c.ctx();
         List<MatrixLine> lines = c.view().lines();
         Map<String, MatrixLine> lineOf = new HashMap<>();
@@ -439,7 +460,7 @@ public class DetailPlanService {
         } catch (RuleError e) {
             throw new Invalid(e.getMessage(), "plan");
         }
-        tx.executeWithoutResult(status -> save(epic, ctx.today, lineOf, added));
+        save(epic, ctx.today, lineOf, added);
     }
 
     /** Writes what Auto allocate adds: on a day with a cell, the sum, which keeps whether it was typed; else a filled cell. */
@@ -543,13 +564,24 @@ public class DetailPlanService {
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
+    /** Working days shown ahead of today, whatever the plan holds: a late anken still has days to plan on. */
+    static final int DAYS_AHEAD = 20;
+
     /**
-     * Working days from the earliest of the master schedule's first Start and the first cell of a line to the latest of its last
-     * End and the last cell (removed and Closed lines aside); none without either.
+     * Working days from the earliest of today, the master schedule's first Start and the first cell of a line to the latest of
+     * the {@value #DAYS_AHEAD}th working day after today, its last End and the last cell (removed and Closed lines aside).
      */
     private static List<String> window(TrackerContext ctx, @Nullable ScheduleVersion schedule, List<MatrixLine> lines) {
-        String from = null;
-        String to = null;
+        String from = ctx.today;
+        String to = ctx.today;
+        java.time.LocalDate d = java.time.LocalDate.parse(ctx.today);
+        for (int ahead = 0; ahead < DAYS_AHEAD; ) {
+            d = d.plusDays(1);
+            if (ctx.cal.visible(d.toString())) {
+                ahead++;
+                to = d.toString();
+            }
+        }
         for (PhaseRow p : schedule == null ? List.<PhaseRow>of() : schedule.phases()) {
             from = min(from, p.start());
             to = max(to, p.end());
@@ -691,11 +723,12 @@ public class DetailPlanService {
         return out;
     }
 
+    /** What a member is allocated to on {@code date}: this anken, then the other anken in the viewer's scope with hours. */
     private static OverrunAllocation allocated(TrackerContext ctx, String epic, Allocations a, String memberId, String phase, String date) {
         List<AnkenAllocation> out = new ArrayList<>();
         out.add(new AnkenAllocation(epic, title(ctx, epic), Objects.requireNonNullElse(a.hoursOn(memberId, epic, date), 0.0)));
         for (String e : ctx.settings.jira.epics) {
-            Double h = e.equals(epic) ? null : a.hoursOn(memberId, e, date);
+            Double h = e.equals(epic) || ctx.anken(e).isEmpty() ? null : a.hoursOn(memberId, e, date);
             if (h != null && h > 0) {
                 out.add(new AnkenAllocation(e, title(ctx, e), h));
             }
@@ -881,18 +914,23 @@ public class DetailPlanService {
         });
     }
 
-    /** One update per pending sub-task in Jira that is not Closed: its PIC if it differs, Planned Start / End and its edited Remaining. */
+    /**
+     * One update per pending sub-task in Jira that is not Closed: its PIC if it differs, its edited Remaining, and Planned Start /
+     * End only when its hours per day changed (a PIC or Total edit alone keeps Jira's dates).
+     */
     private List<TicketUpdate> jiraUpdates(Computed c, String epic) {
         Map<String, JiraEdit> edits = new HashMap<>();
         cells.jiraEdits(epic).forEach(e -> edits.put(e.issueKey(), e));
+        Set<String> withCells = cells.jiraCells(epic).keySet();
         List<TicketUpdate> out = new ArrayList<>();
         for (MatrixLine l : c.view().lines()) {
             if (l.issueKey() == null || !l.pending() || l.closed()) {
                 continue;
             }
             JiraEdit e = edits.get(l.issueKey());
-            out.add(new TicketUpdate(l.issueKey(), new TicketChanges(null, e == null ? null : e.assigneeId(), null, l.start(), l.end(), null,
-                    null, e == null ? null : e.remainingH())));
+            boolean days = withCells.contains(l.issueKey());
+            out.add(new TicketUpdate(l.issueKey(), new TicketChanges(null, e == null ? null : e.assigneeId(), null, days ? l.start() : null,
+                    days ? l.end() : null, null, null, e == null ? null : e.remainingH())));
         }
         return out;
     }
@@ -998,14 +1036,20 @@ public class DetailPlanService {
         return view(scope, epic);
     }
 
+    /** How far from today a cell can be typed outside the plan's window. */
+    static final int MAX_DAYS_AHEAD = 366;
+
     /**
-     * Types hours into cells (a day's hours replace the cell's; 0 clears it). A cell of a sub-task in Jira must be today or later
-     * and is kept until the push; the first one of a sub-task keeps Jira's plan from today on besides.
+     * Types hours into cells (a day's hours replace the cell's; 0 clears it, at most 24): a day of the window, or from today to
+     * {@value #MAX_DAYS_AHEAD} days on. A cell of a sub-task in Jira must be today or later and is kept until the push; the first
+     * one of a sub-task keeps Jira's plan from today on besides.
      */
     @Transactional
     public DetailPlanView saveCells(AnkenScope scope, String epic, List<CellIn> in) {
         DetailPlanView v = view(scope, epic);
         String today = EstimationService.load(context, scope, epic).today;
+        String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
+        Set<String> window = new HashSet<>(v.window());
         Map<String, MatrixLine> lineOf = new HashMap<>();
         v.lines().forEach(l -> lineOf.put(l.ref(), l));
         List<Cell> rowCells = new ArrayList<>();
@@ -1014,6 +1058,15 @@ public class DetailPlanService {
             MatrixLine l = lineOf.get(c.ref());
             if (l == null || l.removed() || l.closed()) {
                 throw new Invalid(c.ref() + " is not in the plan", "ref");
+            }
+            if (!window.contains(c.day()) && !(isDay(c.day()) && c.day().compareTo(today) >= 0 && c.day().compareTo(lastDay) <= 0)) {
+                throw new Invalid(c.day() + " is outside the plan", "day");
+            }
+            if (c.hours() > 24) {
+                throw new Invalid("At most 24 hours a day", "hours");
+            }
+            if (!(c.hours() >= 0)) {
+                throw new Invalid("Hours must be 0 or more", "hours");
             }
             Cell cell = new Cell(c.ref(), c.day(), c.hours(), false);
             if (l.issueKey() == null) {
@@ -1031,6 +1084,15 @@ public class DetailPlanService {
         });
         cells.saveRowCells(rowCells);
         return view(scope, epic);
+    }
+
+    /** Whether {@code s} is a day as YYYY-MM-DD. */
+    private static boolean isDay(String s) {
+        try {
+            return java.time.LocalDate.parse(s).toString().equals(s);
+        } catch (java.time.format.DateTimeParseException e) {
+            return false;
+        }
     }
 
     /**

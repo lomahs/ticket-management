@@ -22,15 +22,27 @@ public final class DetailMatrix {
      * @param order its place in the chain (StepKind ordinal; 0 for a lone line)
      * @param jira  a sub-task in Jira: only the cells from today on are planned, the rest is spent
      * @param cells day → hours, days with hours only
+     * @param loggedTodayH hours logged today (a Jira line): they are in {@code spentH} already, and Jira took them off Remaining
      */
-    public record Line(String ref, String chain, int order, boolean jira, double totalH, double spentH, Map<String, Double> cells) {
+    public record Line(String ref, String chain, int order, boolean jira, double totalH, double spentH, Map<String, Double> cells,
+                       double loggedTodayH) {
+        public Line(String ref, String chain, int order, boolean jira, double totalH, double spentH, Map<String, Double> cells) {
+            this(ref, chain, order, jira, totalH, spentH, cells, 0);
+        }
     }
 
-    /** Every cell of a new line; for a Jira line what it spent plus its cells from {@code today} on. */
+    /**
+     * Every cell of a new line; for a Jira line what it spent plus its cells from {@code today} on, today's net of the hours
+     * logged today (never below 0).
+     */
     public static double plannedH(Line l, String today) {
         double sum = 0;
         for (Map.Entry<String, Double> c : l.cells().entrySet()) {
-            if (!l.jira() || c.getKey().compareTo(today) >= 0) {
+            if (!l.jira()) {
+                sum += c.getValue();
+            } else if (c.getKey().equals(today)) {
+                sum += Math.max(0, c.getValue() - l.loggedTodayH());
+            } else if (c.getKey().compareTo(today) > 0) {
                 sum += c.getValue();
             }
         }

@@ -36,6 +36,19 @@ class DetailMatrixTest {
     }
 
     @Test
+    void todaysCellOfAJiraLineCountsNetOfTheHoursLoggedToday() {
+        // 3h logged today are in Spent already, and Jira took them off Remaining: only today's 1h left counts as planned
+        Map<String, Double> cells = Map.of("2026-10-06", 3.0, "2026-10-07", 4.0, "2026-10-08", 2.0);
+        Line l = new Line("PAY-1201", "PAY-1201", 0, true, 8, 5, cells, 3);
+        assertThat(DetailMatrix.plannedH(l, TODAY)).isEqualTo(8);
+        assertThat(DetailMatrix.notYetH(l, TODAY)).isEqualTo(0);
+        // logged beyond the cell: today counts for nothing, never below
+        assertThat(DetailMatrix.plannedH(new Line("PAY-1201", "PAY-1201", 0, true, 8, 9, cells, 7), TODAY)).isEqualTo(11);
+        // a new line has no logs
+        assertThat(DetailMatrix.plannedH(new Line("1", "row:1", 0, false, 9, 0, cells), TODAY)).isEqualTo(9);
+    }
+
+    @Test
     void sameDayIsInOrder() {
         List<Line> lines = List.of(
                 new Line("1:create", "row:1", 0, false, 8, 0, Map.of("2026-10-12", 4.0, "2026-10-13", 4.0)),
