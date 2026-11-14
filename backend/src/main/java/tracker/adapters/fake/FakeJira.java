@@ -241,6 +241,10 @@ public final class FakeJira implements JiraReader, JiraWriter {
                     }
                     if (v.has("remainingEstimate")) {
                         i.remainingOverrideH = v.get("remainingEstimate").isNull() ? null : minutes(v.get("remainingEstimate")) / 60.0;
+                        // Jira's legacy time tracking, at its worst: a Remaining sent without the Original estimate becomes it too
+                        if (!v.has("originalEstimate") && i.remainingOverrideH != null) {
+                            i.estH = i.remainingOverrideH;
+                        }
                     }
                 }
                 case JiraRequests.DUE_DATE -> {

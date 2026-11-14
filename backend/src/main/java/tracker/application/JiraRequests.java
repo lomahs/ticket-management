@@ -53,9 +53,22 @@ public final class JiraRequests {
      * Planned End is also written to Jira's Due date.
      */
     public static Optional<JiraRequest> update(String key, Map<TicketField, @Nullable Object> values, FieldMapping fm) {
+        return update(key, values, fm, null);
+    }
+
+    /**
+     * {@link #update(String, Map, FieldMapping)}; a Remaining written through time tracking without an Original estimate also
+     * writes {@code originalH}, the Original estimate Jira has now (when it is known and mapped to time tracking): Jira may
+     * otherwise change the Original estimate with the Remaining.
+     */
+    public static Optional<JiraRequest> update(String key, Map<TicketField, @Nullable Object> values, FieldMapping fm, @Nullable Double originalH) {
         ObjectNode fields = JSON.createObjectNode();
         Map<TicketField, @Nullable Object> ordered = new EnumMap<>(TicketField.class);
         ordered.putAll(values);
+        if (originalH != null && ordered.containsKey(TicketField.REMAINING) && !ordered.containsKey(TicketField.ESTIMATE)
+                && TIME_ESTIMATE.equals(fm.remaining) && ORIGINAL_ESTIMATE.equals(fm.effort)) {
+            ordered.put(TicketField.ESTIMATE, originalH);
+        }
         ordered.forEach((f, v) -> put(fields, f, v, fm));
         if (ordered.containsKey(TicketField.PLANNED_END)) {
             fields.put(DUE_DATE, (String) ordered.get(TicketField.PLANNED_END));

@@ -278,7 +278,9 @@ public class TicketService {
             }
         });
         List<JiraRequest> requests = new ArrayList<>();
-        JiraRequests.update(key, values, fm).ifPresent(requests::add);
+        // the Original estimate Jira has now goes along with a Remaining, unchanged
+        String original = "timeoriginalestimate".equals(fm.effort) ? now.get(TicketField.ESTIMATE) : null;
+        JiraRequests.update(key, values, fm, original == null ? null : Double.valueOf(original)).ifPresent(requests::add);
         String transition = null;
         String jiraStatus = null;
         if (changes.stream().anyMatch(c -> c.field() == TicketField.STATUS)) {

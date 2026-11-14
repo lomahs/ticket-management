@@ -307,16 +307,18 @@ class ServiceWritesTest {
     void ticketRemainingIsWrittenThroughTimeTracking() {
         double estimate = tickets.detail(ALL, "PAY-1213").card().estimateH();
         double before = tickets.detail(ALL, "PAY-1213").card().remainingH();
-        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, null, null, 4.0));
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, null, null, 3.5));
         assertThat(p.changes()).hasSize(1);
         assertThat(p.changes().get(0).field()).isEqualTo(tracker.domain.TicketField.REMAINING);
         assertThat(p.changes().get(0).jiraField()).isEqualTo("timetracking.remainingEstimate");
-        assertThat(p.changes().get(0).after()).isEqualTo("4");
+        assertThat(p.changes().get(0).after()).isEqualTo("3.5");
         assertThat(p.changes().get(0).before()).isEqualTo(new java.math.BigDecimal(before).stripTrailingZeros().toPlainString());
-        assertThat(p.requests().get(0).body()).contains("\"remainingEstimate\":\"240m\"");
+        // Jira's Original estimate goes along unchanged, so that Jira cannot change it with the Remaining
+        assertThat(p.requests()).extracting(r -> r.body()).containsExactly("{\"fields\":{\"timetracking\":{\"originalEstimate\":\""
+                + Math.round(estimate * 60) + "m\",\"remainingEstimate\":\"210m\"}}}");
         tickets.apply(ADMIN, ALL, "PAY-1213", expected(p));
         TaskCard c = tickets.detail(ALL, "PAY-1213").card();
-        assertThat(c.remainingH()).isEqualTo(4.0);
+        assertThat(c.remainingH()).isEqualTo(3.5);
         assertThat(c.estimateH()).isEqualTo(estimate);
 
         TicketChangePreview both = tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, 9.0, null, 2.0));
@@ -324,6 +326,14 @@ class ServiceWritesTest {
                 .containsExactly("{\"fields\":{\"timetracking\":{\"originalEstimate\":\"540m\",\"remainingEstimate\":\"120m\"}}}");
         assertThatThrownBy(() -> tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, null, null, -1.0)))
                 .isInstanceOf(Invalid.class);
+    }
+
+    @Test
+    void aRemainingWithoutAnOriginalEstimateInJiraIsWrittenAlone() {
+        String key = tickets.applyBatch(ADMIN, ALL, "PAY-1100", List.of(), List.of(new TicketService.NewTicket("s", true, "PAY-1101", null,
+                "[PAY] No estimate", "an", null, null, null, null, List.of()))).created().get("s");
+        TicketChangePreview p = tickets.preview(ALL, key, new TicketChanges(null, null, null, null, null, null, null, 2.0));
+        assertThat(p.requests()).extracting(r -> r.body()).containsExactly("{\"fields\":{\"timetracking\":{\"remainingEstimate\":\"120m\"}}}");
     }
 
     @Test
