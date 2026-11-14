@@ -3,7 +3,7 @@ import {
   AlarmClock, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, Calendar, CalendarDays, Camera, ChartGantt, Check,
   ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp, CircleAlert, Clock, CircleCheck, CirclePause, CloudUpload, Download, Eraser,
   ExternalLink, Eye, EyeOff, FileCheck, FileDown, FileSpreadsheet, FileUp, Flag, GitBranch, Grid3x3, GripVertical, Hourglass, Info, LayoutDashboard, Link, ListTodo, Lock, LogOut,
-  MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Pencil, Plug, Plus, RefreshCw, Repeat, Scale, ScanSearch, ScrollText, Search, Send,
+  MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Pencil, Plug, Plus, RefreshCw, Repeat, Save, Scale, ScanSearch, ScrollText, Search, Send,
   Settings, ShieldCheck, Sun, Sunrise, Timer, Trash, TrendingUp, Users, TriangleAlert, Undo2, Upload, X, type LucideIcon,
 } from 'lucide-react';
 
@@ -17,7 +17,7 @@ const ICONS = {
   'file-check': FileCheck, 'file-down': FileDown, 'file-spreadsheet': FileSpreadsheet, 'file-up': FileUp, flag: Flag, 'git-branch': GitBranch,
   'grid-3x3': Grid3x3, 'grip-vertical': GripVertical, hourglass: Hourglass, info: Info, 'layout-dashboard': LayoutDashboard, link: Link, 'list-todo': ListTodo, lock: Lock, 'log-out': LogOut,
   'message-square': MessageSquare, moon: Moon, 'panel-left-close': PanelLeftClose, 'panel-left-open': PanelLeftOpen, pencil: Pencil,
-  plug: Plug, plus: Plus, 'refresh-cw': RefreshCw, repeat: Repeat, scale: Scale, 'scan-search': ScanSearch, 'scroll-text': ScrollText, search: Search, send: Send,
+  plug: Plug, plus: Plus, 'refresh-cw': RefreshCw, repeat: Repeat, save: Save, scale: Scale, 'scan-search': ScanSearch, 'scroll-text': ScrollText, search: Search, send: Send,
   settings: Settings, 'shield-check': ShieldCheck, sun: Sun, sunrise: Sunrise, timer: Timer, 'trash-2': Trash, 'trending-up': TrendingUp,
   'triangle-alert': TriangleAlert, 'undo-2': Undo2, upload: Upload, users: Users, x: X,
 } satisfies Record<string, LucideIcon>;

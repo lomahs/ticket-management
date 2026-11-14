@@ -259,7 +259,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async ({ request }) => { previews.push(await request.json()); return HttpResponse.json(rows); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', async ({ request }) => { saved = await request.json(); return HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] }); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [], by_hand: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null })),
     );
     renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.change(await screen.findByLabelText('Start date'), { target: { value: '2026-10-12' } });
@@ -285,7 +285,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/planning/PAY-1100/master-schedule', () => HttpResponse.json({ estimation_phases: ['ITA'], current, versions: [current], shifts: [] })),
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async () => { await new Promise((r) => setTimeout(r, 500)); return HttpResponse.json([phase]); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', () => { saves++; return HttpResponse.json({}); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], plan: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], steps: [], days: [], stale_phases: [], by_hand: [] })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null })),
     );
     const { router } = renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.click(await screen.findByRole('button', { name: 'Continue to Detail plan' })); // before the preview is back
@@ -293,19 +293,28 @@ describe('onboarding', () => {
     expect(saves).toBe(0);
   });
 
-  const line = (ref: string, row: number, step: string | null, summary: string, h: number, dates: [string, string] | null = null) => ({
-    ref, row_id: row, step, phase: 'ITA', summary, effort_h: h, ba_h: step === 'balr' || step === 'jmr' ? 0 : h, bal_h: step === 'balr' ? h : 0,
-    start: dates?.[0] ?? null, end: dates?.[1] ?? null, manual: false, edited: false, removed: false,
+  /** A line of the matrix: a step of a row not in Jira yet (row set) or a sub-task in Jira (key set). */
+  const mline = (ref: string, row: number | null, step: string | null, summary: string, total: number, over: Record<string, unknown> = {}) => ({
+    ref, row_id: row, issue_key: null as string | null, phase: 'ITA', function: row === 2 ? 'Run' : 'Login', step, summary, pic_id: null as string | null,
+    reporter_id: null as string | null, total_h: total, spent_h: 0, planned_h: 0, not_yet_h: total, start: null as string | null, end: null as string | null,
+    cells: [] as { day: string; hours: number; auto: boolean }[], logged: [] as { day: string; hours: number; auto: boolean }[], closed: false,
+    pending: false, out_of_order: false, removed: false, edited: false, ...over,
   });
-  const LINES = [line('1:create', 1, 'create', '[PAY] Login – Create', 8), line('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2),
-    line('2', 2, null, '[PAY] Run', 16)];
+  const LINES = [mline('1:create', 1, 'create', '[PAY] Login – Create', 8), mline('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2),
+    mline('2', 2, null, '[PAY] Run', 16)];
+  // today is 2026-10-07 (meta): the 6th is past
+  const WINDOW = ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14'];
+  const REFUND = mline('PAY-1201', null, 'create', '[PAY] Refund – Create', 3, { issue_key: 'PAY-1201', function: 'Refund', pic_id: 'an',
+    spent_h: 1, planned_h: 3, not_yet_h: 0, start: '2026-10-06', end: '2026-10-08',
+    cells: [{ day: '2026-10-06', hours: 1, auto: false }, { day: '2026-10-08', hours: 2, auto: false }], logged: [{ day: '2026-10-06', hours: 1.5, auto: false }] });
   const detailView = (over: Record<string, unknown> = {}) => ({
-    rows: [LOGIN, RUN], tasks: [TASK], plan: [], steps: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
-    stale_phases: [], problems: [], by_hand: [], affected: [], left_out: [], ...over,
+    rows: [LOGIN, RUN], tasks: [TASK], window: WINDOW, lines: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
+    stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null, ...over,
   });
+  const run = (over: Record<string, unknown>) => mline('2', 2, null, '[PAY] Run', 16, over);
   const planned = {
-    plan: [{ row_id: 2, steps: [{ ref: '2', step: null, member_id: 'an', hours: 16, start: '2026-10-12', end: '2026-10-14' }] }],
-    steps: [...LINES.slice(0, 2), line('2', 2, null, '[PAY] Run', 16, ['2026-10-12', '2026-10-14'])],
+    lines: [...LINES.slice(0, 2), run({ planned_h: 16, not_yet_h: 0, start: '2026-10-12', end: '2026-10-14', pic_id: 'an',
+      cells: [{ day: '2026-10-12', hours: 8, auto: true }, { day: '2026-10-14', hours: 8, auto: true }] })],
     checks: [{ phase: 'ITA', master_end: '2026-10-13', plan_end: '2026-10-14', days_late: 1 }],
     days: [{ member_id: 'an', date: '2026-10-11', planned_h: 0, allocated_h: 0, off: 'Weekend', other_h: 0, items: [] },
       { member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false }] },
@@ -341,7 +350,7 @@ describe('onboarding', () => {
     expect(await screen.findByText('Plan cleared')).toBeTruthy();
   });
 
-  it('assigns members and shows computed dates', async () => {
+  it('assigns members and shows the plan with the effort per member per day above it', async () => {
     let saved: { assigns: Record<string, unknown>[] } | null = null;
     onboarding({ step: 6 });
     server.use(
@@ -360,16 +369,20 @@ describe('onboarding', () => {
     expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)', 'Minh (BAL)']);
     expect([...screen.getByLabelText('JM, Login').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–']); // no BA or BAL
     expect(screen.getByLabelText('Member, Run')).toBeTruthy(); // a ticket has one member
+    expect(screen.queryByRole('button', { name: 'Check' })).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull(); // the effort per day is always above the matrix
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
-    expect(screen.getByText('[PAY] Login – BAL Review')).toBeTruthy(); // one line per step, named by the name rules
+    expect(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).toBeTruthy(); // one line per step, named by the name rules
     fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
-    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/12'));
-    expect((screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/14');
+    const runRow = await screen.findByRole('row', { name: '[PAY] Run' });
+    await waitFor(() => expect(within(runRow).getByLabelText('Start, [PAY] Run').textContent).toBe('10/12'));
+    expect(within(runRow).getByLabelText('End, [PAY] Run').textContent).toBe('10/14');
+    expect(within(runRow).getByLabelText('Planned, [PAY] Run').textContent).toBe('16.00');
+    expect((within(runRow).getByLabelText('[PAY] Run 2026-10-14') as HTMLInputElement).value).toBe('8');
+    expect(within(runRow).getByLabelText('PIC, [PAY] Run').textContent).toBe('An'); // who carries the line
     expect(screen.getByText('ITA ends 10/14 · master 10/13 · 1 day late')).toBeTruthy();
-    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).getByText('An 8.00h')).toBeTruthy(); // who carries the line
-    fireEvent.click(screen.getByRole('tab', { name: 'Effort per day' }));
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
     const tue = within(days).getByLabelText('An 2026-10-13');
     expect(tue.textContent).toBe('9.00+3.00 other'); // the planned hours only, red above the 8h allocation
@@ -383,102 +396,116 @@ describe('onboarding', () => {
     expect(screen.getByRole('button', { name: 'Finish onboarding' }).getAttribute('title')).toBe('Push every row to Jira first');
   });
 
-  it('sends a date set by hand once it is left, not while it is typed', async () => {
-    const sent: Record<string, unknown>[] = [];
+  it('types hours into a day and sends them when the cell is left', async () => {
+    const sent: unknown[] = [];
     onboarding({ step: 6 });
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
-      http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
-        sent.push(await request.json() as Record<string, unknown>);
-        return HttpResponse.json(detailView({ ...planned, steps: [...LINES.slice(0, 2), { ...line('2', 2, null, '[PAY] Run', 16, ['2026-10-15', '2026-10-15']), manual: true }] }));
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json(detailView({ lines: [...LINES.slice(0, 2),
+          run({ planned_h: 8, not_yet_h: 8, start: '2026-10-12', end: '2026-10-12', cells: [{ day: '2026-10-12', hours: 8, auto: false }] })] }));
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const start = await screen.findByLabelText('Plan start, [PAY] Run') as HTMLInputElement;
-    fireEvent.change(start, { target: { value: '0002-10-15' } }); // the year half typed
-    fireEvent.change(start, { target: { value: '2026-10-15' } });
-    expect(sent).toEqual([]);
-    fireEvent.blur(start);
-    await waitFor(() => expect(sent).toEqual([{ row_id: 2, step: null, effort_h: null, start: '2026-10-15', end: '2026-10-15', removed: false }]));
-    await waitFor(() => expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/15'));
-    // set by hand: the line is highlighted with a lock
-    expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByRole('img', { name: 'Dates set by hand' })).toBeTruthy();
-    expect(within(screen.getByRole('row', { name: '[PAY] Login – Create' })).queryByRole('img', { name: 'Dates set by hand' })).toBeNull();
-    const end =screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
-    fireEvent.change(end, { target: { value: '0020-10-20' } });
-    fireEvent.blur(end); // not a date of the plan: put back
-    expect(end.value).toBe('2026/10/15');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement;
+    expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByLabelText('Not yet, [PAY] Run').textContent).toBe('16.00');
+    fireEvent.change(cell, { target: { value: '8' } });
+    expect(sent).toEqual([]); // not while it is typed
+    expect(cell.value).toBe('8');
+    fireEvent.blur(cell);
+    await waitFor(() => expect(sent).toEqual([{ cells: [{ ref: '2', day: '2026-10-12', hours: 8 }] }]));
+    const row = screen.getByRole('row', { name: '[PAY] Run' });
+    await waitFor(() => expect(within(row).getByLabelText('Not yet, [PAY] Run').textContent).toBe('8.00'));
+    expect(within(row).getByLabelText('Start, [PAY] Run').textContent).toBe('10/12');
+    expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('8');
+    const next = screen.getByLabelText('[PAY] Run 2026-10-13');
+    fireEvent.change(next, { target: { value: '' } });
+    fireEvent.keyDown(next, { key: 'Enter' });
+    fireEvent.blur(next); // nothing changed: nothing sent
     expect(sent).toHaveLength(1);
   });
 
-  it('sets dates by hand before the plan can be computed', async () => {
-    const sent: Record<string, unknown>[] = [];
+  it('locks the past days of a Jira line and shows the hours logged', async () => {
     onboarding({ step: 6 });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, pending: true }] }))));
+    renderApp('/onboarding/PAY-1100/detail');
+    const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
+    expect(screen.queryByLabelText('[PAY] Refund – Create 2026-10-06')).toBeNull();
+    const past = row.querySelector('[data-day="2026-10-06"]') as HTMLElement;
+    expect(within(past).getByText('1')).toBeTruthy(); // the plan
+    expect(within(past).getByText('1.5h')).toBeTruthy(); // the hours logged
+    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-07') as HTMLInputElement).disabled).toBe(false); // today stays open
+    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-08') as HTMLInputElement).value).toBe('2');
+    expect(within(row).getByText('Not pushed')).toBeTruthy();
+    expect(within(row).getByText('PAY-1201')).toBeTruthy();
+  });
+
+  it('changes the Total and the PIC of a Jira line', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 6 });
+    const view = detailView({ lines: [...LINES, REFUND] });
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }))),
-      http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
-        sent.push(await request.json() as Record<string, unknown>);
-        return HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }));
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.put('*/api/v1/planning/PAY-1100/detail/jira/PAY-1201', async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json(view);
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const end = await screen.findByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
-    expect(end.value).toBe(''); // nothing computed yet
-    expect(end.disabled).toBe(false);
-    fireEvent.change(end, { target: { value: '2026-10-15' } });
-    fireEvent.blur(end); // one date set: the other follows it
-    await waitFor(() => expect(sent).toEqual([{ row_id: 2, step: null, effort_h: null, start: '2026-10-15', end: '2026-10-15', removed: false }]));
+    const total = await screen.findByLabelText('Total, [PAY] Refund – Create') as HTMLInputElement;
+    expect(total.value).toBe('3');
+    fireEvent.change(total, { target: { value: '5' } });
+    expect(sent).toEqual([]);
+    fireEvent.blur(total);
+    await waitFor(() => expect(sent).toEqual([{ total_h: 5, pic_id: null }]));
+    const pic = screen.getByLabelText('PIC, [PAY] Refund – Create') as HTMLSelectElement;
+    expect(pic.value).toBe('an');
+    expect([...pic.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['An', 'Minh']); // the anken's members
+    fireEvent.change(pic, { target: { value: 'minh' } });
+    await waitFor(() => expect(sent).toEqual([{ total_h: 5, pic_id: null }, { total_h: null, pic_id: 'minh' }]));
   });
 
-  it('checks the plan as it stands without changing it', async () => {
-    let checks = 0;
+  it('marks a step out of order and blocks the push', async () => {
+    onboarding({ step: 6 });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
+      lines: [LINES[0], { ...LINES[1], out_of_order: true, cells: [{ day: '2026-10-08', hours: 2, auto: false }] }, LINES[2]],
+      push_blockers: ['[PAY] Login – BAL Review: starts before the step before it ends'],
+    }))));
+    renderApp('/onboarding/PAY-1100/detail');
+    const row = await screen.findByRole('row', { name: '[PAY] Login – BAL Review' });
+    expect(row.getAttribute('data-out-of-order')).toBe('true');
+    const cell = within(row).getByLabelText('[PAY] Login – BAL Review 2026-10-08').closest('td');
+    expect(cell?.getAttribute('data-out-of-order')).toBe('true');
+    expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-out-of-order')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Fix 1 problem to push' }));
+    expect(await screen.findByText('[PAY] Login – BAL Review: starts before the step before it ends')).toBeTruthy();
+  });
+
+  it('saves a version', async () => {
+    let posts = 0;
     onboarding({ step: 6 });
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
-      http.post('*/api/v1/planning/PAY-1100/detail/check', () => {
-        checks++;
-        return HttpResponse.json(detailView({ ...planned, affected: ['2'], left_out: ['Row 1 (Login): no people yet, not counted'],
-          over_day: [{ member_id: 'an', date: '2026-10-12', planned_h: 16, allocation_h: 8 }] }));
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.post('*/api/v1/planning/PAY-1100/detail/versions', () => {
+        posts++;
+        return HttpResponse.json(detailView({ last_version_at: '2026-10-07T09:30:00Z' }));
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const run = await screen.findByRole('row', { name: '[PAY] Run' });
-    expect(run.getAttribute('data-affected')).toBeNull();
-    expect(screen.queryByRole('button', { name: '1 day above the allocation' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
-    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'));
-    expect(checks).toBe(1);
-    expect((screen.getByLabelText('Plan start, [PAY] Run') as HTMLInputElement).value).toBe('2026/10/12'); // the list keeps its dates
-    expect(screen.getByRole('button', { name: '1 day above the allocation' })).toBeTruthy(); // the summary is the Check's
-    expect(screen.getByText('Row 1 (Login): no people yet, not counted')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Save version' }));
+    expect(await screen.findByText('Version saved')).toBeTruthy();
+    expect(posts).toBe(1);
+    expect(screen.getByText(/^Last version 2026\/10\/0[78] \d\d:\d\d$/)).toBeTruthy();
   });
 
-  it('is ready to push lines without dates yet', async () => {
+  it('is ready to push lines not planned yet', async () => {
     onboarding({ step: 6 });
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())));
     renderApp('/onboarding/PAY-1100/detail');
-    expect(await screen.findByText('Ready to push')).toBeTruthy(); // nobody planned yet: created without dates
+    expect(await screen.findByText('Ready to push')).toBeTruthy(); // nothing stands before the push: created without dates
     expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
-  });
-
-  it('keeps the check until Auto allocate', async () => {
-    onboarding({ step: 6 });
-    server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView(planned))),
-      http.post('*/api/v1/planning/PAY-1100/detail/check', () => HttpResponse.json(detailView({ ...planned, affected: ['2'] }))),
-      http.put('*/api/v1/planning/PAY-1100/detail/step', () => HttpResponse.json(detailView(planned))),
-      http.post('*/api/v1/planning/PAY-1100/detail/auto-allocate', () => HttpResponse.json(detailView(planned))),
-    );
-    renderApp('/onboarding/PAY-1100/detail');
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'));
-    const end = screen.getByLabelText('Plan end, [PAY] Run') as HTMLInputElement;
-    fireEvent.change(end, { target: { value: '2026-10-20' } });
-    fireEvent.blur(end);
-    expect(await screen.findByText('Saved')).toBeTruthy();
-    expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBe('true'); // an adjustment keeps it
-    fireEvent.click(screen.getByRole('button', { name: 'Auto allocate' }));
-    await waitFor(() => expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-affected')).toBeNull());
   });
 
   it('auto allocates the empty slots and shows the plan that follows', async () => {
@@ -494,6 +521,7 @@ describe('onboarding', () => {
     renderApp('/onboarding/PAY-1100/detail');
     fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
     await waitFor(() => expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('an'));
+    expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('8');
     expect(posts).toBe(1);
   });
 
@@ -506,7 +534,7 @@ describe('onboarding', () => {
       http.put('*/api/v1/planning/PAY-1100/detail/step', async ({ request }) => {
         const b = await request.json() as Record<string, unknown>;
         steps.push(b);
-        return HttpResponse.json(detailView({ steps: LINES.map((l) => (l.ref === '1:balr' ? { ...l, removed: !!b.removed } : l)) }));
+        return HttpResponse.json(detailView({ lines: LINES.map((l) => (l.ref === '1:balr' ? { ...l, removed: !!b.removed } : l)) }));
       }),
       http.post('*/api/v1/planning/PAY-1100/detail/rows', async ({ request }) => {
         added = await request.json() as Record<string, unknown>;
@@ -514,14 +542,16 @@ describe('onboarding', () => {
       }),
     );
     renderApp('/onboarding/PAY-1100/detail');
-    const effort = await screen.findByLabelText('Effort, [PAY] Login – BAL Review');
+    const effort = await screen.findByLabelText('Total, [PAY] Login – BAL Review');
     fireEvent.change(effort, { target: { value: '3' } });
     fireEvent.blur(effort);
-    await waitFor(() => expect(steps[0]).toEqual({ row_id: 1, step: 'balr', effort_h: 3, start: null, end: null, removed: false }));
+    await waitFor(() => expect(steps[0]).toEqual({ row_id: 1, step: 'balr', effort_h: 3, removed: false }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove [PAY] Login – BAL Review' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Removed (1)' }));
-    expect(screen.queryByRole('row', { name: '[PAY] Login – BAL Review' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    const restore = await screen.findByRole('button', { name: 'Restore [PAY] Login – BAL Review' });
+    // greyed, its days not editable
+    expect(screen.getByRole('row', { name: '[PAY] Login – BAL Review' }).getAttribute('data-removed')).toBe('true');
+    expect(screen.queryByLabelText('[PAY] Login – BAL Review 2026-10-12')).toBeNull();
+    fireEvent.click(restore);
     await waitFor(() => expect(steps.map((b) => b.removed)).toEqual([false, true, false]));
 
     fireEvent.click(screen.getByRole('button', { name: 'Add function' }));
@@ -536,13 +566,13 @@ describe('onboarding', () => {
     let applied: { lines: Record<string, unknown>[] } | null = null;
     onboarding({ step: 6 });
     const imported = [
-      { line: 2, ref: '1:create', function: 'Login', step: 'create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, start: null, end: null,
+      { line: 2, ref: '1:create', function: 'Login', step: 'create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, cells: {},
         changes: [{ field: 'ba', before: 'an', after: 'minh' }, { field: 'effort_h', before: '8', after: '10' }], errors: [] },
-      { line: 3, ref: '1:balr', function: 'Login', step: 'balr', ba_id: null, bal_id: null, jm_id: null, effort_h: 2, start: null, end: null,
+      { line: 3, ref: '1:balr', function: 'Login', step: 'balr', ba_id: null, bal_id: null, jm_id: null, effort_h: 2, cells: {},
         changes: [], errors: [] },
-      { line: 4, ref: '2', function: 'Run', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: 16, start: '2026-10-20', end: '2026-10-21',
-        changes: [{ field: 'start', before: '2026-10-12', after: '2026-10-20' }, { field: 'end', before: '2026-10-14', after: '2026-10-21' }], errors: [] },
-      { line: 5, ref: '9', function: 'Ghost', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: null, start: null, end: null,
+      { line: 4, ref: '2', function: 'Run', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: 16, cells: { '2026-10-12': 0, '2026-10-13': 8 },
+        changes: [{ field: 'cells', before: '2026-10-12 8, 2026-10-13 0', after: '2026-10-12 0, 2026-10-13 8' }], errors: [] },
+      { line: 5, ref: '9', function: 'Ghost', step: null, ba_id: null, bal_id: null, jm_id: null, effort_h: null, cells: {},
         changes: [], errors: ['9 is not a sub-task of the plan'] },
     ];
     server.use(
@@ -565,10 +595,11 @@ describe('onboarding', () => {
     expect(within(dialog).getByText('Line 2 · Login · Create')).toBeTruthy();
     expect(within(dialog).getByText('BA An → Minh')).toBeTruthy();
     expect(within(dialog).getByText('Effort 8.00h → 10.00h')).toBeTruthy();
-    expect(within(dialog).getByText('Plan 10/12–10/14 → 10/20–10/21 (set by hand)')).toBeTruthy();
+    expect(within(dialog).getByText('Hours 10/12 8.00h → 0.00h · 10/13 0.00h → 8.00h')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply 2 lines' }));
     await waitFor(() => expect(applied?.lines.map((l) => l.ref)).toEqual(['1:create', '2'])); // the unchanged and wrong lines stay out
-    expect(applied!.lines[0]).toEqual({ ref: '1:create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, start: null, end: null });
+    expect(applied!.lines[0]).toEqual({ ref: '1:create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, cells: {} });
+    expect(applied!.lines[1].cells).toEqual({ '2026-10-12': 0, '2026-10-13': 8 });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('minh');
   });
@@ -614,17 +645,40 @@ describe('onboarding', () => {
     expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it('pushes the hours per day alone when Jira has nothing to change', async () => {
+    let pushes = 0;
+    onboarding({ step: 6 });
+    const view = detailView({ rows: [{ ...LOGIN, pushed_at: '2026-10-07T09:00:00Z' }, { ...RUN, pushed_at: '2026-10-07T09:00:00Z' }],
+      lines: [{ ...REFUND, pending: true }] });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', () => HttpResponse.json({ updates: [], creates: [] })),
+      http.post('*/api/v1/planning/PAY-1100/detail/push', () => { pushes++; return HttpResponse.json({ updated: [], created: {} }); }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'Review push' })); // a pending Jira line is something to push
+    const review = await screen.findByRole('dialog', { name: 'Push review' });
+    expect(within(review).getByText('Nothing changes in Jira')).toBeTruthy();
+    fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
+    await waitFor(() => expect(pushes).toBe(1));
+    expect(await screen.findByText('Pushed · the hours per day are kept here')).toBeTruthy();
+  });
+
   it('pushes the plan, then finishes the onboarding', async () => {
     let finished = false;
     let pushedRows = false;
     onboarding({ step: 6, labels: ['PAY', 'phase'] });
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(pushedRows
-        ? detailView({ rows: [{ ...LOGIN, pushed_at: '2026-10-07T09:00:00Z' }, { ...RUN, pushed_at: '2026-10-07T09:00:00Z' }] }) : detailView(planned))),
-      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', () => HttpResponse.json({ updates: [], creates: [
+        ? detailView({ rows: [{ ...LOGIN, pushed_at: '2026-10-07T09:00:00Z' }, { ...RUN, pushed_at: '2026-10-07T09:00:00Z' }], lines: [REFUND] })
+        : detailView({ ...planned, lines: [...planned.lines, { ...REFUND, pending: true }] }))),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', () => HttpResponse.json({ updates: [
+        { key: 'PAY-1201', summary: '[PAY] Refund – Create', transition: null, jira_status: null, estimate_tracking: false, requests: [],
+          changes: [{ field: 'remaining', jira_field: 'timeestimate', before: '2', after: '4' }, { field: 'assignee', jira_field: 'assignee', before: 'an', after: 'minh' }] },
+      ], creates: [
         { ref: '2', subtask: true, parent: 'PAY-1102', summary: '[ITA] Run', request: { method: 'POST', path: '/rest/api/3/issue', body: '{}' } },
       ] })),
-      http.post('*/api/v1/planning/PAY-1100/detail/push', () => { pushedRows = true; return HttpResponse.json({ updated: [], created: { 2: 'PAY-1502' } }); }),
+      http.post('*/api/v1/planning/PAY-1100/detail/push', () => { pushedRows = true; return HttpResponse.json({ updated: ['PAY-1201'], created: { 2: 'PAY-1502' } }); }),
       http.post('*/api/v1/onboarding/PAY-1100/finish', () => { finished = true; return HttpResponse.json({ ...ONB, step: 6, finished_at: '2026-10-07T10:00:00Z' }); }),
       http.get('*/api/v1/onboarding', () => HttpResponse.json([])),
     );
@@ -633,8 +687,12 @@ describe('onboarding', () => {
     const review = await screen.findByRole('dialog', { name: 'Push review' });
     expect(within(review).getByText('[ITA] Run')).toBeTruthy();
     expect(within(review).getByText('Labels PAY, phase (Setting Phase)')).toBeTruthy();
+    const update = within(review).getByRole('listitem', { name: 'PAY-1201' });
+    expect(update.textContent).toContain('[PAY] Refund – Create');
+    expect(within(update).getByText('Remaining 2.00h → 4.00h')).toBeTruthy();
+    expect(within(update).getByText('PIC An → Minh')).toBeTruthy();
     fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
-    expect(await screen.findByText('Created 1 sub-tasks in Jira')).toBeTruthy();
+    expect(await screen.findByText('Created 1 sub-tasks · updated 1 in Jira')).toBeTruthy();
     const finish = screen.getByRole('button', { name: 'Finish onboarding' }) as HTMLButtonElement;
     await waitFor(() => expect(finish.disabled).toBe(false));
     fireEvent.click(finish);

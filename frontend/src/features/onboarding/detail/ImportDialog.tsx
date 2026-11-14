@@ -10,18 +10,21 @@ type Change = Schemas['ImportChange'];
 
 const SLOT: Record<string, string> = { ba: 'BA', bal: 'BAL', jm: 'JM' };
 
-/** What a line changes, in words: people by name, hours, dates as day/month. */
+/** "2026-10-12 8, 2026-10-13 0" → the hours by day. */
+const byDay = (text?: string | null) => new Map((text ?? '').split(',').map((x) => x.trim().split(' ')).filter((x) => x.length === 2)
+  .map(([d, h]) => [d, Number(h)] as const));
+
+/** What a line changes, in words: people by name, hours, the days as day/month with their hours before and after. */
 export function changeText(changes: Change[], name: (id?: string | null) => string): string[] {
   const out: string[] = [];
   for (const c of changes) {
     if (SLOT[c.field]) out.push(`${SLOT[c.field]} ${name(c.before) || '–'} → ${name(c.after)}`);
     else if (c.field === 'effort_h') out.push(`Effort ${f2(Number(c.before))}h → ${f2(Number(c.after))}h`);
-  }
-  const start = changes.find((c) => c.field === 'start');
-  const end = changes.find((c) => c.field === 'end');
-  if (start && end) {
-    const was = start.before && end.before ? `${dm(start.before)}–${dm(end.before)}` : 'not computed';
-    out.push(`Plan ${was} → ${dm(start.after ?? '')}–${dm(end.after ?? '')} (set by hand)`);
+    else if (c.field === 'cells') {
+      const was = byDay(c.before);
+      const now = byDay(c.after);
+      out.push(`Hours ${[...now].map(([d, h]) => `${dm(d)} ${f2(was.get(d) ?? 0)}h → ${f2(h)}h`).join(' · ')}`);
+    }
   }
   return out;
 }
@@ -39,7 +42,7 @@ export function ImportDialog({ epic, file, lines, name, close }: {
   // a line with errors may name no sub-task of the plan: its step is not known
   const at = (l: ImportLine) => `Line ${l.line}${l.function ? ` · ${l.function}` : ''}`;
   const submit = () => apply.mutate(changed, {
-    onSuccess: () => { toast(`${changed.length} line${changed.length === 1 ? '' : 's'} applied · set by hand`); close(); },
+    onSuccess: () => { toast(`${changed.length} line${changed.length === 1 ? '' : 's'} applied`); close(); },
     onError: (e) => toast(errorMessage(e), true),
   });
   return (
@@ -68,7 +71,7 @@ export function ImportDialog({ epic, file, lines, name, close }: {
             <span className="muted" style={{ fontSize: 13 }}>Every line has what the plan has: nothing to change.</span>
           )}
         </div>
-        <span className="eyebrow">What changes is set by hand, as on the screen: Auto allocate keeps it, and the plan is computed again around it.</span>
+        <span className="eyebrow">What changes is set by hand, as on the screen: Auto allocate keeps the hours typed in a day and fills around them.</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Cancel</Button>

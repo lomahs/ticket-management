@@ -34,9 +34,13 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
   const [showIssues, setShowIssues] = useState(false);
   const [showWarn, setShowWarn] = useState(false);
   const open = v.rows.filter((r) => !r.pushed_at);
-  const lines = v.steps.filter((s) => !s.removed && open.some((r) => r.id === s.row_id)).length;
+  const lines = v.lines.filter((l) => l.row_id != null && !l.removed).length;
+  const inJira = v.lines.filter((l) => l.issue_key != null);
+  const pending = inJira.filter((l) => l.pending).length;
   const unassigned = open.filter((r) => !r.ba_id || (r.steps && !r.bal_id)).length;
-  const issues = v.problems.length;
+  // the problems, then what blocks the push (Not yet left, steps out of order)
+  const before = [...v.problems, ...v.push_blockers];
+  const issues = before.length;
   const warnings = v.over_day.length + v.over_budget.length;
   const issuesOpen = issues > 0 && (checked || showIssues);
   const warnOpen = warnings > 0 && (checked || showWarn);
@@ -51,7 +55,10 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
         </span>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 13 }}>
-        <span className="heading" style={{ fontWeight: 600 }}>{`${plural(open.length, 'function')} · ${plural(lines, 'sub-task')}`}</span>
+        <span className="heading" style={{ fontWeight: 600 }}>
+          {`${plural(open.length, 'function')} · ${plural(lines, 'sub-task')}`}
+          {inJira.length > 0 && ` · ${plural(inJira.length, 'sub-task')} in Jira${pending ? `, ${pending} changed here` : ''}`}
+        </span>
         {unassigned > 0 && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)', lineHeight: '24px', padding: '0 10px' }}>
           {`${plural(unassigned, 'function')} without a BA or BAL`}</span>}
         <span className="spacer" />
@@ -73,14 +80,14 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
             <Icon name="triangle-alert" size={14} />{`${plural(v.over_day.length, 'day')} above the allocation`}<Icon name={warnOpen ? 'chevron-up' : 'chevron-down'} size={14} />
           </button>
         )}
-        {issues === 0 && warnings === 0 && lines > 0 && (
+        {issues === 0 && warnings === 0 && lines + pending > 0 && (
           <span className="status-pill" style={{ background: 'var(--hl-ok)', color: 'var(--hl-ok-fg)', lineHeight: '24px', padding: '0 10px' }}>
             <Icon name="circle-check" size={14} />Ready to push</span>
         )}
       </div>
       {issuesOpen && (
         <div role="alert" aria-label="Before the push" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-red)' }}>
-          {v.problems.map((p) => <span key={p} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{p}</span>)}
+          {before.map((p) => <span key={p} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{p}</span>)}
         </div>
       )}
       {warnOpen && (
@@ -89,11 +96,6 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
           {v.over_budget.map((o) => <span key={o.member_id + o.phase} style={{ color: 'var(--hl-amber-fg)', fontSize: 13 }}>{`${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`}</span>)}
           {v.allocated.length > 0 && <div style={{ background: 'var(--surface-card)', borderRadius: 8, padding: '4px 6px' }}><AllocationMatrix epic={epic} rows={v.allocated} name={name} /></div>}
           {v.over_day.map((o) => <span key={o.member_id + o.date} style={{ color: 'var(--hl-amber-fg)', fontSize: 13 }}>{overDayText(o, name)}</span>)}
-        </div>
-      )}
-      {v.left_out.length > 0 && (
-        <div role="note" aria-label="Left out of the check" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 13, color: 'var(--text-muted)' }}>
-          {v.left_out.map((x) => <span key={x}>{x}</span>)}
         </div>
       )}
       {v.stale_phases.length > 0 && (

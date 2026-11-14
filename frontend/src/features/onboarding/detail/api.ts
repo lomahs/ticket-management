@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { http, unwrap } from '../../../shared/api/client';
 import type { Schemas } from '../../../shared/api/types';
 
@@ -10,56 +10,36 @@ export const detailPlanQuery = (epic: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/planning/{epic}/detail', { params: { path: { epic } } })),
 });
 
-// outside ['planning']: the invalidations after a write leave the last Check alone
-const checkKey = (epic: string) => ['detail-check', epic] as const;
-
-/** The last Check of the plan, kept until the next Auto allocate or a reload; null before any. */
-export function useCheckResult(epic: string): DetailPlanView | null {
-  return useQuery({ queryKey: checkKey(epic), queryFn: () => null as DetailPlanView | null, enabled: false, staleTime: Infinity, gcTime: Infinity })
-    .data ?? null;
-}
-
-/** Checks the plan as it stands (effort per day, overruns, phase checks) without planning again; nothing is saved. */
-export function useCheckPlan(epic: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/check', { params: { path: { epic } } })),
-    onSuccess: (v) => qc.setQueryData(checkKey(epic), v),
-  });
-}
-
-/** The plan with what the last Check found, when there is one: its effort per day, overruns and phase checks. */
-export const withCheck = (v: DetailPlanView, check: DetailPlanView | null): DetailPlanView => (check
-  ? { ...v, checks: check.checks, days: check.days, over_day: check.over_day, over_budget: check.over_budget, allocated: check.allocated,
-    affected: check.affected, left_out: check.left_out }
-  : v);
+// one at a time, in the order they were made: each answer is the whole plan, so the last one sent is the one shown
+const planScope = (epic: string) => ({ id: `detail-plan:${epic}` });
 
 /** Saves the draft; the plan that follows comes back. */
 export function useSaveDraft(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: (body: DraftIn) => unwrap(http.PUT('/api/v1/planning/{epic}/detail', { params: { path: { epic } }, body })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
   });
 }
 
 /**
- * Fills the empty slots with who finishes each row soonest, then plans every row again and saves the plan, which comes back;
- * the last Check goes. When it cannot plan, the people it filled are saved and the error comes back.
+ * Fills the empty slots with who finishes each row soonest, then fills what is not planned yet of each line around the cells
+ * typed by hand; the plan that follows comes back. When it cannot plan, the people it filled are saved and the error comes back.
  */
 export function useAutoAllocate(epic: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/auto-allocate', { params: { path: { epic } } })),
-    onSuccess: (v) => {
-      qc.setQueryData(detailPlanQuery(epic).queryKey, v);
-      qc.setQueryData(checkKey(epic), null);
-    },
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
     onError: () => qc.invalidateQueries({ queryKey: detailPlanQuery(epic).queryKey }),
   });
 }
 
-/** @param keepInput empty only Auto allocate's picks; else every pick and every date, effort and removal set by hand */
+/**
+ * @param keepInput empty only what Auto allocate filled (cells and picks); else every cell, pick, effort and removal of the rows not in
+ *                  Jira yet, and every Jira change not pushed
+ */
 export function useClearPlan(epic: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -82,11 +62,47 @@ export function usePushPlan(epic: string) {
 }
 
 export type StepBody = Schemas['StepBody'];
+export type MatrixLine = Schemas['MatrixLine'];
+export type CellIn = Schemas['CellBody'];
 
-/** Changes the effort, the dates or the removal of one sub-task; the plan that follows comes back. */
+/** Saves hours on days of lines (0 clears the day); the plan that follows comes back. */
+export function useSaveCells(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    scope: planScope(epic),
+    mutationFn: (cells: CellIn[]) => unwrap(http.PUT('/api/v1/planning/{epic}/detail/cells', { params: { path: { epic } }, body: { cells } })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
+/**
+ * Changes the Total (its Remaining, Spent staying) or the PIC of a sub-task in Jira, kept here until the push; a null field keeps
+ * what it is. The plan that follows comes back.
+ */
+export function useEditJiraLine(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    scope: planScope(epic),
+    mutationFn: ({ key, ...body }: { key: string } & Schemas['JiraLineBody']) =>
+      unwrap(http.PUT('/api/v1/planning/{epic}/detail/jira/{key}', { params: { path: { epic, key } }, body })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
+/** Stores a snapshot of the whole plan; the plan comes back with the time of that version. */
+export function useSaveVersion(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/versions', { params: { path: { epic } } })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
+/** Changes the effort or the removal of one step of a row not in Jira yet; the plan that follows comes back. */
 export function useEditStep(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: (body: StepBody) => unwrap(http.PUT('/api/v1/planning/{epic}/detail/step', { params: { path: { epic } }, body })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
   });
@@ -106,7 +122,7 @@ export function useAddRow(epic: string) {
 
 export type ImportLine = Schemas['ImportLine'];
 
-/** The plan's sub-tasks not in Jira yet as an .xlsx to change offline and import back. */
+/** The plan's sub-tasks not in Jira yet, with a column per day, as an .xlsx to change offline and import back. */
 export const detailTemplateUrl = (epic: string) => `/api/v1/planning/${encodeURIComponent(epic)}/detail/template`;
 
 /** Reads a filled template and checks each line against the plan; nothing is saved. */
@@ -124,7 +140,7 @@ export function useApplyImport(epic: string) {
   return useMutation({
     mutationFn: (lines: ImportLine[]) => unwrap(http.POST('/api/v1/planning/{epic}/detail/import', { params: { path: { epic } }, body: {
       lines: lines.map((l) => ({ ref: l.ref, ba_id: l.ba_id ?? null, bal_id: l.bal_id ?? null, jm_id: l.jm_id ?? null, effort_h: l.effort_h ?? null,
-        start: l.start ?? null, end: l.end ?? null })),
+        cells: l.cells })),
     } })),
     // a Create or ticket effort is the estimation's: the screens built on it read it again
     onSuccess: (v) => {
