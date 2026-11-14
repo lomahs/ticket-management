@@ -113,11 +113,13 @@ describe('planning tabs', () => {
       external: false, jira_account_id: null, people });
     server.use(
       http.get('*/api/v1/members', () => HttpResponse.json([m('an', 'An', true), m('ext', 'Outsider', false)])),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ ...view, lines: [line, { ...line, ref: 'PAY-1201', row_id: null,
+        issue_key: 'PAY-1201', summary: '[PAY] Refund', function: 'Refund', pic_id: 'ext', closed: true, not_yet_h: 0 }] })),
     );
     renderApp('/planning/detail?anken=PAY-1100');
     const pick = await screen.findByLabelText('Member, Run');
     expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)']);
+    expect(screen.getByLabelText('PIC, [PAY] Refund').textContent).toBe('Outsider'); // named all the same
   });
 
   it('shows the matrix without write controls to a viewer with read only', async () => {

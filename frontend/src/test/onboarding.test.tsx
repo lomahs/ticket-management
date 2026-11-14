@@ -441,6 +441,22 @@ describe('onboarding', () => {
     expect(within(row).getByText('PAY-1201')).toBeTruthy();
   });
 
+  it('names a PIC outside the anken and marks only a real Not yet of an open line', async () => {
+    onboarding({ step: 6 });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [LINES[0], LINES[1], run({ not_yet_h: 0.01 }),
+      { ...REFUND, pic_id: 'binh', closed: true, not_yet_h: -2 },
+      { ...REFUND, ref: 'PAY-1202', issue_key: 'PAY-1202', summary: '[PAY] Refund – BAL Review', step: 'balr', pic_id: 'dung' }] }))));
+    renderApp('/onboarding/PAY-1100/detail');
+    const closed = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
+    expect(within(closed).getByLabelText('PIC, [PAY] Refund – Create').textContent).toBe('Bình'); // by name, though not in the anken
+    const pic = screen.getByLabelText('PIC, [PAY] Refund – BAL Review') as HTMLSelectElement;
+    expect([...pic.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['An', 'Minh', 'Dũng']); // the anken's members, and who has it
+    const bold = (summary: string) => (screen.getByLabelText(`Not yet, ${summary}`) as HTMLElement).style.fontWeight;
+    expect(bold('[PAY] Login – Create')).toBe('700'); // 8h left: red
+    expect(bold('[PAY] Run')).toBe(''); // a hundredth is planned enough, as the push sees it
+    expect(bold('[PAY] Refund – Create')).toBe(''); // Closed: done
+  });
+
   it('changes the Total and the PIC of a Jira line', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 6 });

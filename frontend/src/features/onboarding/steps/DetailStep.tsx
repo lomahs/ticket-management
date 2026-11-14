@@ -8,7 +8,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { onboardingMembersQuery, useFinishOnboarding } from '../api';
 import { StepShell } from '../components/StepShell';
 import { detailPlanQuery } from '../detail/api';
-import { DetailPlan } from '../detail/DetailPlan';
+import { DetailPlan, usePersonName } from '../detail/DetailPlan';
 import { PushControls } from '../detail/PushControls';
 
 /** Step 6: who does each function, the dates, the push to Jira; once every row is in Jira the onboarding can be finished. */
@@ -17,7 +17,7 @@ export function DetailStep({ epic }: { epic: string }) {
   const navigate = useNavigate();
   const people = (useQuery(onboardingMembersQuery(epic)).data ?? []).filter((m) => m.in_anken)
     .map((m) => ({ id: m.member_id, name: m.name, role: m.role ?? null }));
-  const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+  const name = usePersonName(people);
   const q = useQuery(detailPlanQuery(epic));
   const rows = q.data?.rows ?? [];
   const finish = useFinishOnboarding(epic);

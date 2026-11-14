@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useMembers } from '../../../shared/api/queries';
 import { PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { detailPlanQuery, DetailPlan, PushControls } from '../../onboarding';
+import { detailPlanQuery, DetailPlan, PushControls, usePersonName } from '../../onboarding';
 import { PlanningTabs, WithAnken } from '../components/PlanningTabs';
 
 /** The detail plan of a running anken: who does each step, the hours of each day, the push to Jira (the same screen as Onboarding's last step). */
@@ -18,9 +18,9 @@ export function DetailPlanPage() {
 }
 
 function Detail({ epic }: { epic: string }) {
-  // `people`: the members of the anken (the list also names assignees and worklog authors who are not)
+  // `people`: the members of the anken, who can be picked (the list also names assignees and worklog authors who are not)
   const people = (useMembers().data ?? []).filter((m) => m.people).map((m) => ({ id: m.id, name: m.name, role: m.role ?? null }));
-  const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+  const name = usePersonName(people);
   const q = useQuery(detailPlanQuery(epic));
   // what stands before the push opens on its own once the push is tried
   const [checked, setChecked] = useState(false);

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
-import { membersQuery, useCan } from '../../../shared/api/queries';
+import { membersQuery, useCan, useMemberMap } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { Button } from '../../../shared/ds';
 import { downloadCsv } from '../../../shared/format/csv';
@@ -21,6 +21,12 @@ import {
 
 /** A person who can be given a row: a member of the anken, with their role. */
 export interface Person { id: string; name: string; role?: string | null }
+
+/** A name by member id: the anken's people first, then every member (a PIC or an assignee outside the anken), else the id. */
+export function usePersonName(people: Person[]): (id: string) => string {
+  const members = useMemberMap();
+  return (id) => people.find((p) => p.id === id)?.name ?? members[id]?.name ?? id;
+}
 
 type Row = Schemas['EstimationRow'];
 
@@ -43,7 +49,7 @@ const at = (iso: string) => {
 export function DetailPlan({ epic, v, people, checked = true }: { epic: string; v: DetailPlanView; people: Person[]; checked?: boolean }) {
   const admin = useCan('planning', 'write');
   const toast = useToast();
-  const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+  const name = usePersonName(people);
   const [adding, setAdding] = useState<'function' | 'task' | null>(null);
   const [clearing, setClearing] = useState(false);
   const [imported, setImported] = useState<{ file: string; lines: ImportLine[] } | null>(null);

@@ -7,7 +7,7 @@ import { dm, f2, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { useEditJiraLine, useEditStep, useSaveCells, type DetailPlanView, type MatrixLine } from './api';
-import type { Person } from './DetailPlan';
+import { usePersonName, type Person } from './DetailPlan';
 import { checkText, checkTone } from './PlanSummary';
 
 type Row = Schemas['EstimationRow'];
@@ -16,6 +16,8 @@ export type Slot = 'ba_id' | 'bal_id' | 'jm_id';
 const INPUT: CSSProperties = { height: 28, boxSizing: 'border-box', padding: '0 6px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--surface-card)', color: 'var(--text-heading)', font: '500 12px/1 var(--font-text)', width: '100%' };
 const CELL: CSSProperties = { padding: '3px 4px', borderBottom: '1px solid var(--border-subtle)', fontSize: 12, whiteSpace: 'nowrap', textAlign: 'right' };
 const DAY_W = 52;
+/** Not yet within a hundredth counts as planned, as the push sees it. */
+const NOT_YET_EPS = 0.01;
 const STICKY: CSSProperties = { position: 'sticky', left: 0, zIndex: 1, background: 'var(--surface-card)' };
 const RED: CSSProperties = { background: 'var(--hl-red)', color: 'var(--hl-red-fg)' };
 /** A value set by hand: kept when Auto allocate runs again. */
@@ -73,7 +75,8 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const cells = useSaveCells(epic);
   const jira = useEditJiraLine(epic);
   const [folded, setFolded] = useState<Set<string>>(new Set());
-  const name = (id?: string | null) => (id ? people.find((p) => p.id === id)?.name ?? id : '');
+  const personName = usePersonName(people);
+  const name = (id?: string | null) => (id ? personName(id) : '');
   const open = v.rows.filter((r) => !r.pushed_at);
   const task = (key?: string | null) => v.tasks.find((t) => t.key === key);
   const fail = (e: unknown) => toast(errorMessage(e), true);
@@ -211,7 +214,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <td style={{ ...CELL, textAlign: 'left' }}>{pic}</td>
         <td style={{ ...CELL, width: 64 }}>{total}</td>
         <td style={CELL} aria-label={`Planned, ${l.summary}`}>{f2(l.planned_h)}</td>
-        <td style={{ ...CELL, ...(Math.abs(l.not_yet_h) >= 0.005 && !l.removed ? { ...RED, fontWeight: 700 } : {}) }} aria-label={`Not yet, ${l.summary}`}>
+        <td style={{ ...CELL, ...(Math.abs(l.not_yet_h) > NOT_YET_EPS && !l.removed && !l.closed ? { ...RED, fontWeight: 700 } : {}) }} aria-label={`Not yet, ${l.summary}`}>
           {f2(l.not_yet_h)}</td>
         <td style={CELL} aria-label={`Start, ${l.summary}`}>{l.start ? dm(l.start) : '–'}</td>
         <td style={CELL} aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
