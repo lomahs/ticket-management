@@ -505,17 +505,17 @@ class DetailPlanningTest {
     void stepsCanBeEditedRemovedAndAdded() {
         List<EstimationRow> rows = pushable();
         long login = rows.get(0).id();
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, null, null, true));
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, true));
         assertThat(line(v, login + ":fixj").removed()).isTrue();
         assertThat(v.stalePhases()).containsExactly("ITA"); // its BA effort fell by 70 % of 1.5h
-        v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, null, null, false));
+        v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, false));
         assertThat(line(v, login + ":fixb")).extracting(MatrixLine::totalH, MatrixLine::edited).containsExactly(4.0, true);
-        v = detail.editStep(ALL, EPIC, new StepIn(login, "create", 10.0, null, null, false));
+        v = detail.editStep(ALL, EPIC, new StepIn(login, "create", 10.0, false));
         assertThat(v.rows().stream().filter(r -> r.id() == login).findFirst().orElseThrow().effortH()).isEqualTo(10.0);
         assertThat(line(v, login + ":create").edited()).isFalse(); // Create's effort is the row's: the other steps follow it
         assertThat(line(v, login + ":balr").totalH()).isEqualTo(2.5);
         assertThat(detail.pushPreview(ALL, EPIC).creates()).extracting(c -> c.ref()).doesNotContain(login + ":fixj").contains(login + ":fixb");
-        assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), "create", null, null, null, true)))
+        assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), "create", null, true)))
                 .isInstanceOf(Invalid.class).hasMessageContaining("not a step");
 
         v = detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), "Export", null, 6));
@@ -542,7 +542,7 @@ class DetailPlanningTest {
         long login = rows.get(0).id();
         plan(login + ":create", "2026-10-14", 8);
         plan(login + ":fixj", "2026-10-15", 1.5);
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, null, null, true));
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, true));
         assertThat(lines(v, login)).filteredOn(l -> !l.removed()).extracting(MatrixLine::step).containsExactly("create", "balr", "fixb", "jmr");
         assertThat(v.days()).flatExtracting(DayLoad::items).extracting(DetailPlanService.DayItem::title)
                 .contains("[PAY] Login – Create").noneMatch(t -> t.startsWith("[PAY] Login – Fix comment JM"));

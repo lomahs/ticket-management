@@ -916,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["saveDetailCells"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/clear": {
         parameters: {
             query?: never;
@@ -958,6 +974,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["previewDetailImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/planning/{epic}/detail/jira/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["editDetailJiraLine"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1865,6 +1897,15 @@ export interface components {
             jira_write: boolean;
             planning_push: boolean;
         };
+        CellBody: {
+            day?: string;
+            /** Format: double */
+            hours?: number;
+            ref: string;
+        };
+        CellsBody: {
+            cells: components["schemas"]["CellBody"][];
+        };
         ChangeIn: {
             after: string;
             before?: string | null;
@@ -2438,6 +2479,11 @@ export interface components {
             id: string;
             name: string;
             subtask: boolean;
+        };
+        JiraLineBody: {
+            pic_id?: string | null;
+            /** Format: double */
+            total_h?: number | null;
         };
         JiraLogEntry: {
             actor_email: string;
@@ -3085,11 +3131,9 @@ export interface components {
         StepBody: {
             /** Format: double */
             effort_h?: number | null;
-            end?: string | null;
             removed?: boolean;
             /** Format: int64 */
             row_id?: number;
-            start?: string | null;
             step?: string | null;
         };
         StepOverride: {
@@ -4999,6 +5043,32 @@ export interface operations {
             };
         };
     };
+    saveDetailCells: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CellsBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
     clearDetailPlan: {
         parameters: {
             query?: {
@@ -5071,6 +5141,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportLine"][];
+                };
+            };
+        };
+    };
+    editDetailJiraLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraLineBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
                 };
             };
         };

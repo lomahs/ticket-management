@@ -177,6 +177,8 @@ class ApiWritesTest extends ApiTestSupport {
         assertThat(v.get("problems").toString()).contains("Save a master schedule first");
         problem(call(json(put("/api/v1/planning/PAY-1100/detail"), Map.of("order", List.of(), "assigns", List.of()))
                 .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        problem(call(json(put("/api/v1/planning/PAY-1100/detail/cells"), Map.of("cells", List.of())).with(as("an.nguyen@acme.vn"))), 403, "forbidden");
+        problem(call(json(put("/api/v1/planning/PAY-1100/detail/jira/PAY-1"), Map.of("total_h", 1)).with(as("an.nguyen@acme.vn"))), 403, "forbidden");
         problem(call(post("/api/v1/planning/PAY-1100/detail/push/preview")), 422, "invalid"); // no master schedule yet
         problem(call(post("/api/v1/planning/PAY-1100/detail/push").with(as("an.nguyen@acme.vn"))), 403, "forbidden");
     }

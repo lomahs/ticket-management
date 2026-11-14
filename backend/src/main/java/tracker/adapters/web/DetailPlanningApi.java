@@ -48,6 +48,8 @@ import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.NewRowIn;
 import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.CellIn;
+import tracker.application.service.DetailPlanService.JiraLineIn;
 import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
@@ -207,20 +209,46 @@ public class DetailPlanningApi {
         return detail.saveDraft(epicScope(viewer, epic), epic, body.draft());
     }
 
-    /** A change to one sub-task of the plan; {@code start} and {@code end} together (dates set by hand) or neither. */
-    public record StepBody(long rowId, @Nullable String step, @Nullable @PositiveOrZero Double effortH,
-                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
-                           @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end, boolean removed) {
+    /** A change to one sub-task of the plan. */
+    public record StepBody(long rowId, @Nullable String step, @Nullable @PositiveOrZero Double effortH, boolean removed) {
         StepIn in() {
-            return new StepIn(rowId, step, effortH, start, end, removed);
+            return new StepIn(rowId, step, effortH, removed);
         }
     }
 
-    /** Changes the effort, the dates or the removal of one sub-task and returns the plan that follows. */
+    /** Changes the effort or the removal of one sub-task and returns the plan that follows. */
     @Open(Rule.ADMIN)
     @PutMapping("/{epic}/detail/step")
     public DetailPlanView editDetailStep(@PathVariable("epic") String epic, @RequestBody @Valid StepBody body, Viewer viewer) {
         return detail.editStep(epicScope(viewer, epic), epic, body.in());
+    }
+
+    /** Hours typed in a cell; 0 clears it. */
+    public record CellBody(@NotBlank String ref, @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String day,
+                           @PositiveOrZero double hours) {
+    }
+
+    public record CellsBody(@NotNull List<@Valid CellBody> cells) {
+    }
+
+    /** Types hours into cells and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PutMapping("/{epic}/detail/cells")
+    public DetailPlanView saveDetailCells(@PathVariable("epic") String epic, @RequestBody @Valid CellsBody body, Viewer viewer) {
+        return detail.saveCells(epicScope(viewer, epic), epic,
+                body.cells().stream().map(c -> new CellIn(c.ref(), c.day(), c.hours())).toList());
+    }
+
+    /** @param totalH Spent + Remaining wanted; null keeps it. @param picId null keeps it */
+    public record JiraLineBody(@Nullable @PositiveOrZero Double totalH, @Nullable String picId) {
+    }
+
+    /** Changes the Total and the PIC of a sub-task in Jira (kept until the push) and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PutMapping("/{epic}/detail/jira/{key}")
+    public DetailPlanView editDetailJiraLine(@PathVariable("epic") String epic, @PathVariable("key") String key,
+                                             @RequestBody @Valid JiraLineBody body, Viewer viewer) {
+        return detail.editJiraLine(epicScope(viewer, epic), epic, key, new JiraLineIn(body.totalH(), body.picId()));
     }
 
     /** @param steps 3 or 5 for a function; null for a ticket */

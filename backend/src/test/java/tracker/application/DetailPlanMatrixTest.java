@@ -1,6 +1,7 @@
 package tracker.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import java.time.DayOfWeek;
@@ -25,7 +26,9 @@ import tracker.application.ports.PlanCellRepository.Cell;
 import tracker.application.ports.PlanCellRepository.JiraEdit;
 import tracker.application.ports.PlanDayRepository;
 import tracker.application.service.DetailPlanService;
+import tracker.application.service.DetailPlanService.CellIn;
 import tracker.application.service.DetailPlanService.DayHours;
+import tracker.application.service.DetailPlanService.JiraLineIn;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
@@ -46,6 +49,7 @@ import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.Viewer;
+import tracker.domain.Worklog;
 
 /** The detail plan as a function–step × day matrix: lines of the unpushed rows and of the sub-tasks in Jira. Demo "today" is 2026-10-07. */
 @DemoTest
@@ -201,7 +205,7 @@ class DetailPlanMatrixTest {
         cells.saveRowCells(List.of(new Cell(login + ":balr", "2026-10-13", 2, false)));
         String summary = line(detail.view(ALL, EPIC), login + ":balr").summary();
         assertThat(hoursOf(detail.view(ALL, EPIC), summary)).isNotEmpty();
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, null, null, true));
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, true));
         assertThat(line(v, login + ":balr").removed()).isTrue();
         assertThat(hoursOf(v, summary)).isEmpty();
         assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith(summary + ":"));
@@ -292,7 +296,7 @@ class DetailPlanMatrixTest {
         assign(rows, new RowAssign(run, "an", null, null));
         cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2027-01-04", 2, false), // a Monday after every master End
                 new Cell(login + ":balr", "2026-07-06", 2, false)));
-        detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, null, null, true)); // a removed step's cells do not count
+        detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, true)); // a removed step's cells do not count
         issues.save(probe("PAY-9131", StepKind.CREATE, Status.CLOSED, "2026-07-06", "2026-07-10", 8)); // nor do a Closed one's
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(line(v, "PAY-9131").cells()).isNotEmpty();
@@ -307,5 +311,70 @@ class DetailPlanMatrixTest {
             return w == DayOfWeek.SATURDAY || w == DayOfWeek.SUNDAY;
         }).allMatch(d -> !d.equals("2026-10-17") && !d.equals("2026-10-18"));
         assertThat(v.window()).isSorted().doesNotHaveDuplicates();
+    }
+
+    @Test
+    void typedCellsAreSavedAndZeroClears() {
+        List<EstimationRow> rows = scheduled();
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        String ref = String.valueOf(run);
+        DetailPlanView v = detail.saveCells(ALL, EPIC, List.of(new CellIn(ref, "2026-10-12", 8), new CellIn(ref, "2026-10-13", 8)));
+        assertThat(line(v, ref).plannedH()).isEqualTo(16);
+        assertThat(line(v, ref).notYetH()).isZero();
+        v = detail.saveCells(ALL, EPIC, List.of(new CellIn(ref, "2026-10-13", 0)));
+        assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-12", 8, false));
+        assertThat(line(v, ref).end()).isEqualTo("2026-10-12");
+    }
+
+    @Test
+    void aCellOutsideThePlanIsRefused() {
+        scheduled();
+        String key = jiraSubtask();
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn("999:create", "2026-10-12", 1))))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "ref");
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-06", 1))))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "day");
+    }
+
+    @Test
+    void theFirstTypedCellOfAJiraLineKeepsJirasPlan() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-07", 8.0, "2026-10-08", 4.0));
+        DetailPlanView v = detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-09", 2)));
+        assertThat(line(v, key).cells()).containsExactly(new DayHours("2026-10-07", 8, false), new DayHours("2026-10-08", 4, false),
+                new DayHours("2026-10-09", 2, false));
+        assertThat(line(v, key).pending()).isTrue();
+    }
+
+    @Test
+    void totalOfAJiraLineChangesOnlyRemaining() {
+        scheduled();
+        String key = tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("s", true, task("ITA Execute"), null, "[PAY] Export",
+                "an", null, "2026-10-06", "2026-10-08", 3.0, List.of()))).created().get("s");
+        Issue i = issues.findByKey(key).orElseThrow();
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), 3, 2, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                List.of(new Worklog("2026-10-06", "an", 1, "")), i.events(), i.reporterId(), i.labels()));
+        DetailPlanView v = detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null));
+        assertThat(line(v, key).totalH()).isEqualTo(5);
+        assertThat(cells.jiraEdits(EPIC)).containsExactly(new JiraEdit(key, 4.0, null));
+        assertThat(issues.findByKey(key).orElseThrow().estimateH()).isEqualTo(3);
+        assertThatThrownBy(() -> detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(0.5, null)))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "total_h");
+    }
+
+    @Test
+    void picOfAJiraLineMovesItsShare() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 8.0));
+        DetailPlanView v = detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(null, "binh"));
+        assertThat(line(v, key).picId()).isEqualTo("binh");
+        assertThat(line(v, key).pending()).isTrue();
+        assertThat(hoursOf(v, "[PAY] Export")).containsExactly(Map.entry("an 2026-10-06", 8.0), Map.entry("binh 2026-10-07", 8.0));
+        assertThatThrownBy(() -> detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(null, "nhan")))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "pic_id");
     }
 }

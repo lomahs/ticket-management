@@ -26,6 +26,8 @@ import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
 import tracker.application.ports.PlanCellRepository;
+import tracker.application.ports.PlanCellRepository.Cell;
+import tracker.application.ports.PlanCellRepository.JiraEdit;
 import tracker.application.ports.PlanDayRepository;
 import tracker.application.ports.PlanVersionRepository;
 import tracker.domain.Allocations;
@@ -204,10 +206,21 @@ public class DetailPlanService {
      *
      * @param step    the step's value; null or blank for a ticket
      * @param effortH null: Create × the step's weight (for Create and a ticket: the row's effort, which it then sets)
-     * @param start   with {@code end}: the dates set by hand; both null: computed
      */
-    public record StepIn(long rowId, @Nullable String step, @Nullable Double effortH, @Nullable String start, @Nullable String end,
-                         boolean removed) {
+    public record StepIn(long rowId, @Nullable String step, @Nullable Double effortH, boolean removed) {
+    }
+
+    /** Hours typed in one cell: {@code ref} is a step's ref of an unpushed row or the key of a sub-task in Jira; 0 clears it. */
+    public record CellIn(String ref, String day, double hours) {
+    }
+
+    /**
+     * A change to a sub-task in Jira, kept until the push.
+     *
+     * @param totalH Spent + Remaining wanted; null keeps it
+     * @param picId  null keeps it
+     */
+    public record JiraLineIn(@Nullable Double totalH, @Nullable String picId) {
     }
 
     /** A function (3 or 5 steps) or a ticket ({@code steps} null) added to the estimation from the plan. */
@@ -802,7 +815,7 @@ public class DetailPlanService {
         return st.kind() == StepKind.CREATE ? r.balId() : null;
     }
 
-    /** Changes one sub-task of the plan: its effort, its dates or whether it is in the plan. */
+    /** Changes one sub-task of the plan: its effort or whether it is in the plan. */
     public DetailPlanView editStep(AnkenScope scope, String epic, StepIn in) {
         EstimationService.load(context, scope, epic);
         List<EstimationRow> open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).toList();
@@ -817,12 +830,6 @@ public class DetailPlanService {
         if (row.steps() == null ? k != null : k == null || !StepWeights.stepsOf(row.steps()).contains(k)) {
             throw new Invalid((k == null ? "A ticket" : k.value()) + " is not a step of " + row.functionName(), "step");
         }
-        if ((in.start() == null) != (in.end() == null)) {
-            throw new Invalid("Set both Plan start and Plan end", in.start() == null ? "start" : "end");
-        }
-        if (in.start() != null && in.end().compareTo(in.start()) < 0) {
-            throw new Invalid("Plan end is before Plan start", "end");
-        }
         Double effort = in.effortH();
         if (effort != null && !(effort >= 0)) {
             throw new Invalid("Effort must be 0 hours or more", "effort_h");
@@ -834,7 +841,74 @@ public class DetailPlanService {
             estimations.save(scope, epic, next);
             effort = null;
         }
-        estimation.saveStepEdit(new StepEdit(row.id(), k, effort, in.start(), in.end(), in.removed()));
+        estimation.saveStepEdit(new StepEdit(row.id(), k, effort, null, null, in.removed()));
+        return view(scope, epic);
+    }
+
+    /**
+     * Types hours into cells (a day's hours replace the cell's; 0 clears it). A cell of a sub-task in Jira must be today or later
+     * and is kept until the push; the first one of a sub-task keeps Jira's plan from today on besides.
+     */
+    @Transactional
+    public DetailPlanView saveCells(AnkenScope scope, String epic, List<CellIn> in) {
+        DetailPlanView v = view(scope, epic);
+        String today = EstimationService.load(context, scope, epic).today;
+        Map<String, MatrixLine> lineOf = new HashMap<>();
+        v.lines().forEach(l -> lineOf.put(l.ref(), l));
+        List<Cell> rowCells = new ArrayList<>();
+        Map<String, List<Cell>> jira = new LinkedHashMap<>();
+        for (CellIn c : in) {
+            MatrixLine l = lineOf.get(c.ref());
+            if (l == null || l.removed() || l.closed()) {
+                throw new Invalid(c.ref() + " is not in the plan", "ref");
+            }
+            Cell cell = new Cell(c.ref(), c.day(), c.hours(), false);
+            if (l.issueKey() == null) {
+                rowCells.add(cell);
+            } else if (c.day().compareTo(today) < 0) {
+                throw new Invalid("Days before today are locked", "day");
+            } else {
+                jira.computeIfAbsent(c.ref(), k -> new ArrayList<>()).add(cell);
+            }
+        }
+        Map<String, List<Cell>> pending = cells.jiraCells(epic);
+        jira.forEach((key, typed) -> {
+            if (pending.getOrDefault(key, List.of()).isEmpty()) { // Jira's plan from today on stays, besides the typed days
+                List<Cell> seed = lineOf.get(key).cells().stream().filter(d -> d.day().compareTo(today) >= 0)
+                        .map(d -> new Cell(key, d.day(), d.hours(), false)).toList();
+                cells.saveJiraCells(epic, seed);
+            }
+            cells.saveJiraCells(epic, typed);
+        });
+        cells.saveRowCells(rowCells);
+        return view(scope, epic);
+    }
+
+    /** Changes the Total (Spent + Remaining) and the PIC of a sub-task in Jira; kept until the push. */
+    @Transactional
+    public DetailPlanView editJiraLine(AnkenScope scope, String epic, String key, JiraLineIn in) {
+        TrackerContext ctx = EstimationService.load(context, scope, epic);
+        MatrixLine l = view(scope, epic).lines().stream().filter(x -> key.equals(x.issueKey())).findFirst()
+                .orElseThrow(() -> new Invalid(key + " is not in the plan", "key"));
+        if (l.closed()) {
+            throw new Invalid(key + " is not in the plan", "key");
+        }
+        Double total = in.totalH();
+        if (total != null && total < l.spentH() - 1e-9) {
+            throw new Invalid("Total is below the hours already logged", "total_h");
+        }
+        String pic = blank(in.picId());
+        if (pic != null && !ctx.isMember(epic, pic)) {
+            throw new Invalid(ctx.notAMember(epic, pic), "pic_id");
+        }
+        JiraEdit was = cells.jiraEdits(epic).stream().filter(e -> e.issueKey().equals(key)).findFirst().orElse(null);
+        Issue issue = ctx.subtasks().stream().filter(i -> i.key().equals(key)).findFirst().orElseThrow();
+        Double remaining = was == null ? null : was.remainingH();
+        if (total != null) {
+            remaining = Numbers.hours(total - l.spentH());
+        }
+        String assignee = pic != null ? (pic.equals(issue.assigneeId()) ? null : pic) : was == null ? null : was.assigneeId();
+        cells.saveJiraEdit(epic, new JiraEdit(key, remaining, assignee));
         return view(scope, epic);
     }
 
