@@ -825,6 +825,54 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void theLinkerGivesAPushedRowsSavedPlanToItsSubTask(@Autowired tracker.application.service.PlanDayLinker linker,
+                                                        @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc) {
+        scheduled();
+        estimation.save(ALL, EPIC, List.of(row(0, "Probe", 5, 8, task("ITA Execute"))));
+        long id = estimationRows.findByEpic(EPIC).getFirst().id();
+        estimationRows.markPushed(List.of(id), "2026-10-01T00:00:00Z");
+        issues.save(probe("PAY-9401", StepKind.CREATE, Status.WIP, "2026-10-12", "2026-10-13", 8));
+        issues.save(probe("PAY-9402", StepKind.BAL_REVIEW, Status.WIP, "2026-10-14", "2026-10-14", 2));
+        // the plan Auto allocate saved before the push kept it: per person and day
+        for (Object[] p : List.<Object[]>of(new Object[]{id + ":create", "an", "2026-10-12", 5.0}, new Object[]{id + ":create", "an", "2026-10-13", 2.0},
+                new Object[]{id + ":create", "minh", "2026-10-13", 1.0}, new Object[]{id + ":balr", "minh", "2026-10-14", 2.0})) {
+            jdbc.sql("INSERT INTO estimation_plan_parts (row_id, ref, member_id, day, hours) VALUES (?, ?, ?, ?, ?)")
+                    .params(id, p[0], p[1], p[2], p[3]).update();
+        }
+        planDays.save("PAY-9402", Map.of("2026-10-15", 2.0)); // already has hours per day: kept
+        linker.linkPushed();
+        assertThat(planDays.find(List.of("PAY-9401")).get("PAY-9401")).containsOnly(Map.entry("2026-10-12", 5.0), Map.entry("2026-10-13", 3.0));
+        assertThat(planDays.find(List.of("PAY-9402")).get("PAY-9402")).containsOnly(Map.entry("2026-10-15", 2.0));
+    }
+
+    @Test
+    void theMatrixMigrationCopiesTheSavedPlanOfUnpushedRows(@Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc) throws Exception {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        long pay = rows.get(2).id();
+        estimationRows.markPushed(List.of(pay), "2026-10-01T00:00:00Z");
+        for (Object[] p : List.<Object[]>of(new Object[]{login, login + ":create", "an", "2026-10-12", 5.0},
+                new Object[]{login, login + ":create", "minh", "2026-10-12", 1.25}, new Object[]{login, login + ":create", "an", "2026-10-13", 2.0},
+                new Object[]{pay, pay + ":create", "an", "2026-10-19", 8.0})) {
+            jdbc.sql("INSERT INTO estimation_plan_parts (row_id, ref, member_id, day, hours) VALUES (?, ?, ?, ?, ?)")
+                    .params(p[0], p[1], p[2], p[3], p[4]).update();
+        }
+        // JM Review counts for nobody: no parts, only where it was placed
+        jdbc.sql("""
+                INSERT INTO estimation_plan_placed (row_id, ref, phase, step, member_id, hours, planned_start, planned_end, counted)
+                VALUES (?, ?, 'ITA', 'jmr', 'tanaka', 1.5, '2026-10-15', '2026-10-16', 0)""").params(login, login + ":jmr").update();
+        String sql = new String(Objects.requireNonNull(getClass().getResourceAsStream("/db/migration/V19__detail_plan_matrix.sql")).readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        List<String> inserts = java.util.Arrays.stream(sql.split(";"))
+                .map(st -> st.lines().filter(x -> !x.strip().startsWith("--")).collect(java.util.stream.Collectors.joining("\n")).strip())
+                .filter(st -> st.startsWith("INSERT")).toList();
+        assertThat(inserts).hasSize(2);
+        inserts.forEach(st -> jdbc.sql(st).update());
+        assertThat(cells.rowCells(EPIC)).containsExactlyInAnyOrder(new Cell(login + ":create", "2026-10-12", 6.25, true),
+                new Cell(login + ":create", "2026-10-13", 2, true), new Cell(login + ":jmr", "2026-10-15", 1.5, true));
+    }
+
+    @Test
     void saveVersionStoresTheWholePlan(@Autowired Clock clock, @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc) throws Exception {
         List<EstimationRow> rows = staffed();
         long run = rows.get(1).id();
