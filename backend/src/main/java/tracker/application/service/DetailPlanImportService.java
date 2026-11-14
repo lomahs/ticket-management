@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,11 @@ import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.service.DetailPlanService.DetailPlanView;
+import tracker.application.service.DetailPlanService.CellIn;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.PhaseCheck;
 import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
@@ -33,43 +36,39 @@ import tracker.domain.PlanRows;
 import tracker.domain.Role;
 import tracker.domain.StepDef;
 import tracker.domain.StepEdit;
-import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
 import tracker.domain.Steps;
 import tracker.domain.Text;
 
 /**
  * The detail plan as a sheet to fill offline (Detail plan › Download template) and reading a filled one back (Import): each
- * line is a sub-task of the plan, found by its Ref. A cell left empty, or with what the plan has, changes nothing; a value
- * that differs is set by hand, as on the screen.
+ * line is a sub-task of the plan, found by its Ref, with a column per day of the plan's window. A cell left empty in the
+ * people and effort columns, or with what the plan has, changes nothing; a day cell left empty is 0 hours.
  */
 @Service
 public class DetailPlanImportService {
-    /** The sheet's columns, in order: the import reads them by position. Ref to Sub-task are there to read, not to change. */
-    public static final List<String> COLUMNS = List.of("Ref", "Phase", "Function", "Step", "Sub-task", "BA", "BAL", "JM", "Effort (h)",
-            "Plan start", "Plan end");
+    /**
+     * The sheet's columns, in order: the import reads them by position. Ref to Summary are there to read, not to change. One
+     * column per day of the plan's window follows, headed YYYY-MM-DD.
+     */
+    public static final List<String> COLUMNS = List.of("Ref", "Phase", "Function", "Step", "Summary", "BA", "BAL", "JM", "Effort (h)");
     private static final int REF = 0;
     private static final int FUNCTION = 2;
     private static final int BA = 5;
     private static final int BAL = 6;
     private static final int JM = 7;
     private static final int EFFORT = 8;
-    private static final int START = 9;
-    private static final int END = 10;
+    private static final int FIRST_DAY = 9;
     private static final double EPS = 1e-6;
-    private static final String DATE_ERROR = " must be a date (YYYY-MM-DD)";
 
     private final TrackerContextLoader context;
     private final EstimationRepository estimation;
     private final DetailPlanService detail;
-    private final EstimationService estimations;
 
-    public DetailPlanImportService(TrackerContextLoader context, EstimationRepository estimation, DetailPlanService detail,
-                                   EstimationService estimations) {
+    public DetailPlanImportService(TrackerContextLoader context, EstimationRepository estimation, DetailPlanService detail) {
         this.context = context;
         this.estimation = estimation;
         this.detail = detail;
-        this.estimations = estimations;
     }
 
     /**
@@ -79,20 +78,21 @@ public class DetailPlanImportService {
      * @param ba   the member's name; BAL and JM are empty where the row has none
      */
     public record SheetLine(String ref, String phase, String function, String step, String summary, String ba, String bal, String jm,
-                            double effortH, @Nullable String start, @Nullable String end) {
+                            double effortH, Map<String, Double> cells) {
     }
 
     /** A member of the anken the BA / BAL / JM cells may name. */
     public record SheetPerson(String name, String role) {
     }
 
-    public record Sheet(List<SheetLine> lines, List<SheetPerson> people) {
+    /** @param days the day columns, in order */
+    public record Sheet(List<SheetLine> lines, List<SheetPerson> people, List<String> days) {
     }
 
     /**
      * What a line changes.
      *
-     * @param field  ba, bal, jm (member ids), effort_h (hours), start, end (ISO dates)
+     * @param field  ba, bal, jm (member ids), effort_h (hours), cells (the days that differ)
      * @param before null: nobody, or not computed
      */
     public record ImportChange(String field, @Nullable String before, @Nullable String after) {
@@ -105,21 +105,22 @@ public class DetailPlanImportService {
      * @param function the plan's function of the Ref; the file's when the Ref is not found
      * @param step     the step's value; null for a ticket, and when the Ref is not found
      * @param baId     the member the BA cell names; null when empty
+     * @param cells    the hours of each day column of the file, a blank cell as 0
      * @param changes  what applying the line changes; empty when it has errors
      */
     public record ImportLine(int line, String ref, String function, @Nullable String step, @Nullable String baId, @Nullable String balId,
-                             @Nullable String jmId, @Nullable Double effortH, @Nullable String start, @Nullable String end,
+                             @Nullable String jmId, @Nullable Double effortH, Map<String, Double> cells,
                              List<ImportChange> changes, List<String> errors) {
     }
 
-    /** A line to apply, as the preview read it; null keeps what the plan has. */
+    /** A line to apply, as the preview read it; null keeps what the plan has. @param cells the days of the file; null: none */
     public record ImportLineIn(String ref, @Nullable String baId, @Nullable String balId, @Nullable String jmId, @Nullable Double effortH,
-                               @Nullable String start, @Nullable String end) {
+                               @Nullable Map<String, Double> cells) {
     }
 
     /** A line read from the file or sent back, before it is checked against the plan. */
     private record Parsed(int line, String ref, String function, @Nullable String baId, @Nullable String balId, @Nullable String jmId,
-                          @Nullable Double effortH, @Nullable String start, @Nullable String end, List<String> errors) {
+                          @Nullable Double effortH, Map<String, Double> cells, List<String> errors) {
     }
 
     private enum Slot {
@@ -148,24 +149,46 @@ public class DetailPlanImportService {
             }
             byPhase.computeIfAbsent(s.phase(), k -> new ArrayList<>()).add(new SheetLine(s.ref(), s.phase(), r.functionName(), label(s.step()),
                     s.summary(), name(ctx, r.baId()), r.steps() != null ? name(ctx, r.balId()) : "", r.steps() != null ? name(ctx, r.jmId()) : "",
-                    s.totalH(), s.start(), s.end()));
+                    s.totalH(), hoursByDay(s)));
         }
         List<SheetPerson> people = ctx.ankenMembers.getOrDefault(epic, java.util.Set.of()).stream().map(ctx.members::get).filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Member::name, String.CASE_INSENSITIVE_ORDER))
                 .map(m -> new SheetPerson(m.name(), m.role() == null ? "" : m.role().name())).toList();
-        return new Sheet(byPhase.values().stream().flatMap(List::stream).toList(), people);
+        return new Sheet(byPhase.values().stream().flatMap(List::stream).toList(), people, v.window());
     }
 
-    /** Checks every line of a filled sheet (header skipped) against the plan; nothing is saved. */
-    public List<ImportLine> preview(AnkenScope scope, String epic, List<List<String>> rows) {
+    /**
+     * Checks every line of a filled sheet against the plan; nothing is saved.
+     *
+     * @param header the file's header row: the columns from the tenth on are days
+     * @param rows   the lines, header left out
+     */
+    public List<ImportLine> preview(AnkenScope scope, String epic, List<String> header, List<List<String>> rows) {
         TrackerContext ctx = EstimationService.load(context, scope, epic);
+        Map<Integer, String> days = new LinkedHashMap<>();
+        List<String> headerErrors = new ArrayList<>();
+        for (int c = FIRST_DAY; c < header.size(); c++) {
+            String text = at(header, c);
+            if (text.isEmpty()) {
+                continue;
+            }
+            if (isDate(text)) {
+                days.put(c, text);
+            } else {
+                headerErrors.add("Column " + (c + 1) + ": " + text + " is not a date");
+            }
+        }
         List<Parsed> parsed = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             List<String> r = rows.get(i);
-            List<String> errors = new ArrayList<>();
+            List<String> errors = new ArrayList<>(headerErrors);
+            Map<String, Double> cells = new LinkedHashMap<>();
+            days.forEach((c, day) -> {
+                String text = at(r, c);
+                cells.put(day, text.isEmpty() ? Double.valueOf(0) : dayHours(text, day, errors));
+            });
             parsed.add(new Parsed(i + 2, at(r, REF), at(r, FUNCTION), member(ctx, at(r, BA), errors), member(ctx, at(r, BAL), errors),
-                    member(ctx, at(r, JM), errors), hours(at(r, EFFORT), errors), date(at(r, START), "Plan start", errors),
-                    date(at(r, END), "Plan end", errors), errors));
+                    member(ctx, at(r, JM), errors), hours(at(r, EFFORT), errors), cells, errors));
         }
         return check(ctx, epic, detail.view(scope, epic), parsed);
     }
@@ -179,9 +202,21 @@ public class DetailPlanImportService {
         for (int i = 0; i < in.size(); i++) {
             ImportLineIn l = in.get(i);
             List<String> errors = new ArrayList<>();
+            Map<String, Double> cells = new LinkedHashMap<>();
+            if (l.cells() != null) {
+                l.cells().forEach((day, h) -> {
+                    if (!isDate(day)) {
+                        errors.add(day + " is not a date");
+                    } else if (h == null || !(h >= 0)) {
+                        errors.add(day + " must be 0 hours or more");
+                    } else {
+                        cells.put(day, h);
+                    }
+                });
+            }
             parsed.add(new Parsed(i + 1, l.ref().strip(), "", member(ctx, Text.orElse(l.baId(), ""), errors),
-                    member(ctx, Text.orElse(l.balId(), ""), errors), member(ctx, Text.orElse(l.jmId(), ""), errors), l.effortH(),
-                    date(Text.orElse(l.start(), ""), "Plan start", errors), date(Text.orElse(l.end(), ""), "Plan end", errors), errors));
+                    member(ctx, Text.orElse(l.balId(), ""), errors), member(ctx, Text.orElse(l.jmId(), ""), errors), l.effortH(), cells,
+                    errors));
         }
         List<ImportLine> lines = check(ctx, epic, v, parsed);
         for (ImportLine l : lines) {
@@ -213,35 +248,21 @@ public class DetailPlanImportService {
                     List.copyOf(assigns.values())));
         }
 
-        // the effort of Create and of a ticket is the row's: the other steps follow it
-        Map<Long, Double> rowEffort = new HashMap<>();
+        // the effort: of Create and of a ticket it is the row's, the other steps follow it
         for (ImportLine l : lines) {
-            if (changed(l, "effort_h") && (l.step() == null || l.step().equals(StepKind.CREATE.value()))) {
-                rowEffort.put(byRef.get(l.ref()).rowId(), l.effortH());
+            if (changed(l, "effort_h")) {
+                detail.editStep(scope, epic, new StepIn(byRef.get(l.ref()).rowId(), l.step(), l.effortH(), false));
             }
-        }
-        if (!rowEffort.isEmpty()) {
-            List<EstimationRow> next = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).map(r -> !rowEffort.containsKey(r.id()) ? r
-                    : new EstimationRow(r.id(), epic, r.position(), r.phase(), r.subphase(), r.functionName(), r.steps(), rowEffort.get(r.id()),
-                    r.baId(), r.balId(), r.jmId(), r.taskKey(), null)).toList();
-            estimations.save(scope, epic, next);
         }
 
-        // the other steps' effort and the dates: kept with what else the step had set by hand
-        List<StepEdit> edits = estimation.stepEdits(epic);
+        // the days: every day of the file for a line whose cells differ, typed
+        List<CellIn> typed = new ArrayList<>();
         for (ImportLine l : lines) {
-            boolean effort = changed(l, "effort_h") && l.step() != null && !l.step().equals(StepKind.CREATE.value());
-            boolean dates = changed(l, "start") || changed(l, "end");
-            if (!effort && !dates) {
-                continue;
+            if (changed(l, "cells")) {
+                l.cells().forEach((day, h) -> typed.add(new CellIn(l.ref(), day, h)));
             }
-            long rowId = byRef.get(l.ref()).rowId();
-            StepKind k = l.step() == null ? null : StepKind.of(l.step());
-            StepEdit e = edits.stream().filter(x -> x.rowId() == rowId && x.step() == k).findFirst().orElse(null);
-            estimation.saveStepEdit(new StepEdit(rowId, k, effort ? l.effortH() : e == null ? null : e.effortH(),
-                    dates ? l.start() : e == null ? null : e.start(), dates ? l.end() : e == null ? null : e.end(), e != null && e.removed()));
         }
-        return detail.view(scope, epic);
+        return typed.isEmpty() ? detail.view(scope, epic) : detail.saveCells(scope, epic, typed);
     }
 
     private static boolean changed(ImportLine l, String field) {
@@ -250,7 +271,7 @@ public class DetailPlanImportService {
 
     /**
      * The lines against the plan: each Ref once, a sub-task not in Jira yet and not removed; the people fit the row (as the
-     * screen offers them) and agree across the lines of a function; dates come in pairs.
+     * screen offers them) and agree across the lines of a function; a day's hours differ from the plan's cell.
      */
     private List<ImportLine> check(TrackerContext ctx, String epic, DetailPlanView v, List<Parsed> parsed) {
         Map<String, MatrixLine> byRef = byRef(v);
@@ -319,19 +340,17 @@ public class DetailPlanImportService {
                 if (h != null && Math.abs(h - s.totalH()) > EPS) {
                     changes.add(new ImportChange("effort_h", Numbers.format(s.totalH()), Numbers.format(h)));
                 }
-                if (p.errors().stream().anyMatch(e -> e.endsWith(DATE_ERROR))) {
-                    // reported as it was read
-                } else if ((p.start() == null) != (p.end() == null)) {
-                    errors.add("Set both Plan start and Plan end, or neither");
-                } else if (p.start() != null && p.end().compareTo(p.start()) < 0) {
-                    errors.add("Plan end is before Plan start");
-                } else if (p.start() != null && (!p.start().equals(s.start()) || !p.end().equals(s.end()))) {
-                    changes.add(new ImportChange("start", s.start(), p.start()));
-                    changes.add(new ImportChange("end", s.end(), p.end()));
+                Map<String, Double> now = hoursByDay(s);
+                List<String> differ = p.cells().entrySet().stream()
+                        .filter(e -> Math.abs(e.getValue() - now.getOrDefault(e.getKey(), 0.0)) > EPS).map(Map.Entry::getKey).toList();
+                if (!differ.isEmpty()) {
+                    changes.add(new ImportChange("cells", differ.stream().map(d -> d + " " + Numbers.format(now.getOrDefault(d, 0.0)))
+                            .collect(Collectors.joining(", ")), differ.stream().map(d -> d + " " + Numbers.format(p.cells().get(d)))
+                            .collect(Collectors.joining(", "))));
                 }
             }
             out.add(new ImportLine(p.line(), p.ref(), r != null ? r.functionName() : p.function(), s != null ? s.step() : null, p.baId(),
-                    p.balId(), p.jmId(), p.effortH(), p.start(), p.end(), errors.isEmpty() ? changes : List.of(), errors));
+                    p.balId(), p.jmId(), p.effortH(), p.cells(), errors.isEmpty() ? changes : List.of(), errors));
         }
         return out;
     }
@@ -394,19 +413,31 @@ public class DetailPlanImportService {
         return null;
     }
 
-    private static @Nullable String date(String text, String what, List<String> errors) {
-        if (text.isEmpty()) {
-            return null;
-        }
+    private static boolean isDate(String text) {
         try {
-            if (text.matches("\\d{4}-\\d{2}-\\d{2}")) {
-                return LocalDate.parse(text).toString();
-            }
+            return text.matches("\\d{4}-\\d{2}-\\d{2}") && LocalDate.parse(text).toString().equals(text);
         } catch (DateTimeParseException e) {
-            // reported below
+            return false;
         }
-        errors.add(what + DATE_ERROR);
-        return null;
+    }
+
+    private static Double dayHours(String text, String day, List<String> errors) {
+        try {
+            double h = Double.parseDouble(text.replace(',', '.'));
+            if (h >= 0) {
+                return h;
+            }
+            errors.add(day + " must be 0 hours or more");
+        } catch (NumberFormatException e) {
+            errors.add(day + " must be a number of hours");
+        }
+        return 0.0;
+    }
+
+    private static Map<String, Double> hoursByDay(MatrixLine s) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        s.cells().forEach(d -> out.put(d.day(), d.hours()));
+        return out;
     }
 
     private static String at(List<String> r, int i) {

@@ -2362,28 +2362,30 @@ export interface components {
         ImportLine: {
             ba_id: string | null;
             bal_id: string | null;
+            cells: {
+                [key: string]: number;
+            };
             changes: components["schemas"]["ImportChange"][];
             /** Format: double */
             effort_h: number | null;
-            end: string | null;
             errors: string[];
             function: string;
             jm_id: string | null;
             /** Format: int32 */
             line: number;
             ref: string;
-            start: string | null;
             step: string | null;
         };
         ImportLineBody: {
             ba_id?: string | null;
             bal_id?: string | null;
+            cells?: {
+                [key: string]: number;
+            } | null;
             /** Format: double */
             effort_h?: number | null;
-            end?: string | null;
             jm_id?: string | null;
             ref: string;
-            start?: string | null;
         };
         ImportPreviewOut: {
             file: string;

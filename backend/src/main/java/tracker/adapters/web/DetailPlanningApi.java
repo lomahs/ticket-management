@@ -3,6 +3,7 @@ package tracker.adapters.web;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -299,16 +300,15 @@ public class DetailPlanningApi {
             throw new Invalid("Choose a .xlsx or .csv file", "file");
         }
         String name = file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty() ? "upload" : file.getOriginalFilename();
-        return detailImport.preview(scope, epic, LeaveFiles.readRows(name, file.getBytes()));
+        List<List<String>> all = LeaveFiles.readAllRows(name, file.getBytes());
+        return detailImport.preview(scope, epic, all.isEmpty() ? List.of() : all.getFirst(), all.stream().skip(1).toList());
     }
 
     /** A line of the preview to apply; null keeps what the plan has. */
     public record ImportLineBody(@NotBlank String ref, @Nullable String baId, @Nullable String balId, @Nullable String jmId,
-                                 @Nullable @PositiveOrZero Double effortH,
-                                 @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String start,
-                                 @Nullable @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String end) {
+                                 @Nullable @PositiveOrZero Double effortH, @Nullable Map<String, Double> cells) {
         ImportLineIn in() {
-            return new ImportLineIn(ref, baId, balId, jmId, effortH, start, end);
+            return new ImportLineIn(ref, baId, balId, jmId, effortH, cells);
         }
     }
 

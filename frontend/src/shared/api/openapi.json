@@ -6091,6 +6091,13 @@
           "bal_id" : {
             "type" : [ "string", "null" ]
           },
+          "cells" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
           "changes" : {
             "type" : "array",
             "items" : {
@@ -6100,9 +6107,6 @@
           "effort_h" : {
             "type" : [ "number", "null" ],
             "format" : "double"
-          },
-          "end" : {
-            "type" : [ "string", "null" ]
           },
           "errors" : {
             "type" : "array",
@@ -6123,14 +6127,11 @@
           "ref" : {
             "type" : "string"
           },
-          "start" : {
-            "type" : [ "string", "null" ]
-          },
           "step" : {
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "ba_id", "bal_id", "changes", "effort_h", "end", "errors", "function", "jm_id", "line", "ref", "start", "step" ]
+        "required" : [ "ba_id", "bal_id", "cells", "changes", "effort_h", "errors", "function", "jm_id", "line", "ref", "step" ]
       },
       "ImportLineBody" : {
         "type" : "object",
@@ -6141,13 +6142,16 @@
           "bal_id" : {
             "type" : [ "string", "null" ]
           },
+          "cells" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
           "effort_h" : {
             "type" : [ "number", "null" ],
             "format" : "double"
-          },
-          "end" : {
-            "type" : [ "string", "null" ],
-            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "jm_id" : {
             "type" : [ "string", "null" ]
@@ -6155,10 +6159,6 @@
           "ref" : {
             "type" : "string",
             "minLength" : 1
-          },
-          "start" : {
-            "type" : [ "string", "null" ],
-            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
           }
         },
         "required" : [ "ref" ]

@@ -3,7 +3,6 @@ package tracker.adapters.web;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.time.LocalDate;
 import java.util.List;
 
 import org.apache.poi.ss.usermodel.BorderStyle;
@@ -19,7 +18,6 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.jspecify.annotations.Nullable;
 
 import tracker.application.service.DetailPlanImportService;
 import tracker.application.service.DetailPlanImportService.SheetLine;
@@ -32,17 +30,18 @@ final class DetailPlanFiles {
 
     static final String XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    /** Ref to Sub-task: read only, greyed; BA to Plan end: what the import reads. */
+    /** Ref to Summary: read only, greyed; BA to the days: what the import reads. */
     private static final int FIRST_EDITABLE = 5;
-    private static final int[] WIDTHS = {10, 10, 26, 16, 48, 16, 16, 16, 11, 13, 13};
+    private static final int[] WIDTHS = {10, 10, 26, 16, 48, 16, 16, 16, 11};
+    private static final int FIRST_DAY = DetailPlanImportService.COLUMNS.size();
     private static final List<String> HOW_TO = List.of(
             "How to fill the detail plan",
             "",
-            "1. Change BA, BAL, JM, Effort (h), Plan start or Plan end on the Detail plan sheet. Do not change Ref: it finds the sub-task.",
+            "1. Change BA, BAL, JM, Effort (h) or the hours of a day on the Detail plan sheet. Do not change Ref: it finds the sub-task.",
             "2. BA, BAL and JM are per function: change them on any of its lines; a line that keeps the plan's person changes nothing.",
             "   A ticket has a BA (its member) only; JM only for a function with JM Review. Pick names from the People sheet.",
-            "3. Dates are YYYY-MM-DD; give both Plan start and Plan end, or neither.",
-            "4. An empty cell, or one with what the plan has, changes nothing. A value that differs is set by hand, as on the screen.",
+            "3. The days are the columns headed YYYY-MM-DD: the hours of that day. An empty day cell is 0 hours, and clears the cell.",
+            "4. An empty BA / BAL / JM / Effort cell, or one with what the plan has, changes nothing. A value that differs is set by hand.",
             "5. Detail plan › More › Import Excel / CSV: review the changes, then apply them.",
             "",
             "New functions and tickets are added on the screen (Add function, Add task), not here.");
@@ -61,16 +60,15 @@ final class DetailPlanFiles {
             readOnly.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             CellStyle hours = wb.createCellStyle();
             hours.setDataFormat(wb.createDataFormat().getFormat("0.##"));
-            CellStyle date = wb.createCellStyle();
-            date.setDataFormat(wb.createDataFormat().getFormat("yyyy-mm-dd"));
 
             Sheet ws = wb.createSheet("Detail plan");
             Row h = ws.createRow(0);
-            for (int c = 0; c < DetailPlanImportService.COLUMNS.size(); c++) {
+            int width = FIRST_DAY + sheet.days().size();
+            for (int c = 0; c < width; c++) {
                 Cell cell = h.createCell(c);
-                cell.setCellValue(DetailPlanImportService.COLUMNS.get(c));
+                cell.setCellValue(c < FIRST_DAY ? DetailPlanImportService.COLUMNS.get(c) : sheet.days().get(c - FIRST_DAY));
                 cell.setCellStyle(header);
-                ws.setColumnWidth(c, WIDTHS[c] * 256);
+                ws.setColumnWidth(c, (c < FIRST_DAY ? WIDTHS[c] : 11) * 256);
             }
             int n = 1;
             for (SheetLine l : sheet.lines()) {
@@ -86,11 +84,17 @@ final class DetailPlanFiles {
                 Cell e = r.createCell(8);
                 e.setCellValue(l.effortH());
                 e.setCellStyle(hours);
-                dateCell(r, 9, l.start(), date);
-                dateCell(r, 10, l.end(), date);
+                for (int d = 0; d < sheet.days().size(); d++) {
+                    Double hrs = l.cells().get(sheet.days().get(d));
+                    if (hrs != null && hrs > 0) {
+                        Cell cell = r.createCell(FIRST_DAY + d);
+                        cell.setCellValue(hrs);
+                        cell.setCellStyle(hours);
+                    }
+                }
             }
             ws.createFreezePane(0, 1);
-            ws.setAutoFilter(new CellRangeAddress(0, Math.max(0, n - 1), 0, DetailPlanImportService.COLUMNS.size() - 1));
+            ws.setAutoFilter(new CellRangeAddress(0, Math.max(0, n - 1), 0, width - 1));
 
             Sheet people = wb.createSheet("People");
             Row ph = people.createRow(0);
@@ -130,14 +134,6 @@ final class DetailPlanFiles {
             return out.toByteArray();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    private static void dateCell(Row r, int c, @Nullable String iso, CellStyle style) {
-        Cell cell = r.createCell(c);
-        if (iso != null) {
-            cell.setCellValue(LocalDate.parse(iso));
-            cell.setCellStyle(style);
         }
     }
 }

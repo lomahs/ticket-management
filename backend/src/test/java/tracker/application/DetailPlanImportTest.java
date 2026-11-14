@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -88,14 +87,30 @@ class DetailPlanImportTest {
         return rows;
     }
 
-    /** The sheet's lines as cells, the way the file is read back (header left out). */
+    /** The sheet's header, the way the file is read back. */
+    static List<String> header(Sheet s) {
+        List<String> out = new ArrayList<>(DetailPlanImportService.COLUMNS);
+        out.addAll(s.days());
+        return out;
+    }
+
+    /** The sheet's lines as cells, the way the file is read back (header left out); a day without hours is blank. */
     static List<List<String>> cells(Sheet s) {
         List<List<String>> out = new ArrayList<>();
         for (SheetLine l : s.lines()) {
-            out.add(new ArrayList<>(List.of(l.ref(), l.phase(), l.function(), l.step(), l.summary(), l.ba(), l.bal(), l.jm(),
-                    tracker.domain.Numbers.format(l.effortH()), l.start() == null ? "" : l.start(), l.end() == null ? "" : l.end())));
+            List<String> r = new ArrayList<>(List.of(l.ref(), l.phase(), l.function(), l.step(), l.summary(), l.ba(), l.bal(), l.jm(),
+                    tracker.domain.Numbers.format(l.effortH())));
+            for (String d : s.days()) {
+                Double h = l.cells().get(d);
+                r.add(h == null || h == 0 ? "" : tracker.domain.Numbers.format(h));
+            }
+            out.add(r);
         }
         return out;
+    }
+
+    List<ImportLine> preview(List<List<String>> rows) {
+        return imports.preview(ALL, EPIC, header(imports.sheet(ALL, EPIC)), rows);
     }
 
     static MatrixLine step(DetailPlanView v, String ref) {
@@ -103,7 +118,6 @@ class DetailPlanImportTest {
     }
 
     @Test
-    @Disabled("Task 9")
     void theSheetListsEverySubTaskWithItsPeopleAndTheAnkenMembers() {
         List<EstimationRow> rows = planned();
         Sheet s = imports.sheet(ALL, EPIC);
@@ -113,7 +127,8 @@ class DetailPlanImportTest {
         SheetLine create = s.lines().get(0);
         assertThat(List.of(create.phase(), create.function(), create.step(), create.ba(), create.bal(), create.jm()))
                 .containsExactly("ITA", "Login", "Create", "An", "Minh", "Tanaka");
-        assertThat(create.start()).isNotNull();
+        assertThat(s.days()).isEqualTo(detail.view(ALL, EPIC).window()).contains("2026-10-12");
+        assertThat(DetailPlanImportService.COLUMNS).containsExactly("Ref", "Phase", "Function", "Step", "Summary", "BA", "BAL", "JM", "Effort (h)");
         SheetLine run = s.lines().get(5);
         assertThat(List.of(run.step(), run.ba(), run.bal(), run.jm())).containsExactly("Ticket", "An", "", "");
         assertThat(s.people()).extracting(DetailPlanImportService.SheetPerson::name).contains("An", "Bình", "Minh", "Tanaka");
@@ -122,9 +137,9 @@ class DetailPlanImportTest {
     @Test
     void theSheetAsItIsChangesNothing() {
         planned();
-        List<ImportLine> lines = imports.preview(ALL, EPIC, cells(imports.sheet(ALL, EPIC)));
+        List<ImportLine> lines = preview(cells(imports.sheet(ALL, EPIC)));
         assertThat(lines).allSatisfy(l -> assertThat(l.errors()).isEmpty());
-        assertThat(lines).allSatisfy(l -> assertThat(l.changes()).isEmpty()); // the computed dates are not set by hand
+        assertThat(lines).allSatisfy(l -> assertThat(l.changes()).isEmpty()); // no cell is planned yet
     }
 
     @Test
@@ -135,16 +150,16 @@ class DetailPlanImportTest {
         c.get(0).set(5, "bình"); // Login's BA, by name, any case
         c.get(1).set(5, "Bình"); // the same on another line of Login
         c.get(2).set(8, "4"); // Fix BAL effort
-        c.get(3).set(9, "2026-10-20");
-        c.get(3).set(10, "2026-10-21"); // JM Review's dates
+        c.get(3).set(9, "8"); // JM Review's first day
         c.get(4).set(5, "Minh"); // yet another BA on a third line of Login (the lines left with An change nothing)
         c.get(5).set(6, "Minh"); // a BAL on a ticket
-        c.add(new ArrayList<>(List.of("999", "", "Ghost", "", "", "", "", "", "", "", "")));
-        List<ImportLine> lines = imports.preview(ALL, EPIC, c);
+        c.add(new ArrayList<>(List.of("999", "", "Ghost", "", "", "", "", "", "")));
+        List<ImportLine> lines = preview(c);
         assertThat(lines.get(0).changes()).containsExactly(new ImportChange("ba", "an", "binh"));
         assertThat(lines.get(1).changes()).isEmpty(); // reported once, on the first line naming it
         assertThat(lines.get(2).changes()).containsExactly(new ImportChange("effort_h", "2.5", "4"));
-        assertThat(lines.get(3).changes()).extracting(ImportChange::field).containsExactly("start", "end");
+        assertThat(lines.get(3).changes()).extracting(ImportChange::field).containsExactly("cells");
+        assertThat(lines.get(3).cells()).containsEntry(imports.sheet(ALL, EPIC).days().getFirst(), 8.0);
         assertThat(lines.get(4).errors()).containsExactly("BA differs from line 2 of Login");
         assertThat(lines.get(5).errors()).containsExactly("A ticket has no BAL: leave BAL empty");
         assertThat(lines.getLast().errors()).singleElement().asString().startsWith("999 is not a sub-task of the plan");
@@ -153,38 +168,61 @@ class DetailPlanImportTest {
     }
 
     @Test
-    void peopleAndDatesAreCheckedAsTheScreenOffersThem() {
+    void peopleAndHoursAreCheckedAsTheScreenOffersThem() {
         List<EstimationRow> rows = planned();
         List<List<String>> c = cells(imports.sheet(ALL, EPIC));
         c.get(0).set(7, "An"); // a BA as JM
-        c.get(1).set(9, "2026-10-20"); // a start without an end
-        c.get(1).set(10, "");
-        c.get(2).set(9, "20/10/2026");
+        c.get(1).set(9, "-2"); // negative hours
+        c.get(2).set(9, "lots");
         c.get(3).set(5, "Tanaka"); // a JM as BA
         c.get(4).set(5, "Nobody");
-        List<ImportLine> lines = imports.preview(ALL, EPIC, c);
+        List<ImportLine> lines = preview(c);
         assertThat(lines.get(0).errors()).containsExactly("An is a BA, not a JM");
-        assertThat(lines.get(1).errors()).containsExactly("Set both Plan start and Plan end, or neither");
-        assertThat(lines.get(2).errors()).containsExactly("Plan start must be a date (YYYY-MM-DD)");
+        String d = imports.sheet(ALL, EPIC).days().getFirst();
+        assertThat(lines.get(1).errors()).containsExactly(d + " must be 0 hours or more");
+        assertThat(lines.get(2).errors()).containsExactly(d + " must be a number of hours");
         assertThat(lines.get(3).errors()).containsExactly("Tanaka is a JM, not a BA");
         assertThat(lines.get(4).errors()).containsExactly("Unknown member Nobody");
         // Pay has 3 steps: no JM Review, so no JM
         long pay = rows.get(2).id();
         List<List<String>> p = cells(imports.sheet(ALL, EPIC)).stream().filter(r -> r.get(0).startsWith(pay + ":")).toList();
         p.get(0).set(7, "Tanaka");
-        assertThat(imports.preview(ALL, EPIC, p).get(0).errors()).containsExactly("Pay has no JM Review: leave JM empty");
+        assertThat(preview(p).get(0).errors()).containsExactly("Pay has no JM Review: leave JM empty");
     }
 
     @Test
-    @Disabled("Task 9")
-    void applySetsThePeopleEffortsAndDatesByHand() {
+    void aHeaderThatIsNotADateIsReported() {
+        planned();
+        Sheet sheet = imports.sheet(ALL, EPIC);
+        List<String> h = header(sheet);
+        h.add(9, "foo");
+        List<List<String>> c = cells(sheet);
+        c.forEach(r -> r.add(9, ""));
+        List<ImportLine> lines = imports.preview(ALL, EPIC, h, c);
+        assertThat(lines).allSatisfy(l -> assertThat(l.errors()).containsExactly("Column 10: foo is not a date"));
+    }
+
+    @Test
+    void applySetsThePeopleEffortsAndCellsByHand() {
         List<EstimationRow> rows = planned();
         long login = rows.get(0).id();
         long run = rows.get(1).id();
+        List<String> days = imports.sheet(ALL, EPIC).days();
+        String d12 = "2026-10-12";
+        String d13 = "2026-10-13";
+        String d14 = "2026-10-14";
+        assertThat(days).contains(d12, d13, d14);
+        // a cell that was there: the file clears it with a blank
+        detail.saveCells(ALL, EPIC, List.of(new DetailPlanService.CellIn(String.valueOf(run), d14, 4)));
+        assertThat(step(detail.view(ALL, EPIC), String.valueOf(run)).cells()).extracting(DetailPlanService.DayHours::day).containsExactly(d14);
+        Map<String, Double> runCells = new java.util.LinkedHashMap<>();
+        runCells.put(d12, 8.0);
+        runCells.put(d13, 8.0);
+        runCells.put(d14, 0.0);
         DetailPlanView v = imports.apply(ALL, EPIC, List.of(
-                new ImportLineIn(login + ":create", "binh", null, null, 10.0, null, null),
-                new ImportLineIn(login + ":fixb", null, null, null, 4.0, null, null),
-                new ImportLineIn(String.valueOf(run), null, null, null, null, "2026-10-26", "2026-10-27")));
+                new ImportLineIn(login + ":create", "binh", null, null, 10.0, null),
+                new ImportLineIn(login + ":fixb", null, null, null, 4.0, null),
+                new ImportLineIn(String.valueOf(run), null, null, null, null, runCells)));
         EstimationRow l = v.rows().stream().filter(r -> r.id() == login).findFirst().orElseThrow();
         assertThat(List.of(l.baId(), l.balId(), l.jmId())).containsExactly("binh", "minh", "tanaka");
         assertThat(l.effortH()).isEqualTo(10.0); // Create is the row's effort: the other steps follow it
@@ -192,21 +230,20 @@ class DetailPlanImportTest {
         assertThat(step(v, login + ":fixb").totalH()).isEqualTo(4.0);
         assertThat(step(v, login + ":fixb").edited()).isTrue();
         MatrixLine r = step(v, String.valueOf(run));
-        assertThat(List.of(r.start(), r.end())).containsExactly("2026-10-26", "2026-10-27");
-        // the dates stay when the effort is set later, and the other way round
-        v = imports.apply(ALL, EPIC, List.of(new ImportLineIn(String.valueOf(run), null, null, null, 12.0, null, null),
-                new ImportLineIn(login + ":fixb", null, null, null, null, "2026-10-28", "2026-10-28")));
-        assertThat(step(v, String.valueOf(run)).start()).isEqualTo("2026-10-26");
-        assertThat(step(v, login + ":fixb").totalH()).isEqualTo(4.0);
-        assertThat(step(v, login + ":fixb").start()).isEqualTo("2026-10-28");
+        assertThat(r.cells()).extracting(DetailPlanService.DayHours::day, DetailPlanService.DayHours::hours)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(d12, 8.0), org.assertj.core.groups.Tuple.tuple(d13, 8.0));
+        // the cells stay when the effort is set later
+        v = imports.apply(ALL, EPIC, List.of(new ImportLineIn(String.valueOf(run), null, null, null, 12.0, null)));
+        assertThat(step(v, String.valueOf(run)).cells()).hasSize(2);
+        assertThat(step(v, String.valueOf(run)).totalH()).isEqualTo(12.0);
     }
 
     @Test
     void applyIsRefusedWhenALineIsWrong() {
         List<EstimationRow> rows = planned();
         long login = rows.get(0).id();
-        assertThatThrownBy(() -> imports.apply(ALL, EPIC, List.of(new ImportLineIn(login + ":create", "binh", null, null, null, null, null),
-                new ImportLineIn(login + ":balr", "tanaka", null, null, null, null, null))))
+        assertThatThrownBy(() -> imports.apply(ALL, EPIC, List.of(new ImportLineIn(login + ":create", "binh", null, null, null, null),
+                new ImportLineIn(login + ":balr", "tanaka", null, null, null, null))))
                 .isInstanceOf(Invalid.class).hasMessageContaining("Tanaka is a JM, not a BA");
         assertThat(estimationRows.findByEpic(EPIC).get(0).baId()).isEqualTo("an"); // nothing applied
     }

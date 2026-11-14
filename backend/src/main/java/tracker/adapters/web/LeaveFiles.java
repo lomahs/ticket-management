@@ -41,6 +41,11 @@ final class LeaveFiles {
 
     /** Data rows (header skipped) of the first sheet of an .xlsx, or of a .csv. */
     static List<List<String>> readRows(String name, byte[] raw) {
+        return readAllRows(name, raw).stream().skip(1).toList();
+    }
+
+    /** Like {@link #readRows}, with the header row first. */
+    static List<List<String>> readAllRows(String name, byte[] raw) {
         String lower = name.toLowerCase(Locale.ROOT);
         if (lower.endsWith(".csv")) {
             List<List<String>> rows = new ArrayList<>();
@@ -49,7 +54,7 @@ final class LeaveFiles {
                     rows.add(r);
                 }
             }
-            return rows.stream().skip(1).map(r -> r.stream().map(String::strip).toList()).toList();
+            return rows.stream().map(r -> r.stream().map(String::strip).toList()).toList();
         }
         if (lower.endsWith(".xlsx")) {
             List<List<String>> rows = new ArrayList<>();
@@ -70,7 +75,8 @@ final class LeaveFiles {
             } catch (Exception e) {
                 throw new Invalid("Could not read " + name + ": " + e.getMessage(), "file");
             }
-            return rows.stream().skip(1).filter(r -> r.stream().anyMatch(x -> !x.isEmpty())).toList();
+            return java.util.stream.IntStream.range(0, rows.size()).filter(i -> i == 0 || rows.get(i).stream().anyMatch(x -> !x.isEmpty()))
+                    .mapToObj(rows::get).toList();
         }
         throw new Invalid("Choose a .xlsx or .csv file", "file");
     }
