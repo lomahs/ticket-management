@@ -13,7 +13,6 @@ import { ticketsSearch } from '../features/tickets/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
 import { planningSearch } from '../features/planning/search';
-import { replanSearch } from '../features/planning/replan/search';
 import { isSettingsTab, settingsSearch } from '../features/settings/search';
 import { ApiError } from '../shared/api/errors';
 import { can, meQuery, visibleAnkenQuery } from '../shared/api/queries';
@@ -162,7 +161,6 @@ const ticketCheck = createRoute({
 
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
-const planningReplan = createRoute({ getParentRoute: () => app, path: 'planning/replan', ...needs('planning'), validateSearch: replanSearch, component: lazyRouteComponent(() => import('../features/planning'), 'ReplanPage') });
 
 const onboardingPages = () => import('../features/onboarding');
 const onboarding = createRoute({ getParentRoute: () => app, path: 'onboarding', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingPage') });
@@ -221,7 +219,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningSchedule, planningReplan, onboarding, onboardingNew, onboardingStep, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningSchedule, onboarding, onboardingNew, onboardingStep, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);
