@@ -27,15 +27,11 @@ import tracker.application.ports.JiraWriteLog;
 import tracker.application.ports.JiraWriter;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
+import tracker.application.ports.PlanCellRepository;
+import tracker.application.ports.PlanCellRepository.Cell;
 import tracker.application.ports.PlanDayRepository;
-import tracker.application.service.ReplanService;
-import tracker.application.service.ReplanService.ReplanIn;
-import tracker.application.service.ReplanService.ReplanItem;
-import tracker.application.service.ReplanService.ReplanView;
+import tracker.application.ports.PlanVersionRepository;
 import tracker.application.service.TicketService;
-import tracker.application.service.TicketService.BatchPreview;
-import tracker.application.service.TicketService.ExpectedChange;
-import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.BatchResult;
 import tracker.application.service.TicketService.NewTicket;
 import tracker.application.service.EstimationService;
@@ -45,15 +41,15 @@ import tracker.application.service.AllocationService;
 import tracker.application.service.DetailPlanService;
 import tracker.application.service.PlanDayLinker;
 import tracker.application.service.DetailPlanService.AnkenAllocation;
+import tracker.application.service.DetailPlanService.DayHours;
 import tracker.application.service.DetailPlanService.DayLoad;
+import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.application.service.DetailPlanService.NewRowIn;
 import tracker.application.service.DetailPlanService.StepIn;
-import tracker.application.service.DetailPlanService.StepRow;
 import tracker.application.service.DetailPlanService.OverrunAllocation;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.RowAssign;
-import tracker.application.service.DetailPlanService.StepPlan;
 import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.MasterScheduleView;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
@@ -72,7 +68,7 @@ import tracker.domain.Status;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Viewer;
 
-/** Estimation → master schedule → detail plan → re-plan, on fresh demo data. */
+/** Estimation → master schedule → detail plan → push, on fresh demo data. */
 @DemoTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class DetailPlanningTest {
@@ -94,7 +90,7 @@ class DetailPlanningTest {
     @Autowired
     AllocationRepository allocationRows;
     @Autowired
-    ReplanService replan;
+    PlanCellRepository cells;
     @Autowired
     IssueRepository issues;
     @Autowired
@@ -233,30 +229,50 @@ class DetailPlanningTest {
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
                 new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
                 new RowAssign(rows.get(2).id(), "binh", "minh", null))));
-        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled: it only plans
+        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled
         return rows;
     }
 
-    static StepPlan first(DetailPlanView v, long rowId) {
-        return v.plan().stream().filter(r -> r.rowId() == rowId).findFirst().orElseThrow().steps().get(0);
+    static MatrixLine line(DetailPlanView v, String ref) {
+        return v.lines().stream().filter(l -> l.ref().equals(ref)).findFirst().orElseThrow();
+    }
+
+    /** The lines of a row's steps, in step order. */
+    static List<MatrixLine> lines(DetailPlanView v, long rowId) {
+        return v.lines().stream().filter(l -> l.rowId() != null && l.rowId() == rowId).toList();
+    }
+
+    /** Hours typed into a step's cells: day, hours, day, hours… */
+    void plan(String ref, Object... dayHours) {
+        List<Cell> out = new java.util.ArrayList<>();
+        for (int i = 0; i < dayHours.length; i += 2) {
+            out.add(new Cell(ref, (String) dayHours[i], ((Number) dayHours[i + 1]).doubleValue(), false));
+        }
+        cells.saveRowCells(out);
+    }
+
+    /** Every step of Login planned in order on Wednesday 14 to Friday 16: 26.8h of an's (with Run's 16h) and minh's share. */
+    void planLogin(long login) {
+        plan(login + ":create", "2026-10-14", 8);
+        plan(login + ":balr", "2026-10-15", 2);
+        plan(login + ":fixb", "2026-10-15", 2.5);
+        plan(login + ":jmr", "2026-10-16", 2);
+        plan(login + ":fixj", "2026-10-16", 1.5);
     }
 
     @Test
-    void detailPlanSchedulesFromThePhaseStartInRowOrder() {
+    void detailPlanListsEachStepOfTheRowsInRowOrder() {
         List<EstimationRow> rows = planned();
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.problems()).isEmpty();
-        assertThat(v.plan()).hasSize(3);
-        List<StepPlan> login = v.plan().get(0).steps();
-        assertThat(login).extracting(StepPlan::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
-        assertThat(login).extracting(StepPlan::memberId).containsExactly("an", "minh", "an", "tanaka", "an");
-        assertThat(login).extracting(StepPlan::hours).containsExactly(8.0, 2.0, 2.5, 2.0, 1.5);
-        assertThat(login.get(0).start()).isGreaterThanOrEqualTo("2026-10-12");
-        for (int i = 1; i < login.size(); i++) {
-            assertThat(login.get(i).start()).isGreaterThan(login.get(i - 1).end());
-        }
-        assertThat(first(v, rows.get(1).id()).start()).isGreaterThanOrEqualTo(login.get(0).start()); // Run comes after Login for an
-        assertThat(first(v, rows.get(2).id()).start()).isGreaterThanOrEqualTo("2026-10-19");
+        assertThat(v.lines().stream().filter(l -> l.rowId() != null)).extracting(MatrixLine::rowId)
+                .containsExactly(rows.get(0).id(), rows.get(0).id(), rows.get(0).id(), rows.get(0).id(), rows.get(0).id(), rows.get(1).id(),
+                        rows.get(2).id(), rows.get(2).id(), rows.get(2).id());
+        List<MatrixLine> login = lines(v, rows.get(0).id());
+        assertThat(login).extracting(MatrixLine::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
+        assertThat(login).extracting(MatrixLine::picId).containsExactly("an", "an", "minh", "minh", "minh");
+        assertThat(login).extracting(MatrixLine::totalH).containsExactly(8.0, 2.0, 2.5, 2.0, 1.5);
+        assertThat(login).allMatch(l -> l.cells().isEmpty() && l.start() == null && l.notYetH() == l.totalH()); // nothing planned yet
         assertThat(v.tasks()).extracting(t -> t.key()).contains(task("ITA Execute"));
     }
 
@@ -274,7 +290,6 @@ class DetailPlanningTest {
                         "Run=binh/null/null", // an is busy with Login, so Bình finishes sooner
                         "Pay=an/minh/null"); // the only BA of the ITB team; a 3-step function has no JM
         assertThat(v.problems()).isEmpty();
-        assertThat(v.plan()).hasSize(3);
     }
 
     @Test
@@ -282,7 +297,7 @@ class DetailPlanningTest {
         estimate();
         schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
                 new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
-        // tanaka is a JM of the anken but not in the ITA team: Login's JM stays empty, so nothing can be planned; its BA and BAL are filled
+        // tanaka is a JM of the anken but not in the ITA team: Login's JM stays empty; its BA and BAL are filled
         assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessage("Row 1 (Login): pick a JM");
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.rows()).filteredOn(r -> r.functionName().equals("Login")).singleElement()
@@ -299,23 +314,20 @@ class DetailPlanningTest {
         detail.saveDraft(ALL, EPIC, new DraftIn(order, List.of(new RowAssign(rows.get(0).id(), "an", null, null))));
         DetailPlanView v = detail.autoAllocate(ALL, EPIC); // Login=an/minh/tanaka, Run=binh, Pay=an/minh
         assertThat(v.byHand()).extracting(h -> h.rowId() + " " + h.ba() + h.bal() + h.jm()).containsExactly(rows.get(0).id() + " truefalsefalse");
-        // Run's member picked by hand (the draft sends every row, the unchanged ones stay Auto allocate's), and a date set by hand
+        // Run's member picked by hand (the draft sends every row, the unchanged ones stay Auto allocate's)
         v = detail.saveDraft(ALL, EPIC, new DraftIn(order, v.rows().stream().map(r -> new RowAssign(r.id(),
                 r.id() == rows.get(1).id() ? "an" : r.baId(), r.balId(), r.jmId())).toList()));
         assertThat(v.byHand()).extracting(h -> h.rowId()).containsExactly(rows.get(0).id(), rows.get(1).id());
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-20", "2026-10-21", false));
 
         v = detail.clear(ALL, EPIC, true);
         assertThat(v.rows()).extracting(r -> r.functionName() + "=" + r.baId() + "/" + r.balId() + "/" + r.jmId())
                 .containsExactly("Login=an/null/null", "Run=an/null/null", "Pay=null/null/null");
-        assertThat(v.steps()).filteredOn(s -> s.rowId() == rows.get(1).id()).extracting(StepRow::manual).containsExactly(true);
         v = detail.autoAllocate(ALL, EPIC); // fills the slots again around what was set by hand
         assertThat(v.rows()).allMatch(r -> r.baId() != null);
         assertThat(v.rows().get(1).baId()).isEqualTo("an");
 
         v = detail.clear(ALL, EPIC, false);
         assertThat(v.rows()).allMatch(r -> r.baId() == null && r.balId() == null && r.jmId() == null);
-        assertThat(v.steps()).noneMatch(StepRow::manual);
         assertThat(v.byHand()).isEmpty();
         assertThat(estimationRows.autoPicks(EPIC)).isEmpty();
     }
@@ -327,21 +339,15 @@ class DetailPlanningTest {
     }
 
     @Test
-    void reorderingRowsChangesTheirDatesOnAutoAllocate() {
+    void reorderingRowsReordersTheirLinesAndKeepsTheirCells() {
         List<EstimationRow> rows = planned();
-        DetailPlanView v = detail.view(ALL, EPIC);
+        plan(String.valueOf(rows.get(1).id()), "2026-10-12", 8);
         DetailPlanView swapped = detail.saveDraft(ALL, EPIC, new DraftIn(List.of(rows.get(1).id(), rows.get(0).id(), rows.get(2).id()),
                 List.of()));
         assertThat(swapped.rows().get(0).id()).isEqualTo(rows.get(1).id());
         assertThat(swapped.rows().get(0).baId()).isEqualTo("an"); // assignments are kept
-        assertThat(swapped.steps()).extracting(DetailPlanningTest::dates)
-                .containsExactlyInAnyOrderElementsOf(v.steps().stream().map(DetailPlanningTest::dates).toList());
-        swapped = detail.autoAllocate(ALL, EPIC);
-        assertThat(first(swapped, rows.get(1).id()).start()).isLessThanOrEqualTo(first(swapped, rows.get(0).id()).start());
-    }
-
-    static String dates(StepRow s) {
-        return s.ref() + " " + s.start() + ".." + s.end();
+        assertThat(swapped.lines().getFirst().ref()).isEqualTo(String.valueOf(rows.get(1).id()));
+        assertThat(swapped.lines().getFirst().cells()).containsExactly(new DayHours("2026-10-12", 8, false));
     }
 
     @Test
@@ -349,7 +355,7 @@ class DetailPlanningTest {
         estimate();
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.problems()).contains("Save a master schedule first");
-        assertThat(v.plan()).isEmpty();
+        assertThat(v.lines().stream().filter(l -> l.rowId() != null)).allMatch(l -> l.cells().isEmpty());
         schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an"))), "Kick-off");
         List<String> p = detail.view(ALL, EPIC).problems();
         assertThat(p).contains("ITB is not in the master schedule", "Row 1 (Login): pick a BA", "Row 2 (Run): pick a member");
@@ -358,21 +364,23 @@ class DetailPlanningTest {
 
     @Test
     void planEndLaterThanMasterEndIsReported() {
-        planned();
+        List<EstimationRow> rows = planned();
+        plan(String.valueOf(rows.get(1).id()), "2026-12-01", 16); // Run, long after ITA's master End
         DetailPlanView v = detail.view(ALL, EPIC);
         var ita = v.checks().stream().filter(c -> c.phase().equals("ITA")).findFirst().orElseThrow();
-        assertThat(ita.planEnd()).isNotNull();
+        assertThat(ita.planEnd()).isEqualTo("2026-12-01");
         assertThat(ita.daysLate()).isEqualTo(tracker.domain.Dates.dayDiff(ita.masterEnd(), ita.planEnd()));
-        assertThat(ita.daysLate()).isPositive(); // one BA for ITA, the master schedule counted two
+        assertThat(ita.daysLate()).isPositive();
     }
 
     /**
-     * Allocations that keep every member within budget: ITA (Login + Run, 28h of BA work) by an 8h: the Creates and Run take 3
-     * days, Login's reviews 4 more, an given 28h of 56; ITB (Pay, 10.5h) by binh 8h.
+     * Allocations that keep every member within budget: ITA (Login + Run, 28h of BA work) by an 8h; ITB (Pay, 10.5h) by binh 8h.
+     * Run is planned on Monday 12 and Tuesday 13, nothing else yet.
      */
     List<EstimationRow> pushable() {
         List<EstimationRow> rows = unplanned();
-        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled: it only plans
+        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled
+        plan(String.valueOf(rows.get(1).id()), "2026-10-12", 8, "2026-10-13", 8);
         return rows;
     }
 
@@ -397,9 +405,8 @@ class DetailPlanningTest {
         onboardingRows.save(new Onboarding(EPIC, "", List.of("PAY", "detail"), 6, "2026-10-07T09:00:00Z", "test", "2026-10-07T09:00:00Z", "test", null));
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overBudget()).isEmpty();
-        assertThat(v.overDay()).isEmpty();
-        // the list shows who each sub-task goes to, as the push assigns it (for the CSV export)
-        assertThat(v.steps()).filteredOn(st -> st.rowId() == rows.get(0).id()).extracting(st -> st.step() + " " + st.assigneeId() + " " + st.reporterId())
+        // the matrix shows who each sub-task goes to, as the push assigns it (for the CSV export)
+        assertThat(lines(v, rows.get(0).id())).extracting(st -> st.step() + " " + st.picId() + " " + st.reporterId())
                 .containsExactly("create an minh", "balr an null", "fixb minh null", "jmr minh null", "fixj minh null");
         assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(5 + 1 + 3);
         BatchResult r = detail.push(ADMIN, ALL, EPIC);
@@ -407,9 +414,8 @@ class DetailPlanningTest {
         String execute = task("ITA Execute");
         Issue run = ctx.issue(r.created().get(String.valueOf(rows.get(1).id()))).orElseThrow();
         assertThat(run.parentKey()).isEqualTo(execute);
-        StepPlan runPlan = first(v, rows.get(1).id());
-        assertThat(run.plannedStart()).isEqualTo(runPlan.start());
-        assertThat(run.plannedEnd()).isEqualTo(runPlan.end());
+        assertThat(run.plannedStart()).isEqualTo("2026-10-12"); // the first and last day with hours
+        assertThat(run.plannedEnd()).isEqualTo("2026-10-13");
         assertThat(run.estimateH()).isEqualTo(16.0);
         assertThat(run.labels()).containsExactly("PAY", "detail"); // the labels entered at the onboarding's Setting Phase
         // no template: the sub-phase prefix is the Task's bracket; no step: the separator before it goes
@@ -428,11 +434,10 @@ class DetailPlanningTest {
         Issue pay = ctx.issue(r.created().get(rows.get(2).id() + ":create")).orElseThrow();
         assertThat(pay.parentKey()).isEqualTo(task("ITB Create test case"));
         assertThat(estimationRows.findByEpic(EPIC)).allMatch(EstimationRow::pushed);
-        assertThat(detail.view(ALL, EPIC).plan()).isEmpty();
-        // each sub-task keeps the plan's hours per day: within its dates, adding up to its estimate, which its plan remain uses
+        assertThat(detail.view(ALL, EPIC).lines()).allMatch(l -> l.rowId() == null);
+        // each sub-task keeps the plan's hours per day, which its plan remain uses
         Map<String, Double> days = planDays.find(List.of(run.key())).get(run.key());
-        assertThat(days.keySet()).allMatch(d -> d.compareTo(run.plannedStart()) >= 0 && d.compareTo(run.plannedEnd()) <= 0);
-        assertThat(days.values().stream().mapToDouble(Double::doubleValue).sum()).isCloseTo(16.0, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(days).containsExactly(Map.entry("2026-10-12", 8.0), Map.entry("2026-10-13", 8.0));
         assertThat(loader.load(ALL).planDays(run)).isEqualTo(days);
         // a push made before the hours were kept is linked by its Task, function name and step
         Map<String, Double> createDays = planDays.find(List.of(create.key())).get(create.key());
@@ -456,7 +461,7 @@ class DetailPlanningTest {
 
     @Test
     void closedSubTasksUseNoBudgetAndAnOverrunShowsTheAllocations() {
-        pushable();
+        planLogin(pushable().get(0).id());
         issues.save(subtask("PAY-9002", "an", Status.CLOSED));
         assertThat(detail.view(ALL, EPIC).overBudget()).isEmpty();
         issues.save(subtask("PAY-9003", "an", Status.WIP)); // an: 26.8h planned (70 % of the Fix steps) + 40h open in Jira
@@ -470,26 +475,24 @@ class DetailPlanningTest {
         assertThat(al.ankens().subList(1, al.ankens().size())).allMatch(x -> !x.epicKey().equals(EPIC) && x.hoursPerDay() > 0);
     }
 
-    static StepRow step(DetailPlanView v, long rowId, String step) {
-        return v.steps().stream().filter(s -> s.rowId() == rowId && step.equals(s.step())).findFirst().orElseThrow();
-    }
-
     @Test
-    void theListHasOneLinePerSubTaskWithItsNameAndWhoCarriesIt() {
+    void theMatrixHasOneLinePerSubTaskWithItsNameAndWhoCarriesIt() {
         List<EstimationRow> rows = pushable();
-        DetailPlanView v = detail.view(ALL, EPIC);
         long login = rows.get(0).id();
-        assertThat(v.steps().stream().filter(s -> s.rowId() == login)).extracting(StepRow::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
-        assertThat(step(v, login, "create").summary()).isEqualTo("[PAY] Login – Create");
-        assertThat(step(v, login, "balr")).extracting(StepRow::baH, StepRow::balH).containsExactly(0.0, 2.0);
-        assertThat(step(v, login, "fixb")).extracting(StepRow::baH, StepRow::balH).containsExactly(1.75, 0.75); // 70 / 30 of 2.5h
-        assertThat(step(v, login, "jmr")).extracting(StepRow::effortH, StepRow::baH, StepRow::balH).containsExactly(2.0, 0.0, 0.0);
-        assertThat(step(v, login, "fixb").start()).isNotNull();
-        assertThat(v.days()).extracting(DayLoad::memberId).contains("an", "minh").doesNotContain("tanaka"); // JM Review counts for nobody
-        DayLoad first = v.days().stream().filter(d -> d.memberId().equals("an") && d.plannedH() > 0).findFirst().orElseThrow();
+        plan(login + ":create", "2026-10-14", 8);
+        plan(login + ":fixb", "2026-10-15", 2.5);
+        plan(login + ":jmr", "2026-10-16", 2);
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(lines(v, login)).extracting(MatrixLine::step).containsExactly("create", "balr", "fixb", "jmr", "fixj");
+        assertThat(line(v, login + ":create").summary()).isEqualTo("[PAY] Login – Create");
+        assertThat(line(v, login + ":jmr").totalH()).isEqualTo(2.0);
+        assertThat(hoursOf(v, line(v, login + ":fixb").summary())).containsOnlyKeys("an 2026-10-15", "minh 2026-10-15"); // 70 / 30
+        assertThat(v.days()).extracting(DayLoad::memberId).contains("an", "minh");
+        assertThat(hoursOf(v, line(v, login + ":jmr").summary())).isEmpty(); // JM Review counts for nobody
+        DayLoad first = v.days().stream().filter(d -> d.memberId().equals("an") && d.date().equals("2026-10-14")).findFirst().orElseThrow();
         assertThat(first.items()).filteredOn(i -> !i.other()).extracting(DetailPlanService.DayItem::title).contains("[PAY] Login – Create");
         for (DayLoad d : v.days()) { // the day's hours are its items': this anken's, and the other anken's apart
-            assertThat(d.items().stream().filter(i -> !i.other()).mapToDouble(DetailPlanService.DayItem::hours).sum()).isCloseTo(d.plannedH(), within(1e-6));
+            assertThat(d.items().stream().filter(i -> !i.other()).mapToDouble(DetailPlanService.DayItem::hours).sum()).isCloseTo(d.plannedH(), within(0.05));
             assertThat(d.items().stream().filter(DetailPlanService.DayItem::other).mapToDouble(DetailPlanService.DayItem::hours).sum())
                     .isCloseTo(d.otherH(), within(1e-6));
         }
@@ -503,18 +506,15 @@ class DetailPlanningTest {
         List<EstimationRow> rows = pushable();
         long login = rows.get(0).id();
         DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, null, null, true));
-        assertThat(step(v, login, "fixj")).extracting(StepRow::removed, StepRow::start).containsExactly(true, null);
+        assertThat(line(v, login + ":fixj").removed()).isTrue();
         assertThat(v.stalePhases()).containsExactly("ITA"); // its BA effort fell by 70 % of 1.5h
-        v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, "2026-10-27", "2026-10-28", false));
-        assertThat(step(v, login, "fixb")).extracting(StepRow::effortH, StepRow::edited, StepRow::manual, StepRow::start, StepRow::end)
-                .containsExactly(4.0, true, true, "2026-10-27", "2026-10-28");
+        v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, null, null, false));
+        assertThat(line(v, login + ":fixb")).extracting(MatrixLine::totalH, MatrixLine::edited).containsExactly(4.0, true);
         v = detail.editStep(ALL, EPIC, new StepIn(login, "create", 10.0, null, null, false));
         assertThat(v.rows().stream().filter(r -> r.id() == login).findFirst().orElseThrow().effortH()).isEqualTo(10.0);
-        assertThat(step(v, login, "create").edited()).isFalse(); // Create's effort is the row's: the other steps follow it
-        assertThat(step(v, login, "balr").effortH()).isEqualTo(2.5);
+        assertThat(line(v, login + ":create").edited()).isFalse(); // Create's effort is the row's: the other steps follow it
+        assertThat(line(v, login + ":balr").totalH()).isEqualTo(2.5);
         assertThat(detail.pushPreview(ALL, EPIC).creates()).extracting(c -> c.ref()).doesNotContain(login + ":fixj").contains(login + ":fixb");
-        assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, "2026-10-20", null, false)))
-                .isInstanceOf(Invalid.class).hasMessageContaining("both");
         assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), "create", null, null, null, true)))
                 .isInstanceOf(Invalid.class).hasMessageContaining("not a step");
 
@@ -525,63 +525,31 @@ class DetailPlanningTest {
     }
 
     @Test
-    void anAdjustmentDoesNotReplan() {
+    void pickingAPersonKeepsTheCellsAndMovesTheirHours() {
         List<EstimationRow> rows = pushable();
-        long login = rows.get(0).id();
-        String jmr = step(detail.view(ALL, EPIC), login, "jmr").start();
-        assertThat(jmr).isNotEqualTo("2026-10-29");
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", 4.0, "2026-10-27", "2026-10-28", false));
-        assertThat(step(v, login, "fixb")).extracting(StepRow::manual, StepRow::start, StepRow::end).containsExactly(true, "2026-10-27", "2026-10-28");
-        assertThat(step(v, login, "jmr").start()).isEqualTo(jmr); // the next step stays until Auto allocate
-        v = detail.autoAllocate(ALL, EPIC);
-        assertThat(step(v, login, "jmr").start()).isEqualTo("2026-10-29"); // planned around the dates set by hand
-    }
-
-    @Test
-    void datesSetByHandLeaveThePhaseLineAndEffortPerDayUntilCheck() {
-        List<EstimationRow> rows = pushable();
-        DetailPlanView before = detail.view(ALL, EPIC);
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(rows.get(0).id(), "fixj", null, "2026-12-30", "2026-12-31", false));
-        assertThat(step(v, rows.get(0).id(), "fixj").start()).isEqualTo("2026-12-30"); // the list shows the dates set by hand
-        assertThat(v.checks()).isEqualTo(before.checks());
-        assertThat(v.days()).isEqualTo(before.days());
-        assertThat(detail.check(ALL, EPIC).checks()).isNotEqualTo(before.checks()); // Check shows what they do
-    }
-
-    @Test
-    void pickingAPersonDoesNotReplan() {
-        List<EstimationRow> rows = pushable();
+        String run = String.valueOf(rows.get(1).id());
         DetailPlanView before = detail.view(ALL, EPIC);
         DetailPlanView v = detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(),
                 List.of(new RowAssign(rows.get(1).id(), "binh", null, null))));
         assertThat(v.rows().get(1).baId()).isEqualTo("binh");
-        assertThat(v.steps()).extracting(DetailPlanningTest::dates).isEqualTo(before.steps().stream().map(DetailPlanningTest::dates).toList());
-        assertThat(v.days()).isEqualTo(before.days());
+        assertThat(line(v, run).cells()).isEqualTo(line(before, run).cells());
+        assertThat(hoursOf(v, "[PAY] Run")).containsExactly(Map.entry("binh 2026-10-12", 8.0), Map.entry("binh 2026-10-13", 8.0));
     }
 
     @Test
-    void resetShowsTheSavedDates() {
+    void aStepRemovedLeavesThePlan() {
         List<EstimationRow> rows = pushable();
         long login = rows.get(0).id();
-        StepRow saved = step(detail.view(ALL, EPIC), login, "fixb");
-        detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, "2026-10-27", "2026-10-28", false));
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, null, null, false));
-        assertThat(step(v, login, "fixb")).extracting(StepRow::manual, StepRow::start, StepRow::end).containsExactly(false, saved.start(), saved.end());
-    }
-
-    @Test
-    void aStepRemovedAfterAutoAllocateLeavesThePlan() {
-        List<EstimationRow> rows = pushable();
-        long login = rows.get(0).id();
+        plan(login + ":create", "2026-10-14", 8);
+        plan(login + ":fixj", "2026-10-15", 1.5);
         DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, null, null, true));
-        assertThat(v.plan().stream().filter(r -> r.rowId() == login).findFirst().orElseThrow().steps()).extracting(StepPlan::step)
-                .containsExactly("create", "balr", "fixb", "jmr");
+        assertThat(lines(v, login)).filteredOn(l -> !l.removed()).extracting(MatrixLine::step).containsExactly("create", "balr", "fixb", "jmr");
         assertThat(v.days()).flatExtracting(DayLoad::items).extracting(DetailPlanService.DayItem::title)
                 .contains("[PAY] Login – Create").noneMatch(t -> t.startsWith("[PAY] Login – Fix comment JM"));
     }
 
     @Test
-    void autoAllocateThatCannotScheduleKeepsThePreviousPlan() {
+    void autoAllocateThatCannotFillKeepsThePlan() {
         List<EstimationRow> rows = pushable();
         DetailPlanView before = detail.view(ALL, EPIC);
         // the ITA team has no JM: Auto allocate cannot fill Login's again
@@ -589,41 +557,19 @@ class DetailPlanningTest {
         assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(Invalid.class).hasMessage("Row 1 (Login): pick a JM");
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.rows().get(0).jmId()).isNull();
-        assertThat(v.steps()).extracting(DetailPlanningTest::dates).isEqualTo(before.steps().stream().map(DetailPlanningTest::dates).toList());
+        assertThat(v.lines()).extracting(MatrixLine::cells).isEqualTo(before.lines().stream().map(MatrixLine::cells).toList());
     }
 
     @Test
-    void clearDeletesTheSavedPlan() {
-        List<EstimationRow> rows = pushable();
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-20", "2026-10-21", false));
-        DetailPlanView v = detail.clear(ALL, EPIC, true);
-        assertThat(v.steps()).filteredOn(s -> s.start() != null).extracting(StepRow::rowId).containsExactly(rows.get(1).id()); // set by hand
-        assertThat(v.days()).isEmpty();
-        v = detail.clear(ALL, EPIC, false);
-        assertThat(v.steps()).allMatch(s -> s.start() == null);
-    }
-
-    @Test
-    void anAnkenPlannedBeforeIsPlannedOnItsFirstOpen() {
-        List<EstimationRow> rows = unplanned();
-        assertThat(detail.view(ALL, EPIC).steps()).allMatch(s -> s.start() == null); // a new anken: nothing until Auto allocate
-        List<Long> order = rows.stream().map(EstimationRow::id).toList();
-        detail.saveDraft(ALL, EPIC, new DraftIn(order, List.of(new RowAssign(rows.get(0).id(), null, "minh", "tanaka"))));
-        estimationRows.setInitialPlanPending(EPIC, true);
-        assertThat(detail.view(ALL, EPIC).steps()).allMatch(s -> s.start() == null); // Login has no BA: not yet
-        assertThat(estimationRows.initialPlanPending(EPIC)).isTrue();
-        DetailPlanView v = detail.saveDraft(ALL, EPIC, new DraftIn(order, List.of(new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"))));
-        assertThat(v.steps()).allMatch(s -> s.start() != null);
-        assertThat(estimationRows.initialPlanPending(EPIC)).isFalse();
-    }
-
-    @Test
-    void aNewRowHasNoDatesUntilAutoAllocate() {
+    void aNewRowHasNoCells() {
         pushable();
         DetailPlanView v = detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), "Export", null, 6));
         long export = v.rows().getLast().id();
-        assertThat(v.steps()).filteredOn(s -> s.rowId() == export).allMatch(s -> s.start() == null);
-        assertThat(v.steps()).filteredOn(s -> s.rowId() != export).allMatch(s -> s.start() != null);
+        assertThat(lines(v, export)).singleElement().satisfies(l -> {
+            assertThat(l.cells()).isEmpty();
+            assertThat(l.start()).isNull();
+            assertThat(l.notYetH()).isEqualTo(6.0);
+        });
     }
 
     /** Hours per member and day of one sub-task in the Effort per day items. */
@@ -635,76 +581,10 @@ class DetailPlanningTest {
     }
 
     @Test
-    void checkKeepsTheHoursOfAnUnchangedSubTask() {
-        pushable();
-        DetailPlanView v = detail.check(ALL, EPIC);
-        assertThat(v.days()).isEqualTo(detail.view(ALL, EPIC).days());
-        assertThat(v.leftOut()).isEmpty();
-    }
-
-    @Test
-    void checkSpreadsAChangedSubTaskEvenly() {
-        List<EstimationRow> rows = pushable();
-        Map<String, Double> saved = hoursOf(detail.view(ALL, EPIC), "[PAY] Run");
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-12", "2026-10-13", false)); // Run: 16h
-        assertThat(hoursOf(detail.check(ALL, EPIC), "[PAY] Run")).containsExactly(Map.entry("an 2026-10-12", 8.0), Map.entry("an 2026-10-13", 8.0));
-        assertThat(hoursOf(detail.view(ALL, EPIC), "[PAY] Run")).isEqualTo(saved); // the view keeps the saved plan
-        assertThat(detail.view(ALL, EPIC).affected()).isEmpty();
-    }
-
-    @Test
-    void checkSpreadsOverNoWorkingDayOnTheStart() {
-        List<EstimationRow> rows = pushable();
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-17", "2026-10-18", false)); // a weekend
-        assertThat(hoursOf(detail.check(ALL, EPIC), "[PAY] Run")).containsExactly(Map.entry("an 2026-10-17", 16.0));
-    }
-
-    @Test
-    void checkHighlightsWhatIsOverOrLate() {
-        List<EstimationRow> rows = pushable();
-        String run = String.valueOf(rows.get(1).id());
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-12", "2026-10-12", false)); // 16h in a day
-        DetailPlanView v = detail.check(ALL, EPIC);
-        assertThat(v.affected()).contains(run);
-        assertThat(v.overDay()).extracting(o -> o.memberId() + " " + o.date()).contains("an 2026-10-12");
-        long login = rows.get(0).id();
-        detail.editStep(ALL, EPIC, new StepIn(login, "fixj", null, "2026-12-30", "2026-12-31", false)); // after ITA's master End
-        assertThat(detail.check(ALL, EPIC).affected()).contains(login + ":fixj");
-    }
-
-    @Test
-    void checkLeavesOutWhatItCannotPlace() {
-        List<EstimationRow> rows = pushable();
-        List<Long> order = rows.stream().map(EstimationRow::id).toList();
-        detail.saveDraft(ALL, EPIC, new DraftIn(order, List.of(new RowAssign(rows.get(1).id(), null, null, null))));
-        DetailPlanView v = detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), "Export", null, 6));
-        long export = v.rows().getLast().id();
-        detail.saveDraft(ALL, EPIC, new DraftIn(v.rows().stream().filter(r -> !r.pushed()).map(EstimationRow::id).toList(),
-                List.of(new RowAssign(export, "an", null, null))));
-        v = detail.check(ALL, EPIC);
-        assertThat(v.leftOut()).containsExactly("Row 2 (Run): no people yet, not counted", "[PAY] Export: no dates yet, not counted");
-        assertThat(hoursOf(v, "[PAY] Run")).isEmpty();
-    }
-
-    @Test
-    void datesSetByHandShowBeforeThePlanCanBeComputed() {
-        estimate();
-        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "minh")),
-                new PhaseRowIn("ITB", "2026-10-19", List.of("binh"))), "Kick-off");
-        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
-        long login = rows.get(0).id();
-        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, "2026-10-27", "2026-10-28", false));
-        assertThat(v.problems()).isNotEmpty(); // nobody picked yet: nothing is computed
-        assertThat(step(v, login, "fixb")).extracting(StepRow::manual, StepRow::start, StepRow::end)
-                .containsExactly(true, "2026-10-27", "2026-10-28");
-        assertThat(step(v, login, "create").start()).isNull();
-    }
-
-    @Test
     void aDayOverTheAllocationOnlyWarns() {
         List<EstimationRow> rows = pushable();
-        detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), null, null, "2026-10-12", "2026-10-12", false)); // Run: 16h in a day
-        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        plan(String.valueOf(rows.get(1).id()), "2026-10-12", 16, "2026-10-13", 0); // Run: 16h in a day
+        DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overDay()).extracting(o -> o.memberId() + " " + o.date()).contains("an 2026-10-12");
         assertThat(v.overBudget()).isEmpty();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).isNotEmpty();
@@ -713,7 +593,9 @@ class DetailPlanningTest {
 
     @Test
     void overBudgetOnlyWarns() {
-        planned(); // ITA counted with an and binh, all of it given to an
+        List<EstimationRow> rows = planned(); // ITA counted with an and binh, all of it given to an
+        plan(String.valueOf(rows.get(1).id()), "2026-10-12", 8, "2026-10-13", 8);
+        planLogin(rows.get(0).id());
         assertThat(detail.view(ALL, EPIC).overBudget()).isNotEmpty();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).isNotEmpty();
         assertThat(detail.push(ADMIN, ALL, EPIC).created()).isNotEmpty();
@@ -727,11 +609,11 @@ class DetailPlanningTest {
     }
 
     @Test
-    void pushSendsTheDatesShown() {
+    void pushSendsTheDaysOfTheCells() {
         List<EstimationRow> rows = pushable();
         long login = rows.get(0).id();
-        DetailPlanView before = detail.view(ALL, EPIC);
-        detail.editStep(ALL, EPIC, new StepIn(login, "fixb", null, "2026-10-27", "2026-10-28", false));
+        plan(login + ":create", "2026-10-14", 4, "2026-10-15", 4);
+        plan(login + ":fixb", "2026-10-27", 1, "2026-10-28", 1.5);
         DetailPlanView v = detail.addRow(ALL, EPIC, new NewRowIn(task("ITA Execute"), "Export", null, 6));
         long export = v.rows().getLast().id();
         detail.saveDraft(ALL, EPIC, new DraftIn(v.rows().stream().filter(r -> !r.pushed()).map(EstimationRow::id).toList(),
@@ -739,18 +621,19 @@ class DetailPlanningTest {
         BatchResult r = detail.push(ADMIN, ALL, EPIC);
         TrackerContext ctx = loader.load(ALL);
         Issue fixb = ctx.issue(r.created().get(login + ":fixb")).orElseThrow();
-        assertThat(List.of(fixb.plannedStart(), fixb.plannedEnd())).containsExactly("2026-10-27", "2026-10-28"); // set by hand
+        assertThat(List.of(fixb.plannedStart(), fixb.plannedEnd())).containsExactly("2026-10-27", "2026-10-28");
+        assertThat(planDays.find(List.of(fixb.key())).get(fixb.key())).containsExactly(Map.entry("2026-10-27", 1.0), Map.entry("2026-10-28", 1.5));
         Issue create = ctx.issue(r.created().get(login + ":create")).orElseThrow();
-        StepRow saved = step(before, login, "create");
-        assertThat(List.of(create.plannedStart(), create.plannedEnd())).containsExactly(saved.start(), saved.end()); // Auto allocate's
+        assertThat(List.of(create.plannedStart(), create.plannedEnd())).containsExactly("2026-10-14", "2026-10-15");
         Issue ex = ctx.issue(r.created().get(String.valueOf(export))).orElseThrow();
-        assertThat(ex.plannedStart()).isNull(); // added after Auto allocate: no dates yet
+        assertThat(ex.plannedStart()).isNull(); // no cells yet: no dates
         assertThat(ex.plannedEnd()).isNull();
     }
 
     @Test
     void rowsCreatedBeforeJiraRefusesStayPushed(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log,
-                                                @Autowired SyncService sync, @Autowired MasterScheduleRepository versions, @Autowired Clock clock) {
+                                                @Autowired SyncService sync, @Autowired MasterScheduleRepository versions, @Autowired Clock clock,
+                                                @Autowired PlanVersionRepository planVersions) {
         List<EstimationRow> rows = pushable();
         AtomicInteger sent = new AtomicInteger();
         JiraWriter failing = req -> {
@@ -760,115 +643,12 @@ class DetailPlanningTest {
             return jira.send(req);
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
-        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays, clock);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays,
+                cells, planVersions, clock);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
         assertThat(pushed).containsEntry(rows.get(0).id(), true).containsEntry(rows.get(1).id(), true).containsEntry(rows.get(2).id(), false);
         assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(3); // only Pay's steps are left
-    }
-
-    /** The pushed plan of {@link #pushable()}: row ref → Jira key. */
-    Map<String, String> pushedPlan() {
-        pushable();
-        return detail.push(ADMIN, ALL, EPIC).created();
-    }
-
-    void setStatus(String key, Status status, @org.jspecify.annotations.Nullable String plannedStart, double remaining) {
-        Issue i = issues.findByKey(key).orElseThrow();
-        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), status, i.assigneeId(),
-                plannedStart, i.plannedEnd(), i.estimateH(), remaining, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
-                i.worklogs(), i.events(), i.reporterId(), i.labels()));
-    }
-
-    static ReplanItem item(ReplanView v, String key) {
-        return v.items().stream().filter(x -> x.key().equals(key)).findFirst().orElseThrow();
-    }
-
-    @Test
-    void replanSkipsClosedAndMovesTheRest() {
-        Map<String, String> keys = pushedPlan();
-        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
-        String create = keys.get(rows.get(0).id() + ":create");
-        setStatus(create, Status.CLOSED, "2026-10-12", 0);
-        ReplanView v = replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of()));
-        assertThat(v.problems()).isEmpty();
-        assertThat(v.items()).extracting(ReplanItem::key).doesNotContain(create).hasSize(5);
-        assertThat(v.items()).allMatch(x -> x.toStart().compareTo("2026-10-12") >= 0);
-        assertThat(v.check()).isNotNull();
-    }
-
-    @Test
-    void startedSubTaskKeepsItsPlannedStartAndUsesRemaining() {
-        pushedPlan();
-        String run = runKey();
-        setStatus(run, Status.WIP, "2026-10-12", 6);
-        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run);
-        assertThat(i.started()).isTrue();
-        assertThat(i.hours()).isEqualTo(6.0);
-        assertThat(i.toStart()).isEqualTo("2026-10-12");
-    }
-
-    @Test
-    void resolvedWithNoRemainingEndsOnItsFirstFreeDay() {
-        pushedPlan();
-        String run = runKey();
-        setStatus(run, Status.RESOLVED, "2026-10-12", 0);
-        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run);
-        assertThat(i.hours()).isZero();
-        assertThat(i.toEnd()).isGreaterThanOrEqualTo(i.toStart());
-    }
-
-    @Test
-    void startedWithoutPlannedStartStartsToday() {
-        pushedPlan();
-        String run = runKey();
-        setStatus(run, Status.WIP, null, 4);
-        assertThat(item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of())), run).toStart()).isEqualTo(loader.load(ALL).today);
-    }
-
-    @Test
-    void reassigningMovesHoursToTheNewMember() {
-        pushedPlan();
-        String run = runKey();
-        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of(run, "binh"))), run);
-        assertThat(i.fromMember()).isEqualTo("an");
-        assertThat(i.toMember()).isEqualTo("binh");
-    }
-
-    @Test
-    void replanSharesAStepByTheStepWeightsNotByItsAssignee() {
-        Map<String, String> keys = pushedPlan();
-        long login = estimationRows.findByEpic(EPIC).get(0).id();
-        String fixb = keys.get(login + ":fixb");
-        // Fix comment BAL is with Minh (its PIC) but 70 % of it is An's: moving its ticket to Bình (a BA) moves no effort to Bình
-        ReplanItem i = item(replan.compute(ALL, EPIC, new ReplanIn("ITA", Map.of(fixb, "binh"))), fixb);
-        assertThat(i.fromMember()).isEqualTo("minh");
-        assertThat(i.toMember()).isEqualTo("binh");
-        TrackerContext ctx = loader.load(ALL);
-        assertThat(ctx.planShares(ctx.issue(fixb).orElseThrow())).extracting(sh -> sh.memberId() + " " + sh.fraction())
-                .containsExactly("an 0.7", "minh 0.3");
-    }
-
-    @Test
-    void replanApplyRefusesStaleTargets() {
-        pushedPlan();
-        String run = runKey();
-        ReplanIn in = new ReplanIn("ITA", Map.of(run, "binh"));
-        BatchPreview p = replan.preview(ALL, EPIC, in);
-        List<ExpectedUpdate> updates = p.updates().stream().map(u -> new ExpectedUpdate(u.key(),
-                u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList())).toList();
-        assertThat(updates).extracting(ExpectedUpdate::key).contains(run);
-        List<ExpectedUpdate> stale = updates.stream().map(u -> !u.key().equals(run) ? u : new ExpectedUpdate(u.key(),
-                u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.field() == tracker.domain.TicketField.ASSIGNEE ? "an" : c.after()))
-                        .toList())).toList();
-        assertThatThrownBy(() -> replan.apply(ADMIN, ALL, EPIC, in, stale)).isInstanceOf(Invalid.class).hasMessageContaining("review again");
-        replan.apply(ADMIN, ALL, EPIC, in, updates);
-        assertThat(loader.load(ALL).issue(run).orElseThrow().assigneeId()).isEqualTo("binh");
-    }
-
-    String runKey() {
-        TrackerContext ctx = loader.load(ALL);
-        return ctx.subtasks().stream().filter(i -> i.summary().equals("[PAY] Run")).findFirst().orElseThrow().key();
     }
 }

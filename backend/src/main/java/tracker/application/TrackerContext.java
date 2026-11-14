@@ -137,6 +137,12 @@ public final class TrackerContext {
         return PlanDays.of(i, worker(i, planOwner(i)), savedPlanDays.get(i.key()), cal);
     }
 
+    /** Detail Planning's raw hours per day of {@code i}, whether or not they add up to its estimate; null when none. */
+    public @Nullable Map<String, Double> savedPlanDays(Issue i) {
+        Map<String, Double> days = savedPlanDays.get(i.key());
+        return days == null || days.isEmpty() ? null : days;
+    }
+
     /** {@code i} for a burndown, with the remaining estimate the Daily Overview captures saw, by day. */
     public Burndown.Item burndownItem(Issue i, Map<String, Double> remainingOn) {
         return new Burndown.Item(i.key(), i.plannedStart(), i.plannedEnd(), i.estimateH(), planDays(i), i.worklogs(),

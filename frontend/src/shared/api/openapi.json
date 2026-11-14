@@ -2065,32 +2065,6 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
-    "/api/v1/planning/{epic}/detail/check" : {
-      "post" : {
-        "operationId" : "checkDetailPlan",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "epic",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/DetailPlanView"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "detail-planning-api" ]
-      }
-    },
     "/api/v1/planning/{epic}/detail/clear" : {
       "post" : {
         "operationId" : "clearDetailPlan",
@@ -5118,6 +5092,22 @@
         },
         "required" : [ "date", "extra_note", "is_today" ]
       },
+      "DayHours" : {
+        "type" : "object",
+        "properties" : {
+          "auto" : {
+            "type" : "boolean"
+          },
+          "day" : {
+            "type" : "string"
+          },
+          "hours" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "auto", "day", "hours" ]
+      },
       "DayItem" : {
         "type" : "object",
         "properties" : {
@@ -5239,12 +5229,6 @@
       "DetailPlanView" : {
         "type" : "object",
         "properties" : {
-          "affected" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string"
-            }
-          },
           "allocated" : {
             "type" : "array",
             "items" : {
@@ -5269,10 +5253,13 @@
               "$ref" : "#/components/schemas/DayLoad"
             }
           },
-          "left_out" : {
+          "last_version_at" : {
+            "type" : [ "string", "null" ]
+          },
+          "lines" : {
             "type" : "array",
             "items" : {
-              "type" : "string"
+              "$ref" : "#/components/schemas/MatrixLine"
             }
           },
           "over_budget" : {
@@ -5287,13 +5274,13 @@
               "$ref" : "#/components/schemas/DayOverrun"
             }
           },
-          "plan" : {
+          "problems" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/RowPlan"
+              "type" : "string"
             }
           },
-          "problems" : {
+          "push_blockers" : {
             "type" : "array",
             "items" : {
               "type" : "string"
@@ -5311,20 +5298,20 @@
               "type" : "string"
             }
           },
-          "steps" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/StepRow"
-            }
-          },
           "tasks" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/TaskOption"
             }
+          },
+          "window" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         },
-        "required" : [ "affected", "allocated", "by_hand", "checks", "days", "left_out", "over_budget", "over_day", "plan", "problems", "rows", "stale_phases", "steps", "tasks" ]
+        "required" : [ "allocated", "by_hand", "checks", "days", "last_version_at", "lines", "over_budget", "over_day", "problems", "push_blockers", "rows", "stale_phases", "tasks", "window" ]
       },
       "DraftBody" : {
         "type" : "object",
@@ -6533,6 +6520,89 @@
           }
         },
         "required" : [ "current", "estimation_phases", "shifts", "versions" ]
+      },
+      "MatrixLine" : {
+        "type" : "object",
+        "properties" : {
+          "cells" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayHours"
+            }
+          },
+          "closed" : {
+            "type" : "boolean"
+          },
+          "edited" : {
+            "type" : "boolean"
+          },
+          "end" : {
+            "type" : [ "string", "null" ]
+          },
+          "function" : {
+            "type" : "string"
+          },
+          "issue_key" : {
+            "type" : [ "string", "null" ]
+          },
+          "logged" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DayHours"
+            }
+          },
+          "not_yet_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "out_of_order" : {
+            "type" : "boolean"
+          },
+          "pending" : {
+            "type" : "boolean"
+          },
+          "phase" : {
+            "type" : "string"
+          },
+          "pic_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "ref" : {
+            "type" : "string"
+          },
+          "removed" : {
+            "type" : "boolean"
+          },
+          "reporter_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "row_id" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64"
+          },
+          "spent_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "start" : {
+            "type" : [ "string", "null" ]
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "total_h" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "required" : [ "cells", "closed", "edited", "end", "function", "issue_key", "logged", "not_yet_h", "out_of_order", "pending", "phase", "pic_id", "planned_h", "ref", "removed", "reporter_id", "row_id", "spent_h", "start", "step", "summary", "total_h" ]
       },
       "MatrixStats" : {
         "type" : "object",
@@ -7934,22 +8004,6 @@
           }
         }
       },
-      "RowPlan" : {
-        "type" : "object",
-        "properties" : {
-          "row_id" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "steps" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/StepPlan"
-            }
-          }
-        },
-        "required" : [ "row_id", "steps" ]
-      },
       "ScheduleIn" : {
         "type" : "object",
         "properties" : {
@@ -8222,86 +8276,6 @@
             "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
           }
         }
-      },
-      "StepPlan" : {
-        "type" : "object",
-        "properties" : {
-          "end" : {
-            "type" : "string"
-          },
-          "hours" : {
-            "type" : "number",
-            "format" : "double"
-          },
-          "member_id" : {
-            "type" : "string"
-          },
-          "ref" : {
-            "type" : "string"
-          },
-          "start" : {
-            "type" : "string"
-          },
-          "step" : {
-            "type" : [ "string", "null" ]
-          }
-        },
-        "required" : [ "end", "hours", "member_id", "ref", "start", "step" ]
-      },
-      "StepRow" : {
-        "type" : "object",
-        "properties" : {
-          "assignee_id" : {
-            "type" : [ "string", "null" ]
-          },
-          "ba_h" : {
-            "type" : "number",
-            "format" : "double"
-          },
-          "bal_h" : {
-            "type" : "number",
-            "format" : "double"
-          },
-          "edited" : {
-            "type" : "boolean"
-          },
-          "effort_h" : {
-            "type" : "number",
-            "format" : "double"
-          },
-          "end" : {
-            "type" : [ "string", "null" ]
-          },
-          "manual" : {
-            "type" : "boolean"
-          },
-          "phase" : {
-            "type" : "string"
-          },
-          "ref" : {
-            "type" : "string"
-          },
-          "removed" : {
-            "type" : "boolean"
-          },
-          "reporter_id" : {
-            "type" : [ "string", "null" ]
-          },
-          "row_id" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "start" : {
-            "type" : [ "string", "null" ]
-          },
-          "step" : {
-            "type" : [ "string", "null" ]
-          },
-          "summary" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "assignee_id", "ba_h", "bal_h", "edited", "effort_h", "end", "manual", "phase", "ref", "removed", "reporter_id", "row_id", "start", "step", "summary" ]
       },
       "StepWeightsIn" : {
         "type" : "object",

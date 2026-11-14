@@ -234,18 +234,11 @@ public class DetailPlanningApi {
         return detail.addRow(epicScope(viewer, epic), epic, new NewRowIn(body.taskKey(), body.functionName(), body.steps(), body.effortH()));
     }
 
-    /** Fills the empty BA / BAL / JM slots (docs/auto-allocation.md), plans every row again and saves the plan; returns it. */
+    /** Fills the empty BA / BAL / JM slots (docs/auto-allocation.md); returns the plan. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/auto-allocate")
     public DetailPlanView autoAllocate(@PathVariable("epic") String epic, Viewer viewer) {
         return detail.autoAllocate(epicScope(viewer, epic), epic);
-    }
-
-    /** The plan as it stands (effort per day, overruns, phase checks), without planning again; nothing is saved. */
-    @Open(Rule.ADMIN)
-    @PostMapping("/{epic}/detail/check")
-    public DetailPlanView checkDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.check(epicScope(viewer, epic), epic);
     }
 
     /**

@@ -1,0 +1,245 @@
+package tracker.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+
+import tracker.DemoTest;
+import tracker.adapters.fake.Dataset;
+import tracker.application.ports.EstimationRepository;
+import tracker.application.ports.IssueRepository;
+import tracker.application.ports.PlanCellRepository;
+import tracker.application.ports.PlanCellRepository.Cell;
+import tracker.application.ports.PlanCellRepository.JiraEdit;
+import tracker.application.ports.PlanDayRepository;
+import tracker.application.service.DetailPlanService;
+import tracker.application.service.DetailPlanService.DayHours;
+import tracker.application.service.DetailPlanService.DetailPlanView;
+import tracker.application.service.DetailPlanService.DraftIn;
+import tracker.application.service.DetailPlanService.MatrixLine;
+import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.StepIn;
+import tracker.application.service.EstimationService;
+import tracker.application.service.MasterScheduleService;
+import tracker.application.service.MasterScheduleService.PhaseRowIn;
+import tracker.application.service.TicketService;
+import tracker.application.service.TicketService.NewTicket;
+import tracker.domain.AccessStatus;
+import tracker.domain.AnkenScope;
+import tracker.domain.EstimationRow;
+import tracker.domain.Issue;
+import tracker.domain.IssueKind;
+import tracker.domain.Permissions;
+import tracker.domain.Role;
+import tracker.domain.Status;
+import tracker.domain.Viewer;
+
+/** The detail plan as a function–step × day matrix: lines of the unpushed rows and of the sub-tasks in Jira. Demo "today" is 2026-10-07. */
+@DemoTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class DetailPlanMatrixTest {
+    static final AnkenScope ALL = new AnkenScope(Set.copyOf(Dataset.TRACKED_EPICS));
+    static final String EPIC = "PAY-1100";
+    static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
+            Permissions.defaults(Role.BAL));
+
+    @Autowired
+    EstimationService estimation;
+    @Autowired
+    EstimationRepository estimationRows;
+    @Autowired
+    MasterScheduleService schedule;
+    @Autowired
+    DetailPlanService detail;
+    @Autowired
+    TicketService tickets;
+    @Autowired
+    PlanCellRepository cells;
+    @Autowired
+    PlanDayRepository planDays;
+    @Autowired
+    IssueRepository issues;
+    @Autowired
+    TrackerContextLoader loader;
+
+    Map<String, String> tasks = new HashMap<>();
+
+    String task(String name) {
+        return tasks.computeIfAbsent(name, n -> tickets.applyBatch(ADMIN, ALL, EPIC, List.of(),
+                List.of(new NewTicket("t", false, null, null, "[PAY] " + n, "an", null, null, null, null, List.of()))).created().get("t"));
+    }
+
+    /** Login (5 steps, 8h) and Run (a ticket, 16h) under ITA Tasks, Pay (3 steps) under ITB; ITA from Monday 12, ITB from Monday 19. */
+    List<EstimationRow> scheduled() {
+        task("ITB Execute");
+        estimation.save(ALL, EPIC, List.of(row(0, "Login", 5, 8, task("ITA Create test case")), row(1, "Run", null, 16, task("ITA Execute")),
+                row(2, "Pay", 3, 8, task("ITB Create test case"))));
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an", "binh", "minh")),
+                new PhaseRowIn("ITB", "2026-10-19", List.of("an", "minh"))), "Kick-off");
+        return estimationRows.findByEpic(EPIC);
+    }
+
+    static EstimationRow row(int pos, String fn, Integer steps, double effort, String task) {
+        return new EstimationRow(0, EPIC, pos, "", "", fn, steps, effort, null, null, null, task, null);
+    }
+
+    void assign(List<EstimationRow> rows, RowAssign... assigns) {
+        detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(assigns)));
+    }
+
+    static MatrixLine line(DetailPlanView v, String ref) {
+        return v.lines().stream().filter(l -> l.ref().equals(ref)).findFirst().orElseThrow();
+    }
+
+    /** Hours per "member date" of one sub-task in the Effort per day items. */
+    static Map<String, Double> hoursOf(DetailPlanView v, String title) {
+        Map<String, Double> out = new TreeMap<>();
+        v.days().forEach(d -> d.items().stream().filter(i -> !i.other() && i.title().equals(title))
+                .forEach(i -> out.merge(d.memberId() + " " + d.date(), i.hours(), Double::sum)));
+        return out;
+    }
+
+    /** A 16h sub-task in Jira under ITA Execute, planned 2026-10-06..08 (Tue–Thu, around today). */
+    String jiraSubtask() {
+        return tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("s", true, task("ITA Execute"), null, "[PAY] Export", "an",
+                null, "2026-10-06", "2026-10-08", 16.0, List.of()))).created().get("s");
+    }
+
+    @Test
+    void newLinesShowTheirCells() {
+        List<EstimationRow> rows = scheduled();
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2026-10-12", 8, false), new Cell(String.valueOf(run), "2026-10-13", 6, false)));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        MatrixLine l = line(v, String.valueOf(run));
+        assertThat(l.rowId()).isEqualTo(run);
+        assertThat(l.issueKey()).isNull();
+        assertThat(l.picId()).isEqualTo("an");
+        assertThat(l.summary()).isEqualTo("[PAY] Run");
+        assertThat(l).extracting(MatrixLine::totalH, MatrixLine::plannedH, MatrixLine::notYetH, MatrixLine::start, MatrixLine::end)
+                .containsExactly(16.0, 14.0, 2.0, "2026-10-12", "2026-10-13");
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-12", 8, false), new DayHours("2026-10-13", 6, false));
+        assertThat(v.pushBlockers()).contains("[PAY] Run: 2h not planned yet");
+        assertThat(hoursOf(v, "[PAY] Run")).containsExactly(Map.entry("an 2026-10-12", 8.0), Map.entry("an 2026-10-13", 6.0));
+        // the unpushed lines come first, in row order, a line per step
+        assertThat(v.lines().subList(0, 9)).extracting(MatrixLine::rowId).allMatch(Objects::nonNull);
+        assertThat(v.lines().subList(9, v.lines().size())).allMatch(x -> x.rowId() == null && x.issueKey() != null);
+    }
+
+    @Test
+    void fixCommentHoursAreShared() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        assign(rows, new RowAssign(login, "an", "minh", null));
+        cells.saveRowCells(List.of(new Cell(login + ":fixb", "2026-10-13", 1, false)));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        Map<String, Double> h = hoursOf(v, line(v, login + ":fixb").summary());
+        assertThat(h).containsOnlyKeys("an 2026-10-13", "minh 2026-10-13");
+        assertThat(h.get("an 2026-10-13")).isCloseTo(0.7, within(1e-9));
+        assertThat(h.get("minh 2026-10-13")).isCloseTo(0.3, within(1e-9));
+    }
+
+    @Test
+    void jiraLineShowsPastPlanAndPendingFuture() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 8.0));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, 10.0, null));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-06", 5, false), new Cell(key, "2026-10-08", 4, false),
+                new Cell(key, "2026-10-09", 6, false)));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.issueKey()).isEqualTo(key);
+        assertThat(l.rowId()).isNull();
+        // before today Jira's plan (the pending 5h is ignored); from today on the pending cells
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 8, false), new DayHours("2026-10-08", 4, false),
+                new DayHours("2026-10-09", 6, false));
+        assertThat(l.totalH()).isEqualTo(l.spentH() + 10);
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.pending()).isTrue();
+        assertThat(l.closed()).isFalse();
+    }
+
+    @Test
+    void pushedDaysShowEvenWhenTheyNoLongerAddUp() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-07", 8.0, "2026-10-08", 2.0)); // 10h of a 16h sub-task
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-07", 8, false), new DayHours("2026-10-08", 2, false));
+        assertThat(l.pending()).isFalse();
+    }
+
+    @Test
+    void removedStepCountsForNothing() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        assign(rows, new RowAssign(login, "an", "minh", "tanaka"));
+        cells.saveRowCells(List.of(new Cell(login + ":balr", "2026-10-13", 2, false)));
+        String summary = line(detail.view(ALL, EPIC), login + ":balr").summary();
+        assertThat(hoursOf(detail.view(ALL, EPIC), summary)).isNotEmpty();
+        DetailPlanView v = detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, null, null, true));
+        assertThat(line(v, login + ":balr").removed()).isTrue();
+        assertThat(hoursOf(v, summary)).isEmpty();
+        assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith(summary + ":"));
+    }
+
+    @Test
+    void outOfOrderBlocksPush() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        assign(rows, new RowAssign(login, "an", "minh", "tanaka"));
+        cells.saveRowCells(List.of(new Cell(login + ":create", "2026-10-13", 8, false), new Cell(login + ":balr", "2026-10-12", 2, false)));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(line(v, login + ":balr").outOfOrder()).isTrue();
+        assertThat(line(v, login + ":create").outOfOrder()).isFalse();
+        assertThat(v.pushBlockers()).contains("[PAY] Login – BAL Review: starts before the step before it ends");
+    }
+
+    @Test
+    void closedJiraLineIsReadOnlyAndNeverBlocks() {
+        scheduled();
+        issues.save(new Issue("PAY-9002", "PAY", EPIC, task("ITA Execute"), IssueKind.SUBTASK, "[PAY] PAY-9002", "", Status.CLOSED, "an",
+                "2026-10-12", "2026-10-16", 40, 0, "2026-10-07", Status.CLOSED.value(), null, null, null, List.of(), List.of(), "an", List.of()));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        MatrixLine l = line(v, "PAY-9002");
+        assertThat(l.closed()).isTrue();
+        assertThat(l.totalH()).isEqualTo(l.spentH());
+        assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] PAY-9002"));
+    }
+
+    @Test
+    void windowRunsOverMasterAndCells() {
+        List<EstimationRow> rows = scheduled();
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2027-01-04", 2, false))); // a Monday after every master End
+        DetailPlanView v = detail.view(ALL, EPIC);
+        // the demo's sub-tasks of PAY-1100 in Jira are lines too: their planned days may start before the master schedule
+        String first = v.lines().stream().flatMap(l -> l.cells().stream()).map(DayHours::day).min(String::compareTo).orElseThrow();
+        String start = first.compareTo("2026-10-12") < 0 ? first : "2026-10-12";
+        assertThat(v.window().getFirst()).isEqualTo(start);
+        assertThat(v.window().getLast()).isEqualTo("2027-01-04");
+        assertThat(v.window()).contains("2026-10-12", "2026-10-13").doesNotContain("2026-10-17", "2026-10-18");
+        // working days only: weekends aside, unless the calendar makes one a working day (the demo's Saturday 2026-10-10)
+        TrackerContext ctx = loader.load(ALL);
+        assertThat(v.window()).allMatch(ctx.cal::visible);
+        assertThat(v.window()).filteredOn(d -> {
+            DayOfWeek w = LocalDate.parse(d).getDayOfWeek();
+            return w == DayOfWeek.SATURDAY || w == DayOfWeek.SUNDAY;
+        }).allMatch(d -> !d.equals("2026-10-17") && !d.equals("2026-10-18"));
+        assertThat(v.window()).isSorted().doesNotHaveDuplicates();
+    }
+}

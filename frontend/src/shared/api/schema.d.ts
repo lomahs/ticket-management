@@ -916,22 +916,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/planning/{epic}/detail/check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["checkDetailPlan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/planning/{epic}/detail/clear": {
         parameters: {
             query?: never;
@@ -2068,6 +2052,12 @@ export interface components {
             extra_note: string | null;
             is_today: boolean;
         };
+        DayHours: {
+            auto: boolean;
+            day: string;
+            /** Format: double */
+            hours: number;
+        };
         DayItem: {
             /** Format: double */
             hours: number;
@@ -2113,20 +2103,20 @@ export interface components {
             file?: string | null;
         };
         DetailPlanView: {
-            affected: string[];
             allocated: components["schemas"]["OverrunAllocation"][];
             by_hand: components["schemas"]["HandPicks"][];
             checks: components["schemas"]["PhaseCheck"][];
             days: components["schemas"]["DayLoad"][];
-            left_out: string[];
+            last_version_at: string | null;
+            lines: components["schemas"]["MatrixLine"][];
             over_budget: components["schemas"]["Overrun"][];
             over_day: components["schemas"]["DayOverrun"][];
-            plan: components["schemas"]["RowPlan"][];
             problems: string[];
+            push_blockers: string[];
             rows: components["schemas"]["EstimationRow"][];
             stale_phases: string[];
-            steps: components["schemas"]["StepRow"][];
             tasks: components["schemas"]["TaskOption"][];
+            window: string[];
         };
         DraftBody: {
             assigns: components["schemas"]["RowAssign"][];
@@ -2519,6 +2509,35 @@ export interface components {
             estimation_phases: string[];
             shifts: components["schemas"]["PhaseShift"][];
             versions: components["schemas"]["ScheduleVersion"][];
+        };
+        MatrixLine: {
+            cells: components["schemas"]["DayHours"][];
+            closed: boolean;
+            edited: boolean;
+            end: string | null;
+            function: string;
+            issue_key: string | null;
+            logged: components["schemas"]["DayHours"][];
+            /** Format: double */
+            not_yet_h: number;
+            out_of_order: boolean;
+            pending: boolean;
+            phase: string;
+            pic_id: string | null;
+            /** Format: double */
+            planned_h: number;
+            ref: string;
+            removed: boolean;
+            reporter_id: string | null;
+            /** Format: int64 */
+            row_id: number | null;
+            /** Format: double */
+            spent_h: number;
+            start: string | null;
+            step: string | null;
+            summary: string;
+            /** Format: double */
+            total_h: number;
         };
         MatrixStats: {
             /** Format: double */
@@ -2977,11 +2996,6 @@ export interface components {
             /** Format: int64 */
             row_id?: number;
         };
-        RowPlan: {
-            /** Format: int64 */
-            row_id: number;
-            steps: components["schemas"]["StepPlan"][];
-        };
         ScheduleIn: {
             phases: components["schemas"]["PhaseIn"][];
             reason: string;
@@ -3081,36 +3095,6 @@ export interface components {
         StepOverride: {
             end?: string | null;
             start?: string | null;
-        };
-        StepPlan: {
-            end: string;
-            /** Format: double */
-            hours: number;
-            member_id: string;
-            ref: string;
-            start: string;
-            step: string | null;
-        };
-        StepRow: {
-            assignee_id: string | null;
-            /** Format: double */
-            ba_h: number;
-            /** Format: double */
-            bal_h: number;
-            edited: boolean;
-            /** Format: double */
-            effort_h: number;
-            end: string | null;
-            manual: boolean;
-            phase: string;
-            ref: string;
-            removed: boolean;
-            reporter_id: string | null;
-            /** Format: int64 */
-            row_id: number;
-            start: string | null;
-            step: string | null;
-            summary: string;
         };
         StepWeightsIn: {
             day_split?: components["schemas"]["DaySplit"] | null;
@@ -4994,28 +4978,6 @@ export interface operations {
         };
     };
     autoAllocate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                epic: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DetailPlanView"];
-                };
-            };
-        };
-    };
-    checkDetailPlan: {
         parameters: {
             query?: never;
             header?: never;

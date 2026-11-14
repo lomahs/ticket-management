@@ -24,7 +24,7 @@ import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.PhaseCheck;
 import tracker.application.service.DetailPlanService.RowAssign;
-import tracker.application.service.DetailPlanService.StepRow;
+import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Member;
@@ -141,14 +141,14 @@ public class DetailPlanImportService {
         Map<Long, EstimationRow> rows = open(v);
         Map<String, List<SheetLine>> byPhase = new LinkedHashMap<>();
         v.checks().stream().map(PhaseCheck::phase).forEach(p -> byPhase.put(p, new ArrayList<>()));
-        for (StepRow s : v.steps()) {
-            EstimationRow r = rows.get(s.rowId());
+        for (MatrixLine s : v.lines()) {
+            EstimationRow r = s.rowId() == null ? null : rows.get(s.rowId());
             if (r == null || s.removed()) {
                 continue;
             }
             byPhase.computeIfAbsent(s.phase(), k -> new ArrayList<>()).add(new SheetLine(s.ref(), s.phase(), r.functionName(), label(s.step()),
                     s.summary(), name(ctx, r.baId()), r.steps() != null ? name(ctx, r.balId()) : "", r.steps() != null ? name(ctx, r.jmId()) : "",
-                    s.effortH(), s.start(), s.end()));
+                    s.totalH(), s.start(), s.end()));
         }
         List<SheetPerson> people = ctx.ankenMembers.getOrDefault(epic, java.util.Set.of()).stream().map(ctx.members::get).filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Member::name, String.CASE_INSENSITIVE_ORDER))
@@ -189,7 +189,7 @@ public class DetailPlanImportService {
                 throw new Invalid(l.ref() + ": " + String.join(", ", l.errors()), "lines." + (l.line() - 1));
             }
         }
-        Map<String, StepRow> byRef = byRef(v);
+        Map<String, MatrixLine> byRef = byRef(v);
         Map<Long, EstimationRow> rows = open(v);
 
         // the people: picked by hand, as on the screen
@@ -253,7 +253,7 @@ public class DetailPlanImportService {
      * screen offers them) and agree across the lines of a function; dates come in pairs.
      */
     private List<ImportLine> check(TrackerContext ctx, String epic, DetailPlanView v, List<Parsed> parsed) {
-        Map<String, StepRow> byRef = byRef(v);
+        Map<String, MatrixLine> byRef = byRef(v);
         Map<Long, EstimationRow> rows = open(v);
         StepWeights w = ctx.settings.stepWeightsOf(epic);
         List<StepEdit> edits = estimation.stepEdits(epic);
@@ -264,7 +264,7 @@ public class DetailPlanImportService {
         for (Parsed p : parsed) {
             List<String> errors = new ArrayList<>(p.errors());
             List<ImportChange> changes = new ArrayList<>();
-            StepRow s = byRef.get(p.ref());
+            MatrixLine s = byRef.get(p.ref());
             EstimationRow r = s == null ? null : rows.get(s.rowId());
             if (p.ref().isEmpty()) {
                 errors.add("Ref is required: start from the template");
@@ -316,8 +316,8 @@ public class DetailPlanImportService {
                     }
                 }
                 Double h = p.effortH();
-                if (h != null && Math.abs(h - s.effortH()) > EPS) {
-                    changes.add(new ImportChange("effort_h", Numbers.format(s.effortH()), Numbers.format(h)));
+                if (h != null && Math.abs(h - s.totalH()) > EPS) {
+                    changes.add(new ImportChange("effort_h", Numbers.format(s.totalH()), Numbers.format(h)));
                 }
                 if (p.errors().stream().anyMatch(e -> e.endsWith(DATE_ERROR))) {
                     // reported as it was read
@@ -336,9 +336,9 @@ public class DetailPlanImportService {
         return out;
     }
 
-    private static Map<String, StepRow> byRef(DetailPlanView v) {
-        Map<String, StepRow> out = new HashMap<>();
-        v.steps().forEach(s -> out.put(s.ref(), s));
+    private static Map<String, MatrixLine> byRef(DetailPlanView v) {
+        Map<String, MatrixLine> out = new HashMap<>();
+        v.lines().stream().filter(s -> s.rowId() != null).forEach(s -> out.put(s.ref(), s));
         return out;
     }
 

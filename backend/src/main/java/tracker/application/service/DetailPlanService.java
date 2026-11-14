@@ -4,17 +4,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +25,9 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
+import tracker.application.ports.PlanCellRepository;
 import tracker.application.ports.PlanDayRepository;
+import tracker.application.ports.PlanVersionRepository;
 import tracker.domain.Allocations;
 import tracker.domain.AutoAllocator;
 import tracker.domain.Anken;
@@ -34,9 +35,9 @@ import tracker.domain.AnkenScope;
 import tracker.domain.AutoPicks;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
+import tracker.domain.DetailMatrix;
 import tracker.domain.DetailScheduler;
 import tracker.domain.Effort;
-import tracker.domain.DetailScheduler.Chain;
 import tracker.domain.DetailScheduler.DayOverrun;
 import tracker.domain.DetailScheduler.Overrun;
 import tracker.domain.DetailScheduler.Placed;
@@ -49,8 +50,6 @@ import tracker.domain.StepEdit;
 import tracker.domain.Onboarding;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
-import tracker.domain.RuleError;
-import tracker.domain.SavedPlan;
 import tracker.domain.ScheduleVersion;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Status;
@@ -58,7 +57,6 @@ import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
 import tracker.domain.Text;
 import tracker.domain.Viewer;
-import tracker.domain.WorkCalendar;
 import tracker.application.service.AnkenService.ParentOption;
 import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.BatchResult;
@@ -75,11 +73,14 @@ public class DetailPlanService {
     private final OnboardingRepository onboarding;
     private final EstimationService estimations;
     private final PlanDayRepository planDays;
+    private final PlanCellRepository cells;
+    private final PlanVersionRepository planVersions;
     private final Clock clock;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
                              AllocationService allocations, TicketService tickets, OnboardingRepository onboarding,
-                             EstimationService estimations, PlanDayRepository planDays, Clock clock) {
+                             EstimationService estimations, PlanDayRepository planDays, PlanCellRepository cells,
+                             PlanVersionRepository planVersions, Clock clock) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
@@ -88,6 +89,8 @@ public class DetailPlanService {
         this.onboarding = onboarding;
         this.estimations = estimations;
         this.planDays = planDays;
+        this.cells = cells;
+        this.planVersions = planVersions;
         this.clock = clock;
     }
 
@@ -99,11 +102,38 @@ public class DetailPlanService {
     public record DraftIn(List<Long> order, List<RowAssign> assigns) {
     }
 
-    /** @param step the step's value ("create", "balr", …); null for a row without steps */
-    public record StepPlan(String ref, @Nullable String step, String memberId, double hours, String start, String end) {
+    /** @param auto filled by Auto allocate, not typed */
+    public record DayHours(String day, double hours, boolean auto) {
     }
 
-    public record RowPlan(long rowId, List<StepPlan> steps) {
+    /**
+     * One step of a function, a ticket, or a sub-task in Jira.
+     *
+     * @param ref       the step's ref ("12:create", or "12" for a ticket) of a row, the issue key of a sub-task in Jira
+     * @param rowId     the estimation row; null for a sub-task in Jira
+     * @param issueKey  the sub-task in Jira; null for a row not pushed yet
+     * @param phase     the row's phase; the phase group of a sub-task's Task
+     * @param step      the step's value ("create", "balr", …); null for a ticket
+     * @param summary   the sub-task's Summary (by Settings › Name rules for a row)
+     * @param picId     who it is (or will be) assigned to: a pending PIC first
+     * @param reporterId the BAL on a Create step of a row; a sub-task's reporter in Jira
+     * @param totalH    a row's step effort; Spent + Remaining for a sub-task in Jira (Spent alone once Closed)
+     * @param spentH    logged hours (Jira only; 0 otherwise)
+     * @param plannedH  a row's hours in its cells; a sub-task's Spent + its cells from today on
+     * @param notYetH   Total − Planned
+     * @param start     the first day with hours; {@code end} the last; null without cells
+     * @param cells     the hours planned per day, by day
+     * @param logged    logged hours by day (Jira only)
+     * @param pending   a Jira row with changes not pushed yet
+     * @param outOfOrder starts before the previous step of its function ends
+     * @param edited    its effort was set by hand instead of Create × its weight
+     */
+    // issue_key named outright: the OpenAPI resolver leaves "issueKey" (a name starting "is") unconverted
+    public record MatrixLine(String ref, @Nullable Long rowId, @JsonProperty("issue_key") @Nullable String issueKey, String phase, String function,
+                             @Nullable String step, String summary, @Nullable String picId, @Nullable String reporterId,
+                             double totalH, double spentH, double plannedH, double notYetH, @Nullable String start, @Nullable String end,
+                             List<DayHours> cells, List<DayHours> logged, boolean closed, boolean pending, boolean outOfOrder,
+                             boolean removed, boolean edited) {
     }
 
     /** @param daysLate calendar days from the master schedule's End to the plan's end; positive = later */
@@ -122,27 +152,10 @@ public class DetailPlanService {
     }
 
     /**
-     * One sub-task of the plan (a step of a function, or a ticket), as the list shows it.
-     *
-     * @param step    the step's value ("create", "balr", …); null for a ticket
-     * @param summary the sub-task's Summary by Settings › Name rules
-     * @param baH     hours the row's BA (a ticket's member) carries on it by the step's shares; {@code balH} the BAL's
-     * @param start   set by hand, else the saved plan's; null until Auto allocate places it, and for a removed step
-     * @param manual  its dates were set by hand
-     * @param edited  its effort was set by hand instead of Create × its weight
-     * @param assigneeId who the pushed sub-task is assigned to, by the step's PIC; null while the row has nobody
-     * @param reporterId the BAL on a Create step, else null (Jira's default)
-     */
-    public record StepRow(String ref, long rowId, @Nullable String step, String phase, String summary, double effortH, double baH,
-                          double balH, @Nullable String start, @Nullable String end, boolean manual, boolean edited, boolean removed,
-                          @Nullable String assigneeId, @Nullable String reporterId) {
-    }
-
-    /**
      * What a member has on a day.
      *
-     * @param key   the Jira key of a sub-task already in Jira, the anken's epic key for work on another anken; null for a
-     *              sub-task of this plan
+     * @param key   the Jira key of a sub-task already in Jira, the anken's epic key for work on another anken in the viewer's
+     *              scope; null for a sub-task of this plan and for another anken outside the scope
      * @param title the sub-task's Summary, or the other anken's title
      * @param other work on another anken (its open sub-tasks there, shared by the step weights)
      */
@@ -163,20 +176,23 @@ public class DetailPlanService {
     }
 
     /**
-     * @param steps       every sub-task of the unpushed rows, removed ones included, in row order
-     * @param days        the members with hours in the plan, day by day from its first start to its last end
-     * @param stalePhases phases whose BA effort changed since the master schedule was saved (its End is out of date)
-     * @param problems    what keeps the plan from being computed by Auto allocate, and from being pushed
-     * @param affected    Check only: the refs of the sub-tasks on a day over one of their people's allocation, or ending after their
-     *                    phase's master End
-     * @param leftOut     Check only: what it could not count (rows without people, sub-tasks without dates)
-     * @param allocated   one per entry of {@code overBudget}, in the same order
-     * @param byHand      the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
+     * @param window       the day columns: working days from the earliest of the master schedule's start and the first cell to the
+     *                     latest of its end and the last cell
+     * @param lines        a line per step of the unpushed rows (removed ones included) in row order, then a line per sub-task of
+     *                     the anken in Jira, by phase and function
+     * @param days         the members with hours in the plan, day by day over {@code window}
+     * @param stalePhases  phases whose BA effort changed since the master schedule was saved (its End is out of date)
+     * @param problems     what keeps the plan from being computed by Auto allocate, and from being pushed
+     * @param pushBlockers why Push is refused, besides {@code problems}: a line not fully planned, planned over its total, or out of
+     *                     step order
+     * @param allocated    one per entry of {@code overBudget}, in the same order
+     * @param byHand       the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
+     * @param lastVersionAt when the last version of the plan was saved; null when none was
      */
-    public record DetailPlanView(List<EstimationRow> rows, List<EstimationService.TaskOption> tasks, List<RowPlan> plan, List<StepRow> steps,
-                                 List<Overrun> overBudget, List<OverrunAllocation> allocated, List<DayOverrun> overDay,
-                                 List<PhaseCheck> checks, List<DayLoad> days, List<String> stalePhases, List<String> problems,
-                                 List<HandPicks> byHand, List<String> affected, List<String> leftOut) {
+    public record DetailPlanView(List<EstimationRow> rows, List<EstimationService.TaskOption> tasks, List<String> window,
+                                 List<MatrixLine> lines, List<Overrun> overBudget, List<OverrunAllocation> allocated,
+                                 List<DayOverrun> overDay, List<PhaseCheck> checks, List<DayLoad> days, List<String> stalePhases,
+                                 List<String> problems, List<String> pushBlockers, List<HandPicks> byHand, @Nullable String lastVersionAt) {
     }
 
     /** Which slots of a row hold someone picked by hand. */
@@ -203,11 +219,8 @@ public class DetailPlanService {
                     Map<String, String> names, List<Placed> placed, List<DetailScheduler.Part> parts, StepWeights weights, DetailPlanView view) {
     }
 
-    /** The plan as it shows; an anken planned before plans were saved is planned and saved once, as soon as it can be. */
+    /** The plan as it shows. */
     public DetailPlanView view(AnkenScope scope, String epic) {
-        if (estimation.initialPlanPending(epic)) {
-            replan(scope, epic);
-        }
         return compute(scope, epic).view();
     }
 
@@ -288,8 +301,6 @@ public class DetailPlanService {
         if (!keepInput) {
             estimation.deleteUnpushedStepEdits(epic);
         }
-        estimation.deleteSavedPlan(epic); // the dates wait for the next Auto allocate
-        estimation.setInitialPlanPending(epic, false);
         return view(scope, epic);
     }
 
@@ -299,9 +310,8 @@ public class DetailPlanService {
 
     /**
      * Fills the empty BA / BAL / JM slots of the unpushed rows ({@link AutoAllocator}, docs/auto-allocation.md): BAs, BALs and
-     * JMs from the phase's team in the master schedule. People already picked stay; the draft is saved. Then the only re-plan:
-     * every row is scheduled again around what was set by hand, and the plan is saved. When it cannot be, the people stay and
-     * so does the plan saved before.
+     * JMs from the phase's team in the master schedule. People already picked stay; the draft is saved. Refused with the first
+     * input problem left, the people staying.
      */
     public DetailPlanView autoAllocate(AnkenScope scope, String epic) {
         TrackerContext ctx = EstimationService.load(context, scope, epic);
@@ -325,9 +335,10 @@ public class DetailPlanService {
                 AutoAllocator.cached(DetailScheduler.hours(epic, a, ctx.cal)), ctx.cal, w, ctx.settings.workingHours.hoursPerDay());
         List<RowAssign> assigns = AutoAllocator.allocate(in).stream().map(p -> new RowAssign(p.rowId(), p.baId(), p.balId(), p.jmId())).toList();
         saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
-        replan(scope, epic).ifPresent(why -> {
-            throw new Invalid(why, "plan");
-        });
+        List<String> problems = basis(scope, epic).problems();
+        if (!problems.isEmpty()) {
+            throw new Invalid(problems.getFirst(), "plan");
+        }
         return view(scope, epic);
     }
 
@@ -356,113 +367,37 @@ public class DetailPlanService {
     }
 
     /**
-     * Schedules the unpushed rows again around what was set by hand ({@link DetailScheduler}) and saves the plan; the reason when
-     * it cannot, the saved plan then stays.
-     */
-    private Optional<String> replan(AnkenScope scope, String epic) {
-        Basis b = basis(scope, epic);
-        if (b.rows().isEmpty()) {
-            return Optional.empty();
-        }
-        if (!b.problems().isEmpty()) {
-            return Optional.of(b.problems().getFirst());
-        }
-        Map<String, PhaseRow> phases = phases(b.schedule());
-        List<Chain> chains = new ArrayList<>();
-        for (EstimationRow r : b.rows()) {
-            Chain c = PlanRows.chain(r.phase(), b.stepsOf().get(r.id()), r.baId(), r.balId(), r.jmId(), b.w(), phases.get(r.phase()).start());
-            if (c != null) {
-                chains.add(c);
-            }
-        }
-        Allocations a = allocations.counted(scope).allocations();
-        try {
-            DetailScheduler.Result res = DetailScheduler.schedule(epic, chains, loads(b.ctx(), epic, Set.of()), a, b.ctx().cal,
-                    b.ctx().settings.workingHours.hoursPerDay(), b.w().daySplit());
-            estimation.savePlan(epic, new SavedPlan(res.placed(), res.parts()));
-        } catch (RuleError e) {
-            return Optional.of(e.getMessage());
-        }
-        estimation.setInitialPlanPending(epic, false);
-        return Optional.empty();
-    }
-
-    /**
-     * The plan of the unpushed rows as it shows: the one Auto allocate saved, with the dates set by hand since; effort per day,
-     * overruns and the phase checks follow from it, with the anken's work in Jira and the allocations as they are now.
+     * The plan as it shows: the matrix lines (the unpushed rows' steps, then the anken's sub-tasks in Jira) with their cells; effort
+     * per day, overruns and the phase checks follow from the cells, with the allocations as they are now.
      */
     Computed compute(AnkenScope scope, String epic) {
-        return compute(scope, epic, false);
-    }
-
-    /**
-     * Check: effort per day, the overruns and the phase checks of the plan as it stands, without planning again; nothing is
-     * saved. {@code affected} and {@code leftOut} say what to look at.
-     */
-    public DetailPlanView check(AnkenScope scope, String epic) {
-        return compute(scope, epic, true).view();
-    }
-
-    /** @param check the plan as it stands ({@link #checked}) instead of the saved one */
-    private Computed compute(AnkenScope scope, String epic, boolean check) {
         Basis b = basis(scope, epic);
         TrackerContext ctx = b.ctx();
-        List<EstimationRow> all = b.all();
         List<EstimationRow> rows = b.rows();
-        List<StepEdit> edits = b.edits();
         StepWeights w = b.w();
         Map<Long, List<PlanRows.RowStep>> stepsOf = b.stepsOf();
         ScheduleVersion schedule = b.schedule();
-        List<EstimationService.TaskOption> tasks = b.tasks();
-        List<String> problems = b.problems();
         Allocations a = allocations.counted(scope).allocations();
-        double jmHoursPerDay = ctx.settings.workingHours.hoursPerDay();
         Map<String, PhaseRow> phases = phases(schedule);
         Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), rows, stepsOf);
         DetailScheduler.Hours hours = DetailScheduler.hours(epic, a, ctx.cal);
-        SavedPlan saved = estimation.savedPlan(epic);
-        List<String> leftOut = new ArrayList<>();
-        SavedPlan shown = check ? checked(rows, stepsOf, saved, w, ctx.cal, hours, names, leftOut) : shown(rows, stepsOf, saved);
-        List<Placed> placed = shown.placed();
-        List<DetailScheduler.Part> parts = shown.parts();
-        Map<String, Map<String, Double>> ledger = ledger(loads(ctx, epic, Set.of()), parts);
+        PlanLines.Built built = PlanLines.build(ctx, epic, rows, stepsOf, names, w, cells.rowCells(epic), cells.jiraCells(epic),
+                cells.jiraEdits(epic));
+        List<MatrixLine> lines = built.lines();
+        List<Placed> placed = built.placed();
+        List<DetailScheduler.Part> parts = built.parts();
+        Map<String, Map<String, Double>> ledger = ledger(parts);
         List<DayOverrun> overDay = overDay(ledger, parts, hours);
-        List<String> affected = check ? affected(placed, parts, overDay, phases) : List.of();
         List<Overrun> over = DetailScheduler.overBudget(placed.stream().filter(p -> phases.containsKey(p.phase())).toList(),
                 givenBefore(ctx, epic, Set.of()), phases, epic, a, ctx.cal);
         List<OverrunAllocation> allocated = over.stream()
                 .map(o -> allocated(ctx, epic, a, o.memberId(), o.phase(), phases.get(o.phase()).start())).toList();
-        Map<String, List<Placed>> byRef = new LinkedHashMap<>();
-        placed.forEach(p -> byRef.computeIfAbsent(p.ref(), k -> new ArrayList<>()).add(p));
-        List<RowPlan> plan = new ArrayList<>();
-        List<StepRow> stepRows = new ArrayList<>();
-        for (EstimationRow r : rows) {
-            List<StepPlan> steps = new ArrayList<>();
-            for (PlanRows.RowStep st : stepsOf.get(r.id())) {
-                List<Placed> ps = byRef.getOrDefault(st.ref(), List.of());
-                // dates set by hand show also on a step Auto allocate has not placed yet
-                boolean hand = st.pinned() && !st.removed();
-                String start = hand ? st.edit().start() : ps.stream().map(Placed::start).min(String::compareTo).orElse(null);
-                String end = hand ? st.edit().end() : ps.stream().map(Placed::end).max(String::compareTo).orElse(null);
-                if (!ps.isEmpty()) {
-                    steps.add(new StepPlan(st.ref(), st.kind() == null ? null : st.kind().value(), ps.getFirst().memberId(), st.hours(),
-                            Objects.requireNonNull(start), Objects.requireNonNull(end)));
-                }
-                double[] h = st.kind() != null && !w.shareOf(st.kind()).counted() ? new double[]{0, 0} : PlanRows.split(st, w);
-                stepRows.add(new StepRow(st.ref(), r.id(), st.kind() == null ? null : st.kind().value(), r.phase(),
-                        names.getOrDefault(st.ref(), r.functionName()), st.hours(), h[0], h[1], start, end, st.pinned(),
-                        st.edit() != null && st.edit().effortH() != null, st.removed(), PlanRows.assignee(st, r.baId(), r.balId(), w),
-                        reporter(st, r)));
-            }
-            if (!steps.isEmpty()) {
-                plan.add(new RowPlan(r.id(), steps));
-            }
-        }
-        List<PhaseCheck> checks = schedule == null ? List.of() : checks(schedule, placed);
-        List<DayLoad> days = days(ctx, epic, a, ledger, placed, parts, names);
+        List<String> window = window(ctx, schedule, lines);
+        List<PhaseCheck> checks = schedule == null ? List.of() : checks(schedule, lines);
+        List<DayLoad> days = days(ctx, epic, a, ledger, parts, lines, window);
         List<String> stale = new ArrayList<>();
         if (schedule != null) {
-            Map<String, MasterSchedule.PhaseWork> work = MasterSchedule.work(all, edits, w, jmHoursPerDay);
+            Map<String, MasterSchedule.PhaseWork> work = MasterSchedule.work(b.all(), b.edits(), w, ctx.settings.workingHours.hoursPerDay());
             for (PhaseRow p : schedule.phases()) {
                 MasterSchedule.PhaseWork pw = work.get(p.phase());
                 if (pw != null && Math.abs(pw.effortH() - p.totalEffortH()) > 0.01) {
@@ -480,119 +415,61 @@ public class DetailPlanService {
                 byHand.add(h);
             }
         }
-        DetailPlanView view = new DetailPlanView(all, tasks, plan, stepRows, over, allocated, overDay, checks, days, stale, problems, byHand,
-                affected, leftOut);
+        DetailPlanView view = new DetailPlanView(b.all(), b.tasks(), window, lines, over, allocated, overDay, checks, days, stale,
+                b.problems(), pushBlockers(lines), byHand, planVersions.lastSavedAt(epic));
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
     /**
-     * The saved plan of the steps still in it (unpushed rows, not removed), in their row's phase. Dates set by hand since show in
-     * the list only: Effort per day and the phase checks follow them once checked or planned again.
+     * Working days from the earliest of the master schedule's first Start and the first cell of any line to the latest of its last
+     * End and the last cell; none without either.
      */
-    private static SavedPlan shown(List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf, SavedPlan saved) {
-        Map<String, PlanRows.RowStep> live = new HashMap<>();
-        Map<String, String> phaseOf = new HashMap<>();
-        for (EstimationRow r : rows) {
-            stepsOf.get(r.id()).stream().filter(st -> !st.removed()).forEach(st -> {
-                live.put(st.ref(), st);
-                phaseOf.put(st.ref(), r.phase());
-            });
+    private static List<String> window(TrackerContext ctx, @Nullable ScheduleVersion schedule, List<MatrixLine> lines) {
+        String from = null;
+        String to = null;
+        for (PhaseRow p : schedule == null ? List.<PhaseRow>of() : schedule.phases()) {
+            from = min(from, p.start());
+            to = max(to, p.end());
         }
-        List<Placed> placed = new ArrayList<>();
-        for (Placed p : saved.placed()) {
-            if (live.containsKey(p.ref())) {
-                placed.add(new Placed(p.ref(), phaseOf.get(p.ref()), p.kind(), p.memberId(), p.hours(), p.start(), p.end(), p.counted()));
+        for (MatrixLine l : lines) {
+            for (DayHours c : l.cells()) {
+                from = min(from, c.day());
+                to = max(to, c.day());
             }
         }
-        return new SavedPlan(placed, saved.parts().stream().filter(x -> live.containsKey(x.ref())).toList());
+        return DetailMatrix.window(from, to, ctx.cal::visible);
     }
 
-    /**
-     * The plan as it stands, for Check. A step unchanged since Auto allocate (the same people and hours, the same dates) keeps the
-     * hours per day Auto allocate gave it; a step changed since is spread over the dates shown ({@link DetailScheduler#spread}).
-     * What has no people or no dates is left out, and said in {@code leftOut}.
-     */
-    private static SavedPlan checked(List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf, SavedPlan saved, StepWeights w,
-                                     WorkCalendar cal, DetailScheduler.Hours hours, Map<String, String> names, List<String> leftOut) {
-        Map<String, List<Placed>> placedOf = new HashMap<>();
-        saved.placed().forEach(p -> placedOf.computeIfAbsent(p.ref(), k -> new ArrayList<>()).add(p));
-        Set<String> unchanged = new HashSet<>();
-        List<Placed> placed = new ArrayList<>();
-        List<DetailScheduler.Part> spread = new ArrayList<>();
-        for (int n = 0; n < rows.size(); n++) {
-            EstimationRow r = rows.get(n);
-            List<PlanRows.RowStep> steps = stepsOf.get(r.id()).stream().filter(st -> !st.removed()).toList();
-            Chain c = PlanRows.chain(r.phase(), steps, r.baId(), r.balId(), r.jmId(), w, "");
-            Map<String, DetailScheduler.Step> people = new HashMap<>();
-            if (c != null) {
-                c.steps().forEach(st -> people.put(st.ref(), st));
-            }
-            if (!steps.isEmpty() && people.isEmpty()) {
-                leftOut.add("Row " + (n + 1) + " (" + r.functionName() + "): no people yet, not counted");
+    private static @Nullable String min(@Nullable String a, String b) {
+        return a == null || b.compareTo(a) < 0 ? b : a;
+    }
+
+    private static @Nullable String max(@Nullable String a, String b) {
+        return a == null || b.compareTo(a) > 0 ? b : a;
+    }
+
+    /** Why Push is refused, line by line (removed and Closed lines aside): hours not planned yet, planned over the total, step order. */
+    private static List<String> pushBlockers(List<MatrixLine> lines) {
+        List<String> out = new ArrayList<>();
+        for (MatrixLine l : lines) {
+            if (l.removed() || l.closed()) {
                 continue;
             }
-            for (PlanRows.RowStep st : steps) {
-                DetailScheduler.Step s = people.get(st.ref());
-                String name = names.getOrDefault(st.ref(), r.functionName());
-                List<Placed> was = placedOf.getOrDefault(st.ref(), List.of());
-                String savedStart = was.stream().map(Placed::start).min(String::compareTo).orElse(null);
-                String savedEnd = was.stream().map(Placed::end).max(String::compareTo).orElse(null);
-                StepEdit e = st.edit();
-                boolean hand = e != null && e.pinned();
-                String start = hand ? e.start() : savedStart;
-                String end = hand ? e.end() : savedEnd;
-                if (s == null) {
-                    leftOut.add(name + ": no people yet, not counted");
-                } else if (start == null || end == null) {
-                    leftOut.add(name + ": no dates yet, not counted");
-                } else if (same(s, was) && start.equals(savedStart) && end.equals(savedEnd)) {
-                    was.forEach(p -> placed.add(new Placed(p.ref(), r.phase(), p.kind(), p.memberId(), p.hours(), p.start(), p.end(), p.counted())));
-                    unchanged.add(st.ref());
-                } else {
-                    if (s.shares().isEmpty()) {
-                        placed.add(new Placed(st.ref(), r.phase(), st.kind(), s.who(), s.hours(), start, end, false));
-                    }
-                    for (DetailScheduler.Share sh : s.shares()) {
-                        placed.add(new Placed(st.ref(), r.phase(), st.kind(), sh.memberId(), sh.hours(), start, end, true));
-                        spread.addAll(DetailScheduler.spread(st.ref(), sh, start, end, cal, hours));
-                    }
-                }
+            if (l.notYetH() > 0.01) {
+                out.add(l.summary() + ": " + Numbers.format(l.notYetH()) + "h not planned yet");
+            } else if (l.notYetH() < -0.01) {
+                out.add(l.summary() + ": " + Numbers.format(-l.notYetH()) + "h planned over the total");
+            }
+            if (l.outOfOrder()) {
+                out.add(l.summary() + ": starts before the step before it ends");
             }
         }
-        List<DetailScheduler.Part> parts = new ArrayList<>(saved.parts().stream().filter(p -> unchanged.contains(p.ref())).toList());
-        parts.addAll(spread);
-        return new SavedPlan(placed, parts);
+        return out;
     }
 
-    /** Whether the step has the people and hours its saved placements were made with. */
-    private static boolean same(DetailScheduler.Step s, List<Placed> was) {
-        if (s.shares().isEmpty()) {
-            return was.size() == 1 && was.getFirst().memberId().equals(s.who()) && Math.abs(was.getFirst().hours() - s.hours()) < 1e-9;
-        }
-        return was.size() == s.shares().size() && s.shares().stream().allMatch(sh -> was.stream()
-                .anyMatch(p -> p.memberId().equals(sh.memberId()) && Math.abs(p.hours() - sh.hours()) < 1e-9));
-    }
-
-    /** The sub-tasks on a day over one of their people's allocation, then those ending after their phase's master End. */
-    private static List<String> affected(List<Placed> placed, List<DetailScheduler.Part> parts, List<DayOverrun> overDay,
-                                         Map<String, PhaseRow> phases) {
-        Set<String> over = new HashSet<>();
-        overDay.forEach(o -> over.add(o.memberId() + "|" + o.date()));
-        Set<String> out = new LinkedHashSet<>();
-        parts.stream().filter(p -> over.contains(p.memberId() + "|" + p.date())).forEach(p -> out.add(p.ref()));
-        for (Placed p : placed) {
-            PhaseRow phase = phases.get(p.phase());
-            if (phase != null && p.end().compareTo(phase.end()) > 0) {
-                out.add(p.ref());
-            }
-        }
-        return List.copyOf(out);
-    }
-
-    /** Hours per member and day: the loads, and the plan's parts on top. */
-    private static Map<String, Map<String, Double>> ledger(Map<String, Map<String, Double>> loads, List<DetailScheduler.Part> parts) {
+    /** Hours per member and day of the plan's parts. */
+    private static Map<String, Map<String, Double>> ledger(List<DetailScheduler.Part> parts) {
         Map<String, Map<String, Double>> out = new HashMap<>();
-        loads.forEach((m, days) -> out.put(m, new TreeMap<>(days)));
         parts.forEach(p -> out.computeIfAbsent(p.memberId(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
         return out;
     }
@@ -613,23 +490,21 @@ public class DetailPlanService {
     }
 
     /**
-     * The members of the anken with hours in the plan's window, each day from its first start to its last end, with what makes
-     * up their hours: this plan's sub-tasks, the anken's open sub-tasks in Jira, and their open sub-tasks on the other tracked
-     * anken (by anken).
+     * The members of the anken with hours in the plan's window, each day of it, with what makes up their hours: the matrix lines'
+     * cells (the unpushed rows' and the anken's sub-tasks in Jira) and their open sub-tasks on the other tracked anken (by anken).
      */
-    private List<DayLoad> days(TrackerContext ctx, String epic, Allocations a, Map<String, Map<String, Double>> ledger, List<Placed> placed,
-                               List<DetailScheduler.Part> parts, Map<String, String> names) {
-        if (placed.isEmpty()) {
+    private List<DayLoad> days(TrackerContext ctx, String epic, Allocations a, Map<String, Map<String, Double>> ledger,
+                               List<DetailScheduler.Part> parts, List<MatrixLine> lines, List<String> window) {
+        if (window.isEmpty()) {
             return List.of();
         }
-        String from = placed.stream().map(Placed::start).min(String::compareTo).orElseThrow();
-        String to = placed.stream().map(Placed::end).max(String::compareTo).orElseThrow();
-        List<String> window = Dates.daysBetween(from, to);
-        Capacity.Plan jira = loadPlan(ctx, epic, Set.of());
+        Map<String, MatrixLine> lineOf = new HashMap<>();
+        lines.forEach(l -> lineOf.put(l.ref(), l));
         Map<String, Map<String, List<DayItem>>> mine = new HashMap<>();
         for (DetailScheduler.Part p : parts) {
+            MatrixLine l = lineOf.get(p.ref());
             mine.computeIfAbsent(p.memberId(), k -> new HashMap<>()).computeIfAbsent(p.date(), k -> new ArrayList<>())
-                    .add(new DayItem(null, names.getOrDefault(p.ref(), p.ref()), Numbers.round(p.hours(), 2), false));
+                    .add(new DayItem(l.issueKey(), l.summary(), Numbers.round(p.hours(), 2), false));
         }
         // the other anken: every tracked one, whatever the viewer's scope (only their titles and hours are shown)
         TrackerContext all = context.load(new AnkenScope(Set.copyOf(ctx.settings.jira.epics)));
@@ -650,16 +525,14 @@ public class DetailPlanService {
             }
             for (String d : window) {
                 List<DayItem> items = new ArrayList<>(mine.getOrDefault(m, Map.of()).getOrDefault(d, List.of()));
-                Capacity.DayPlan dp = jira.day(m, d);
-                if (dp != null) {
-                    dp.byKey.forEach((key, h) -> items.add(new DayItem(key, ctx.issue(key).map(Issue::summary).orElse(key), Numbers.round(h, 2), false)));
-                }
                 Map<String, Double> byEpic = new TreeMap<>();
                 Capacity.DayPlan op = other.day(m, d);
                 if (op != null) {
                     op.byKey.forEach((key, h) -> byEpic.merge(epicOf.get(key), h, Numbers::sum));
                 }
-                byEpic.forEach((e, h) -> items.add(new DayItem(e, all.anken(e).map(Anken::title).orElse(e), Numbers.round(h, 2), true)));
+                // an anken outside the viewer's scope shows by its title only
+                byEpic.forEach((e, h) -> items.add(new DayItem(ctx.anken(e).isPresent() ? e : null, all.anken(e).map(Anken::title).orElse(e),
+                        Numbers.round(h, 2), true)));
                 String off = ctx.cal.off(d, m);
                 out.add(new DayLoad(m, d, Numbers.round(day.getOrDefault(d, 0.0), 2), Objects.requireNonNullElse(a.hoursOn(m, epic, d), 0.0),
                         Text.hasText(off) ? off : null, Numbers.round(byEpic.values().stream().mapToDouble(Double::doubleValue).sum(), 2), items));
@@ -816,10 +689,12 @@ public class DetailPlanService {
         return out;
     }
 
-    static List<PhaseCheck> checks(ScheduleVersion schedule, List<Placed> placed) {
+    /** Each master phase against the latest End of its lines (removed and Closed ones aside). */
+    static List<PhaseCheck> checks(ScheduleVersion schedule, List<MatrixLine> lines) {
         List<PhaseCheck> out = new ArrayList<>();
         for (PhaseRow p : schedule.phases()) {
-            String end = placed.stream().filter(x -> x.phase().equals(p.phase())).map(Placed::end).max(String::compareTo).orElse(null);
+            String end = lines.stream().filter(l -> !l.closed() && !l.removed() && l.end() != null && l.phase().equals(p.phase()))
+                    .map(MatrixLine::end).max(String::compareTo).orElse(null);
             out.add(new PhaseCheck(p.phase(), p.end(), end, end == null ? 0 : Dates.dayDiff(p.end(), end)));
         }
         return out;
@@ -840,7 +715,7 @@ public class DetailPlanService {
         Computed c = pushable(scope, epic);
         List<NewTicket> creates = newTickets(c, labels(epic));
         return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
-            created.forEach((ref, key) -> planDays.save(key, hoursByDay(c.parts(), ref)));
+            created.forEach((ref, key) -> planDays.save(key, daysOf(line(c, ref))));
             List<Long> done = new ArrayList<>();
             for (EstimationRow r : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
                 List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == r.id()).toList();
@@ -852,6 +727,18 @@ public class DetailPlanService {
                 estimation.markPushed(done, Instant.now(clock).toString());
             }
         });
+    }
+
+    /** The matrix line of {@code ref}. */
+    private static MatrixLine line(Computed c, String ref) {
+        return c.view().lines().stream().filter(l -> l.ref().equals(ref)).findFirst().orElseThrow();
+    }
+
+    /** The hours per day of a line's cells. */
+    private static Map<String, Double> daysOf(MatrixLine l) {
+        Map<String, Double> out = new TreeMap<>();
+        l.cells().forEach(x -> out.merge(x.day(), x.hours(), Numbers::sum));
+        return out;
     }
 
     /** The hours per day of the step {@code ref}, all its people together. */
@@ -894,7 +781,7 @@ public class DetailPlanService {
                 if (st.removed()) {
                     continue;
                 }
-                StepRow shown = c.view().steps().stream().filter(x -> x.ref().equals(st.ref())).findFirst().orElseThrow();
+                MatrixLine shown = line(c, st.ref());
                 String start = shown.start();
                 String end = shown.end();
                 String assignee = Objects.requireNonNull(PlanRows.assignee(st, r.baId(), r.balId(), c.weights()));

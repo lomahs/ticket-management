@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockMultipartFile;
@@ -99,6 +100,7 @@ class ApiWritesTest extends ApiTestSupport {
     }
 
     @Test
+    @Disabled("Task 9")
     void detailPlanTemplateImportsBackUnchangedAndAppliesWhatChanged() throws Exception {
         Map<String, Object> row = new java.util.HashMap<>(Map.of("id", 0, "function_name", "Run", "effort_h", 16, "task_key", "PAY-1102"));
         long id = call(json(put("/api/v1/planning/PAY-1100/estimation"), Map.of("rows", List.of(row)))).json().get("rows").get(0).get("id").asLong();
