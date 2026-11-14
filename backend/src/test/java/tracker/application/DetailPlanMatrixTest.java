@@ -19,6 +19,7 @@ import org.springframework.test.annotation.DirtiesContext;
 
 import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.PlanCellRepository;
@@ -40,6 +41,7 @@ import tracker.application.service.MasterScheduleService.PhaseRowIn;
 import tracker.application.service.TicketService;
 import tracker.application.service.TicketService.NewTicket;
 import tracker.domain.AccessStatus;
+import tracker.domain.Allocation;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
@@ -78,6 +80,8 @@ class DetailPlanMatrixTest {
     IssueRepository issues;
     @Autowired
     TrackerContextLoader loader;
+    @Autowired
+    AllocationRepository allocationRows;
 
     Map<String, String> tasks = new HashMap<>();
 
@@ -106,6 +110,23 @@ class DetailPlanMatrixTest {
 
     void assign(List<EstimationRow> rows, RowAssign... assigns) {
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(assigns)));
+    }
+
+    /** Login an/minh/tanaka, Run an, Pay an/minh: every slot Auto allocate needs, picked. */
+    List<EstimationRow> staffed() {
+        List<EstimationRow> rows = scheduled();
+        assign(rows, new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
+                new RowAssign(rows.get(2).id(), "an", "minh", null));
+        return rows;
+    }
+
+    /**
+     * {@link #staffed()}, and 8h a day on the anken for Chi: the demo's PAY-1176 is Chi's and not fully planned, but Chi gives
+     * the anken no hours, so Auto allocate could not place it.
+     */
+    List<EstimationRow> fillable() {
+        allocationRows.save(new Allocation("chi", EPIC, "2026-09-01", 8), "test", "2026-10-07T00:00:00Z");
+        return staffed();
     }
 
     static MatrixLine line(DetailPlanView v, String ref) {
@@ -398,5 +419,123 @@ class DetailPlanMatrixTest {
         DetailPlanView v = detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(l.totalH(), "an"));
         assertThat(cells.jiraEdits(EPIC)).isEmpty();
         assertThat(line(v, key).pending()).isFalse();
+    }
+
+    @Test
+    void autoAllocateKeepsTypedCellsAndFillsTheRest() {
+        List<EstimationRow> rows = fillable();
+        String run = String.valueOf(rows.get(1).id());
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(run, "2026-10-12", 4)));
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        MatrixLine l = line(v, run);
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-12")).containsExactly(new DayHours("2026-10-12", 4, false));
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.cells()).filteredOn(c -> !c.day().equals("2026-10-12")).isNotEmpty()
+                .allMatch(DayHours::auto).allMatch(c -> c.day().compareTo("2026-10-12") >= 0);
+    }
+
+    @Test
+    void autoAllocateKeepsStepOrder() {
+        List<EstimationRow> rows = fillable();
+        long login = rows.get(0).id();
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        List<MatrixLine> lines = v.lines().stream().filter(l -> Objects.equals(l.rowId(), login)).toList();
+        assertThat(lines).hasSize(5).allMatch(l -> !l.outOfOrder()).allMatch(l -> Math.abs(l.notYetH()) < 0.01)
+                .allMatch(l -> l.cells().stream().allMatch(DayHours::auto));
+        assertThat(line(v, login + ":create").end()).isLessThanOrEqualTo(line(v, login + ":balr").start());
+        assertThat(line(v, login + ":create").start()).isGreaterThanOrEqualTo("2026-10-12"); // the phase's master Start
+    }
+
+    @Test
+    void autoAllocateFillsJiraNotYet() {
+        fillable();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 4.0));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-07", 4, false), new Cell(key, "2026-10-08", 4, false)));
+        MatrixLine before = line(detail.view(ALL, EPIC), key);
+        assertThat(before.pending()).isTrue();
+        assertThat(before.notYetH()).isEqualTo(before.totalH() - before.spentH() - 8);
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        MatrixLine l = line(v, key);
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.cells()).filteredOn(DayHours::auto).isNotEmpty().allMatch(c -> c.day().compareTo("2026-10-08") >= 0);
+        // the typed cells stay typed, with Auto allocate's hours added on their day
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-07")).containsExactly(new DayHours("2026-10-07", 4, false));
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-08")).singleElement()
+                .satisfies(c -> assertThat(c.auto()).isFalse()).satisfies(c -> assertThat(c.hours()).isGreaterThanOrEqualTo(4));
+    }
+
+    @Test
+    void autoAllocateKeepsJirasPlanOfALineItFills() {
+        fillable();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 4.0, "2026-10-07", 4.0)); // 8h of a 16h sub-task planned, none pending
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        MatrixLine l = line(v, key);
+        assertThat(l.pending()).isTrue();
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-06")).containsExactly(new DayHours("2026-10-06", 4, false));
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-07")).singleElement()
+                .satisfies(c -> assertThat(c.auto()).isFalse()).satisfies(c -> assertThat(c.hours()).isGreaterThanOrEqualTo(4));
+        assertThat(cells.jiraCells(EPIC).get(key)).anyMatch(c -> c.day().equals("2026-10-07") && !c.auto());
+    }
+
+    @Test
+    void autoAllocateRefusesALinePeopleHaveNoHoursFor() {
+        List<EstimationRow> rows = staffed();
+        long run = rows.get(1).id();
+        MatrixLine chi = line(detail.view(ALL, EPIC), "PAY-1176");
+        assertThat(chi.picId()).isEqualTo("chi");
+        assertThat(chi.notYetH()).isPositive();
+        assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
+                .hasMessage("chi has no free hours on PAY-1100 from 2026-10-08").hasFieldOrPropertyWithValue("field", "plan");
+        // the people stay; no cell is written
+        assertThat(estimationRows.findByEpic(EPIC)).filteredOn(r -> r.id() == run).singleElement()
+                .satisfies(r -> assertThat(r.baId()).isEqualTo("an"));
+        assertThat(cells.rowCells(EPIC)).isEmpty();
+        assertThat(cells.jiraCells(EPIC)).isEmpty();
+    }
+
+    @Test
+    void autoAllocateNeedsTheMasterSchedule() {
+        task("ITB Execute");
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 16, task("ITA Execute"))));
+        assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
+                .hasMessage("Save a master schedule first");
+    }
+
+    @Test
+    void clearKeepInputDropsOnlyAutoCells() {
+        List<EstimationRow> rows = scheduled();
+        String run = String.valueOf(rows.get(1).id());
+        String key = jiraSubtask();
+        cells.saveRowCells(List.of(new Cell(run, "2026-10-12", 4, false), new Cell(run, "2026-10-13", 8, true)));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-08", 3, false), new Cell(key, "2026-10-09", 5, true)));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, 10.0, null));
+        DetailPlanView v = detail.clear(ALL, EPIC, true);
+        assertThat(line(v, run).cells()).containsExactly(new DayHours("2026-10-12", 4, false));
+        assertThat(cells.jiraCells(EPIC).get(key)).containsExactly(new Cell(key, "2026-10-08", 3, false));
+        assertThat(cells.jiraEdits(EPIC)).containsExactly(new JiraEdit(key, 10.0, null));
+        assertThat(line(v, key).pending()).isTrue();
+    }
+
+    @Test
+    void clearAllDropsCellsAndPendingJira() {
+        List<EstimationRow> rows = scheduled();
+        String run = String.valueOf(rows.get(1).id());
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-07", 8.0, "2026-10-08", 8.0));
+        cells.saveRowCells(List.of(new Cell(run, "2026-10-12", 4, false), new Cell(run, "2026-10-13", 8, true)));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-08", 3, false), new Cell(key, "2026-10-09", 5, true)));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, 10.0, "binh"));
+        DetailPlanView v = detail.clear(ALL, EPIC, false);
+        assertThat(cells.rowCells(EPIC)).isEmpty();
+        assertThat(line(v, run).cells()).isEmpty();
+        assertThat(cells.jiraCells(EPIC)).isEmpty();
+        assertThat(cells.jiraEdits(EPIC)).isEmpty();
+        MatrixLine l = line(v, key);
+        assertThat(l.pending()).isFalse();
+        assertThat(l.picId()).isEqualTo("an");
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-07", 8, false), new DayHours("2026-10-08", 8, false));
     }
 }

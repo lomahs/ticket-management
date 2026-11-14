@@ -115,6 +115,8 @@ class DetailPlanningTest {
 
     /** Login and Run under new ITA Tasks, Pay under a new ITB Task (ITB Execute makes ITB a phase group: two Tasks share it). */
     void estimate() {
+        // the demo's PAY-1176 is Chi's and not fully planned, but Chi gives the anken no hours: Auto allocate could not place it
+        allocationRows.save(new Allocation("chi", EPIC, "2026-09-01", 8), "test", "2026-10-07T00:00:00Z");
         task("ITB Execute");
         estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(task("ITA Create test case")),
                 row(0, 1, "Run", null, 16).withTask(task("ITA Execute")),
@@ -229,7 +231,7 @@ class DetailPlanningTest {
         detail.saveDraft(ALL, EPIC, new DraftIn(rows.stream().map(EstimationRow::id).toList(), List.of(
                 new RowAssign(rows.get(0).id(), "an", "minh", "tanaka"), new RowAssign(rows.get(1).id(), "an", null, null),
                 new RowAssign(rows.get(2).id(), "binh", "minh", null))));
-        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled
+        assertThat(detail.view(ALL, EPIC).problems()).isEmpty(); // every slot it needs is filled; no cell is planned yet
         return rows;
     }
 
@@ -379,7 +381,7 @@ class DetailPlanningTest {
      */
     List<EstimationRow> pushable() {
         List<EstimationRow> rows = unplanned();
-        detail.autoAllocate(ALL, EPIC); // every slot it needs is filled
+        assertThat(detail.view(ALL, EPIC).problems()).isEmpty(); // every slot it needs is filled
         plan(String.valueOf(rows.get(1).id()), "2026-10-12", 8, "2026-10-13", 8);
         return rows;
     }

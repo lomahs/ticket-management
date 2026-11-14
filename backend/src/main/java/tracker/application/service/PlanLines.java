@@ -170,7 +170,7 @@ final class PlanLines {
     }
 
     /** The shares of a sub-task in Jira, the one of its assignee moved to the PIC not pushed yet. */
-    private static List<Effort.PlanShare> shares(List<Effort.PlanShare> shares, @Nullable String assignee, @Nullable String pic) {
+    static List<Effort.PlanShare> shares(List<Effort.PlanShare> shares, @Nullable String assignee, @Nullable String pic) {
         if (assignee == null || pic == null || assignee.equals(pic)) {
             return shares;
         }

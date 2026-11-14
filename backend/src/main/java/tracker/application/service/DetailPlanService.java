@@ -48,6 +48,7 @@ import tracker.domain.Issue;
 import tracker.domain.MasterSchedule;
 import tracker.domain.Numbers;
 import tracker.domain.PlanRows;
+import tracker.domain.RuleError;
 import tracker.domain.StepEdit;
 import tracker.domain.Onboarding;
 import tracker.domain.PhaseGroups;
@@ -293,9 +294,10 @@ public class DetailPlanService {
     }
 
     /**
-     * Empties the slots of the unpushed rows. {@code keepInput}: only those still holding Auto allocate's pick; the people
-     * picked by hand, the dates and efforts set by hand and the removed steps stay. Else every slot, and every step edit goes
-     * too: the plan is the estimation's again.
+     * Empties the slots of the unpushed rows and the cells. {@code keepInput}: only the slots still holding Auto allocate's pick
+     * and the cells it filled (of the unpushed rows and the sub-tasks in Jira); the people picked by hand, the cells typed, the
+     * efforts set by hand, the removed steps and the pending Jira changes stay. Else every slot, every cell of the unpushed rows
+     * and every step edit goes, and every pending Jira change is dropped: the plan is the estimation's and Jira's again.
      */
     @Transactional
     public DetailPlanView clear(AnkenScope scope, String epic, boolean keepInput) {
@@ -314,6 +316,8 @@ public class DetailPlanService {
         if (!keepInput) {
             estimation.deleteUnpushedStepEdits(epic);
         }
+        cells.deleteRowCells(epic, keepInput);
+        cells.deleteJiraAll(epic, keepInput);
         return view(scope, epic);
     }
 
@@ -324,7 +328,8 @@ public class DetailPlanService {
     /**
      * Fills the empty BA / BAL / JM slots of the unpushed rows ({@link AutoAllocator}, docs/auto-allocation.md): BAs, BALs and
      * JMs from the phase's team in the master schedule. People already picked stay; the draft is saved. Refused with the first
-     * input problem left, the people staying.
+     * input problem left, the people staying. Then fills what each line has not planned yet ({@link #fill}): the cells already
+     * there stay.
      */
     public DetailPlanView autoAllocate(AnkenScope scope, String epic) {
         TrackerContext ctx = EstimationService.load(context, scope, epic);
@@ -352,7 +357,54 @@ public class DetailPlanService {
         if (!problems.isEmpty()) {
             throw new Invalid(problems.getFirst(), "plan");
         }
+        fill(scope, epic, a);
         return view(scope, epic);
+    }
+
+    /**
+     * Fills the Not yet of every line ({@link MatrixFill}) as Auto allocate's cells. Hours added on a day that already has a
+     * cell join it, which keeps whether it was typed; a sub-task in Jira without pending cells first keeps Jira's plan from
+     * today on.
+     */
+    private void fill(AnkenScope scope, String epic, Allocations a) {
+        Computed c = compute(scope, epic);
+        TrackerContext ctx = c.ctx();
+        List<MatrixLine> lines = c.view().lines();
+        Map<String, MatrixLine> lineOf = new HashMap<>();
+        lines.forEach(l -> lineOf.put(l.ref(), l));
+        Map<String, List<Effort.PlanShare>> jiraShares = new HashMap<>();
+        for (Issue i : openSubtasks(ctx, epic, Set.of())) {
+            MatrixLine l = lineOf.get(i.key());
+            if (l != null) {
+                jiraShares.put(i.key(), PlanLines.shares(ctx.planShares(i), i.assigneeId(), l.picId()));
+            }
+        }
+        Map<String, Map<String, Double>> added;
+        try {
+            added = MatrixFill.fill(epic, lines, c.rows(), c.stepsOf(), phases(c.schedule()), jiraShares, c.parts(), a, ctx.cal, ctx.today,
+                    ctx.settings.workingHours.hoursPerDay(), c.weights());
+        } catch (RuleError e) {
+            throw new Invalid(e.getMessage(), "plan");
+        }
+        List<Cell> rowCells = new ArrayList<>();
+        Map<String, List<Cell>> pending = cells.jiraCells(epic);
+        added.forEach((ref, days) -> {
+            MatrixLine l = lineOf.get(ref);
+            Map<String, DayHours> had = new HashMap<>();
+            l.cells().forEach(d -> had.put(d.day(), d));
+            List<Cell> out = new ArrayList<>();
+            days.forEach((day, h) -> {
+                DayHours was = had.get(day);
+                out.add(was == null || was.hours() <= 0 ? new Cell(ref, day, h, true) : new Cell(ref, day, Numbers.sum(was.hours(), h), was.auto()));
+            });
+            if (l.issueKey() == null) {
+                rowCells.addAll(out);
+            } else {
+                seed(epic, l, pending, ctx.today);
+                cells.saveJiraCells(epic, out);
+            }
+        });
+        cells.saveRowCells(rowCells);
     }
 
     private static @Nullable String blank(@Nullable String s) {
@@ -873,15 +925,23 @@ public class DetailPlanService {
         }
         Map<String, List<Cell>> pending = cells.jiraCells(epic);
         jira.forEach((key, typed) -> {
-            if (pending.getOrDefault(key, List.of()).isEmpty()) { // Jira's plan from today on stays, besides the typed days
-                List<Cell> seed = lineOf.get(key).cells().stream().filter(d -> d.day().compareTo(today) >= 0)
-                        .map(d -> new Cell(key, d.day(), d.hours(), false)).toList();
-                cells.saveJiraCells(epic, seed);
-            }
+            seed(epic, lineOf.get(key), pending, today);
             cells.saveJiraCells(epic, typed);
         });
         cells.saveRowCells(rowCells);
         return view(scope, epic);
+    }
+
+    /**
+     * Before the first pending cell of a sub-task in Jira: keeps its plan from today on as pending cells (typed), else writing
+     * one day would wipe the rest of Jira's plan.
+     */
+    private void seed(String epic, MatrixLine l, Map<String, List<Cell>> pending, String today) {
+        String key = l.ref();
+        if (pending.getOrDefault(key, List.of()).isEmpty()) {
+            cells.saveJiraCells(epic, l.cells().stream().filter(d -> d.day().compareTo(today) >= 0)
+                    .map(d -> new Cell(key, d.day(), d.hours(), false)).toList());
+        }
     }
 
     /** Changes the Total (Spent + Remaining) and the PIC of a sub-task in Jira; kept until the push. */

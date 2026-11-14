@@ -16,6 +16,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
 import tracker.application.AppError.Invalid;
+import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.service.DetailPlanImportService;
 import tracker.application.service.DetailPlanImportService.ImportChange;
@@ -34,6 +35,7 @@ import tracker.application.service.MasterScheduleService.PhaseRowIn;
 import tracker.application.service.TicketService;
 import tracker.application.service.TicketService.NewTicket;
 import tracker.domain.AccessStatus;
+import tracker.domain.Allocation;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Permissions;
@@ -61,6 +63,8 @@ class DetailPlanImportTest {
     DetailPlanImportService imports;
     @Autowired
     TicketService tickets;
+    @Autowired
+    AllocationRepository allocationRows;
 
     final Map<String, String> tasks = new java.util.HashMap<>();
 
@@ -75,6 +79,8 @@ class DetailPlanImportTest {
 
     /** Login (5 steps) and Run (a ticket) in ITA, Pay (3 steps) in ITB; Login is given An, Minh and Tanaka, Run An, Pay Bình and Minh. */
     List<EstimationRow> planned() {
+        // the demo's PAY-1176 is Chi's and not fully planned, but Chi gives the anken no hours: Auto allocate could not place it
+        allocationRows.save(new Allocation("chi", EPIC, "2026-09-01", 8), "test", "2026-10-07T00:00:00Z");
         task("ITB Execute");
         estimation.save(ALL, EPIC, List.of(row(0, "Login", 5, 8, task("ITA Create test case")), row(1, "Run", null, 16, task("ITA Execute")),
                 row(2, "Pay", 3, 8, task("ITB Create test case"))));
