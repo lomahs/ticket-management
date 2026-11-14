@@ -40,6 +40,16 @@ class PlanCellRepositoryTest {
     }
 
     @Test
+    void jiraCellsKeepAZeroHourRow() {
+        cells.saveJiraCells(EPIC, List.of(new Cell("PAY-1201", "2026-10-08", 4, false), new Cell("PAY-1201", "2026-10-09", 2, false)));
+        cells.saveJiraCells(EPIC, List.of(new Cell("PAY-1201", "2026-10-08", 0, false)));
+        assertThat(cells.jiraCells(EPIC).get("PAY-1201")).containsExactly(new Cell("PAY-1201", "2026-10-08", 0.0, false),
+                new Cell("PAY-1201", "2026-10-09", 2.0, false));
+        cells.deleteJira("PAY-1201");
+        assertThat(cells.jiraCells(EPIC)).isEmpty();
+    }
+
+    @Test
     void deleteRowCellsAutoOnlyKeepsTyped() {
         long id = newRow();
         Cell typed = new Cell(id + ":create", "2026-10-12", 3, false);

@@ -377,4 +377,26 @@ class DetailPlanMatrixTest {
         assertThatThrownBy(() -> detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(null, "nhan")))
                 .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "pic_id");
     }
+
+    @Test
+    void zeroedJiraCellsStayClearedAndDoNotReseed() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-07", 8.0, "2026-10-08", 4.0));
+        DetailPlanView v = detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-07", 0), new CellIn(key, "2026-10-08", 0)));
+        assertThat(line(v, key).cells()).isEmpty();
+        assertThat(line(v, key).notYetH()).isEqualTo(line(v, key).totalH() - line(v, key).spentH());
+        v = detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-09", 3)));
+        assertThat(line(v, key).cells()).containsExactly(new DayHours("2026-10-09", 3, false));
+    }
+
+    @Test
+    void anEditEqualToJirasValuesIsNoEdit() {
+        scheduled();
+        String key = jiraSubtask();
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        DetailPlanView v = detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(l.totalH(), "an"));
+        assertThat(cells.jiraEdits(EPIC)).isEmpty();
+        assertThat(line(v, key).pending()).isFalse();
+    }
 }

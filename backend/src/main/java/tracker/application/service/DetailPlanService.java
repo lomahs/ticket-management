@@ -905,7 +905,8 @@ public class DetailPlanService {
         Issue issue = ctx.subtasks().stream().filter(i -> i.key().equals(key)).findFirst().orElseThrow();
         Double remaining = was == null ? null : was.remainingH();
         if (total != null) {
-            remaining = Numbers.hours(total - l.spentH());
+            double wanted = Numbers.hours(total - l.spentH());
+            remaining = Math.abs(wanted - issue.remainingH()) < 0.01 ? null : wanted;
         }
         String assignee = pic != null ? (pic.equals(issue.assigneeId()) ? null : pic) : was == null ? null : was.assigneeId();
         cells.saveJiraEdit(epic, new JiraEdit(key, remaining, assignee));

@@ -69,12 +69,10 @@ class JdbcPlanCellRepository implements PlanCellRepository {
         for (Cell c : cells) {
             jdbc.sql("DELETE FROM plan_jira_cells WHERE issue_key = :key AND day = :day").param("key", c.ref()).param("day", c.day())
                     .update();
-            double hours = Numbers.hours(c.hours());
-            if (hours > 0) {
-                jdbc.sql("INSERT INTO plan_jira_cells (epic_key, issue_key, day, hours, auto) VALUES (:epic, :key, :day, :hours, :auto)")
-                        .param("epic", epic).param("key", c.ref()).param("day", c.day()).param("hours", hours)
-                        .param("auto", c.auto() ? 1 : 0).update();
-            }
+            double hours = Math.max(0, Numbers.hours(c.hours())); // a 0-hour row stays: the day is cleared, Jira's plan does not return
+            jdbc.sql("INSERT INTO plan_jira_cells (epic_key, issue_key, day, hours, auto) VALUES (:epic, :key, :day, :hours, :auto)")
+                    .param("epic", epic).param("key", c.ref()).param("day", c.day()).param("hours", hours)
+                    .param("auto", c.auto() ? 1 : 0).update();
         }
     }
 

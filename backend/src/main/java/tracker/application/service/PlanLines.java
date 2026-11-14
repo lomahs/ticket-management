@@ -148,7 +148,7 @@ final class PlanLines {
             }
         });
         if (hasCells) {
-            pendingCells.stream().filter(c -> c.day().compareTo(ctx.today) >= 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
+            pendingCells.stream().filter(c -> c.hours() > 0 && c.day().compareTo(ctx.today) >= 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
         }
         List<DayHours> days = sorted(cells);
         boolean closed = i.status() == Status.CLOSED;

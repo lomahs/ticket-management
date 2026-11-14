@@ -21,10 +21,13 @@ public interface PlanCellRepository {
 
     void deleteRowCells(String epic, boolean autoOnly);
 
-    /** Issue key → cells (Cell.ref = the key). */
+    /** Issue key → cells (Cell.ref = the key), 0-hour ones included. */
     Map<String, List<Cell>> jiraCells(String epic);
 
-    /** Upsert by (key, day); hours <= 0 deletes. */
+    /**
+     * Upsert by (key, day); a 0-hour cell is kept (the day is cleared). A key with any row here has pending cells, so Jira's plan
+     * from today on no longer shows for it.
+     */
     void saveJiraCells(String epic, List<Cell> cells);
 
     List<JiraEdit> jiraEdits(String epic);
