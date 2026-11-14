@@ -632,6 +632,7 @@ public class TicketService {
         List<String> updated = new ArrayList<>();
         Map<String, String> created = new LinkedHashMap<>();
         int sent = 0;
+        RuntimeException failure = null;
         try {
             for (TicketChangePreview p : plans) {
                 for (JiraRequest r : p.requests()) {
@@ -655,16 +656,34 @@ public class TicketService {
                 touched.add(key);
             }
         } catch (JiraRejected e) {
-            throw sent == 0 ? e : new JiraRejected(e.status(), "Jira applied " + sent + " of " + total + " requests, then refused the next: "
+            failure = sent == 0 ? e : new JiraRejected(e.status(), "Jira applied " + sent + " of " + total + " requests, then refused the next: "
                     + e.getMessage());
-        } finally {
-            onUpdated.accept(List.copyOf(updated));
-            onCreated.accept(Map.copyOf(created));
-            if (!touched.isEmpty()) {
-                sync.refresh(touched);
-            }
+        } catch (RuntimeException e) {
+            failure = e;
+        }
+        // what was created is recorded first (else the next push creates it again); each step runs whatever the others do
+        failure = then(failure, () -> onCreated.accept(Map.copyOf(created)));
+        failure = then(failure, () -> onUpdated.accept(List.copyOf(updated)));
+        if (!touched.isEmpty()) {
+            failure = then(failure, () -> sync.refresh(touched));
+        }
+        if (failure != null) {
+            throw failure;
         }
         return new BatchResult(plans.stream().map(TicketChangePreview::key).toList(), created);
+    }
+
+    /** Runs {@code step} after {@code failure} (null when none): the first failure stays the one thrown, later ones are suppressed in it. */
+    private static @Nullable RuntimeException then(@Nullable RuntimeException failure, Runnable step) {
+        try {
+            step.run();
+        } catch (RuntimeException e) {
+            if (failure == null) {
+                return e;
+            }
+            failure.addSuppressed(e);
+        }
+        return failure;
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();

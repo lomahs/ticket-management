@@ -742,6 +742,88 @@ class DetailPlanMatrixTest {
         assertThat(line(detail.view(ALL, EPIC), second).pending()).isTrue();
     }
 
+    /** {@code real}, except that writing a sub-task's kept plan (after its changes went to Jira) fails like a broken database. */
+    static PlanCellRepository failingDeleteJira(PlanCellRepository real) {
+        return (PlanCellRepository) java.lang.reflect.Proxy.newProxyInstance(PlanCellRepository.class.getClassLoader(),
+                new Class<?>[]{PlanCellRepository.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("deleteJira")) {
+                        throw new IllegalStateException("database is down");
+                    }
+                    try {
+                        return method.invoke(real, args);
+                    } catch (java.lang.reflect.InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+    }
+
+    /** Run and Walk (tickets of 8h, An, fully planned) and the sub-task Export in Jira with a pending Remaining and cells. */
+    String pushableRowsAndJiraLine() {
+        scheduled();
+        closeDemoSubtasks();
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 8, task("ITA Execute")), row(1, "Walk", null, 8, task("ITA Execute"))));
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        assign(rows, new RowAssign(rows.get(0).id(), "an", null, null), new RowAssign(rows.get(1).id(), "an", null, null));
+        cells.saveRowCells(List.of(new Cell(String.valueOf(rows.get(0).id()), "2026-10-12", 8, false),
+                new Cell(String.valueOf(rows.get(1).id()), "2026-10-13", 8, false)));
+        String key = smallSubtask("Export");
+        planDays.save(key, Map.of("2026-10-06", 1.0));
+        detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null)); // Remaining 4h
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2)));
+        assertThat(detail.view(ALL, EPIC).pushBlockers()).isEmpty();
+        return key;
+    }
+
+    DetailPlanService serviceWith(JiraWriter writer, PlanCellRepository cellRepo, tracker.adapters.fake.FakeJira jira, JiraWriteLog log, SyncService sync,
+                                  MasterScheduleRepository versions, Clock clock, AllocationService allocations, OnboardingRepository onboardingRows,
+                                  PlanVersionRepository planVersions, org.springframework.transaction.support.TransactionTemplate txTemplate) {
+        TicketService t = new TicketService(loader, new JiraCalls(Optional.of(writer), log, clock), (JiraReader) jira, sync);
+        return new DetailPlanService(loader, estimationRows, versions, allocations, t, onboardingRows, estimation, planDays, cellRepo, planVersions,
+                clock, txTemplate);
+    }
+
+    @Test
+    void aFailingPlanWriteAfterThePushStillMarksTheRowsPushed(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log,
+                                                              @Autowired SyncService sync, @Autowired MasterScheduleRepository versions,
+                                                              @Autowired Clock clock, @Autowired AllocationService allocations,
+                                                              @Autowired OnboardingRepository onboardingRows, @Autowired PlanVersionRepository planVersions,
+                                                              @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate) {
+        String key = pushableRowsAndJiraLine();
+        DetailPlanService broken = serviceWith(jira, failingDeleteJira(cells), jira, log, sync, versions, clock, allocations, onboardingRows,
+                planVersions, txTemplate);
+        assertThatThrownBy(() -> broken.push(ADMIN, ALL, EPIC)).isInstanceOf(IllegalStateException.class).hasMessage("database is down");
+        // both rows' sub-tasks exist in Jira: the rows are pushed, so the next push does not create them again
+        assertThat(estimationRows.findByEpic(EPIC)).hasSize(2).allMatch(EstimationRow::pushed);
+        // and what was sent was read back from Jira
+        assertThat(issues.findByKey(key).orElseThrow().remainingH()).isEqualTo(4);
+        // keeping the sub-task's plan is one transaction: its hours per day did not change either, its pending cells stay
+        assertThat(planDays.find(List.of(key)).get(key)).containsExactly(Map.entry("2026-10-06", 1.0));
+        assertThat(cells.jiraCells(EPIC)).containsKey(key);
+    }
+
+    @Test
+    void jirasRefusalSurvivesAFailingPlanWrite(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log,
+                                               @Autowired SyncService sync, @Autowired MasterScheduleRepository versions,
+                                               @Autowired Clock clock, @Autowired AllocationService allocations,
+                                               @Autowired OnboardingRepository onboardingRows, @Autowired PlanVersionRepository planVersions,
+                                               @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate) {
+        pushableRowsAndJiraLine();
+        AtomicInteger sent = new AtomicInteger();
+        JiraWriter failing = req -> {
+            if (sent.incrementAndGet() == 3) { // the update and Run's create go through; Walk's create is refused
+                throw new JiraRejected(400, "refused for the test");
+            }
+            return jira.send(req);
+        };
+        DetailPlanService broken = serviceWith(failing, failingDeleteJira(cells), jira, log, sync, versions, clock, allocations, onboardingRows,
+                planVersions, txTemplate);
+        assertThatThrownBy(() -> broken.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class).hasMessageContaining("refused for the test")
+                .satisfies(e -> assertThat(e.getSuppressed()).extracting(Throwable::getMessage).containsExactly("database is down"));
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        assertThat(rows.get(0).pushed()).isTrue();
+        assertThat(rows.get(1).pushed()).isFalse();
+    }
+
     @Test
     void saveVersionStoresTheWholePlan(@Autowired Clock clock, @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc) throws Exception {
         List<EstimationRow> rows = staffed();

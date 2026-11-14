@@ -856,7 +856,6 @@ public class DetailPlanService {
             return new BatchResult(List.of(), Map.of());
         }
         BatchResult r = tickets.applyBatch(actor, scope, epic, updates, creates, created -> {
-            created.forEach((ref, key) -> planDays.save(key, daysOf(line(c, ref))));
             List<Long> done = new ArrayList<>();
             for (EstimationRow row : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
                 List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == row.id()).toList();
@@ -864,9 +863,11 @@ public class DetailPlanService {
                     done.add(row.id());
                 }
             }
+            // marked first: a row left unmarked would create its sub-tasks again on the next push
             if (!done.isEmpty()) {
                 estimation.markPushed(done, Instant.now(clock).toString());
             }
+            created.forEach((ref, key) -> planDays.save(key, daysOf(line(c, ref))));
         }, kept);
         kept.accept(List.copyOf(sendsNothing));
         return r;
@@ -874,8 +875,10 @@ public class DetailPlanService {
 
     /** The plan's days of a sub-task in Jira (its past days and the line's cells from today) become its plan; its pending changes go. */
     private void keepPlan(Computed c, String key) {
-        planDays.save(key, daysOf(line(c, key)));
-        cells.deleteJira(key);
+        tx.executeWithoutResult(status -> {
+            planDays.save(key, daysOf(line(c, key)));
+            cells.deleteJira(key);
+        });
     }
 
     /** One update per pending sub-task in Jira that is not Closed: its PIC if it differs, Planned Start / End and its edited Remaining. */
