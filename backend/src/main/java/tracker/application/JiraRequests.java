@@ -26,6 +26,8 @@ public final class JiraRequests {
     public static final String ISSUE = "/rest/api/3/issue";
     /** Jira's own estimate field: written through time tracking, not by its id. */
     static final String ORIGINAL_ESTIMATE = "timeoriginalestimate";
+    /** Jira's own remaining-estimate field: written through time tracking, not by its id. */
+    static final String TIME_ESTIMATE = "timeestimate";
     /** Jira's own Due date: an update writes Planned End here as well. */
     public static final String DUE_DATE = "duedate";
     public static final String LABELS = "labels";
@@ -41,6 +43,7 @@ public final class JiraRequests {
             case PLANNED_START -> fm.plannedStart;
             case PLANNED_END -> fm.plannedEnd;
             case ESTIMATE -> ORIGINAL_ESTIMATE.equals(fm.effort) ? "timetracking.originalEstimate" : fm.effort;
+            case REMAINING -> TIME_ESTIMATE.equals(fm.remaining) ? "timetracking.remainingEstimate" : fm.remaining;
         };
     }
 
@@ -127,12 +130,24 @@ public final class JiraRequests {
             }
             case PLANNED_START, PLANNED_END -> fields.put(jiraField(f, fm), (String) v);
             case ESTIMATE -> estimate(fields, v == null ? null : ((Number) v).doubleValue(), fm);
+            case REMAINING -> remaining(fields, ((Number) v).doubleValue(), fm);
+        }
+    }
+
+    private static void remaining(ObjectNode fields, double hours, FieldMapping fm) {
+        if (TIME_ESTIMATE.equals(fm.remaining)) {
+            fields.with("timetracking").put("remainingEstimate", Math.round(hours * 60) + "m");
+        } else if (JiraValues.SECONDS_FIELDS.contains(fm.remaining)) {
+            throw new Invalid("The remaining estimate cannot be written to " + fm.remaining + "; map Remaining to " + TIME_ESTIMATE
+                    + " or a number field", "remaining_h");
+        } else {
+            fields.put(fm.remaining, hours);
         }
     }
 
     private static void estimate(ObjectNode fields, @Nullable Double hours, FieldMapping fm) {
         if (ORIGINAL_ESTIMATE.equals(fm.effort)) {
-            fields.putObject("timetracking").put("originalEstimate", hours == null ? null : Math.round(hours * 60) + "m");
+            fields.with("timetracking").put("originalEstimate", hours == null ? null : Math.round(hours * 60) + "m");
         } else if (JiraValues.SECONDS_FIELDS.contains(fm.effort)) {
             throw new Invalid("The estimate cannot be written to " + fm.effort + "; map Planned Effort to " + ORIGINAL_ESTIMATE
                     + " or a number field", "estimate_h");

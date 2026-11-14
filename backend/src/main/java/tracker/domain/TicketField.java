@@ -3,7 +3,7 @@ package tracker.domain;
 /** A field of a ticket the app may change in Jira. */
 public enum TicketField {
     SUMMARY("summary"), STATUS("status"), ASSIGNEE("assignee"), REPORTER("reporter"), PLANNED_START("planned_start"), PLANNED_END("planned_end"),
-    ESTIMATE("estimate");
+    ESTIMATE("estimate"), REMAINING("remaining");
 
     private final String value;
 

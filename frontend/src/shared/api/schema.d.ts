@@ -1885,7 +1885,7 @@ export interface components {
             after: string;
             before?: string | null;
             /** @enum {string} */
-            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
+            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate" | "remaining";
         };
         ChangePreview: {
             day_off: components["schemas"]["DateReason"][];
@@ -2243,7 +2243,7 @@ export interface components {
             after: string;
             before: string | null;
             /** @enum {string} */
-            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate";
+            field: "summary" | "status" | "assignee" | "reporter" | "planned_start" | "planned_end" | "estimate" | "remaining";
             jira_field: string;
         };
         FieldCheck: {

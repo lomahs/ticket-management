@@ -4573,7 +4573,7 @@
           },
           "field" : {
             "type" : "string",
-            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate", "remaining" ]
           }
         },
         "required" : [ "after", "field" ]
@@ -5668,7 +5668,7 @@
           },
           "field" : {
             "type" : "string",
-            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate" ]
+            "enum" : [ "summary", "status", "assignee", "reporter", "planned_start", "planned_end", "estimate", "remaining" ]
           },
           "jira_field" : {
             "type" : "string"

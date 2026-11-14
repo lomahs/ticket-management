@@ -304,6 +304,29 @@ class ServiceWritesTest {
     }
 
     @Test
+    void ticketRemainingIsWrittenThroughTimeTracking() {
+        double estimate = tickets.detail(ALL, "PAY-1213").card().estimateH();
+        double before = tickets.detail(ALL, "PAY-1213").card().remainingH();
+        TicketChangePreview p = tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, null, null, 4.0));
+        assertThat(p.changes()).hasSize(1);
+        assertThat(p.changes().get(0).field()).isEqualTo(tracker.domain.TicketField.REMAINING);
+        assertThat(p.changes().get(0).jiraField()).isEqualTo("timetracking.remainingEstimate");
+        assertThat(p.changes().get(0).after()).isEqualTo("4");
+        assertThat(p.changes().get(0).before()).isEqualTo(new java.math.BigDecimal(before).stripTrailingZeros().toPlainString());
+        assertThat(p.requests().get(0).body()).contains("\"remainingEstimate\":\"240m\"");
+        tickets.apply(ADMIN, ALL, "PAY-1213", expected(p));
+        TaskCard c = tickets.detail(ALL, "PAY-1213").card();
+        assertThat(c.remainingH()).isEqualTo(4.0);
+        assertThat(c.estimateH()).isEqualTo(estimate);
+
+        TicketChangePreview both = tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, 9.0, null, 2.0));
+        assertThat(both.requests()).extracting(r -> r.body())
+                .containsExactly("{\"fields\":{\"timetracking\":{\"originalEstimate\":\"540m\",\"remainingEstimate\":\"120m\"}}}");
+        assertThatThrownBy(() -> tickets.preview(ALL, "PAY-1213", new TicketChanges(null, null, null, null, null, null, null, -1.0)))
+                .isInstanceOf(Invalid.class);
+    }
+
+    @Test
     void applyWritesLogsAndSyncs(@Autowired JiraWriteLog log) {
         TicketChangePreview p = tickets.preview(ALL, "PAY-1213", want(Status.RESOLVED, "minh", null, null, "2026-10-08", null));
         TaskCard c = tickets.apply(ADMIN, ALL, "PAY-1213", expected(p)).card();

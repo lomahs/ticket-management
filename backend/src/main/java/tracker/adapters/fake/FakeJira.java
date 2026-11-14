@@ -83,7 +83,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
         fields.put(FIELDS.effort, i.estH != 0 ? (Object) (long) (i.estH * 3600) : null);
         // as Jira keeps it by default: each worklog takes its hours off the remaining estimate, down to 0
         double logged = i.worklogs.stream().mapToDouble(FakeIssue.Log::hours).sum();
-        fields.put(FIELDS.remaining, i.estH != 0 ? (Object) (long) (Math.max(0, i.estH - logged) * 3600) : null);
+        fields.put(FIELDS.remaining, i.remainingOverrideH != null ? (Object) (long) (i.remainingOverrideH * 3600) : i.estH != 0 ? (Object) (long) (Math.max(0, i.estH - logged) * 3600) : null);
         List<ChangeSnapshot> changes = new ArrayList<>();
         for (FakeIssue.Change c : i.changes) {
             if (c.field().equals("assignee")) {
@@ -235,7 +235,14 @@ public final class FakeJira implements JiraReader, JiraWriter {
                 }
                 case "summary" -> i.summary = v.asText();
                 case "reporter" -> i.reporter = v.isNull() ? null : removeAccPrefix(v.path("accountId").asText());
-                case "timetracking" -> i.estH = minutes(v.path("originalEstimate")) / 60.0;
+                case "timetracking" -> {
+                    if (v.has("originalEstimate")) {
+                        i.estH = minutes(v.path("originalEstimate")) / 60.0;
+                    }
+                    if (v.has("remainingEstimate")) {
+                        i.remainingOverrideH = v.get("remainingEstimate").isNull() ? null : minutes(v.get("remainingEstimate")) / 60.0;
+                    }
+                }
                 case JiraRequests.DUE_DATE -> {
                     // Accepted like Jira does; the app does not read an issue's due date back.
                 }

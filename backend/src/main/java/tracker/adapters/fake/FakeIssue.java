@@ -22,6 +22,8 @@ public final class FakeIssue {
     String ps;
     String pe;
     double estH;
+    /** Set by a write to the remaining estimate; null means Jira's default (estimate minus logged). */
+    Double remainingOverrideH;
     final String created;
     String updated = Dataset.UPDATED;
     final List<Log> worklogs;

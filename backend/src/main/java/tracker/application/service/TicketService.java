@@ -122,10 +122,17 @@ public class TicketService {
     /** What to change; fields that are null are left as they are. Only the Tickets screen changes the summary. */
     public record TicketChanges(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
                                 @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH,
-                                @Nullable String summary) {
+                                @Nullable String summary,
+                                @Nullable Double remainingH) {
         public TicketChanges(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
                              @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH) {
-            this(status, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, null);
+            this(status, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, null, null);
+        }
+
+        public TicketChanges(@Nullable Status status, @Nullable String assigneeId, @Nullable String reporterId,
+                             @Nullable String plannedStart, @Nullable String plannedEnd, @Nullable Double estimateH,
+                             @Nullable String summary) {
+            this(status, assigneeId, reporterId, plannedStart, plannedEnd, estimateH, summary, null);
         }
     }
 
@@ -179,11 +186,13 @@ public class TicketService {
         now.put(TicketField.PLANNED_END, JiraValues.date(live.fields().get(fm.plannedEnd)));
         Double h = JiraValues.hours(live.fields().get(fm.effort), fm.effort);
         now.put(TicketField.ESTIMATE, h == null ? null : hours(h));
+        Double r = JiraValues.hours(live.fields().get(fm.remaining), fm.remaining);
+        now.put(TicketField.REMAINING, r == null ? null : hours(r));
         return now;
     }
 
     private static boolean same(TicketField f, @Nullable String a, @Nullable String b) {
-        if (f == TicketField.ESTIMATE && a != null && b != null) {
+        if ((f == TicketField.ESTIMATE || f == TicketField.REMAINING) && a != null && b != null) {
             return Math.abs(Double.parseDouble(a) - Double.parseDouble(b)) < 1e-6;
         }
         return Objects.equals(a, b);
@@ -247,6 +256,13 @@ public class TicketService {
             }
             after.put(TicketField.ESTIMATE, hours(want.estimateH()));
             values.put(TicketField.ESTIMATE, want.estimateH());
+        }
+        if (want.remainingH() != null) {
+            if (!(want.remainingH() >= 0)) {
+                throw new Invalid("Remaining must be 0 hours or more", "remaining_h");
+            }
+            after.put(TicketField.REMAINING, hours(want.remainingH()));
+            values.put(TicketField.REMAINING, want.remainingH());
         }
         String start = after.getOrDefault(TicketField.PLANNED_START, now.get(TicketField.PLANNED_START));
         String end = after.getOrDefault(TicketField.PLANNED_END, now.get(TicketField.PLANNED_END));
@@ -542,9 +558,11 @@ public class TicketService {
         }
         try {
             String est = after.get(TicketField.ESTIMATE);
+            String rem = after.get(TicketField.REMAINING);
             return new TicketChanges(after.containsKey(TicketField.STATUS) ? Status.of(after.get(TicketField.STATUS)) : null,
                     after.get(TicketField.ASSIGNEE), after.get(TicketField.REPORTER), after.get(TicketField.PLANNED_START),
-                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est), after.get(TicketField.SUMMARY));
+                    after.get(TicketField.PLANNED_END), est == null ? null : Double.valueOf(est), after.get(TicketField.SUMMARY),
+                    rem == null ? null : Double.valueOf(rem));
         } catch (IllegalArgumentException e) {
             throw new Invalid(e.getMessage(), "changes");
         }
