@@ -163,17 +163,17 @@ working day after the previous one ends, with a Gantt by phase; 6 the detail pla
 overview lists the ankens in progress at the furthest step reached; Discard drops the progress and the rows not in Jira,
 and the epic stays tracked.
 
-**Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Re-plan once the anken runs; admins
+**Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Detail plan once the anken runs; admins
 write, Planning readers look). The estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per
 ticket without steps (its effort). Settings → Step weights (per anken or the default) gives each step its weight
 (× Create), its **PIC** (who Jira assigns the sub-task to at push: the function's BA or BAL) and its **effort shares**
 (the percent of its planned hours the function's BA and BAL carry; by default Create 100 % BA, BAL Review 100 % BAL, the
 Fix comment steps 70 % BA / 30 % BAL, JM Review nobody). The shares are the planned-effort rule of the whole app: Effort,
-Capacity (Effort and Planning), Re-plan, budgets and the master schedule; logged hours still count for their author. A phase's BA effort
+Capacity (Effort and Planning), budgets and the master schedule; logged hours still count for their author. A phase's BA effort
 is Σ each step's hours × its BA share, plus the tickets. The master schedule gives each phase its members and Start; its
 End is the later of the day the allocations of the members other than BALs use up the BA effort, and the day the longest
 function's reviews end after the Creates (one working day per step). Every save is a version, the first being the
-baseline; in Planning each phase has its own Start, so phases may overlap after a re-plan. The detail plan lists one line
+baseline; in Planning each phase has its own Start, so phases may overlap. The detail plan lists one line
 per sub-task (named by Settings → Name rules) with Phase, Effort, the function's BA and BAL (each with the hours they
 carry), its JM, Plan start and Plan end. Auto allocate or the admin picks the people; Effort and the dates can be set by
 hand (kept by Auto allocate), a step can be removed and restored, and Add function / Add task write new rows to the
@@ -184,9 +184,7 @@ section shows each member's planned / allocated hours per day. A member of the a
 that are not Closed) blocks the push; the plan shows a matrix of what the member is allocated to on each anken. A day
 planned above a member's allocation is only a warning: the push asks to confirm it. The push
 creates the sub-tasks under each row's Task through the reviewed batch, assigned by the step's PIC, with the BAL as the
-reporter of Create. Re-plan recomputes a phase from Jira (every sub-task but the Closed ones; a started one keeps its
-Planned Start and places its remaining estimate; a step's hours go to the function's BA and BAL by the shares, whoever
-its ticket is assigned to) and writes the moves through the same batch, on the real site too.
+reporter of Create.
 
 **Schedule state:** the Anken Overview judges every sub-task on its own planned dates. *Start* is early, late or on time (a
 sub-task not started is *late start* only after its planned start day, and one without a recorded start date but past
@@ -257,7 +255,7 @@ Import boundaries are checked by `src/architecture.test.ts`.
 | `/anken/$epic/matrix?task=&q=&members=&status=&prog=&sort=&r0…r4=`, `…/matrix/new` | Function Matrix (one Task at a time), Add function |
 | `/tickets`, `/tickets/$epic` | Tickets: an anken's Tasks and sub-tasks; admins edit and create them in one reviewed commit to Jira, anyone can open a selection in Jira or export it |
 | `/planning?start=&weeks=&hide=` | Planning: the Gantt by member and capacity |
-| `/planning/schedule`, `/planning/replan?phase=` | Updating a running anken's plan: master schedule (versions, the first is the baseline), re-plan |
+| `/planning/schedule`, `/planning/detail?anken=` | Updating a running anken's plan: master schedule (versions, the first is the baseline), detail plan (the same matrix as Onboarding's last step) |
 | `/onboarding`, `/onboarding/new`, `/onboarding/$epic/$step` | Onboarding a new anken (admins): the overview, then the steps `epic`, `tasks`, `estimation`, `members`, `schedule`, `detail` |
 | `/effort/timesheet?view=&from=&month=`, `/effort/analysis?anken=` | Effort |
 | `/calendar?month=`, `/calendar/leave/new`, `/calendar/leave/$id`, `/calendar/import/$step` | Team Calendar |

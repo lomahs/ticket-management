@@ -162,6 +162,8 @@ const ticketCheck = createRoute({
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
 
+const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), validateSearch: z.object({ anken: z.string().optional().catch(undefined) }), component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
+
 const onboardingPages = () => import('../features/onboarding');
 const onboarding = createRoute({ getParentRoute: () => app, path: 'onboarding', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingPage') });
 const onboardingNew = createRoute({ getParentRoute: () => app, path: 'onboarding/new', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'NewOnboardingPage') });
@@ -219,7 +221,7 @@ const adminUsers = createRoute({
 const routeTree = root.addChildren([
   login, noAccess,
   app.addChildren([
-  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningSchedule, onboarding, onboardingNew, onboardingStep, effort, timesheet, analysis, burndown,
+  index, myWork, matrixEntry, ticketsEntry, tickets, overview, ankenDetail, ticketList, matrix, addFunction, phaseSettings, daily, ticketCheck, planning, planningSchedule, planningDetail, onboarding, onboardingNew, onboardingStep, effort, timesheet, analysis, burndown,
   calendar.addChildren([newLeave, editLeave, importLeave]), settings, settingsTab, adminUsers,
   ]),
 ]);

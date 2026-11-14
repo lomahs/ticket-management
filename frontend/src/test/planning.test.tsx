@@ -79,3 +79,37 @@ describe('detail planning', () => {
     expect(within(versions).getByText('Baseline')).toBeTruthy();
   });
 });
+
+describe('planning tabs', () => {
+  const line = { ref: '2', row_id: 2, issue_key: null, phase: 'ITA', function: 'Run', step: null, summary: '[PAY] Run', pic_id: null, reporter_id: null,
+    total_h: 16, spent_h: 0, planned_h: 0, not_yet_h: 16, start: null, end: null, cells: [], logged: [], closed: false, pending: false,
+    out_of_order: false, removed: false, edited: false };
+  const view = { rows: [{ id: 2, epic_key: 'PAY-1100', position: 1, phase: 'ITA', subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16,
+    ba_id: null, bal_id: null, jm_id: null, task_key: 'PAY-1102', pushed_at: null }],
+  tasks: [{ key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' }], window: ['2026-10-07', '2026-10-08'], lines: [line],
+  over_budget: [], allocated: [], over_day: [], checks: [], days: [], stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null };
+
+  it('lists the Detail plan tab and no Re-plan tab', async () => {
+    renderApp('/planning/schedule?anken=PAY-1100');
+    const tabs = await screen.findByRole('tablist', { name: 'Planning' });
+    expect(within(tabs).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Gantt', 'Master schedule', 'Detail plan']);
+    expect(within(tabs).queryByText('Re-plan')).toBeNull();
+  });
+
+  it('shows the matrix of the picked anken', async () => {
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)));
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect((await screen.findAllByText('[PAY] Run')).length).toBeGreaterThan(0);
+  });
+
+  it('asks for an anken and shows no matrix without one', async () => {
+    renderApp('/planning/detail');
+    expect(await screen.findByText('Pick an anken in the switcher to plan it.')).toBeTruthy();
+    expect(screen.queryByText('[PAY] Run')).toBeNull();
+  });
+
+  it('shows the not-found page for the removed Re-plan address', async () => {
+    renderApp('/planning/replan?phase=ITA');
+    expect(await screen.findByText('Page not found')).toBeTruthy();
+  });
+});

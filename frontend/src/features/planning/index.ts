@@ -2,3 +2,4 @@ export { PlanningPage } from './components/PlanningPage';
 export { planningSearch } from './search';
 export { MasterSchedulePage } from './schedule/MasterSchedulePage';
 export { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn, type PhaseRow } from './schedule/api';
+export { DetailPlanPage } from './detail/DetailPlanPage';
