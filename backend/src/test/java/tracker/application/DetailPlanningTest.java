@@ -115,8 +115,6 @@ class DetailPlanningTest {
 
     /** Login and Run under new ITA Tasks, Pay under a new ITB Task (ITB Execute makes ITB a phase group: two Tasks share it). */
     void estimate() {
-        // the demo's PAY-1176 is Chi's and not fully planned, but Chi gives the anken no hours: Auto allocate could not place it
-        allocationRows.save(new Allocation("chi", EPIC, "2026-09-01", 8), "test", "2026-10-07T00:00:00Z");
         task("ITB Execute");
         estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(task("ITA Create test case")),
                 row(0, 1, "Run", null, 16).withTask(task("ITA Execute")),
@@ -635,7 +633,8 @@ class DetailPlanningTest {
     @Test
     void rowsCreatedBeforeJiraRefusesStayPushed(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log,
                                                 @Autowired SyncService sync, @Autowired MasterScheduleRepository versions, @Autowired Clock clock,
-                                                @Autowired PlanVersionRepository planVersions) {
+                                                @Autowired PlanVersionRepository planVersions,
+                                                @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate) {
         List<EstimationRow> rows = pushable();
         AtomicInteger sent = new AtomicInteger();
         JiraWriter failing = req -> {
@@ -646,7 +645,7 @@ class DetailPlanningTest {
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
         DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays,
-                cells, planVersions, clock);
+                cells, planVersions, clock, txTemplate);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));

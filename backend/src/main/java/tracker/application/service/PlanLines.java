@@ -187,7 +187,7 @@ final class PlanLines {
     }
 
     /** The function a sub-task is a step of, else the sub-task alone. */
-    private static String chain(Issue i) {
+    static String chain(Issue i) {
         return Text.hasText(i.functionId()) ? "fn:" + i.functionId() : i.key();
     }
 

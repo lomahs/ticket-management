@@ -17,6 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
@@ -79,11 +80,12 @@ public class DetailPlanService {
     private final PlanCellRepository cells;
     private final PlanVersionRepository planVersions;
     private final Clock clock;
+    private final TransactionTemplate tx;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
                              AllocationService allocations, TicketService tickets, OnboardingRepository onboarding,
                              EstimationService estimations, PlanDayRepository planDays, PlanCellRepository cells,
-                             PlanVersionRepository planVersions, Clock clock) {
+                             PlanVersionRepository planVersions, Clock clock, TransactionTemplate tx) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
@@ -95,6 +97,7 @@ public class DetailPlanService {
         this.cells = cells;
         this.planVersions = planVersions;
         this.clock = clock;
+        this.tx = tx;
     }
 
     /** @param baId the BA of a function, or the one member of a row without steps */
@@ -351,7 +354,12 @@ public class DetailPlanService {
                         PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w))).toList(),
                 phases, roles, loads(ctx, epic, Set.of()), givenBefore(ctx, epic, Set.of()),
                 AutoAllocator.cached(DetailScheduler.hours(epic, a, ctx.cal)), ctx.cal, w, ctx.settings.workingHours.hoursPerDay());
-        List<RowAssign> assigns = AutoAllocator.allocate(in).stream().map(p -> new RowAssign(p.rowId(), p.baId(), p.balId(), p.jmId())).toList();
+        List<RowAssign> assigns;
+        try {
+            assigns = AutoAllocator.allocate(in).stream().map(p -> new RowAssign(p.rowId(), p.baId(), p.balId(), p.jmId())).toList();
+        } catch (RuleError e) { // the people of a row cannot take it
+            throw new Invalid(e.getMessage(), "plan");
+        }
         saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
         List<String> problems = basis(scope, epic).problems();
         if (!problems.isEmpty()) {
@@ -362,9 +370,10 @@ public class DetailPlanService {
     }
 
     /**
-     * Fills the Not yet of every line ({@link MatrixFill}) as Auto allocate's cells. Hours added on a day that already has a
-     * cell join it, which keeps whether it was typed; a sub-task in Jira without pending cells first keeps Jira's plan from
-     * today on.
+     * Fills the Not yet of every line ({@link MatrixFill}) as Auto allocate's cells, all written at once. Hours added on a day
+     * that already has a cell join it, which keeps whether it was typed; a sub-task in Jira without pending cells first keeps
+     * Jira's plan from today on. Refused when the people of an unpushed row cannot take it; a sub-task in Jira they cannot
+     * take keeps its Not yet.
      */
     private void fill(AnkenScope scope, String epic, Allocations a) {
         Computed c = compute(scope, epic);
@@ -373,19 +382,26 @@ public class DetailPlanService {
         Map<String, MatrixLine> lineOf = new HashMap<>();
         lines.forEach(l -> lineOf.put(l.ref(), l));
         Map<String, List<Effort.PlanShare>> jiraShares = new HashMap<>();
+        Map<String, String> jiraChains = new HashMap<>();
         for (Issue i : openSubtasks(ctx, epic, Set.of())) {
             MatrixLine l = lineOf.get(i.key());
             if (l != null) {
                 jiraShares.put(i.key(), PlanLines.shares(ctx.planShares(i), i.assigneeId(), l.picId()));
+                jiraChains.put(i.key(), PlanLines.chain(i));
             }
         }
         Map<String, Map<String, Double>> added;
         try {
-            added = MatrixFill.fill(epic, lines, c.rows(), c.stepsOf(), phases(c.schedule()), jiraShares, c.parts(), a, ctx.cal, ctx.today,
-                    ctx.settings.workingHours.hoursPerDay(), c.weights());
+            added = MatrixFill.fill(epic, lines, c.rows(), c.stepsOf(), phases(c.schedule()), jiraShares, jiraChains, c.parts(), a, ctx.cal,
+                    ctx.today, ctx.settings.workingHours.hoursPerDay(), c.weights());
         } catch (RuleError e) {
             throw new Invalid(e.getMessage(), "plan");
         }
+        tx.executeWithoutResult(status -> save(epic, ctx.today, lineOf, added));
+    }
+
+    /** Writes what Auto allocate adds: on a day with a cell, the sum, which keeps whether it was typed; else a filled cell. */
+    private void save(String epic, String today, Map<String, MatrixLine> lineOf, Map<String, Map<String, Double>> added) {
         List<Cell> rowCells = new ArrayList<>();
         Map<String, List<Cell>> pending = cells.jiraCells(epic);
         added.forEach((ref, days) -> {
@@ -400,7 +416,7 @@ public class DetailPlanService {
             if (l.issueKey() == null) {
                 rowCells.addAll(out);
             } else {
-                seed(epic, l, pending, ctx.today);
+                seed(epic, l, pending, today);
                 cells.saveJiraCells(epic, out);
             }
         });

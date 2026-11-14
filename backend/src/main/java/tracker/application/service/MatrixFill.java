@@ -1,13 +1,16 @@
 package tracker.application.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import org.jspecify.annotations.Nullable;
 
+import tracker.application.service.DetailPlanService.DayHours;
 import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.domain.Allocations;
 import tracker.domain.Dates;
@@ -17,6 +20,7 @@ import tracker.domain.Effort;
 import tracker.domain.EstimationRow;
 import tracker.domain.Numbers;
 import tracker.domain.PlanRows;
+import tracker.domain.RuleError;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
@@ -24,8 +28,9 @@ import tracker.domain.Text;
 import tracker.domain.WorkCalendar;
 
 /**
- * What Auto allocate adds to the matrix: the Not yet of each line, placed by {@link DetailScheduler} in the hours its people
- * have left around everything the matrix already holds. Typed and filled cells stay; only the remainder is placed.
+ * What Auto allocate adds to the matrix: the Not yet of each line, placed by {@link DetailScheduler} step by step in the hours
+ * its people have left around everything the matrix already holds and what was placed before it. Typed and filled cells
+ * stay; only the remainder is placed, never before an earlier step of its function ends.
  */
 final class MatrixFill {
     private MatrixFill() {
@@ -37,75 +42,144 @@ final class MatrixFill {
     /**
      * Ref → day → hours Auto allocate adds; nothing for a line with Not yet <= 0, a removed line or a Closed sub-task.
      * <ul>
-     * <li>An unpushed row is one chain of its steps not removed with Not yet, each for its Not yet; nothing of it before the
-     * latest of its phase's master Start, {@code today} and the last day of the nearest earlier step of the row with cells.</li>
-     * <li>A sub-task in Jira is a chain of its own, for its Not yet by {@code jiraShares}; nothing of it before the latest of
-     * {@code today} and its last cell.</li>
+     * <li>The unpushed rows first, in row order, then their steps in step order: each step not removed with Not yet is placed
+     * on its own, for its Not yet, from the latest of its phase's master Start, {@code today} and the last day (its cells and
+     * what was placed) of every earlier step of its row.</li>
+     * <li>Then each sub-task in Jira, function by function in step order, for its Not yet by {@code jiraShares}: from the
+     * latest of {@code today}, its last cell and the last day from today on (cells and what was placed) of every earlier
+     * step of its function. A sub-task its people cannot take ({@link RuleError}) is left out and keeps its Not yet.</li>
      * </ul>
      *
      * @param jiraShares issue key → who carries a sub-task's hours from today on (a pending PIC included)
+     * @param jiraChains issue key → the function it is a step of ("fn:&lt;id&gt;"), else its own key
      * @param parts      everything already in the matrix, typed or not, which the fill does not use again
-     * @throws tracker.domain.RuleError as {@link DetailScheduler#schedule} does
+     * @throws RuleError when the people of an unpushed row's step cannot take it, as {@link DetailScheduler#schedule}
      */
     static Map<String, Map<String, Double>> fill(String epic, List<MatrixLine> lines, List<EstimationRow> rows,
                                                  Map<Long, List<PlanRows.RowStep>> stepsOf, Map<String, PhaseRow> phases,
-                                                 Map<String, List<Effort.PlanShare>> jiraShares, List<DetailScheduler.Part> parts, Allocations a,
-                                                 WorkCalendar cal, String today, double jmHoursPerDay, StepWeights w) {
+                                                 Map<String, List<Effort.PlanShare>> jiraShares, Map<String, String> jiraChains,
+                                                 List<DetailScheduler.Part> parts, Allocations a, WorkCalendar cal, String today,
+                                                 double jmHoursPerDay, StepWeights w) {
         Map<String, MatrixLine> lineOf = new HashMap<>();
         lines.forEach(l -> lineOf.put(l.ref(), l));
-        Map<String, Map<String, Double>> loads = new HashMap<>();
-        parts.forEach(p -> loads.computeIfAbsent(p.memberId(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
+        Map<String, Map<String, Double>> ledger = new HashMap<>();
+        parts.forEach(p -> ledger.computeIfAbsent(p.memberId(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
+        Run run = new Run(epic, ledger, a, cal, jmHoursPerDay, w.daySplit());
 
-        List<DetailScheduler.Chain> chains = new ArrayList<>();
         for (EstimationRow r : rows) {
-            List<PlanRows.RowStep> steps = stepsOf.getOrDefault(r.id(), List.of());
-            List<PlanRows.RowStep> open = new ArrayList<>();
-            String before = null; // the last day of the nearest step with cells before the first one to fill
-            for (PlanRows.RowStep st : steps) {
+            PhaseRow phase = phases.get(r.phase());
+            String before = null; // the last day of the row's earlier steps: their cells and what was placed
+            for (PlanRows.RowStep st : stepsOf.getOrDefault(r.id(), List.of())) {
                 MatrixLine l = lineOf.get(st.ref());
                 if (st.removed() || l == null) {
                     continue;
                 }
+                String end = l.end();
                 if (l.notYetH() > EPS) {
-                    open.add(new PlanRows.RowStep(st.kind(), st.ref(), l.notYetH(), null));
-                } else if (open.isEmpty() && l.end() != null) {
-                    before = l.end();
+                    String earliest = from(today, phase == null ? null : phase.start(), before);
+                    DetailScheduler.Chain c = PlanRows.chain(r.phase(), List.of(new PlanRows.RowStep(st.kind(), st.ref(), l.notYetH(), null)),
+                            r.baId(), r.balId(), r.jmId(), w, earliest);
+                    if (c != null) {
+                        end = latest(end, run.place(c));
+                    }
                 }
+                before = latest(before, end);
             }
-            if (open.isEmpty()) {
-                continue;
-            }
-            PhaseRow phase = phases.get(r.phase());
-            String earliest = latest(today, phase == null ? null : phase.start(), before);
-            DetailScheduler.Chain c = PlanRows.chain(r.phase(), open, r.baId(), r.balId(), r.jmId(), w, earliest);
-            if (c != null) {
-                chains.add(c);
-            }
-        }
-        for (MatrixLine l : lines) {
-            if (l.issueKey() == null || l.closed() || l.removed() || l.notYetH() <= EPS) {
-                continue;
-            }
-            StepKind kind = l.step() == null ? null : StepKind.of(l.step());
-            double h = l.notYetH();
-            List<DetailScheduler.Share> shares = kind == StepKind.JM_REVIEW ? List.of() : shares(h, jiraShares.getOrDefault(l.issueKey(), List.of()));
-            String who = Text.hasText(l.picId()) ? l.picId() : shares.isEmpty() ? null : shares.getFirst().memberId();
-            if (who == null) { // nobody to place it for
-                continue;
-            }
-            chains.add(new DetailScheduler.Chain(latest(today, l.end(), null),
-                    List.of(new DetailScheduler.Step(l.ref(), l.phase(), kind, shares, who, h, null, null))));
         }
 
-        DetailScheduler.Result res = DetailScheduler.schedule(epic, chains, loads, a, cal, jmHoursPerDay, w.daySplit());
-        Map<String, Map<String, Double>> out = new TreeMap<>();
-        res.parts().forEach(p -> out.computeIfAbsent(p.ref(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
-        for (Placed p : res.placed()) {
-            if (!p.counted()) { // JM Review: its Not yet evenly over the JM's working days
-                spread(p, cal).forEach((d, hours) -> out.computeIfAbsent(p.ref(), k -> new TreeMap<>()).merge(d, hours, Numbers::sum));
+        // the sub-tasks in Jira, function by function, each function's steps in step order
+        Map<String, List<MatrixLine>> chains = new LinkedHashMap<>();
+        for (MatrixLine l : lines) {
+            if (l.issueKey() != null && !l.closed() && !l.removed()) {
+                chains.computeIfAbsent(jiraChains.getOrDefault(l.issueKey(), l.issueKey()), k -> new ArrayList<>()).add(l);
             }
         }
-        return out;
+        for (List<MatrixLine> chain : chains.values()) {
+            List<MatrixLine> ordered = new ArrayList<>(chain);
+            ordered.sort(Comparator.comparingInt(MatrixFill::order));
+            String before = null; // the last day from today on of the function's earlier steps
+            for (MatrixLine l : ordered) {
+                String end = null;
+                for (DayHours d : l.cells()) {
+                    if (d.hours() > 0 && d.day().compareTo(today) >= 0) {
+                        end = latest(end, d.day());
+                    }
+                }
+                DetailScheduler.Step step = l.notYetH() > EPS ? jiraStep(l, jiraShares) : null;
+                if (step != null) {
+                    String earliest = from(today, l.end(), before);
+                    try {
+                        end = latest(end, run.place(new DetailScheduler.Chain(earliest, List.of(step))));
+                    } catch (RuleError e) { // its people have no hours for it: it keeps its Not yet
+                    }
+                }
+                before = latest(before, end);
+            }
+        }
+        return run.out;
+    }
+
+    /** A sub-task's Not yet as a step; null when nobody can carry it. */
+    private static DetailScheduler.@Nullable Step jiraStep(MatrixLine l, Map<String, List<Effort.PlanShare>> jiraShares) {
+        StepKind kind = l.step() == null ? null : StepKind.of(l.step());
+        double h = l.notYetH();
+        String pic = Text.hasText(l.picId()) ? l.picId() : null;
+        List<DetailScheduler.Share> shares;
+        if (kind == StepKind.JM_REVIEW) { // counts for nobody: over its PIC's working days
+            shares = List.of();
+        } else {
+            shares = shares(h, jiraShares.getOrDefault(l.issueKey(), List.of()));
+            if (shares.isEmpty() && pic != null) { // counted, all its PIC's
+                shares = List.of(new DetailScheduler.Share(pic, Numbers.hours(h)));
+            }
+            if (shares.isEmpty()) {
+                return null;
+            }
+        }
+        String who = pic != null ? pic : shares.isEmpty() ? null : shares.getFirst().memberId();
+        return who == null ? null : new DetailScheduler.Step(l.ref(), l.phase(), kind, shares, who, h, null, null);
+    }
+
+    private static int order(MatrixLine l) {
+        return l.step() == null ? 0 : StepKind.of(l.step()).ordinal();
+    }
+
+    /** One step placed at a time, each in the hours the ones before it left. */
+    private static final class Run {
+        final String epic;
+        Map<String, Map<String, Double>> ledger;
+        final Allocations a;
+        final WorkCalendar cal;
+        final double jmHoursPerDay;
+        final StepWeights.DaySplit split;
+        final Map<String, Map<String, Double>> out = new TreeMap<>();
+
+        Run(String epic, Map<String, Map<String, Double>> ledger, Allocations a, WorkCalendar cal, double jmHoursPerDay, StepWeights.DaySplit split) {
+            this.epic = epic;
+            this.ledger = ledger;
+            this.a = a;
+            this.cal = cal;
+            this.jmHoursPerDay = jmHoursPerDay;
+            this.split = split;
+        }
+
+        /**
+         * Places a chain, keeps its hours by ref and day and takes them out of the people's free hours; returns its last day
+         * (null when nothing was placed). On {@link RuleError} nothing changes.
+         */
+        @Nullable String place(DetailScheduler.Chain c) {
+            DetailScheduler.Result res = DetailScheduler.schedule(epic, List.of(c), ledger, a, cal, jmHoursPerDay, split);
+            ledger = res.ledger();
+            res.parts().forEach(p -> out.computeIfAbsent(p.ref(), k -> new TreeMap<>()).merge(p.date(), p.hours(), Numbers::sum));
+            String end = null;
+            for (Placed p : res.placed()) {
+                if (!p.counted()) { // JM Review: its hours evenly over its person's working days
+                    spread(p, cal).forEach((d, hours) -> out.computeIfAbsent(p.ref(), k -> new TreeMap<>()).merge(d, hours, Numbers::sum));
+                }
+                end = latest(end, p.end());
+            }
+            return end;
+        }
     }
 
     /** A step that counts for nobody: its hours over the working days of its person from its start to its end, the rest on the last. */
@@ -143,14 +217,12 @@ final class MatrixFill {
         return out;
     }
 
-    private static String latest(String a, @Nullable String b, @Nullable String c) {
-        String out = a;
-        if (b != null) {
-            out = Dates.max(out, b);
-        }
-        if (c != null) {
-            out = Dates.max(out, c);
-        }
-        return out;
+    /** The latest of {@code today} and the days given. */
+    private static String from(String today, @Nullable String a, @Nullable String b) {
+        return Dates.max(today, Dates.max(a == null ? today : a, b == null ? today : b));
+    }
+
+    private static @Nullable String latest(@Nullable String a, @Nullable String b) {
+        return a == null ? b : b == null ? a : Dates.max(a, b);
     }
 }
