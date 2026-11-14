@@ -6,6 +6,7 @@ import { statusOf } from '../../../shared/format/labels';
 type Field = Schemas['FieldChange']['field'];
 const LABEL: Record<Field, string> = {
   summary: 'Summary', status: 'Status', assignee: 'Assignee', reporter: 'Reporter', planned_start: 'Start', planned_end: 'End', estimate: 'Estimate',
+  remaining: 'Remaining',
 };
 
 function show(field: Field, v: string | null | undefined, name: (id: string) => string): string {
@@ -13,7 +14,7 @@ function show(field: Field, v: string | null | undefined, name: (id: string) => 
   if (field === 'summary') return v;
   if (field === 'status') return statusOf(v).label;
   if (field === 'assignee' || field === 'reporter') return name(v);
-  if (field === 'estimate') return hrs(Number(v));
+  if (field === 'estimate' || field === 'remaining') return hrs(Number(v));
   return ymd(v);
 }
 

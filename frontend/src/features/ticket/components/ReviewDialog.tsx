@@ -7,7 +7,7 @@ type Field = Schemas['FieldChange']['field'];
 
 const LABEL: Record<Field, string> = {
   summary: 'Summary', status: 'Status', assignee: 'Assignee', reporter: 'Reporter', planned_start: 'Planned Start', planned_end: 'Planned End',
-  estimate: 'Original estimate',
+  estimate: 'Original estimate', remaining: 'Remaining estimate',
 };
 
 /** A raw value of the API as the review shows it. */
@@ -16,7 +16,7 @@ function show(field: Field, v: string | null | undefined, name: (id: string) => 
   if (field === 'summary') return v;
   if (field === 'status') return statusOf(v).label;
   if (field === 'assignee' || field === 'reporter') return name(v);
-  if (field === 'estimate') return hrs(Number(v));
+  if (field === 'estimate' || field === 'remaining') return hrs(Number(v));
   return ymd(v);
 }
 
