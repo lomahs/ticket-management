@@ -67,7 +67,7 @@ public final class Effort {
             out.add(new PlanShare(ba, s.ba() / 100));
         }
         if (bal != null && s.bal() > 0) {
-            if (bal.equals(ba)) {
+            if (!out.isEmpty() && bal.equals(ba)) {
                 out.set(0, new PlanShare(ba, (s.ba() + s.bal()) / 100));
             } else {
                 out.add(new PlanShare(bal, s.bal() / 100));

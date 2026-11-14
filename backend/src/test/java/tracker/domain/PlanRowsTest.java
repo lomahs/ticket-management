@@ -20,4 +20,11 @@ class PlanRowsTest {
         assertThat(PlanRows.shares(new RowStep(StepKind.JM_REVIEW, "1:jmr", 1, null), "an", "minh", W)).isEmpty();
         assertThat(PlanRows.shares(new RowStep(null, "1", 4, null), "an", null, W)).isEqualTo(List.of(new PlanShare("an", 1.0)));
     }
+
+    @Test
+    void sharesOfOnePersonWhoseBaShareIsZero() {
+        StepWeights w = new StepWeights(StepWeights.defaults().weights(), null, java.util.Map.of(StepKind.FIX_BAL, new StepWeights.Share(0, 100)));
+        RowStep fix = new RowStep(StepKind.FIX_BAL, "1:fixb", 4, null);
+        assertThat(PlanRows.shares(fix, "an", "an", w)).isEqualTo(List.of(new PlanShare("an", 1.0)));
+    }
 }
