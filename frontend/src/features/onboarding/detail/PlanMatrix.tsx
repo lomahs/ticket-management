@@ -43,7 +43,9 @@ function HoursInput({ label, value, blank, send, style }: {
     const n = t === '' && blank === 'zero' ? 0 : Number(t);
     if (t === '' && blank === 'keep') { setDraft(null); return; }
     if (!Number.isFinite(n) || n < 0 || Math.abs(n - value) < 0.005) { setDraft(null); return; }
-    void send(Math.round(n * 100) / 100).finally(() => setDraft(null));
+    const sent = draft;
+    // what was typed again meanwhile stays until it is left in turn
+    void send(Math.round(n * 100) / 100).finally(() => setDraft((d) => (d === sent ? null : d)));
   };
   return (
     <input type="number" min={0} step={0.5} aria-label={label} value={shown} onChange={(e) => setDraft(e.target.value)}

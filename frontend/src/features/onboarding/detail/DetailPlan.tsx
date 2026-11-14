@@ -58,6 +58,8 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
   const members = useQuery(membersQuery(epic)).data ?? [];
   const open = v.rows.filter((r) => !r.pushed_at);
   const shown = v.lines.filter((l) => !l.removed);
+  // Clear empties the rows not in Jira yet (and brings their removed lines back) and drops the Jira changes not pushed
+  const clearable = open.length > 0 || v.lines.some((l) => l.issue_key != null && l.pending);
   // a slot Auto allocate would fill: Auto allocate is the next thing to do while one is left
   const empty = open.some((r) => !r.ba_id || (r.steps && (!r.bal_id || (r.steps > 3 && !r.jm_id))));
 
@@ -94,7 +96,7 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
   const swap = (a: number, b: number) => draft({ order: open.map((r) => (r.id === a ? b : r.id === b ? a : r.id)) });
 
   const more: (MenuItem | 'sep')[] = [
-    ...(admin && shown.length > 0 ? [
+    ...(admin && clearable ? [
       { label: 'Clear, keep my input', icon: 'eraser' as const, disabled: busy,
         title: 'Empties the hours and the BA / BAL / JM Auto allocate filled. Hours you typed, people you picked, efforts you set and removed lines stay: Auto allocate then fills again around them.',
         onClick: () => clearPlan(true) },

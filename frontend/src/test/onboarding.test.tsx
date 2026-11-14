@@ -483,6 +483,67 @@ describe('onboarding', () => {
     expect(await screen.findByText('[PAY] Login – BAL Review: starts before the step before it ends')).toBeTruthy();
   });
 
+  it('sends a write after the cell saved before it, not alongside it', async () => {
+    const order: string[] = [];
+    let release = () => {};
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async () => {
+        order.push('cells');
+        await new Promise<void>((r) => { release = r; });
+        order.push('cells done');
+        return HttpResponse.json(detailView());
+      }),
+      http.post('*/api/v1/planning/PAY-1100/detail/versions', () => { order.push('version'); return HttpResponse.json(detailView()); }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '8' } });
+    fireEvent.blur(cell);
+    await waitFor(() => expect(order).toEqual(['cells']));
+    fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(order).toEqual(['cells']); // the version waits for the cell
+    release();
+    await waitFor(() => expect(order).toEqual(['cells', 'cells done', 'version']));
+  });
+
+  it('keeps hours typed again while the earlier ones are being saved', async () => {
+    const sent: unknown[] = [];
+    let release = () => {};
+    onboarding({ step: 6 });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async ({ request }) => {
+        const b = await request.json() as { cells: { hours: number }[] };
+        sent.push(b);
+        if (sent.length === 1) await new Promise<void>((r) => { release = r; });
+        return HttpResponse.json(detailView({ lines: [...LINES.slice(0, 2), run({ cells: [{ day: '2026-10-12', hours: b.cells[0].hours, auto: false }] })] }));
+      }),
+    );
+    renderApp('/onboarding/PAY-1100/detail');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement;
+    fireEvent.change(cell, { target: { value: '8' } });
+    fireEvent.blur(cell);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    fireEvent.change(cell, { target: { value: '6' } }); // typed again before the 8 is saved
+    release();
+    await waitFor(() => expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('6'));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cell.value).toBe('6'); // the answer to the 8 does not wipe the 6
+    fireEvent.blur(cell);
+    await waitFor(() => expect(sent).toEqual([{ cells: [{ ref: '2', day: '2026-10-12', hours: 8 }] }, { cells: [{ ref: '2', day: '2026-10-12', hours: 6 }] }]));
+  });
+
+  it('can clear the plan when every line is removed', async () => {
+    onboarding({ step: 6 });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: LINES.map((l) => ({ ...l, removed: true })) }))));
+    renderApp('/onboarding/PAY-1100/detail');
+    fireEvent.click(await screen.findByRole('button', { name: 'More' }));
+    expect(screen.getByRole('menuitem', { name: 'Clear all' })).toBeTruthy(); // brings the removed lines back
+  });
+
   it('saves a version', async () => {
     let posts = 0;
     onboarding({ step: 6 });

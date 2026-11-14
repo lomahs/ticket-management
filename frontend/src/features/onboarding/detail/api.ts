@@ -10,7 +10,8 @@ export const detailPlanQuery = (epic: string) => ({
   queryFn: () => unwrap(http.GET('/api/v1/planning/{epic}/detail', { params: { path: { epic } } })),
 });
 
-// one at a time, in the order they were made: each answer is the whole plan, so the last one sent is the one shown
+// every write of the plan, one at a time in the order they were made: each answer is the whole plan, so the last one sent is the
+// one shown, and a write never goes out alongside a cell still being saved
 const planScope = (epic: string) => ({ id: `detail-plan:${epic}` });
 
 /** Saves the draft; the plan that follows comes back. */
@@ -30,6 +31,7 @@ export function useSaveDraft(epic: string) {
 export function useAutoAllocate(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/auto-allocate', { params: { path: { epic } } })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
     onError: () => qc.invalidateQueries({ queryKey: detailPlanQuery(epic).queryKey }),
@@ -43,12 +45,14 @@ export function useAutoAllocate(epic: string) {
 export function useClearPlan(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: (keepInput: boolean) => unwrap(http.POST('/api/v1/planning/{epic}/detail/clear', { params: { path: { epic }, query: { keep_input: keepInput } } })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
   });
 }
 
 export const usePushPreview = (epic: string) => useMutation({
+  scope: planScope(epic),
   mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } } })),
 });
 
@@ -56,6 +60,7 @@ export function usePushPlan(epic: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: ['write', 'detail-plan'],
+    scope: planScope(epic),
     mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic } } })),
     onSettled: () => qc.invalidateQueries(),
   });
@@ -93,6 +98,7 @@ export function useEditJiraLine(epic: string) {
 export function useSaveVersion(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/versions', { params: { path: { epic } } })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
   });
@@ -112,6 +118,7 @@ export function useEditStep(epic: string) {
 export function useAddRow(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: (body: Schemas['NewRowBody']) => unwrap(http.POST('/api/v1/planning/{epic}/detail/rows', { params: { path: { epic } }, body })),
     onSuccess: (v) => {
       qc.setQueryData(detailPlanQuery(epic).queryKey, v);
@@ -138,6 +145,7 @@ export const useImportPreview = (epic: string) => useMutation({
 export function useApplyImport(epic: string) {
   const qc = useQueryClient();
   return useMutation({
+    scope: planScope(epic),
     mutationFn: (lines: ImportLine[]) => unwrap(http.POST('/api/v1/planning/{epic}/detail/import', { params: { path: { epic } }, body: {
       lines: lines.map((l) => ({ ref: l.ref, ba_id: l.ba_id ?? null, bal_id: l.bal_id ?? null, jm_id: l.jm_id ?? null, effort_h: l.effort_h ?? null,
         cells: l.cells })),
