@@ -60,6 +60,8 @@ class DetailPlanImportTest {
     DetailPlanImportService imports;
     @Autowired
     TicketService tickets;
+    @Autowired
+    tracker.application.ports.PlanCellRepository cellRepo;
 
     final Map<String, String> tasks = new java.util.HashMap<>();
 
@@ -200,6 +202,49 @@ class DetailPlanImportTest {
         c.forEach(r -> r.add(9, ""));
         List<ImportLine> lines = imports.preview(ALL, EPIC, h, c);
         assertThat(lines).allSatisfy(l -> assertThat(l.errors()).containsExactly("Column 10: foo is not a date"));
+    }
+
+    @Test
+    void aDayOutsideThePlanWithHoursIsReported() {
+        planned();
+        Sheet sheet = imports.sheet(ALL, EPIC);
+        List<String> h = header(sheet);
+        h.add("2027-01-04");
+        List<List<String>> c = cells(sheet);
+        c.forEach(r -> r.add(""));
+        c.get(0).set(c.get(0).size() - 1, "8");
+        c.get(1).set(c.get(1).size() - 1, "0");
+        List<ImportLine> lines = imports.preview(ALL, EPIC, h, c);
+        assertThat(lines.get(0).errors()).containsExactly("Column " + h.size() + ": 2027-01-04 is outside the plan");
+        assertThat(lines.get(1).errors()).isEmpty();
+        assertThat(lines.get(2).errors()).isEmpty();
+    }
+
+    @Test
+    void hoursAreRoundedToHundredths() {
+        planned();
+        Sheet sheet = imports.sheet(ALL, EPIC);
+        List<List<String>> c = cells(sheet);
+        c.get(0).set(9, "1.234");
+        assertThat(preview(c).get(0).cells()).containsEntry(sheet.days().getFirst(), 1.23);
+    }
+
+    @Test
+    void applyKeepsTheAutoCellsTheFileDoesNotChange() {
+        List<EstimationRow> rows = planned();
+        String run = String.valueOf(rows.get(1).id());
+        detail.autoAllocate(ALL, EPIC);
+        MatrixLine before = step(detail.view(ALL, EPIC), run);
+        assertThat(before.cells().size()).isGreaterThanOrEqualTo(2);
+        String changed = before.cells().get(0).day();
+        String kept = before.cells().get(1).day();
+        Map<String, Double> file = new java.util.LinkedHashMap<>();
+        before.cells().forEach(d -> file.put(d.day(), d.hours()));
+        file.put(changed, file.get(changed) + 1);
+        imports.apply(ALL, EPIC, List.of(new ImportLineIn(run, null, null, null, null, file)));
+        List<tracker.application.ports.PlanCellRepository.Cell> saved = cellRepo.rowCells(EPIC).stream().filter(x -> x.ref().equals(run)).toList();
+        assertThat(saved).filteredOn(x -> x.day().equals(kept)).singleElement().satisfies(x -> assertThat(x.auto()).isTrue());
+        assertThat(saved).filteredOn(x -> x.day().equals(changed)).singleElement().satisfies(x -> assertThat(x.auto()).isFalse());
     }
 
     @Test

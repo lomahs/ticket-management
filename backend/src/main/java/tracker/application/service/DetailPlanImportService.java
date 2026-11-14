@@ -178,6 +178,7 @@ public class DetailPlanImportService {
                 headerErrors.add("Column " + (c + 1) + ": " + text + " is not a date");
             }
         }
+        List<String> window = detail.view(scope, epic).window();
         List<Parsed> parsed = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             List<String> r = rows.get(i);
@@ -185,7 +186,11 @@ public class DetailPlanImportService {
             Map<String, Double> cells = new LinkedHashMap<>();
             days.forEach((c, day) -> {
                 String text = at(r, c);
-                cells.put(day, text.isEmpty() ? Double.valueOf(0) : dayHours(text, day, errors));
+                double h = text.isEmpty() ? 0 : dayHours(text, day, errors);
+                if (h > 0 && !window.contains(day)) {
+                    errors.add("Column " + (c + 1) + ": " + day + " is outside the plan");
+                }
+                cells.put(day, h);
             });
             parsed.add(new Parsed(i + 2, at(r, REF), at(r, FUNCTION), member(ctx, at(r, BA), errors), member(ctx, at(r, BAL), errors),
                     member(ctx, at(r, JM), errors), hours(at(r, EFFORT), errors), cells, errors));
@@ -209,8 +214,10 @@ public class DetailPlanImportService {
                         errors.add(day + " is not a date");
                     } else if (h == null || !(h >= 0)) {
                         errors.add(day + " must be 0 hours or more");
+                    } else if (h > 0 && !v.window().contains(day)) {
+                        errors.add(day + " is outside the plan");
                     } else {
-                        cells.put(day, h);
+                        cells.put(day, Numbers.hours(h));
                     }
                 });
             }
@@ -255,12 +262,15 @@ public class DetailPlanImportService {
             }
         }
 
-        // the days: every day of the file for a line whose cells differ, typed
+        // the days that differ from the plan, typed (a blank over a cell clears it); the others stay as they are
         List<CellIn> typed = new ArrayList<>();
         for (ImportLine l : lines) {
-            if (changed(l, "cells")) {
-                l.cells().forEach((day, h) -> typed.add(new CellIn(l.ref(), day, h)));
-            }
+            Map<String, Double> now = hoursByDay(byRef.get(l.ref()));
+            l.cells().forEach((day, h) -> {
+                if (Math.abs(h - now.getOrDefault(day, 0.0)) > EPS) {
+                    typed.add(new CellIn(l.ref(), day, h));
+                }
+            });
         }
         return typed.isEmpty() ? detail.view(scope, epic) : detail.saveCells(scope, epic, typed);
     }
@@ -425,7 +435,7 @@ public class DetailPlanImportService {
         try {
             double h = Double.parseDouble(text.replace(',', '.'));
             if (h >= 0) {
-                return h;
+                return Numbers.hours(h);
             }
             errors.add(day + " must be 0 hours or more");
         } catch (NumberFormatException e) {

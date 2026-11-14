@@ -122,8 +122,8 @@ class ApiWritesTest extends ApiTestSupport {
         assertThat(same.get(0).get("errors")).isEmpty();
         assertThat(same.get(0).get("changes")).isEmpty();
         JsonNode v = call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines",
-                List.of(Map.of("ref", String.valueOf(id), "cells", Map.of("2026-10-20", 3, "2026-10-21", 5)))))).json();
-        assertThat(v.get("lines").get(0).get("cells").toString()).contains("2026-10-20", "2026-10-21");
+                List.of(Map.of("ref", String.valueOf(id), "cells", Map.of(header.get(9), 3, header.get(10), 5)))))).json();
+        assertThat(v.get("lines").get(0).get("cells").toString()).contains(header.get(9), header.get(10));
         problem(call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines", List.of(Map.of("ref", "999"))))), 422, "invalid");
         problem(call(json(post("/api/v1/planning/PAY-1100/detail/import"), Map.of("lines", List.of()))
                 .with(as("an.nguyen@acme.vn"))), 403, "forbidden");
