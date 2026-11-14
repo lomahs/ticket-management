@@ -16,7 +16,7 @@ import myWork from './fixtures/my-work-binh.json';
 import jira from './fixtures/settings-jira.json';
 import ticket from './fixtures/ticket-PAY-1213.json';
 
-export const fixtures = { anken, matrix, members, meta, myWork, jira, ticket };
+export const fixtures = { me: meAdmin, anken, matrix, members, meta, myWork, jira, ticket };
 
 export const server = setupServer(
   http.get('*/api/v1/me', () => HttpResponse.json(meAdmin)),

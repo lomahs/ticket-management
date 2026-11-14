@@ -18,7 +18,8 @@ export function DetailPlanPage() {
 }
 
 function Detail({ epic }: { epic: string }) {
-  const people = (useMembers().data ?? []).map((m) => ({ id: m.id, name: m.name, role: m.role ?? null }));
+  // `people`: the members of the anken (the list also names assignees and worklog authors who are not)
+  const people = (useMembers().data ?? []).filter((m) => m.people).map((m) => ({ id: m.id, name: m.name, role: m.role ?? null }));
   const name = (id: string) => people.find((p) => p.id === id)?.name ?? id;
   const q = useQuery(detailPlanQuery(epic));
   // what stands before the push opens on its own once the push is tried

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { renderApp, server } from './renderApp';
+import { fixtures, renderApp, server } from './renderApp';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); });
@@ -106,6 +106,29 @@ describe('planning tabs', () => {
     renderApp('/planning/detail');
     expect(await screen.findByText('Pick an anken in the switcher to plan it.')).toBeTruthy();
     expect(screen.queryByText('[PAY] Run')).toBeNull();
+  });
+
+  it('offers only the members of the anken as people', async () => {
+    const m = (id: string, name: string, people: boolean) => ({ id, name, full_name: name, role: 'BA', country: 'VN', color: 'red', email: '', permission: 'user',
+      external: false, jira_account_id: null, people });
+    server.use(
+      http.get('*/api/v1/members', () => HttpResponse.json([m('an', 'An', true), m('ext', 'Outsider', false)])),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    const pick = await screen.findByLabelText('Member, Run');
+    expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)']);
+  });
+
+  it('shows the matrix without write controls to a viewer with read only', async () => {
+    const me = { ...fixtures.me, admin: false, permissions: { ...fixtures.me.permissions, planning: 'read' } };
+    server.use(
+      http.get('*/api/v1/me', () => HttpResponse.json(me)),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect((await screen.findAllByText('[PAY] Run')).length).toBeGreaterThan(0);
+    for (const n of ['Review push', 'Save version', 'Auto allocate']) expect(screen.queryByRole('button', { name: n })).toBeNull();
   });
 
   it('shows the not-found page for the removed Re-plan address', async () => {
