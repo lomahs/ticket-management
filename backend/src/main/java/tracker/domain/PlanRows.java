@@ -66,6 +66,33 @@ public final class PlanRows {
     }
 
     /**
+     * Who carries a step's hours and their fractions, as {@link Effort#planShares} does for Jira: the BA and the BAL by the
+     * step's shares (one entry when they are the same person, a missing person's share dropped); none for a step that counts
+     * for nobody. A ticket is all its member's, kept as the BA.
+     */
+    public static List<Effort.PlanShare> shares(RowStep st, @Nullable String ba, @Nullable String bal, StepWeights w) {
+        List<Effort.PlanShare> out = new ArrayList<>();
+        if (st.kind() == null) {
+            if (ba != null) {
+                out.add(new Effort.PlanShare(ba, 1));
+            }
+            return out;
+        }
+        StepWeights.Share s = w.shareOf(st.kind());
+        if (ba != null && s.ba() > 0) {
+            out.add(new Effort.PlanShare(ba, s.ba() / 100));
+        }
+        if (bal != null && s.bal() > 0) {
+            if (bal.equals(ba)) {
+                out.set(0, new Effort.PlanShare(ba, (s.ba() + s.bal()) / 100));
+            } else {
+                out.add(new Effort.PlanShare(bal, s.bal() / 100));
+            }
+        }
+        return out;
+    }
+
+    /**
      * Whether a row needs someone in that role: a BA always; a BAL when a step not removed counts for the BAL or is assigned
      * to the BAL; a JM when JM Review is not removed.
      */
