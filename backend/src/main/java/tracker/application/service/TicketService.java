@@ -596,6 +596,14 @@ public class TicketService {
     /** @param onCreated gets the ref → key of the tickets created, also when Jira refuses a request half-way */
     public BatchResult applyBatch(Viewer actor, AnkenScope scope, String epic, List<ExpectedUpdate> updates, List<NewTicket> newTickets,
                                   java.util.function.Consumer<Map<String, String>> onCreated) {
+        return applyBatch(actor, scope, epic, updates, newTickets, onCreated, updated -> {
+        });
+    }
+
+    /** @param onUpdated gets the keys of the tickets whose changes were all sent, also when Jira refuses a request half-way */
+    public BatchResult applyBatch(Viewer actor, AnkenScope scope, String epic, List<ExpectedUpdate> updates, List<NewTicket> newTickets,
+                                  java.util.function.Consumer<Map<String, String>> onCreated,
+                                  java.util.function.Consumer<List<String>> onUpdated) {
         calls.requireEnabled();
         if (updates.isEmpty() && newTickets.isEmpty()) {
             throw new Invalid("There is nothing to apply", "updates");
@@ -621,6 +629,7 @@ public class TicketService {
         }
         int total = plans.stream().mapToInt(p -> p.requests().size()).sum() + creates.size();
         List<String> touched = new ArrayList<>();
+        List<String> updated = new ArrayList<>();
         Map<String, String> created = new LinkedHashMap<>();
         int sent = 0;
         try {
@@ -630,6 +639,7 @@ public class TicketService {
                     sent++;
                 }
                 touched.add(p.key());
+                updated.add(p.key());
             }
             for (NewTicketPreview c : creates) {
                 JiraRequest r = c.request();
@@ -648,6 +658,7 @@ public class TicketService {
             throw sent == 0 ? e : new JiraRejected(e.status(), "Jira applied " + sent + " of " + total + " requests, then refused the next: "
                     + e.getMessage());
         } finally {
+            onUpdated.accept(List.copyOf(updated));
             onCreated.accept(Map.copyOf(created));
             if (!touched.isEmpty()) {
                 sync.refresh(touched);

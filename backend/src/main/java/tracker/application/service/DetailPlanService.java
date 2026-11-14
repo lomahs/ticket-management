@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jspecify.annotations.Nullable;
@@ -64,7 +66,11 @@ import tracker.domain.Viewer;
 import tracker.application.service.AnkenService.ParentOption;
 import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.BatchResult;
+import tracker.application.service.TicketService.ExpectedChange;
+import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.NewTicket;
+import tracker.application.service.TicketService.TicketChanges;
+import tracker.application.service.TicketService.TicketUpdate;
 
 /** The detail plan: who does each row and the dates that follow, checked against the master schedule; then the push to Jira. */
 @Service
@@ -786,33 +792,70 @@ public class DetailPlanService {
         return out;
     }
 
-    /** The review of the push: every sub-task, with the request that creates it. */
+    /** The review of the push: every change to a sub-task in Jira, and every sub-task to create with the request that creates it. */
     public BatchPreview pushPreview(AnkenScope scope, String epic) {
         Computed c = pushable(scope, epic);
-        return tickets.previewBatch(scope, epic, List.of(), newTickets(c, labels(epic)));
+        return tickets.previewBatch(scope, epic, jiraUpdates(c, epic), newTickets(c, labels(epic)));
     }
 
     /**
-     * Creates the sub-tasks of the unpushed rows under their Tasks; a row is marked pushed once all its sub-tasks exist, also
-     * when Jira refuses a request half-way. Each sub-task created keeps the plan's hours per day, which its plan remain counts
-     * down by.
+     * Sends what the plan holds: the changes of the sub-tasks in Jira, then the sub-tasks of the unpushed rows under their Tasks.
+     * A row is marked pushed once all its sub-tasks exist, also when Jira refuses a request half-way. A sub-task in Jira whose
+     * changes were all sent keeps the plan's hours per day (Jira's past days and the line's cells from today on) and loses its
+     * pending changes; the others keep them. A pending line that differs from Jira only in its hours per day sends nothing, and
+     * is kept the same way.
      */
     public BatchResult push(Viewer actor, AnkenScope scope, String epic) {
         Computed c = pushable(scope, epic);
         List<NewTicket> creates = newTickets(c, labels(epic));
-        return tickets.applyBatch(actor, scope, epic, List.of(), creates, created -> {
+        List<TicketUpdate> wanted = jiraUpdates(c, epic);
+        BatchPreview review = tickets.previewBatch(scope, epic, wanted, List.of());
+        List<ExpectedUpdate> updates = review.updates().stream().map(p -> new ExpectedUpdate(p.key(),
+                p.changes().stream().map(f -> new ExpectedChange(f.field(), f.before(), f.after())).toList())).toList();
+        Set<String> sendsNothing = new HashSet<>(wanted.stream().map(TicketUpdate::key).toList());
+        updates.forEach(u -> sendsNothing.remove(u.key()));
+        Consumer<List<String>> kept = keys -> keys.forEach(key -> keepPlan(c, key));
+        if (updates.isEmpty() && creates.isEmpty()) {
+            kept.accept(List.copyOf(sendsNothing));
+            return new BatchResult(List.of(), Map.of());
+        }
+        BatchResult r = tickets.applyBatch(actor, scope, epic, updates, creates, created -> {
             created.forEach((ref, key) -> planDays.save(key, daysOf(line(c, ref))));
             List<Long> done = new ArrayList<>();
-            for (EstimationRow r : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
-                List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == r.id()).toList();
+            for (EstimationRow row : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
+                List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == row.id()).toList();
                 if (created.keySet().containsAll(refs)) {
-                    done.add(r.id());
+                    done.add(row.id());
                 }
             }
             if (!done.isEmpty()) {
                 estimation.markPushed(done, Instant.now(clock).toString());
             }
-        });
+        }, kept);
+        kept.accept(List.copyOf(sendsNothing));
+        return r;
+    }
+
+    /** The plan's days of a sub-task in Jira (its past days and the line's cells from today) become its plan; its pending changes go. */
+    private void keepPlan(Computed c, String key) {
+        planDays.save(key, daysOf(line(c, key)));
+        cells.deleteJira(key);
+    }
+
+    /** One update per pending sub-task in Jira that is not Closed: its PIC if it differs, Planned Start / End and its edited Remaining. */
+    private List<TicketUpdate> jiraUpdates(Computed c, String epic) {
+        Map<String, JiraEdit> edits = new HashMap<>();
+        cells.jiraEdits(epic).forEach(e -> edits.put(e.issueKey(), e));
+        List<TicketUpdate> out = new ArrayList<>();
+        for (MatrixLine l : c.view().lines()) {
+            if (l.issueKey() == null || !l.pending() || l.closed()) {
+                continue;
+            }
+            JiraEdit e = edits.get(l.issueKey());
+            out.add(new TicketUpdate(l.issueKey(), new TicketChanges(null, e == null ? null : e.assigneeId(), null, l.start(), l.end(), null,
+                    null, e == null ? null : e.remainingH())));
+        }
+        return out;
     }
 
     /** The matrix line of {@code ref}. */
@@ -845,11 +888,14 @@ public class DetailPlanService {
      */
     private Computed pushable(AnkenScope scope, String epic) {
         Computed c = compute(scope, epic);
-        if (c.rows().isEmpty()) {
+        if (c.rows().isEmpty() && c.view().lines().stream().noneMatch(l -> l.issueKey() != null && l.pending() && !l.closed())) {
             throw new Invalid("There is nothing to push", "plan");
         }
         if (!c.view().problems().isEmpty()) {
             throw new Invalid(c.view().problems().getFirst(), "plan");
+        }
+        if (!c.view().pushBlockers().isEmpty()) {
+            throw new Invalid(c.view().pushBlockers().getFirst(), "plan");
         }
         return c;
     }
@@ -872,7 +918,7 @@ public class DetailPlanService {
                 String end = shown.end();
                 String assignee = Objects.requireNonNull(PlanRows.assignee(st, r.baId(), r.balId(), c.weights()));
                 out.add(new NewTicket(st.ref(), true, parentKey, null, c.names().getOrDefault(st.ref(), r.functionName()), assignee, reporter(st, r),
-                        start, end, st.hours(), labels));
+                        start, end, shown.totalH(), labels));
             }
         }
         return out;

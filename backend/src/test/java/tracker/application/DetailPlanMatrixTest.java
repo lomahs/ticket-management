@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -21,6 +24,13 @@ import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.IssueRepository;
+import tracker.application.ports.JiraReader;
+import tracker.application.ports.JiraRejected;
+import tracker.application.ports.JiraWriteLog;
+import tracker.application.ports.JiraWriter;
+import tracker.application.ports.MasterScheduleRepository;
+import tracker.application.ports.OnboardingRepository;
+import tracker.application.ports.PlanVersionRepository;
 import tracker.application.ports.PlanCellRepository;
 import tracker.application.ports.PlanCellRepository.Cell;
 import tracker.application.ports.PlanCellRepository.JiraEdit;
@@ -34,6 +44,7 @@ import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.StepIn;
+import tracker.application.service.AllocationService;
 import tracker.application.service.EstimationService;
 import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
@@ -595,5 +606,139 @@ class DetailPlanMatrixTest {
         assertThat(l.pending()).isFalse();
         assertThat(l.picId()).isEqualTo("an");
         assertThat(l.cells()).containsExactly(new DayHours("2026-10-07", 8, false), new DayHours("2026-10-08", 8, false));
+    }
+
+    /** Closes the demo's own open sub-tasks of the anken, so that only the lines a test makes can block Push. */
+    void closeDemoSubtasks() {
+        for (Issue i : issues.findAll()) {
+            if (i.kind() == IssueKind.SUBTASK && EPIC.equals(i.epicKey()) && i.status() != Status.CLOSED) {
+                issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), Status.CLOSED,
+                        i.assigneeId(), i.plannedStart(), i.plannedEnd(), i.estimateH(), 0, i.created(), Status.CLOSED.value(), i.functionId(),
+                        i.functionName(), i.step(), i.worklogs(), i.events(), i.reporterId(), i.labels()));
+            }
+        }
+    }
+
+    /** A 3h sub-task in Jira (1h logged, 2h remaining), planned 2026-10-06..08 for An; the demo's own are Closed. */
+    String smallSubtask(String ref) {
+        String key = tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket(ref, true, task("ITA Execute"), null, "[PAY] " + ref,
+                "an", null, "2026-10-06", "2026-10-08", 3.0, List.of()))).created().get(ref);
+        Issue i = issues.findByKey(key).orElseThrow();
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), 3, 2, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                List.of(new Worklog("2026-10-06", "an", 1, "")), i.events(), i.reporterId(), i.labels()));
+        return key;
+    }
+
+    @Test
+    void pushRefusedWhileNotYetIsLeft() {
+        scheduled();
+        closeDemoSubtasks();
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 16, task("ITA Execute"))));
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        long run = rows.getFirst().id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2026-10-12", 8, false), new Cell(String.valueOf(run), "2026-10-13", 6, false)));
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
+                .hasMessage("[PAY] Run: 2h not planned yet").hasFieldOrPropertyWithValue("field", "plan");
+        assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC)).isInstanceOf(AppError.Invalid.class).hasMessage("[PAY] Run: 2h not planned yet");
+    }
+
+    @Test
+    void pushRefusedForAJiraLineToo() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of()); // only the sub-tasks in Jira are left
+        String key = smallSubtask("Export");
+        planDays.save(key, Map.of("2026-10-07", 1.0));
+        cells.saveJiraEdit(EPIC, new JiraEdit(key, null, "binh"));
+        assertThat(line(detail.view(ALL, EPIC), key).notYetH()).isEqualTo(1);
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
+                .hasMessage("[PAY] Export: 1h not planned yet");
+    }
+
+    @Test
+    void pushSendsJiraChanges() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of()); // only the sub-tasks in Jira are left
+        String key = smallSubtask("Export");
+        planDays.save(key, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0));
+        detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, "binh"));
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2), new CellIn(key, "2026-10-07", 0)));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.notYetH()).isZero();
+        assertThat(l.pending()).isTrue();
+        assertThat(detail.pushPreview(ALL, EPIC).updates()).singleElement().satisfies(u -> {
+            assertThat(u.key()).isEqualTo(key);
+            assertThat(u.changes()).extracting(c -> c.field().value()).contains("remaining", "assignee");
+        });
+        assertThat(detail.push(ADMIN, ALL, EPIC).updated()).containsExactly(key);
+        Issue i = issues.findByKey(key).orElseThrow();
+        assertThat(i.remainingH()).isEqualTo(4);
+        assertThat(i.assigneeId()).isEqualTo("binh");
+        assertThat(i.plannedStart()).isEqualTo(l.start());
+        assertThat(i.plannedEnd()).isEqualTo("2026-10-09");
+        assertThat(i.estimateH()).isEqualTo(3);
+        Map<String, Double> days = new TreeMap<>();
+        planDays.find(List.of(key)).getOrDefault(key, Map.of()).forEach(days::put);
+        assertThat(days).containsExactly(Map.entry("2026-10-06", 1.0), Map.entry("2026-10-08", 2.0), Map.entry("2026-10-09", 2.0));
+        assertThat(cells.jiraEdits(EPIC)).isEmpty();
+        assertThat(cells.jiraCells(EPIC)).isEmpty();
+        assertThat(line(detail.view(ALL, EPIC), key).pending()).isFalse();
+    }
+
+    @Test
+    void pushOnlyJiraChanges() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of()); // nothing unpushed
+        String key = smallSubtask("Export");
+        planDays.save(key, Map.of("2026-10-06", 1.0));
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2)));
+        assertThat(detail.view(ALL, EPIC).lines()).noneMatch(x -> x.rowId() != null);
+        assertThat(detail.push(ADMIN, ALL, EPIC).updated()).isNotNull();
+        assertThat(cells.jiraCells(EPIC)).isEmpty();
+        assertThat(planDays.find(List.of(key)).get(key)).containsEntry("2026-10-08", 2.0);
+    }
+
+    @Test
+    void nothingToPushWithoutRowsOrPendingLines() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of());
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class).hasMessage("There is nothing to push");
+    }
+
+    @Test
+    void jiraRefusingHalfWayKeepsWhatWasNotSent(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log, @Autowired SyncService sync,
+                                                @Autowired MasterScheduleRepository versions, @Autowired Clock clock, @Autowired AllocationService allocations,
+                                                @Autowired OnboardingRepository onboardingRows, @Autowired PlanVersionRepository planVersions,
+                                                @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate) {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of());
+        String first = smallSubtask("Export");
+        String second = smallSubtask("Import");
+        for (String key : List.of(first, second)) {
+            planDays.save(key, Map.of("2026-10-06", 1.0));
+            detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null)); // Remaining 4h
+            detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2)));
+        }
+        AtomicInteger sent = new AtomicInteger();
+        JiraWriter failing = req -> {
+            if (sent.incrementAndGet() == 2) { // the first line's one request goes through; the second line's is refused
+                throw new JiraRejected(400, "refused for the test");
+            }
+            return jira.send(req);
+        };
+        TicketService flakyTickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
+        DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, flakyTickets, onboardingRows, estimation,
+                planDays, cells, planVersions, clock, txTemplate);
+        assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
+        assertThat(cells.jiraCells(EPIC)).containsOnlyKeys(second);
+        assertThat(planDays.find(List.of(first)).get(first)).containsEntry("2026-10-09", 2.0);
+        assertThat(line(detail.view(ALL, EPIC), first).pending()).isFalse();
+        assertThat(line(detail.view(ALL, EPIC), second).pending()).isTrue();
     }
 }

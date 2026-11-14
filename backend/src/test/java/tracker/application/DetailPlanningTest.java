@@ -39,7 +39,6 @@ import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.EstimationService.PhaseEffort;
 import tracker.application.service.AllocationService;
 import tracker.application.service.DetailPlanService;
-import tracker.application.service.PlanDayLinker;
 import tracker.application.service.DetailPlanService.AnkenAllocation;
 import tracker.application.service.DetailPlanService.DayHours;
 import tracker.application.service.DetailPlanService.DayLoad;
@@ -95,8 +94,6 @@ class DetailPlanningTest {
     IssueRepository issues;
     @Autowired
     PlanDayRepository planDays;
-    @Autowired
-    PlanDayLinker linker;
     @Autowired
     TicketService tickets;
     @Autowired
@@ -240,6 +237,18 @@ class DetailPlanningTest {
     /** The lines of a row's steps, in step order. */
     static List<MatrixLine> lines(DetailPlanView v, long rowId) {
         return v.lines().stream().filter(l -> l.rowId() != null && l.rowId() == rowId).toList();
+    }
+
+    /** Makes the plan pushable: Auto allocate fills what is not planned yet, and the demo's own sub-tasks of the anken are Closed. */
+    void readyToPush() {
+        detail.autoAllocate(ALL, EPIC);
+        for (Issue i : issues.findAll()) {
+            if (i.kind() == tracker.domain.IssueKind.SUBTASK && EPIC.equals(i.epicKey()) && i.status() != tracker.domain.Status.CLOSED) {
+                issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), tracker.domain.Status.CLOSED,
+                        i.assigneeId(), i.plannedStart(), i.plannedEnd(), i.estimateH(), 0, i.created(), tracker.domain.Status.CLOSED.value(),
+                        i.functionId(), i.functionName(), i.step(), i.worklogs(), i.events(), i.reporterId(), i.labels()));
+            }
+        }
     }
 
     /** Hours typed into a step's cells: day, hours, day, hours… */
@@ -408,6 +417,7 @@ class DetailPlanningTest {
         // the matrix shows who each sub-task goes to, as the push assigns it (for the CSV export)
         assertThat(lines(v, rows.get(0).id())).extracting(st -> st.step() + " " + st.picId() + " " + st.reporterId())
                 .containsExactly("create an minh", "balr an null", "fixb minh null", "jmr minh null", "fixj minh null");
+        readyToPush();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).hasSize(5 + 1 + 3);
         BatchResult r = detail.push(ADMIN, ALL, EPIC);
         TrackerContext ctx = loader.load(ALL);
@@ -439,11 +449,6 @@ class DetailPlanningTest {
         Map<String, Double> days = planDays.find(List.of(run.key())).get(run.key());
         assertThat(days).containsExactly(Map.entry("2026-10-12", 8.0), Map.entry("2026-10-13", 8.0));
         assertThat(loader.load(ALL).planDays(run)).isEqualTo(days);
-        // a push made before the hours were kept is linked by its Task, function name and step
-        Map<String, Double> createDays = planDays.find(List.of(create.key())).get(create.key());
-        planDays.save(create.key(), Map.of());
-        linker.linkPushed();
-        assertThat(planDays.find(List.of(create.key())).get(create.key())).isEqualTo(createDays);
     }
 
     /** A 40h sub-task in Jira under ITA Execute. */
@@ -514,6 +519,7 @@ class DetailPlanningTest {
         assertThat(v.rows().stream().filter(r -> r.id() == login).findFirst().orElseThrow().effortH()).isEqualTo(10.0);
         assertThat(line(v, login + ":create").edited()).isFalse(); // Create's effort is the row's: the other steps follow it
         assertThat(line(v, login + ":balr").totalH()).isEqualTo(2.5);
+        readyToPush();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).extracting(c -> c.ref()).doesNotContain(login + ":fixj").contains(login + ":fixb");
         assertThatThrownBy(() -> detail.editStep(ALL, EPIC, new StepIn(rows.get(1).id(), "create", null, true)))
                 .isInstanceOf(Invalid.class).hasMessageContaining("not a step");
@@ -587,6 +593,7 @@ class DetailPlanningTest {
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(v.overDay()).extracting(o -> o.memberId() + " " + o.date()).contains("an 2026-10-12");
         assertThat(v.overBudget()).isEmpty();
+        readyToPush();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).isNotEmpty();
         assertThat(detail.push(ADMIN, ALL, EPIC).created()).isNotEmpty();
     }
@@ -597,6 +604,7 @@ class DetailPlanningTest {
         plan(String.valueOf(rows.get(1).id()), "2026-10-12", 8, "2026-10-13", 8);
         planLogin(rows.get(0).id());
         assertThat(detail.view(ALL, EPIC).overBudget()).isNotEmpty();
+        readyToPush();
         assertThat(detail.pushPreview(ALL, EPIC).creates()).isNotEmpty();
         assertThat(detail.push(ADMIN, ALL, EPIC).created()).isNotEmpty();
     }
@@ -618,6 +626,7 @@ class DetailPlanningTest {
         long export = v.rows().getLast().id();
         detail.saveDraft(ALL, EPIC, new DraftIn(v.rows().stream().filter(r -> !r.pushed()).map(EstimationRow::id).toList(),
                 List.of(new RowAssign(export, "an", null, null))));
+        readyToPush();
         BatchResult r = detail.push(ADMIN, ALL, EPIC);
         TrackerContext ctx = loader.load(ALL);
         Issue fixb = ctx.issue(r.created().get(login + ":fixb")).orElseThrow();
@@ -626,8 +635,8 @@ class DetailPlanningTest {
         Issue create = ctx.issue(r.created().get(login + ":create")).orElseThrow();
         assertThat(List.of(create.plannedStart(), create.plannedEnd())).containsExactly("2026-10-14", "2026-10-15");
         Issue ex = ctx.issue(r.created().get(String.valueOf(export))).orElseThrow();
-        assertThat(ex.plannedStart()).isNull(); // no cells yet: no dates
-        assertThat(ex.plannedEnd()).isNull();
+        assertThat(ex.plannedStart()).isNotNull(); // Auto allocate planned it before the push: it has dates
+        assertThat(ex.plannedEnd()).isNotNull();
     }
 
     @Test
@@ -646,6 +655,7 @@ class DetailPlanningTest {
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
         DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays,
                 cells, planVersions, clock, txTemplate);
+        readyToPush();
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();
         estimationRows.findByEpic(EPIC).forEach(r -> pushed.put(r.id(), r.pushed()));
