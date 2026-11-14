@@ -741,4 +741,33 @@ class DetailPlanMatrixTest {
         assertThat(line(detail.view(ALL, EPIC), first).pending()).isFalse();
         assertThat(line(detail.view(ALL, EPIC), second).pending()).isTrue();
     }
+
+    @Test
+    void saveVersionStoresTheWholePlan(@Autowired Clock clock, @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc) throws Exception {
+        List<EstimationRow> rows = staffed();
+        long run = rows.get(1).id();
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(String.valueOf(run), "2026-10-12", 8), new CellIn(String.valueOf(run), "2026-10-13", 6)));
+        assertThat(detail.view(ALL, EPIC).lastVersionAt()).isNull();
+        java.time.Instant before = java.time.Instant.now(clock);
+        DetailPlanView v = detail.saveVersion(ADMIN, ALL, EPIC);
+        java.time.Instant after = java.time.Instant.now(clock);
+        assertThat(java.time.Instant.parse(Objects.requireNonNull(v.lastVersionAt()))).isBetween(before, after);
+        Map<String, Object> saved = jdbc.queryForMap("SELECT saved_by, body FROM plan_versions WHERE epic_key = ?", EPIC);
+        assertThat(saved.get("saved_by")).isEqualTo("Minh");
+        com.fasterxml.jackson.databind.JsonNode body = new com.fasterxml.jackson.databind.ObjectMapper().readTree((String) saved.get("body"));
+        assertThat(body.get("rows")).hasSize(3);
+        assertThat(body.get("rows").get(1).get("id").asLong()).isEqualTo(run);
+        assertThat(body.get("rows").get(1).get("ba_id").asText()).isEqualTo("an");
+        com.fasterxml.jackson.databind.JsonNode runLine = null;
+        for (com.fasterxml.jackson.databind.JsonNode l : body.get("lines")) {
+            if (l.get("ref").asText().equals(String.valueOf(run))) {
+                runLine = l;
+            }
+        }
+        assertThat(runLine).isNotNull();
+        assertThat(runLine.get("pic_id").asText()).isEqualTo("an");
+        assertThat(runLine.get("total_h").asDouble()).isEqualTo(16.0);
+        assertThat(runLine.get("cells").get("2026-10-12").asDouble()).isEqualTo(8.0);
+        assertThat(runLine.get("cells").get("2026-10-13").asDouble()).isEqualTo(6.0);
+    }
 }

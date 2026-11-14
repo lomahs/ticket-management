@@ -3,7 +3,6 @@ package tracker.adapters.web;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,7 +34,6 @@ import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import tracker.adapters.web.EstimationFiles.EstimationImportRow;
-import tracker.adapters.web.TicketsApi.ExpectedUpdateIn;
 import tracker.adapters.web.auth.Open;
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.adapters.web.auth.Requires;
@@ -56,12 +54,7 @@ import tracker.application.service.EstimationService.EstimationView;
 import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.MasterScheduleView;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
-import tracker.application.service.ReplanService;
-import tracker.application.service.ReplanService.ReplanIn;
-import tracker.application.service.ReplanService.ReplanView;
 import tracker.application.service.ScopeService;
-import tracker.application.service.TicketService.ExpectedChange;
-import tracker.application.service.TicketService.ExpectedUpdate;
 import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.BatchResult;
 import tracker.domain.AnkenScope;
@@ -71,7 +64,7 @@ import tracker.domain.Level;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Viewer;
 
-/** Building an anken's plan: estimation, master schedule, detail plan and re-plan. Reads: Planning; writes: admins. */
+/** Building an anken's plan: estimation, master schedule, detail plan. Reads: Planning; writes: admins. */
 @RestController
 @RequestMapping("/api/v1/planning")
 public class DetailPlanningApi {
@@ -79,16 +72,14 @@ public class DetailPlanningApi {
     private final MasterScheduleService schedule;
     private final DetailPlanService detail;
     private final DetailPlanImportService detailImport;
-    private final ReplanService replan;
     private final ScopeService scopes;
 
     public DetailPlanningApi(EstimationService estimation, MasterScheduleService schedule, DetailPlanService detail,
-                             DetailPlanImportService detailImport, ReplanService replan, ScopeService scopes) {
+                             DetailPlanImportService detailImport, ScopeService scopes) {
         this.estimation = estimation;
         this.schedule = schedule;
         this.detail = detail;
         this.detailImport = detailImport;
-        this.replan = replan;
         this.scopes = scopes;
     }
 
@@ -348,38 +339,10 @@ public class DetailPlanningApi {
         return detail.push(viewer, epicScope(viewer, epic), epic);
     }
 
-    /** @param assignees sub-task key → the member it moves to */
-    public record ReplanBody(@NotBlank String phase, @NotNull Map<String, @NotBlank String> assignees) {
-        ReplanIn in() {
-            return new ReplanIn(phase, assignees);
-        }
-    }
-
-    /** The review's changes, sent back unchanged with the same phase and assignees. */
-    public record ReplanApplyIn(@NotBlank String phase, @NotNull Map<String, @NotBlank String> assignees,
-                                @NotNull @Size(max = 300) List<@NotNull @Valid ExpectedUpdateIn> updates) {
-    }
-
-    /** Every sub-task of the phase except the Closed ones, with the dates and assignee they would get. */
+    /** Saves a version of the plan as it shows now and returns the plan. */
     @Open(Rule.ADMIN)
-    @PostMapping("/{epic}/replan")
-    public ReplanView replan(@PathVariable("epic") String epic, @RequestBody @Valid ReplanBody body, Viewer viewer) {
-        return replan.compute(epicScope(viewer, epic), epic, body.in());
-    }
-
-    /** Reads the moved sub-tasks from Jira and shows what the re-plan changes; refused on problems or overruns. */
-    @Open(Rule.ADMIN)
-    @PostMapping("/{epic}/replan/preview")
-    public BatchPreview previewReplan(@PathVariable("epic") String epic, @RequestBody @Valid ReplanBody body, Viewer viewer) {
-        return replan.preview(epicScope(viewer, epic), epic, body.in());
-    }
-
-    /** Applies a reviewed re-plan; 409 when Jira changed since the review, 422 when the re-plan did. */
-    @Open(Rule.ADMIN)
-    @PostMapping("/{epic}/replan/apply")
-    public BatchResult applyReplan(@PathVariable("epic") String epic, @RequestBody @Valid ReplanApplyIn body, Viewer viewer) {
-        return replan.apply(viewer, epicScope(viewer, epic), epic, new ReplanIn(body.phase(), body.assignees()), body.updates().stream()
-                .map(u -> new ExpectedUpdate(u.key(), u.changes().stream().map(c -> new ExpectedChange(c.field(), c.before(), c.after())).toList()))
-                .toList());
+    @PostMapping("/{epic}/detail/versions")
+    public DetailPlanView saveDetailVersion(@PathVariable("epic") String epic, Viewer viewer) {
+        return detail.saveVersion(viewer, epicScope(viewer, epic), epic);
     }
 }

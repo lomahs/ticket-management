@@ -247,6 +247,42 @@ public class DetailPlanService {
         return compute(scope, epic).view();
     }
 
+    /** Saves the plan as it shows (rows, and per line its PIC, Total and cells) as a version; returns the plan that follows. */
+    public DetailPlanView saveVersion(Viewer actor, AnkenScope scope, String epic) {
+        DetailPlanView v = view(scope, epic);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (EstimationRow r : v.rows()) {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("id", r.id());
+            o.put("ba_id", r.baId());
+            o.put("bal_id", r.balId());
+            o.put("jm_id", r.jmId());
+            rows.add(o);
+        }
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (MatrixLine l : v.lines()) {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("ref", l.ref());
+            o.put("summary", l.summary());
+            o.put("pic_id", l.picId());
+            o.put("total_h", l.totalH());
+            Map<String, Double> cellMap = new LinkedHashMap<>();
+            l.cells().forEach(c -> cellMap.put(c.day(), c.hours()));
+            o.put("cells", cellMap);
+            lines.add(o);
+        }
+        String body;
+        try {
+            body = VERSION_JSON.writeValueAsString(Map.of("rows", rows, "lines", lines));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+        planVersions.add(epic, Instant.now(clock).toString(), actor.name(), body);
+        return view(scope, epic);
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper VERSION_JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
     /** Saves the order of the unpushed rows and their people, picked by hand; returns the plan that follows. */
     public DetailPlanView saveDraft(AnkenScope scope, String epic, DraftIn draft) {
         saveDraft(scope, epic, draft, true);
