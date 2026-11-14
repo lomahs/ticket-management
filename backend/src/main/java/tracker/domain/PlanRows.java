@@ -107,7 +107,8 @@ public final class PlanRows {
     }
 
     /**
-     * The row's chain with these people: removed steps are left out, a share whose person is missing is dropped and a step
+     * The row's chain with these people, without fixed dates (dates an older Detail plan set on a step by hand steer nothing: the
+     * matrix's cells replaced them): removed steps are left out, a share whose person is missing is dropped and a step
      * nobody carries is left out. A step that counts for nobody follows the JM on JM Review, else its PIC. Null when nothing
      * is left.
      */
@@ -118,12 +119,10 @@ public final class PlanRows {
             if (st.removed()) {
                 continue;
             }
-            String start = st.edit() == null ? null : st.edit().start();
-            String end = st.edit() == null ? null : st.edit().end();
             if (st.kind() != null && !w.shareOf(st.kind()).counted()) {
                 String who = st.kind() == StepKind.JM_REVIEW ? jm : w.picOf(st.kind()) == Role.BAL ? bal : ba;
                 if (who != null) {
-                    out.add(new Step(st.ref(), phase, st.kind(), List.of(), who, st.hours(), start, end));
+                    out.add(new Step(st.ref(), phase, st.kind(), List.of(), who, st.hours(), null, null));
                 }
                 continue;
             }
@@ -143,7 +142,7 @@ public final class PlanRows {
                 shares.add(new Share(ba, 0));
             }
             if (!shares.isEmpty()) {
-                out.add(new Step(st.ref(), phase, st.kind(), shares, shares.getFirst().memberId(), st.hours(), start, end));
+                out.add(new Step(st.ref(), phase, st.kind(), shares, shares.getFirst().memberId(), st.hours(), null, null));
             }
         }
         return out.isEmpty() ? null : new Chain(earliest, out);
