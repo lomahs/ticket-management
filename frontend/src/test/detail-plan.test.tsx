@@ -568,4 +568,22 @@ describe('detail plan', () => {
     expect(screen.queryByRole('button', { name: 'Review push' })).toBeNull();
     expect(await screen.findByLabelText('PIC, [PAY] Login – Create')).toBeTruthy(); // planned all the same
   });
+
+  it('keeps a function in Jira under its own Task, apart from the same name under another Task', async () => {
+    onboarding({ step: 5 });
+    members();
+    const jira = (key: string, task: string, step: string) => mline(key, null, step, `[PAY][${task}]_Book-Search_${step}`, 4,
+      { issue_key: key, function: 'Book-Search', subphase: task });
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ rows: [], lines: [
+      jira('PAY-1301', 'ITA Prepare', 'create'), jira('PAY-1302', 'ITA Execute', 'create'), jira('PAY-1303', 'ITA Prepare', 'balr')] }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const fns = await screen.findAllByRole('row', { name: 'Function Book-Search' });
+    expect(fns).toHaveLength(2); // one per Task
+    const rows = [...document.querySelectorAll('tr[aria-label]')].map((r) => r.getAttribute('aria-label'));
+    const after = (label: string) => rows.indexOf(label);
+    // ITA Prepare's function holds its two steps, ITA Execute's its one
+    expect(after('[PAY][ITA Prepare]_Book-Search_balr')).toBeLessThan(after('[PAY][ITA Execute]_Book-Search_create'));
+    expect(rows.filter((r) => r === 'Function Book-Search')).toHaveLength(2);
+  });
 });
+

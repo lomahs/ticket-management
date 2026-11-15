@@ -336,6 +336,6 @@ public class EffortService {
     /** The function a sub-task is a step of; a sub-task outside any function is its own. */
     private static String functionKey(TrackerContext ctx, Issue i) {
         Function fn = ctx.function(i);
-        return fn != null ? "fn:" + fn.id() : "issue:" + i.key();
+        return fn != null ? "fn:" + fn.parentKey() + ":" + fn.id() : "issue:" + i.key();
     }
 }

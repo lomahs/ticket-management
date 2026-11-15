@@ -151,12 +151,14 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const subsOf = (p: string): Sub[] => {
     const groups: [string, Group][] = open.filter((r) => r.phase === p)
       .map((r) => [r.subphase, { key: `row:${r.id}`, name: r.function_name, row: r, lines: v.lines.filter((l) => l.row_id === r.id) }]);
+    // a function in Jira is its name under its Task, as in the Function Matrix: the same name under another Task is another one
     const inJira = new Map<string, [string, Group]>();
     for (const l of v.lines) {
       if (l.issue_key == null || l.phase !== p) continue;
-      const g = inJira.get(l.function) ?? [l.subphase, { key: `jira:${p}:${l.function}`, name: l.function, lines: [] }];
+      const id = `${l.subphase}\u0000${l.function}`;
+      const g = inJira.get(id) ?? [l.subphase, { key: `jira:${p}:${l.subphase}:${l.function}`, name: l.function, lines: [] }];
       g[1].lines.push(l);
-      inJira.set(l.function, g);
+      inJira.set(id, g);
     }
     const subs = new Map<string, Sub>();
     for (const [s, g] of [...groups, ...inJira.values()]) {

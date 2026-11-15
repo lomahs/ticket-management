@@ -301,6 +301,21 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void aFunctionInJiraIsItsNameUnderItsTask() {
+        scheduled();
+        // the same function name under two Tasks (ITA Execute, ITA Create test case): two functions, as the Function Matrix has them
+        issues.save(probe("PAY-9141", StepKind.CREATE, Status.WIP, "2026-10-12", "2026-10-13", 16));
+        Issue other = probe("PAY-9142", StepKind.BAL_REVIEW, Status.WIP, "2026-10-12", "2026-10-13", 2);
+        issues.save(new Issue(other.key(), other.project(), other.epicKey(), task("ITA Create test case"), other.kind(), other.summary(),
+                other.phase(), other.status(), other.assigneeId(), other.plannedStart(), other.plannedEnd(), other.estimateH(), other.remainingH(),
+                other.created(), other.jiraStatus(), other.functionId(), other.functionName(), other.step(), List.of(), List.of(), "an", List.of()));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(line(v, "PAY-9142").outOfOrder()).isFalse(); // not a step after PAY-9141's Create
+        assertThat(line(v, "PAY-9141").subphase()).isEqualTo("ITA Execute");
+        assertThat(line(v, "PAY-9142").subphase()).isEqualTo("ITA Create test case");
+    }
+
+    @Test
     void aJiraStepIsInOrderByItsDaysFromTodayOn() {
         scheduled();
         issues.save(probe("PAY-9121", StepKind.CREATE, Status.WIP, "2026-10-12", "2026-10-13", 16));

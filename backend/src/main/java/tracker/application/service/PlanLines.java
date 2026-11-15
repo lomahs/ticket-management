@@ -216,9 +216,12 @@ final class PlanLines {
         return new DetailMatrix.Line(l.ref(), l.chain(), l.order(), l.jira(), l.totalH(), l.spentH(), cells, l.loggedTodayH());
     }
 
-    /** The function a sub-task is a step of, else the sub-task alone. */
+    /**
+     * The function a sub-task is a step of, else the sub-task alone. A function is its name under its Task, as the Function
+     * Matrix has it ({@link tracker.domain.Flags#buildFunctions}): the same name under another Task is another function.
+     */
     static String chain(Issue i) {
-        return Text.hasText(i.functionId()) ? "fn:" + i.functionId() : i.key();
+        return Text.hasText(i.functionId()) ? "fn:" + Text.orElse(i.parentKey(), "") + ":" + i.functionId() : i.key();
     }
 
     private static int order(Issue i) {
