@@ -2621,6 +2621,8 @@ export interface components {
             end: string | null;
             function: string;
             issue_key: string | null;
+            /** Format: int64 */
+            linked_row_id: number | null;
             logged: components["schemas"]["DayHours"][];
             /** Format: double */
             not_yet_h: number;

@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -298,6 +299,44 @@ class DetailPlanMatrixTest {
         assertThat(l.cells()).isNotEmpty().allMatch(c -> c.day().compareTo("2026-10-06") >= 0 && c.day().compareTo("2026-10-08") <= 0);
         assertThat(l.start()).isEqualTo("2026-10-06");
         assertThat(l.end()).isEqualTo("2026-10-08");
+    }
+
+    /** A sub-task in Jira of the function {@code fn} under the Task {@code task} (a single ticket when {@code step} is null). */
+    void inJira(String key, String task, String fn, @Nullable StepKind step) {
+        issues.save(new Issue(key, "PAY", EPIC, task(task), IssueKind.SUBTASK, "[PAY] " + fn + " " + key, "", Status.WIP, "an", "2026-10-06",
+                "2026-10-08", 4, 4, "2026-10-01", Status.WIP.value(), step == null ? null : fn, fn, step, List.of(), List.of(), "an", List.of()));
+    }
+
+    @Test
+    void aRowWhoseStepsAreInJiraShowsThemOnceAndCreatesOnlyTheOthers() {
+        long login = staffed().get(0).id();
+        inJira("PAY-9151", "ITA Create test case", "Login", StepKind.CREATE);
+        inJira("PAY-9152", "ITA Create test case", "Login", StepKind.BAL_REVIEW);
+        inJira("PAY-9153", "ITA Execute", "Login", StepKind.FIX_BAL); // another Task: another function
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC); // plans the steps not in Jira only
+        assertThat(v.lines()).filteredOn(l -> Objects.equals(l.rowId(), login)).extracting(MatrixLine::ref)
+                .containsExactly(login + ":fixb", login + ":jmr", login + ":fixj"); // Jira's plan stands for Create and BAL Review
+        assertThat(line(v, "PAY-9151").linkedRowId()).isEqualTo(login);
+        assertThat(line(v, "PAY-9152").linkedRowId()).isEqualTo(login);
+        assertThat(line(v, "PAY-9153").linkedRowId()).isNull();
+        assertThat(estimationRows.findByEpic(EPIC).get(0).pushedAt()).isNull(); // three steps are still to create
+        // the push creates the row's lines: the three steps not in Jira, planned by Auto allocate
+        assertThat(line(v, login + ":fixb").cells()).isNotEmpty();
+    }
+
+    @Test
+    void aRowWhoseStepsAreAllInJiraIsPushed() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        for (StepKind k : List.of(StepKind.CREATE, StepKind.BAL_REVIEW, StepKind.FIX_BAL, StepKind.JM_REVIEW, StepKind.FIX_JM)) {
+            inJira("PAY-916" + k.ordinal(), "ITA Create test case", "Login", k);
+        }
+        inJira("PAY-9170", "ITA Execute", "Run", null); // the ticket Run, in Jira under its Task
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.lines()).noneMatch(l -> Objects.equals(l.rowId(), login) || Objects.equals(l.rowId(), rows.get(1).id()));
+        assertThat(estimationRows.findByEpic(EPIC)).filteredOn(r -> r.pushedAt() != null).extracting(EstimationRow::id)
+                .containsExactlyInAnyOrder(login, rows.get(1).id());
+        assertThat(v.problems()).noneMatch(p -> p.contains("(Login)") || p.contains("(Run)"));
     }
 
     @Test

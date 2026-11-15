@@ -6815,6 +6815,10 @@
           "issue_key" : {
             "type" : [ "string", "null" ]
           },
+          "linked_row_id" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64"
+          },
           "logged" : {
             "type" : "array",
             "items" : {
@@ -6890,7 +6894,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "cells", "closed", "edited", "end", "function", "issue_key", "logged", "not_yet_h", "out_of_order", "pending", "phase", "pic_id", "pic_slot", "plan_estimate_h", "plan_h", "plan_not_yet_h", "planned_h", "ref", "removed", "reporter_id", "row_id", "spent_h", "start", "step", "subphase", "summary", "total_h" ]
+        "required" : [ "cells", "closed", "edited", "end", "function", "issue_key", "linked_row_id", "logged", "not_yet_h", "out_of_order", "pending", "phase", "pic_id", "pic_slot", "plan_estimate_h", "plan_h", "plan_not_yet_h", "planned_h", "ref", "removed", "reporter_id", "row_id", "spent_h", "start", "step", "subphase", "summary", "total_h" ]
       },
       "MatrixStats" : {
         "type" : "object",

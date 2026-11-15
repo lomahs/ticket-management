@@ -58,7 +58,7 @@ final class PlanLines {
 
     static Built build(TrackerContext ctx, String epic, List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf,
                        Map<String, String> names, StepWeights w, List<Cell> rowCells, Map<String, List<Cell>> jiraCells,
-                       List<JiraEdit> edits) {
+                       List<JiraEdit> edits, RowLinks links) {
         List<Draft> drafts = new ArrayList<>();
         Map<String, List<Cell>> cellsOf = new HashMap<>();
         rowCells.forEach(c -> cellsOf.computeIfAbsent(c.ref(), k -> new ArrayList<>()).add(c));
@@ -71,14 +71,16 @@ final class PlanLines {
                         names.getOrDefault(st.ref(), r.functionName()), PlanRows.assignee(st, r.baId(), r.balId(), w),
                         st.kind() == StepKind.CREATE ? r.balId() : null, Numbers.hours(st.hours()), 0, 0, 0, null, null, cells, List.of(),
                         false, false, false, st.removed(), st.edit() != null && st.edit().effortH() != null, Numbers.hours(st.hours()), 0, 0,
-                        r.subphase(), picSlot(st.kind(), w));
-                DetailMatrix.Line line = new DetailMatrix.Line(st.ref(), "row:" + r.id(), st.kind() == null ? 0 : st.kind().ordinal(), false,
+                        r.subphase(), picSlot(st.kind(), w), null);
+                // a row with steps in Jira is ordered with them, in its function's chain there
+                DetailMatrix.Line line = new DetailMatrix.Line(st.ref(), links.chainOfRow().getOrDefault(r.id(), "row:" + r.id()),
+                        st.kind() == null ? 0 : st.kind().ordinal(), false,
                         st.hours(), 0, map(cells));
                 List<Effort.PlanShare> shares = st.removed() ? List.of() : PlanRows.shares(st, r.baId(), r.balId(), w);
                 drafts.add(new Draft(base, line, shares, shares, st.kind()));
             }
         }
-        drafts.addAll(jira(ctx, epic, jiraCells, edits));
+        drafts.addAll(jira(ctx, epic, jiraCells, edits, links));
 
         // removed and Closed lines count for nothing; a Jira line's days before today are locked, so only its days from today on
         Set<String> outOfOrder = DetailMatrix.outOfOrder(drafts.stream().filter(d -> !d.base().removed() && !d.base().closed())
@@ -96,7 +98,7 @@ final class PlanLines {
                     b.totalH(), b.spentH(), b.closed() ? b.totalH() : DetailMatrix.plannedH(l, ctx.today),
                     b.closed() ? 0 : DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
                     b.logged(), b.closed(), b.pending(), outOfOrder.contains(b.ref()), b.removed(), b.edited(), b.planEstimateH(),
-                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells())), b.subphase(), b.picSlot()));
+                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells())), b.subphase(), b.picSlot(), b.linkedRowId()));
             for (DayHours c : b.cells()) {
                 for (Effort.PlanShare sh : c.day().compareTo(ctx.today) < 0 ? d.pastShares() : d.shares()) {
                     parts.add(new DetailScheduler.Part(b.ref(), sh.memberId(), c.day(), c.hours() * sh.fraction()));
@@ -117,7 +119,7 @@ final class PlanLines {
      * days as pushed when they all lie within its Planned Start and End in Jira, else {@link TrackerContext#planDays}); from today
      * on the pending cells when the sub-task has any, else the same plan (a pending Remaining or PIC alone keeps it).
      */
-    private static List<Draft> jira(TrackerContext ctx, String epic, Map<String, List<Cell>> jiraCells, List<JiraEdit> edits) {
+    private static List<Draft> jira(TrackerContext ctx, String epic, Map<String, List<Cell>> jiraCells, List<JiraEdit> edits, RowLinks links) {
         Map<String, String> groups = DetailPlanService.groupOfTask(ctx, epic);
         Map<String, JiraEdit> editOf = new HashMap<>();
         edits.forEach(e -> editOf.put(e.issueKey(), e));
@@ -134,14 +136,14 @@ final class PlanLines {
             List<Issue> ordered = new ArrayList<>(issues);
             ordered.sort(Comparator.comparingInt(PlanLines::order));
             for (Issue i : ordered) {
-                out.add(jiraLine(ctx, phase, chain, i, jiraCells.get(i.key()), editOf.get(i.key())));
+                out.add(jiraLine(ctx, phase, chain, i, jiraCells.get(i.key()), editOf.get(i.key()), links.rowOfIssue().get(i.key())));
             }
         }));
         return out;
     }
 
     private static Draft jiraLine(TrackerContext ctx, String phase, String chain, Issue i, @Nullable List<Cell> pendingCells,
-                                  @Nullable JiraEdit edit) {
+                                  @Nullable JiraEdit edit, @Nullable Long linkedRowId) {
         boolean hasCells = pendingCells != null && !pendingCells.isEmpty();
         boolean pending = hasCells || edit != null;
         Map<String, Double> saved = ctx.savedPlanDays(i);
@@ -169,7 +171,7 @@ final class PlanLines {
                 i.step() == null ? null : i.step().value(), i.summary(), pic, i.reporterId(), total, spent, 0, 0, null, null, days,
                 logged.entrySet().stream().map(e -> new DayHours(e.getKey(), Numbers.hours(e.getValue()), false)).toList(), closed, pending,
                 false, false, false, Numbers.hours(i.estimateH()), 0, 0,
-                ctx.issue(Text.orElse(i.parentKey(), "")).map(t -> PhaseGroups.taskName(t.summary())).orElse(""), null);
+                ctx.issue(Text.orElse(i.parentKey(), "")).map(t -> PhaseGroups.taskName(t.summary())).orElse(""), null, linkedRowId);
         DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days),
                 logged.getOrDefault(ctx.today, 0.0));
         List<Effort.PlanShare> past = closed ? List.of() : ctx.planShares(i);

@@ -154,6 +154,8 @@ public class DetailPlanService {
      * @param subphase      the Task the line's function goes under, by its name (a row's subphase; a sub-task's parent); empty if none
      * @param picSlot       a row's step only: whose person the step's PIC cell picks — "jm" on JM Review (the JM carries it in
      *                      the plan), else the step's PIC by Settings › Step weights ("ba" or "bal"); "ba" on a ticket
+     * @param linkedRowId   a sub-task in Jira only: the unpushed row it is a step of (same Task and function), which shows its
+     *                      other steps; null when none
      */
     // issue_key named outright: the OpenAPI resolver leaves "issueKey" (a name starting "is") unconverted
     public record MatrixLine(String ref, @Nullable Long rowId, @JsonProperty("issue_key") @Nullable String issueKey, String phase, String function,
@@ -161,7 +163,7 @@ public class DetailPlanService {
                              double totalH, double spentH, double plannedH, double notYetH, @Nullable String start, @Nullable String end,
                              List<DayHours> cells, List<DayHours> logged, boolean closed, boolean pending, boolean outOfOrder,
                              boolean removed, boolean edited, double planEstimateH, double planH, double planNotYetH,
-                             String subphase, @Nullable String picSlot) {
+                             String subphase, @Nullable String picSlot, @Nullable Long linkedRowId) {
     }
 
     /** @param daysLate calendar days from the master schedule's End to the plan's end; positive = later */
@@ -484,9 +486,12 @@ public class DetailPlanService {
         Allocations a = allocations.counted(scope).allocations();
         StepWeights w = ctx.settings.stepWeightsOf(epic);
         List<StepEdit> edits = estimation.stepEdits(epic);
+        RowLinks links = link(ctx, epic, edits, w);
+        // the steps already in Jira keep Jira's plan; a row with all of them there is pushed
+        open = open.stream().filter(r -> !links.whole().contains(r.id())).toList();
         AutoAllocator.Input in = new AutoAllocator.Input(epic,
                 open.stream().map(r -> new AutoAllocator.Row(r.id(), r.phase(), r.steps(), r.effortH(), r.baId(), r.balId(), r.jmId(),
-                        PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w))).toList(),
+                        links.open(PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w)))).toList(),
                 phases, roles, loads(ctx, epic, Set.of()), givenBefore(ctx, epic, Set.of()),
                 AutoAllocator.cached(DetailScheduler.hours(epic, a, ctx.cal)), ctx.cal, w, ctx.settings.workingHours.hoursPerDay());
         List<RowAssign> assigns;
@@ -584,23 +589,40 @@ public class DetailPlanService {
     }
 
     /** What the plan of an anken's unpushed rows is made from: its rows, their steps, the master schedule and what is missing. */
+    /** @param links the rows' steps already in Jira: {@code stepsOf} leaves them out */
     private record Basis(TrackerContext ctx, List<EstimationRow> all, List<EstimationRow> rows, List<StepEdit> edits, StepWeights w,
                          Map<Long, List<PlanRows.RowStep>> stepsOf, @Nullable ScheduleVersion schedule,
-                         List<EstimationService.TaskOption> tasks, List<String> problems) {
+                         List<EstimationService.TaskOption> tasks, List<String> problems, RowLinks links) {
     }
 
     private Basis basis(AnkenScope scope, String epic) {
         TrackerContext ctx = EstimationService.load(context, scope, epic);
-        List<EstimationRow> all = estimation.findByEpic(epic);
-        List<EstimationRow> rows = all.stream().filter(r -> !r.pushed()).toList();
         List<StepEdit> edits = estimation.stepEdits(epic);
         StepWeights w = ctx.settings.stepWeightsOf(epic);
+        RowLinks links = link(ctx, epic, edits, w);
+        List<EstimationRow> all = estimation.findByEpic(epic);
+        List<EstimationRow> rows = all.stream().filter(r -> !r.pushed()).toList();
         Map<Long, List<PlanRows.RowStep>> stepsOf = new LinkedHashMap<>();
-        rows.forEach(r -> stepsOf.put(r.id(), PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w)));
+        rows.forEach(r -> stepsOf.put(r.id(), links.open(PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w))));
         List<ScheduleVersion> saved = versions.findByEpic(epic);
         ScheduleVersion schedule = saved.isEmpty() ? null : saved.getLast();
         List<EstimationService.TaskOption> tasks = EstimationService.tasks(ctx, epic);
-        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, schedule, rows, stepsOf, w, tasks));
+        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, schedule, rows, stepsOf, w, tasks), links);
+    }
+
+    /**
+     * Links the unpushed rows to their function in Jira ({@link RowLinks}): a row whose steps are all there is marked pushed, as
+     * a push would have (Jira's plan stands), whoever made the sub-tasks (a push cut short, the CSV export, the client).
+     */
+    private RowLinks link(TrackerContext ctx, String epic, List<StepEdit> edits, StepWeights w) {
+        List<EstimationRow> open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).toList();
+        Map<Long, List<PlanRows.RowStep>> stepsOf = new HashMap<>();
+        open.forEach(r -> stepsOf.put(r.id(), PlanRows.steps(r.id(), r.steps(), r.effortH(), edits, w)));
+        RowLinks links = RowLinks.of(ctx, epic, open, stepsOf);
+        if (!links.whole().isEmpty()) {
+            estimation.markPushed(List.copyOf(links.whole()), Instant.now(clock).toString());
+        }
+        return links;
     }
 
     /**
@@ -619,7 +641,7 @@ public class DetailPlanService {
         Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), rows, stepsOf);
         DetailScheduler.Hours hours = DetailScheduler.hours(epic, a, ctx.cal);
         PlanLines.Built built = PlanLines.build(ctx, epic, rows, stepsOf, names, w, cells.rowCells(epic), cells.jiraCells(epic),
-                cells.jiraEdits(epic));
+                cells.jiraEdits(epic), b.links());
         List<MatrixLine> lines = built.lines();
         List<Placed> placed = built.placed();
         List<DetailScheduler.Part> parts = built.parts();

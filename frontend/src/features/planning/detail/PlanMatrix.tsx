@@ -53,6 +53,9 @@ function HoursInput({ label, value, blank, send, className }: {
   );
 }
 
+/** Where a line's step comes in its function (a ticket first). */
+const stepOrder = (l: MatrixLine) => (l.step ? STEPS.findIndex((x) => x.k === l.step) + 1 : 0);
+
 /** A function of the plan: a row not in Jira yet with its steps, or a function of the sub-tasks already in Jira. */
 interface Group { key: string; name: string; row?: Row; lines: MatrixLine[] }
 /** A Task of a phase (its sub-phase) and the functions under it. */
@@ -149,12 +152,14 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const phases = [...new Set([...v.checks.map((c) => c.phase), ...open.map((r) => r.phase), ...v.lines.map((l) => l.phase)])]
     .filter((p) => open.some((r) => r.phase === p) || v.lines.some((l) => l.phase === p));
   const subsOf = (p: string): Sub[] => {
+    // a row's steps already in Jira (linked_row_id) show in its function, in step order with the steps still to create
     const groups: [string, Group][] = open.filter((r) => r.phase === p)
-      .map((r) => [r.subphase, { key: `row:${r.id}`, name: r.function_name, row: r, lines: v.lines.filter((l) => l.row_id === r.id) }]);
+      .map((r) => [r.subphase, { key: `row:${r.id}`, name: r.function_name, row: r,
+        lines: v.lines.filter((l) => l.row_id === r.id || l.linked_row_id === r.id).sort((a, b) => stepOrder(a) - stepOrder(b)) }]);
     // a function in Jira is its name under its Task, as in the Function Matrix: the same name under another Task is another one
     const inJira = new Map<string, [string, Group]>();
     for (const l of v.lines) {
-      if (l.issue_key == null || l.phase !== p) continue;
+      if (l.issue_key == null || l.phase !== p || open.some((r) => r.id === l.linked_row_id)) continue;
       const id = `${l.subphase}\u0000${l.function}`;
       const g = inJira.get(id) ?? [l.subphase, { key: `jira:${p}:${l.subphase}:${l.function}`, name: l.function, lines: [] }];
       g[1].lines.push(l);

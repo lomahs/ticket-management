@@ -585,5 +585,22 @@ describe('detail plan', () => {
     expect(after('[PAY][ITA Prepare]_Book-Search_balr')).toBeLessThan(after('[PAY][ITA Execute]_Book-Search_create'));
     expect(rows.filter((r) => r === 'Function Book-Search')).toHaveLength(2);
   });
+
+  it('shows a function once when some of its steps are in Jira: Jira\'s, then the steps still to create', async () => {
+    onboarding({ step: 5 });
+    members();
+    const jira = (key: string, step: string, summary: string) => mline(key, null, step, summary, 4,
+      { issue_key: key, function: 'Login', subphase: 'Create test case', linked_row_id: 1 });
+    const lines = [mline('1:fixb', 1, 'fixb', '[PAY] Login – Fix comment BAL', 2, { subphase: 'Create test case' }),
+      jira('PAY-1302', 'balr', '[PAY] Login – BAL Review'), jira('PAY-1301', 'create', '[PAY] Login – Create')];
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
+      rows: [{ ...LOGIN, subphase: 'Create test case' }], lines }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect(await screen.findAllByRole('row', { name: 'Function Login' })).toHaveLength(1);
+    const order = [...document.querySelectorAll('tr[aria-label]')].map((r) => r.getAttribute('aria-label'))
+      .filter((l) => l?.startsWith('[PAY] Login'));
+    expect(order).toEqual(['[PAY] Login – Create', '[PAY] Login – BAL Review', '[PAY] Login – Fix comment BAL']); // in step order
+    expect(screen.queryByText('In Jira')).toBeNull(); // the function is the row's, with its steps in Jira inside
+  });
 });
 
