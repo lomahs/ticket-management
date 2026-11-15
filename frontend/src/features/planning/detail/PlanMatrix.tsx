@@ -284,7 +284,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <td className="pm-c2">{closed ? sumText(live.reduce((a, l) => a + l.plan_estimate_h, 0)) : ''}</td>
         <td className="pm-c3">{closed ? sumText(live.reduce((a, l) => a + l.plan_h, 0)) : ''}</td>
         <td className="pm-c4">{closed ? sumText(live.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0)) : ''}</td>
-        <td className="pm-c5" /><td className="pm-c6" />
+        <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
         {sums(g.lines, closed)}
       </tr>
     );
@@ -352,6 +352,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <td className="pm-c4" aria-label={`Not yet plan, ${l.summary}`} data-left={left(l) || undefined}>{f2(l.plan_not_yet_h)}</td>
         <td className="pm-c5" aria-label={`Start, ${l.summary}`}>{l.start ? dm(l.start) : '–'}</td>
         <td className="pm-c6" aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
+        <td className="pm-c7" aria-label={`Actual remaining, ${l.summary}`}>{l.actual_remaining_h == null ? '–' : f2(l.actual_remaining_h)}</td>
         {days.map((d) => {
           const planned = sum(l.cells, d);
           const logged = sum(l.logged, d);
@@ -388,7 +389,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <td colSpan={4} className={`pm-meta${c && c.plan_end && c.days_late > 0 ? ' late' : ''}`}>
           {c ? checkText(c).replace(`${p} `, '').replace(`${p}: `, '') : ''}
         </td>
-        <td className="pm-c5" /><td className="pm-c6" />
+        <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
         {sums(linesOf(subs.flatMap((s) => s.groups)), pClosed)}
       </tr>,
     );
@@ -402,7 +403,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
               <span className="pm-sb-name ellipsis" title={s.name}>{s.name}</span><span className="pm-badge">{plural(s.groups.length, 'function')}</span></span>
           </th>
           <td colSpan={4} className="pm-meta">{`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`}</td>
-          <td className="pm-c5" /><td className="pm-c6" />
+          <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
           {sums(linesOf(s.groups), sClosed)}
         </tr>,
       );
@@ -489,6 +490,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
               <th scope="col" className="pm-c4">Not yet plan</th>
               <th scope="col" className="pm-c5">Start</th>
               <th scope="col" className="pm-c6">End</th>
+              <th scope="col" className="pm-c7" title="Remaining Estimate in Jira now (Forecast estimation), for reference: the plan does not use it">Actual remaining</th>
               {days.map((d) => (
                 <th key={d} scope="col" aria-label={d} className={`pm-day${d === today ? ' pm-today' : ''}`}>
                   <span className="pm-wd">{d === today ? 'Today' : weekday(d)}</span><span className="pm-dn">{dm(d)}</span>
@@ -498,10 +500,10 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
           </thead>
           <tbody>
             {phases.length === 0 && (
-              <tr><td colSpan={7 + days.length} className="empty-row" style={{ fontSize: 13 }}>Nothing to plan yet: add a function or a task.</td></tr>
+              <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>Nothing to plan yet: add a function or a task.</td></tr>
             )}
             {phases.length > 0 && filtering && matched === 0 && (
-              <tr><td colSpan={7 + days.length} className="empty-row" style={{ fontSize: 13 }}>No step matches the filters.</td></tr>
+              <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>No step matches the filters.</td></tr>
             )}
             {body}
           </tbody>
@@ -513,7 +515,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
                 <td className="pm-c2">{sumText(footLines.reduce((a, l) => a + l.plan_estimate_h, 0))}</td>
                 <td className="pm-c3">{sumText(footLines.reduce((a, l) => a + l.plan_h, 0))}</td>
                 <td className="pm-c4">{sumText(footLines.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0))}</td>
-                <td className="pm-c5" /><td className="pm-c6" />
+                <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
                 {days.map((d) => {
                   const t = footLines.reduce((a, l) => a + sum(l.cells, d), 0);
                   return <td key={d} className={`pm-cell${d === today ? ' pm-today' : ''}${t < 0.005 ? ' zero' : ''}`}>{sumText(t)}</td>;

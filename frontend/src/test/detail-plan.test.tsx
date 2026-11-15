@@ -254,6 +254,17 @@ describe('detail plan', () => {
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
   });
 
+  it('shows the remaining in Jira of a sub-task, for reference only', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
+      lines: [...LINES, { ...REFUND, actual_remaining_h: 2.5 }] }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect((await screen.findByLabelText('Actual remaining, [PAY] Refund – Create')).textContent).toBe('2.50');
+    expect(screen.getByLabelText('Actual remaining, [PAY] Run').textContent).toBe('–'); // not in Jira yet
+    expect(screen.getByRole('columnheader', { name: 'Actual remaining' })).toBeTruthy();
+  });
+
   it('types hours into a day and sends them when the cell is left', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 5 });

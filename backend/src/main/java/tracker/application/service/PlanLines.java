@@ -71,7 +71,7 @@ final class PlanLines {
                         names.getOrDefault(st.ref(), r.functionName()), PlanRows.assignee(st, r.baId(), r.balId(), w),
                         st.kind() == StepKind.CREATE ? r.balId() : null, Numbers.hours(st.hours()), 0, 0, 0, null, null, cells, List.of(),
                         false, false, false, st.removed(), st.edit() != null && st.edit().effortH() != null, Numbers.hours(st.hours()), 0, 0,
-                        r.subphase(), picSlot(st.kind(), w), null);
+                        r.subphase(), picSlot(st.kind(), w), null, null);
                 // a row with steps in Jira is ordered with them, in its function's chain there
                 DetailMatrix.Line line = new DetailMatrix.Line(st.ref(), links.chainOfRow().getOrDefault(r.id(), "row:" + r.id()),
                         st.kind() == null ? 0 : st.kind().ordinal(), false,
@@ -98,7 +98,7 @@ final class PlanLines {
                     b.totalH(), b.spentH(), b.closed() ? b.totalH() : DetailMatrix.plannedH(l, ctx.today),
                     b.closed() ? 0 : DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
                     b.logged(), b.closed(), b.pending(), outOfOrder.contains(b.ref()), b.removed(), b.edited(), b.planEstimateH(),
-                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells())), b.subphase(), b.picSlot(), b.linkedRowId()));
+                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells())), b.subphase(), b.picSlot(), b.linkedRowId(), b.actualRemainingH()));
             for (DayHours c : b.cells()) {
                 for (Effort.PlanShare sh : c.day().compareTo(ctx.today) < 0 ? d.pastShares() : d.shares()) {
                     parts.add(new DetailScheduler.Part(b.ref(), sh.memberId(), c.day(), c.hours() * sh.fraction()));
@@ -171,7 +171,8 @@ final class PlanLines {
                 i.step() == null ? null : i.step().value(), i.summary(), pic, i.reporterId(), total, spent, 0, 0, null, null, days,
                 logged.entrySet().stream().map(e -> new DayHours(e.getKey(), Numbers.hours(e.getValue()), false)).toList(), closed, pending,
                 false, false, false, Numbers.hours(i.estimateH()), 0, 0,
-                ctx.issue(Text.orElse(i.parentKey(), "")).map(t -> PhaseGroups.taskName(t.summary())).orElse(""), null, linkedRowId);
+                ctx.issue(Text.orElse(i.parentKey(), "")).map(t -> PhaseGroups.taskName(t.summary())).orElse(""), null, linkedRowId,
+                Numbers.hours(i.remainingH()));
         DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days),
                 logged.getOrDefault(ctx.today, 0.0));
         List<Effort.PlanShare> past = closed ? List.of() : ctx.planShares(i);

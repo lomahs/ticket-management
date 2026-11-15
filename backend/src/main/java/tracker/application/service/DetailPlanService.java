@@ -157,6 +157,8 @@ public class DetailPlanService {
      *                      the plan), else the step's PIC by Settings › Step weights ("ba" or "bal"); "ba" on a ticket
      * @param linkedRowId   a sub-task in Jira only: the unpushed row it is a step of (same Task and function), which shows its
      *                      other steps; null when none
+     * @param actualRemainingH a sub-task in Jira only: its Remaining Estimate in Jira now (Forecast estimation), shown for
+     *                      reference; nothing is computed from it. Null for a row's step
      */
     // issue_key named outright: the OpenAPI resolver leaves "issueKey" (a name starting "is") unconverted
     public record MatrixLine(String ref, @Nullable Long rowId, @JsonProperty("issue_key") @Nullable String issueKey, String phase, String function,
@@ -164,7 +166,8 @@ public class DetailPlanService {
                              double totalH, double spentH, double plannedH, double notYetH, @Nullable String start, @Nullable String end,
                              List<DayHours> cells, List<DayHours> logged, boolean closed, boolean pending, boolean outOfOrder,
                              boolean removed, boolean edited, double planEstimateH, double planH, double planNotYetH,
-                             String subphase, @Nullable String picSlot, @Nullable Long linkedRowId) {
+                             String subphase, @Nullable String picSlot, @Nullable Long linkedRowId,
+                             @Nullable Double actualRemainingH) {
     }
 
     /** @param daysLate calendar days from the master schedule's End to the plan's end; positive = later */

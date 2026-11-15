@@ -2631,6 +2631,8 @@ export interface components {
             versions: components["schemas"]["ScheduleVersion"][];
         };
         MatrixLine: {
+            /** Format: double */
+            actual_remaining_h: number | null;
             cells: components["schemas"]["DayHours"][];
             closed: boolean;
             edited: boolean;

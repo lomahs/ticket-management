@@ -563,6 +563,19 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void aJiraLineShowsJirasRemainingForReference() {
+        List<EstimationRow> rows = scheduled();
+        String key = jiraSubtask();
+        Issue i = issues.findByKey(key).orElseThrow();
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), 16, 9.5, i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                i.worklogs(), i.events(), i.reporterId(), i.labels()));
+        DetailPlanView v = detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(20.0, null)); // a pending Total: Jira still says 9.5
+        assertThat(line(v, key).actualRemainingH()).isEqualTo(9.5);
+        assertThat(line(v, String.valueOf(rows.get(1).id())).actualRemainingH()).isNull(); // not in Jira yet
+    }
+
+    @Test
     void totalOfAJiraLineChangesOnlyRemaining() {
         scheduled();
         String key = tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("s", true, task("ITA Execute"), null, "[PAY] Export",
