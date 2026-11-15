@@ -3,6 +3,7 @@ package tracker.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -25,13 +26,16 @@ import tracker.application.service.OnboardingService.NewTaskIn;
 import tracker.application.service.OnboardingService.NewTasksCommon;
 import tracker.application.service.OnboardingService.OnboardingView;
 import tracker.application.service.OnboardingService.TemplateTask;
+import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.AccessStatus;
 import tracker.domain.AnkenScope;
 import tracker.domain.EstimationRow;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
+import tracker.domain.TaskTemplate;
 import tracker.domain.Viewer;
+import tracker.domain.WorkStructure;
 
 /** Onboarding a new anken: PAY-1500 is an epic of the demo Jira that is not tracked. */
 @DemoTest
@@ -313,9 +317,60 @@ class OnboardingTest {
         onboarding.save(PIM, draft, 2, "RFD", List.of());
         onboarding.saveMembers(PIM, draft, List.of(new MemberIn("tanaka", true, 1.0)));
         estimations.save(new AnkenScope(Set.of(draft)), draft, List.of(row(draft, QNA)));
+        onboarding.saveStructure(draft, withTask(onboarding.structure(draft), "[*] Refund study"));
         onboarding.discard(draft);
         assertThat(onboarding.list()).isEmpty();
         assertThat(estimation.findByEpic(draft)).isEmpty();
         assertThat(ankenMembers.findByEpic(draft)).isEmpty();
+        assertThat(settings.load().anken).doesNotContainKey(draft);
+    }
+
+    /** The structure with one more Task, under its first phase. */
+    private static WorkStructure withTask(StructureView v, String match) {
+        List<TaskTemplate> tasks = new ArrayList<>(v.tasks());
+        tasks.add(new TaskTemplate(match, v.phases().get(0), "", true, ""));
+        return new WorkStructure(v.phases(), tasks, v.daily());
+    }
+
+    @Test
+    void aDraftHasPhasesAndTasksOfItsOwnThatGoToItsEpic() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        onboarding.save(PIM, draft, 2, "RFD", List.of());
+        StructureView start = onboarding.structure(draft);
+        assertThat(start.tasks()).isEqualTo(jiraSettings.structure(null).tasks()); // the default until saved
+        assertThat(start.seen()).isEmpty();
+
+        onboarding.saveStructure(draft, withTask(start, "[*] Refund study"));
+        assertThat(onboarding.tasks(draft, null).tasks()).extracting(TemplateTask::match).contains("[*] Refund study");
+        assertThat(jiraSettings.structure(null).tasks()).extracting(TaskTemplate::match).doesNotContain("[*] Refund study");
+        assertThat(jiraSettings.nameRules(null).taskRule()).isEqualTo(settings.load().nameRulesOf(draft).taskRule); // the default's
+        onboarding.start(PIM, "PAY-1100");
+        assertThatThrownBy(() -> onboarding.structure("PAY-1100")).isInstanceOf(Invalid.class).hasMessageContaining("Settings");
+        assertThatThrownBy(() -> onboarding.saveStructure(draft, new WorkStructure(List.of(" "), List.of(), List.of())))
+                .isInstanceOf(Invalid.class).extracting("field").isEqualTo("phases");
+
+        onboarding.link(PIM, draft, EPIC);
+        assertThat(jiraSettings.structure(EPIC).tasks()).extracting(TaskTemplate::match).contains("[*] Refund study");
+        assertThat(settings.load().anken).doesNotContainKey(draft);
+    }
+
+    @Test
+    void aDraftThatKeptTheDefaultLeavesTheEpicItsOwn() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        jiraSettings.addEpic(EPIC);
+        jiraSettings.saveStructure(EPIC, withTask(jiraSettings.structure(EPIC), "[*] Epic only"));
+        onboarding.link(PIM, draft, EPIC);
+        assertThat(jiraSettings.structure(EPIC).tasks()).extracting(TaskTemplate::match).contains("[*] Epic only");
+    }
+
+    @Test
+    void aDraftCannotDropATemplateTaskItsEstimationIsUnder() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        onboarding.save(PIM, draft, 2, "RFD", List.of());
+        estimations.save(new AnkenScope(Set.of(draft)), draft, List.of(row(draft, QNA)));
+        StructureView v = onboarding.structure(draft);
+        WorkStructure without = new WorkStructure(v.phases(), v.tasks().stream().filter(t -> !QNA.endsWith(t.match())).toList(), v.daily());
+        assertThatThrownBy(() -> onboarding.saveStructure(draft, without)).isInstanceOf(Invalid.class)
+                .hasMessageContaining("[*] QnA management").extracting("field").isEqualTo("tasks");
     }
 }

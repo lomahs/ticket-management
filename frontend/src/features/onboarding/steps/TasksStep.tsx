@@ -5,10 +5,13 @@ import { useMe } from '../../../shared/api/queries';
 import { Button, DateField, Select, TextField } from '../../../shared/ds';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { onboardingMembersQuery, onboardingQuery, templateTasksQuery, useCreateTasks, usePreviewTasks, useSaveProgress } from '../api';
+import { StructureEditor } from '../../../shared/ui/StructureEditor';
+import {
+  draftStructureQuery, onboardingMembersQuery, onboardingQuery, templateTasksQuery, useCreateTasks, useImportDraftStructure, usePreviewTasks,
+  useSaveDraftStructure, useSaveProgress,
+} from '../api';
 import { StepShell } from '../components/StepShell';
 import { useDebounced } from '../../../shared/state/debounce';
-
 
 /** Step 2, Setting Phase: the anken's template Tasks; the missing ones are named by the Task pattern and created in one go. */
 export function TasksStep({ epic }: { epic: string }) {
@@ -43,10 +46,11 @@ function Tasks({ epic, draft, savedPrefix, savedLabels }: { epic: string; draft:
   });
   return (
     <StepShell epic={epic} step="tasks" title="Setting Phase"
-      sub={draft ? 'Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). The anken has no epic yet: the estimation and the plan use these Tasks as named here, and they are created in Jira once you link the epic.'
+      sub={draft ? 'The anken has no epic yet, so its Phases & tasks are set here (they start as Settings › Phases & tasks for new anken and become the epic\'s once you link it). Its Tasks are named by the Task pattern (Settings › Name rules › Phase); the estimation and the plan use them as named here, and they are created in Jira once you link the epic.'
         : 'Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go. The labels go on the new Tasks and on the sub-tasks pushed from the Detail plan.'}
       canContinue={!draft || !!prefix.trim()}
       onSave={() => progress.mutateAsync({ step: 2, anken_prefix: prefix.trim(), labels: labelList })}>
+      {draft && <DraftStructure epic={epic} />}
       <section className="card card-clip" aria-label="Setting Phase">
         <div style={{ padding: '12px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16, borderBottom: '1px solid var(--border-subtle)' }}>
           <TextField mono label="Anken prefix" placeholder="e.g. BookUI" value={prefix} onChange={setPrefix} style={{ width: 180 }} />
@@ -127,5 +131,18 @@ function Tasks({ epic, draft, savedPrefix, savedLabels }: { epic: string; draft:
         )}
       </section>
     </StepShell>
+  );
+}
+
+/** The Phases & tasks of an anken without its epic, which Settings cannot pick; they become the epic's once it is linked. */
+function DraftStructure({ epic }: { epic: string }) {
+  const q = useQuery(draftStructureQuery(epic));
+  const save = useSaveDraftStructure(epic);
+  const importFile = useImportDraftStructure(epic);
+  if (q.isPending) return <Loading />;
+  if (q.isError) return <QueryError error={q.error} />;
+  return (
+    <StructureEditor key={epic} v={q.data} onSave={save.mutateAsync} onImport={importFile.mutateAsync} saving={save.isPending}
+      importing={importFile.isPending} saved="Phases & tasks saved" />
   );
 }

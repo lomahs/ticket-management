@@ -1688,6 +1688,107 @@
         "tags" : [ "onboarding-api" ]
       }
     },
+    "/api/v1/onboarding/{epic}/structure" : {
+      "get" : {
+        "operationId" : "structure_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StructureView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      },
+      "put" : {
+        "operationId" : "saveStructure_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StructureIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StructureView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/structure/import" : {
+      "post" : {
+        "operationId" : "importStructure_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "encoding" : {
+                "file" : { }
+              },
+              "schema" : {
+                "$ref" : "#/components/schemas/StructureUpload"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/StructureImportRow"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
     "/api/v1/onboarding/{epic}/tasks" : {
       "get" : {
         "operationId" : "tasks",

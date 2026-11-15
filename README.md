@@ -165,9 +165,11 @@ and the epic stays tracked.
 
 An anken whose epic does not exist yet starts from its name instead (step 1 → "No, not yet"). It is saved under a draft key
 (`draft-1`, never a Jira key), shows in Onboarding only and is planned the same way: its Tasks are the template's, named with
-the anken prefix; its members' hours are weighed against their other anken but never count on them. Creating Tasks, pushing
-and Finish wait for the epic: Link epic (step 1) tracks it and moves everything under it, and the estimation rows take the
-Tasks created in Setting Phase.
+the anken prefix; its members' hours are weighed against their other anken but never count on them. Settings cannot pick a
+draft, so its own Phases & tasks are set in Setting Phase (the default for new anken until saved; a template Task that
+estimation rows are under cannot be dropped). Creating Tasks, pushing and Finish wait for the epic: Link epic (step 1) tracks
+it and moves everything under it, its Phases & tasks included (replacing the epic's own, if it saved any), and the estimation
+rows take the Tasks created in Setting Phase.
 
 **Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Detail plan once the anken runs; admins
 write, Planning readers look). The estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per

@@ -85,6 +85,36 @@ export const templateTasksQuery = (epic: string, prefix: string) => ({
   placeholderData: keepPreviousData,
 });
 
+/** The Phases & tasks of an anken without its epic: its own, or the default until it saves them. */
+export const draftStructureQuery = (epic: string) => ({
+  queryKey: ['onboarding', epic, 'structure'] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/onboarding/{epic}/structure', { params: { path: { epic } } })),
+});
+
+export function useSaveDraftStructure(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas['StructureIn']) => unwrap(http.PUT('/api/v1/onboarding/{epic}/structure', { params: { path: { epic } }, body })),
+    onSuccess: (v) => {
+      qc.setQueryData(draftStructureQuery(epic).queryKey, v);
+      // the template Tasks feed Setting Phase, the estimation and the plan
+      void qc.invalidateQueries({ queryKey: ['onboarding', epic, 'tasks'] });
+      void qc.invalidateQueries({ queryKey: ['planning'] });
+    },
+  });
+}
+
+/** Reads a Phases & tasks file for the form; nothing is saved. */
+export const useImportDraftStructure = (epic: string) => useMutation({
+  mutationFn: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return unwrap(http.POST('/api/v1/onboarding/{epic}/structure/import', {
+      params: { path: { epic } }, body: fd as never, bodySerializer: (b) => b as FormData,
+    }));
+  },
+});
+
 export const usePreviewTasks = (epic: string) => useMutation({
   mutationFn: (b: NewTasksIn) => unwrap(http.POST('/api/v1/onboarding/{epic}/tasks/preview', { params: { path: { epic } }, body: b })),
 });

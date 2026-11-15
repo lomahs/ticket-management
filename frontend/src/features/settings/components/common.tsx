@@ -1,20 +1,7 @@
 import type { ReactNode } from 'react';
 export { useDebounced } from '../../../shared/state/debounce';
 
-/** The value, once it has stopped changing for `ms` milliseconds. */
-
-export function Section({ title, sub, children, pad = true }: { title: string; sub: ReactNode; children: ReactNode; pad?: boolean }) {
-  return (
-    <section className={'card' + (pad ? '' : ' card-clip')} aria-label={title}
-      style={pad ? { padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 } : undefined}>
-      <div style={pad ? undefined : { padding: '16px 20px' }}>
-        <div className="title">{title}</div>
-        <div className="eyebrow">{sub}</div>
-      </div>
-      {children}
-    </section>
-  );
-}
+export { Section } from '../../../shared/ui/bits';
 
 export const ErrText = ({ children }: { children: ReactNode }) => (
   <span role="alert" style={{ fontSize: 12, fontWeight: 600, color: 'var(--hl-red-fg)', alignSelf: 'center' }}>{children}</span>

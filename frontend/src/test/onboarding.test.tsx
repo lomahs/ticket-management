@@ -10,6 +10,7 @@ afterAll(() => server.close());
 const ONB = { epic_key: 'PAY-1100', title: 'Payment flow revision', anken_prefix: 'PAY', labels: [] as string[], step: 3, started_at: '2026-10-05T09:00:00Z',
   started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null, draft: false };
 const DRAFT = { ...ONB, epic_key: 'draft-1', title: 'Refund automation', anken_prefix: '', step: 2, draft: true };
+const STRUCTURE = { phases: ['ITA'], daily: [], seen: [], tasks: [{ match: '[*][LocalTask] ITA Prepare', phase: 'ITA', prefix: 'P', workflow: true, type: '' }] };
 const PEOPLE = [
   { member_id: 'an', name: 'An', role: 'BA', country: 'VN', in_anken: true, hours_per_day: 8, elsewhere: [], working_day_h: 8 },
   { member_id: 'minh', name: 'Minh', role: 'BAL', country: 'VN', in_anken: true, hours_per_day: null,
@@ -89,6 +90,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json(DRAFT)),
       http.get('*/api/v1/onboarding/draft-1/tasks', () => HttpResponse.json({ anken_prefix: '', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [] })),
       http.get('*/api/v1/onboarding/draft-1/members', () => HttpResponse.json(PEOPLE)),
+      http.get('*/api/v1/onboarding/draft-1/structure', () => HttpResponse.json(STRUCTURE)),
     );
     const { router } = renderApp('/onboarding/new');
     fireEvent.click(await screen.findByRole('radio', { name: /No, not yet/ }));
@@ -106,6 +108,7 @@ describe('onboarding', () => {
       http.get('*/api/v1/onboarding', () => HttpResponse.json([DRAFT])),
       http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json({ ...DRAFT, anken_prefix: 'RFD' })),
       http.get('*/api/v1/onboarding/draft-1/members', () => HttpResponse.json(PEOPLE)),
+      http.get('*/api/v1/onboarding/draft-1/structure', () => HttpResponse.json(STRUCTURE)),
       http.get('*/api/v1/onboarding/draft-1/tasks', () => HttpResponse.json({ anken_prefix: 'RFD', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [
         { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', existing_key: null, name: '[RFD][LocalTask] ITA Prepare', recognised: true },
       ] })),
@@ -120,6 +123,35 @@ describe('onboarding', () => {
     expect(screen.getByText('1 Tasks, created once the epic is linked')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Review/ })).toBeNull();
     expect(within(screen.getByRole('region', { name: 'Onboarding progress' })).getByRole('link', { name: 'Link epic' })).toBeTruthy();
+  });
+
+  it('sets the Phases & tasks of an anken without its epic in Setting Phase', async () => {
+    let saved: unknown = null;
+    server.use(
+      http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json({ ...DRAFT, anken_prefix: 'RFD' })),
+      http.get('*/api/v1/onboarding/draft-1/members', () => HttpResponse.json(PEOPLE)),
+      http.get('*/api/v1/onboarding/draft-1/structure', () => HttpResponse.json(STRUCTURE)),
+      http.put('*/api/v1/onboarding/draft-1/structure', async ({ request }) => { saved = await request.json(); return HttpResponse.json({ ...STRUCTURE, ...(saved as object) }); }),
+      http.get('*/api/v1/onboarding/draft-1/tasks', () => HttpResponse.json({ anken_prefix: 'RFD', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [] })),
+    );
+    renderApp('/onboarding/draft-1/tasks');
+    const tasks = await screen.findByRole('region', { name: 'Tasks' });
+    expect((within(tasks).getByLabelText('Task 1 name') as HTMLInputElement).value).toBe('[*][LocalTask] ITA Prepare');
+    fireEvent.click(within(tasks).getByRole('button', { name: 'Add task' }));
+    fireEvent.change(within(tasks).getByLabelText('Task 2 name'), { target: { value: '[*][LocalTask] ITA Execute' } });
+    fireEvent.change(within(tasks).getByLabelText('Task 2 phase'), { target: { value: 'ITA' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved).toEqual({ phases: ['ITA'], daily: [], tasks: [
+      STRUCTURE.tasks[0], { match: '[*][LocalTask] ITA Execute', phase: 'ITA', prefix: '', workflow: true, type: '' },
+    ] }));
+  });
+
+  it('keeps the Phases & tasks of an anken with its epic in Settings', async () => {
+    onboarding({ step: 2 });
+    server.use(http.get('*/api/v1/onboarding/PAY-1100/tasks', () => HttpResponse.json({ anken_prefix: 'PAY', task_rule: '', tasks: [] })));
+    renderApp('/onboarding/PAY-1100/tasks');
+    expect(await screen.findByText(/template has no Tasks/)).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Phases' })).toBeNull();
   });
 
   it('links the epic of an anken planned without it, then opens Setting Phase under the epic', async () => {

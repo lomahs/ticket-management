@@ -430,6 +430,42 @@ public class JiraSettingsService {
         return structure(e);
     }
 
+    /** The Phases & Tasks of a draft anken (the default until it saves its own); a draft has no Tasks in Jira to classify. */
+    public StructureView draftStructure(String draft) {
+        WorkStructure ws = settings.load().structureOf(draft);
+        return new StructureView(ws.phases(), ws.tasks(), ws.daily(), List.of());
+    }
+
+    /** Saves a draft anken's own Phases & Tasks; no sync, it has no issues. */
+    public StructureView saveDraftStructure(String draft, WorkStructure draftStructure) {
+        WorkStructure ws = checked(draftStructure);
+        settings.update(s -> ankenSettings(s, draft).structure = ws);
+        return draftStructure(draft);
+    }
+
+    /**
+     * A draft anken's own Phases & Tasks become {@code to}'s, replacing what it had; a draft that kept the default changes nothing.
+     * The draft's settings go, and a tracked {@code to} is synced.
+     */
+    public void moveStructure(String from, String to) {
+        TrackerSettings.AnkenSettings own = settings.load().anken.get(from);
+        if (own == null) {
+            return;
+        }
+        settings.update(s -> {
+            s.anken.remove(from);
+            ankenSettings(s, to).structure = own.structure;
+        });
+        if (settings.load().jira.epics.contains(to)) {
+            sync.run(true);
+        }
+    }
+
+    /** Drops the settings of an anken of its own: a discarded draft's. */
+    public void dropAnkenSettings(String key) {
+        settings.update(s -> s.anken.remove(key));
+    }
+
     /**
      * @param weights step key ("create", "balr", …) → weight
      * @param pic     step key → the role Jira assigns the sub-task to at push: BA or BAL

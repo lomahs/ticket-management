@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.MemberRepository;
 import tracker.application.ports.OnboardingRepository;
 import tracker.application.service.AllocationService.AllocationChange;
+import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.TicketService.BatchPreview;
 import tracker.application.service.TicketService.BatchResult;
 import tracker.application.service.TicketService.NewTicket;
@@ -37,6 +39,7 @@ import tracker.domain.DraftAnken;
 import tracker.domain.Issue;
 import tracker.domain.Member;
 import tracker.domain.Onboarding;
+import tracker.domain.StructureImport.StructureImportRow;
 import tracker.domain.TaskNames;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
@@ -234,6 +237,7 @@ public class OnboardingService {
         if (!estimation.findByEpic(e.key()).isEmpty() || !versions.findByEpic(e.key()).isEmpty()) {
             throw new Invalid(e.key() + " has an estimation or a master schedule already", "key");
         }
+        jira.moveStructure(draft, e.key()); // before tracking it, so its sync reads the draft's phases and Tasks
         if (!e.tracked()) {
             jira.addEpic(e.key());
         }
@@ -280,6 +284,7 @@ public class OnboardingService {
     public void discard(String epic) {
         if (require(epic).draft()) {
             drafts.delete(epic);
+            jira.dropAnkenSettings(epic);
             return;
         }
         repo.delete(epic);
@@ -323,6 +328,38 @@ public class OnboardingService {
                     : new TemplateTask(t.match(), t.phase(), found.key(), found.summary(), true));
         }
         return new TemplateTasksView(prefix, rule, out);
+    }
+
+    /** A draft anken being onboarded; an anken with an epic has its Phases & Tasks in Settings. */
+    private void requireDraft(String epic) {
+        if (!require(epic).draft()) {
+            throw new Invalid("The Phases & tasks of " + epic + " are set in Settings", "epic");
+        }
+    }
+
+    /** The draft anken's Phases & Tasks: its own, or the default until it saves them. */
+    public StructureView structure(String draft) {
+        requireDraft(draft);
+        return jira.draftStructure(draft);
+    }
+
+    /** Saves the draft anken's own Phases & Tasks; refused when it drops a template Task that estimation rows are under. */
+    public StructureView saveStructure(String draft, WorkStructure ws) {
+        requireDraft(draft);
+        Set<String> kept = ws.tasks().stream().map(t -> t.match().strip()).collect(Collectors.toSet());
+        List<String> used = estimation.findByEpic(draft).stream().map(r -> DraftAnken.matchOf(r.taskKey())).filter(m -> m != null && !kept.contains(m))
+                .distinct().toList();
+        if (!used.isEmpty()) {
+            throw new Invalid("The estimation has rows under " + String.join(", ", used) + ": keep " + (used.size() == 1 ? "that Task" : "those Tasks")
+                    + " or move the rows first", "tasks");
+        }
+        return jira.saveDraftStructure(draft, ws);
+    }
+
+    /** Reads a Phases & tasks file for the draft anken, naming the Tasks by the default Task pattern; nothing is saved. */
+    public List<StructureImportRow> importStructure(String draft, List<List<String>> cells) {
+        requireDraft(draft);
+        return jira.importStructure(null, cells);
     }
 
     /** The new Tasks, checked: each names a missing template Task and is recognised by it. */

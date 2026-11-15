@@ -1,5 +1,6 @@
 package tracker.adapters.web;
 
+import java.io.IOException;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.Size;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,9 +20,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
+import io.swagger.v3.oas.annotations.media.Schema;
 import tracker.adapters.web.auth.Open;
 import tracker.adapters.web.auth.Open.Rule;
 import tracker.application.service.OnboardingService;
@@ -32,7 +39,9 @@ import tracker.application.service.OnboardingService.NewTasksCommon;
 import tracker.application.service.OnboardingService.OnboardingView;
 import tracker.application.service.OnboardingService.TemplateTasksView;
 import tracker.application.service.TicketService.BatchPreview;
+import tracker.application.service.JiraSettingsService.StructureView;
 import tracker.application.service.TicketService.BatchResult;
+import tracker.domain.StructureImport.StructureImportRow;
 import tracker.domain.Viewer;
 
 /** Onboarding a new anken: the PIM's (admins') step-by-step set-up, from its epic to its detail plan. */
@@ -123,6 +132,30 @@ public class OnboardingApi {
     @GetMapping("/{epic}/tasks")
     public TemplateTasksView tasks(@PathVariable("epic") String epic, @RequestParam(name = "anken_prefix", required = false) @Nullable String prefix) {
         return onboarding.tasks(epic, prefix);
+    }
+
+    /** The Phases & tasks of an anken without its epic: its own, or the default until it saves them. */
+    @Open(Rule.ADMIN)
+    @GetMapping("/{epic}/structure")
+    public StructureView structure(@PathVariable("epic") String epic) {
+        return onboarding.structure(epic);
+    }
+
+    /** Saves the Phases & tasks of an anken without its epic; they become the epic's when it is linked. */
+    @Open(Rule.ADMIN)
+    @PutMapping("/{epic}/structure")
+    public StructureView saveStructure(@PathVariable("epic") String epic, @RequestBody @Valid SettingsApi.StructureIn body) {
+        return onboarding.saveStructure(epic, body.domain());
+    }
+
+    /** Reads a .xlsx or .csv (Phase, Task name, Prefix, Type, Workflow) for an anken without its epic; nothing is saved. */
+    @Open(Rule.ADMIN)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schema = @Schema(implementation = SettingsApi.StructureUpload.class), encoding = @Encoding(name = "file")))
+    @PostMapping(value = "/{epic}/structure/import", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
+    public List<StructureImportRow> importStructure(@PathVariable("epic") String epic,
+                                                    @RequestPart(name = "file", required = false) @Nullable MultipartFile file) throws IOException {
+        return onboarding.importStructure(epic, SettingsApi.structureTable(file));
     }
 
     public record NewTaskBody(@NotNull String match, @NotNull String name) {

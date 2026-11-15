@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 
+import tracker.domain.DraftAnken;
 import tracker.domain.Naming;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
@@ -61,9 +62,9 @@ public class TrackerSettings {
         return a == null ? structure : a.structure;
     }
 
-    /** The name rules of an epic; the default when the epic is null, blank or has none of its own. */
+    /** The name rules of an epic; the default when the epic is null, blank, a draft anken or has none of its own. */
     public NameRules nameRulesOf(@Nullable String epic) {
-        AnkenSettings a = epic == null || epic.isBlank() ? null : anken.get(epic);
+        AnkenSettings a = epic == null || epic.isBlank() || DraftAnken.isKey(epic) ? null : anken.get(epic);
         return a == null ? nameRules : a.nameRules;
     }
 

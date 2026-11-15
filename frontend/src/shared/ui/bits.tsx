@@ -90,3 +90,17 @@ export function Legend({ items }: { items: { label: string; bg: string; ab?: str
     </div>
   );
 }
+
+/** A card with a title and a line under it. */
+export function Section({ title, sub, children, pad = true }: { title: string; sub: ReactNode; children: ReactNode; pad?: boolean }) {
+  return (
+    <section className={'card' + (pad ? '' : ' card-clip')} aria-label={title}
+      style={pad ? { padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 } : undefined}>
+      <div style={pad ? undefined : { padding: '16px 20px' }}>
+        <div className="title">{title}</div>
+        <div className="eyebrow">{sub}</div>
+      </div>
+      {children}
+    </section>
+  );
+}

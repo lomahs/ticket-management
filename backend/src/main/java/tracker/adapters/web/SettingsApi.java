@@ -256,11 +256,16 @@ public class SettingsApi {
     @PostMapping(value = "/settings/structure/import", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.ALL_VALUE})
     public List<StructureImportRow> importStructure(@RequestParam(required = false) @Nullable String anken,
                                            @RequestPart(name = "file", required = false) @Nullable MultipartFile file) throws IOException {
+        return jiraSettings.importStructure(anken, structureTable(file));
+    }
+
+    /** The cells of an uploaded Phases & tasks file. */
+    static List<List<String>> structureTable(@Nullable MultipartFile file) throws IOException {
         if (file == null) {
             throw new Invalid("Choose a .xlsx or .csv file", "file");
         }
         String name = file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty() ? "upload" : file.getOriginalFilename();
-        return jiraSettings.importStructure(anken, LeaveFiles.readTable(name, file.getBytes()));
+        return LeaveFiles.readTable(name, file.getBytes());
     }
 
     // --- name rules -------------------------------------------------------------------------------------------------
