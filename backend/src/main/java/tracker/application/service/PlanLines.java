@@ -25,6 +25,7 @@ import tracker.domain.Issue;
 import tracker.domain.Numbers;
 import tracker.domain.PhaseGroups;
 import tracker.domain.PlanRows;
+import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
 import tracker.domain.StepWeights;
@@ -69,7 +70,8 @@ final class PlanLines {
                 MatrixLine base = new MatrixLine(st.ref(), r.id(), null, r.phase(), r.functionName(), step,
                         names.getOrDefault(st.ref(), r.functionName()), PlanRows.assignee(st, r.baId(), r.balId(), w),
                         st.kind() == StepKind.CREATE ? r.balId() : null, Numbers.hours(st.hours()), 0, 0, 0, null, null, cells, List.of(),
-                        false, false, false, st.removed(), st.edit() != null && st.edit().effortH() != null, Numbers.hours(st.hours()), 0, 0);
+                        false, false, false, st.removed(), st.edit() != null && st.edit().effortH() != null, Numbers.hours(st.hours()), 0, 0,
+                        r.subphase(), picSlot(st.kind(), w));
                 DetailMatrix.Line line = new DetailMatrix.Line(st.ref(), "row:" + r.id(), st.kind() == null ? 0 : st.kind().ordinal(), false,
                         st.hours(), 0, map(cells));
                 List<Effort.PlanShare> shares = st.removed() ? List.of() : PlanRows.shares(st, r.baId(), r.balId(), w);
@@ -94,7 +96,7 @@ final class PlanLines {
                     b.totalH(), b.spentH(), b.closed() ? b.totalH() : DetailMatrix.plannedH(l, ctx.today),
                     b.closed() ? 0 : DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
                     b.logged(), b.closed(), b.pending(), outOfOrder.contains(b.ref()), b.removed(), b.edited(), b.planEstimateH(),
-                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells()))));
+                    planH(b.cells()), Numbers.hours(b.planEstimateH() - planH(b.cells())), b.subphase(), b.picSlot()));
             for (DayHours c : b.cells()) {
                 for (Effort.PlanShare sh : c.day().compareTo(ctx.today) < 0 ? d.pastShares() : d.shares()) {
                     parts.add(new DetailScheduler.Part(b.ref(), sh.memberId(), c.day(), c.hours() * sh.fraction()));
@@ -166,11 +168,23 @@ final class PlanLines {
         MatrixLine base = new MatrixLine(i.key(), null, i.key(), phase, Text.hasText(i.functionName()) ? i.functionName() : i.summary(),
                 i.step() == null ? null : i.step().value(), i.summary(), pic, i.reporterId(), total, spent, 0, 0, null, null, days,
                 logged.entrySet().stream().map(e -> new DayHours(e.getKey(), Numbers.hours(e.getValue()), false)).toList(), closed, pending,
-                false, false, false, Numbers.hours(i.estimateH()), 0, 0);
+                false, false, false, Numbers.hours(i.estimateH()), 0, 0,
+                ctx.issue(Text.orElse(i.parentKey(), "")).map(t -> PhaseGroups.taskName(t.summary())).orElse(""), null);
         DetailMatrix.Line line = new DetailMatrix.Line(i.key(), chain, order(i), true, total, spent, map(days),
                 logged.getOrDefault(ctx.today, 0.0));
         List<Effort.PlanShare> past = closed ? List.of() : ctx.planShares(i);
         return new Draft(base, line, closed ? List.of() : shares(past, i.assigneeId(), pic), past, i.step());
+    }
+
+    /** Whose person a row's step's PIC cell picks: the JM on JM Review, else the step's PIC; a ticket's BA. */
+    static String picSlot(@Nullable StepKind kind, StepWeights w) {
+        if (kind == null) {
+            return "ba";
+        }
+        if (kind == StepKind.JM_REVIEW) {
+            return "jm";
+        }
+        return w.picOf(kind) == Role.BAL ? "bal" : "ba";
     }
 
     /** Planned effort: the hours of every day, past ones included. */

@@ -50,7 +50,8 @@ describe('detail plan', () => {
     ref, row_id: row, issue_key: null as string | null, phase: 'ITA', function: row === 2 ? 'Run' : 'Login', step, summary, pic_id: null as string | null,
     reporter_id: null as string | null, total_h: total, spent_h: 0, planned_h: 0, not_yet_h: total, start: null as string | null, end: null as string | null,
     cells: [] as { day: string; hours: number; auto: boolean }[], logged: [] as { day: string; hours: number; auto: boolean }[], closed: false,
-    pending: false, out_of_order: false, removed: false, edited: false, ...over,
+    pending: false, out_of_order: false, removed: false, edited: false,
+    subphase: row === 2 ? 'Execute' : 'Create test case', pic_slot: (row == null ? null : step === 'balr' ? 'bal' : step === 'jmr' ? 'jm' : 'ba') as string | null, ...over,
   });
   /** As {@link base}, with the planning figures following the plan unless the test sets them. */
   const mline = (ref: string, row: number | null, step: string | null, summary: string, total: number, over: Record<string, unknown> = {}) => {
@@ -61,7 +62,7 @@ describe('detail plan', () => {
     mline('2', 2, null, '[PAY] Run', 16)];
   // today is 2026-10-07 (meta): the 6th is past
   const WINDOW = ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14'];
-  const REFUND = mline('PAY-1201', null, 'create', '[PAY] Refund – Create', 3, { issue_key: 'PAY-1201', function: 'Refund', pic_id: 'an',
+  const REFUND = mline('PAY-1201', null, 'create', '[PAY] Refund – Create', 3, { issue_key: 'PAY-1201', function: 'Refund', pic_id: 'an', subphase: 'Create test case',
     spent_h: 1, planned_h: 3, not_yet_h: 0, start: '2026-10-06', end: '2026-10-08',
     cells: [{ day: '2026-10-06', hours: 1, auto: false }, { day: '2026-10-08', hours: 2, auto: false }], logged: [{ day: '2026-10-06', hours: 1.5, auto: false }] });
   const detailView = (over: Record<string, unknown> = {}) => ({
@@ -93,9 +94,9 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const ba = await screen.findByLabelText('BA, Login');
+    const ba = await screen.findByLabelText('PIC, [PAY] Login – Create'); // Create's PIC is the function's BA
     expect(ba.getAttribute('data-by-hand')).toBe('true');
-    expect(screen.getByLabelText('BAL, Login').getAttribute('data-by-hand')).toBeNull(); // Auto allocate's pick
+    expect(screen.getByLabelText('PIC, [PAY] Login – BAL Review').getAttribute('data-by-hand')).toBeNull(); // the BAL: Auto allocate's pick
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Clear, keep my input' }));
     await waitFor(() => expect(clears).toEqual(['true']));
@@ -120,27 +121,26 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const ba = await screen.findByLabelText('BA, Login');
-    expect(screen.getAllByLabelText('BA, Login')).toHaveLength(1); // picked once for the function, not on each of its lines
+    const ba = await screen.findByLabelText('PIC, [PAY] Login – Create');
+    expect(screen.queryByLabelText('BA, Login')).toBeNull(); // picked on the steps' PIC cells, not on the function
     expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit, only counted
     expect(screen.getByRole('button', { name: '1 problem before the push' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Fix 1 problem to push' })).toBeTruthy();
-    expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)', 'Minh (BAL)']);
-    expect([...screen.getByLabelText('JM, Login').querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–']); // no BA or BAL
-    expect(screen.getByLabelText('Member, Run')).toBeTruthy(); // a ticket has one member
+    expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An', 'Minh']); // anyone but a JM
+    expect((screen.getByLabelText('PIC, [PAY] Run') as HTMLSelectElement).value).toBe('an'); // a ticket: its member
     expect(screen.queryByRole('button', { name: 'Check' })).toBeNull();
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Gantt', 'Master schedule', 'Detail plan']); // the effort per day is always above the matrix
     fireEvent.click(screen.getByRole('button', { name: 'Fix 1 problem to push' }));
     expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
     expect(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).toBeTruthy(); // one line per step, named by the name rules
-    fireEvent.change(screen.getByLabelText('BA, Login'), { target: { value: 'an' } });
+    fireEvent.change(screen.getByLabelText('PIC, [PAY] Login – Create'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
     const runRow = await screen.findByRole('row', { name: '[PAY] Run' });
     await waitFor(() => expect(within(runRow).getByLabelText('Start, [PAY] Run').textContent).toBe('10/12'));
     expect(within(runRow).getByLabelText('End, [PAY] Run').textContent).toBe('10/14');
     expect(within(runRow).getByLabelText('Planned, [PAY] Run').textContent).toBe('16.00');
     expect((within(runRow).getByLabelText('[PAY] Run 2026-10-14') as HTMLInputElement).value).toBe('8');
-    expect(within(runRow).getByLabelText('PIC, [PAY] Run').textContent).toBe('An'); // who carries the line
+    expect((within(runRow).getByLabelText('PIC, [PAY] Run') as HTMLSelectElement).value).toBe('an'); // who carries the line
     expect(screen.getByText('ITA ends 10/14 · master 10/13 · 1 day late')).toBeTruthy();
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
     const tue = within(days).getByLabelText('An 2026-10-13');
@@ -152,6 +152,67 @@ describe('detail plan', () => {
     expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
     expect(tip.textContent).toContain('Other anken');
     expect(tip.textContent).toContain('Refund3.00h'); // another anken: its name and hours
+  });
+
+  it('groups the plan by phase, Task and function; a folded level shows its hours per day', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ ...planned }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const phase = await screen.findByRole('row', { name: 'Phase ITA' });
+    expect(within(phase).getByText('2 functions')).toBeTruthy();
+    expect(within(phase).getByText('ends 10/14 · master 10/13 · 1 day late')).toBeTruthy(); // the master schedule check, on the right
+    expect(screen.getByRole('row', { name: 'Sub-phase Create test case' })).toBeTruthy();
+    expect(screen.getByRole('row', { name: 'Function Login' })).toBeTruthy();
+    // a step shows its step's name; the sub-task's whole name is the row's
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).getByText('BAL Review')).toBeTruthy();
+    const execute = screen.getByRole('row', { name: 'Sub-phase Execute' });
+    expect(within(execute).getByText('16.00h estimated')).toBeTruthy();
+    fireEvent.click(within(execute).getByRole('button', { name: 'Hide the functions of Execute' }));
+    expect(screen.queryByRole('row', { name: '[PAY] Run' })).toBeNull();
+    expect(screen.queryByRole('row', { name: 'Function Run' })).toBeNull();
+    const folded = screen.getByRole('row', { name: 'Sub-phase Execute' });
+    expect([...folded.querySelectorAll('td.pm-sum')].map((c) => c.textContent)).toEqual(['–', '–', '–', '–', '8.00', '–', '8.00']); // its hours per day
+    fireEvent.click(within(folded).getByRole('button', { name: 'Show the functions of Execute' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(screen.queryByRole('row', { name: '[PAY] Login – Create' })).toBeNull(); // functions only
+    const run = screen.getByRole('row', { name: 'Function Run' });
+    expect(within(run).getAllByText('16.00')).toHaveLength(2); // its Plan Estimation and Planned on the folded row
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+    expect(screen.getByRole('row', { name: '[PAY] Login – Create' })).toBeTruthy();
+  });
+
+  it('filters the steps by words, PIC and status, and clears the filters', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ ...planned }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const search = await screen.findByLabelText('Search steps or functions');
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+    fireEvent.change(search, { target: { value: 'review' } });
+    expect(screen.getByText('1 of 3 steps')).toBeTruthy();
+    expect(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).toBeTruthy();
+    expect(screen.queryByRole('row', { name: '[PAY] Run' })).toBeNull();
+    expect(screen.queryByRole('row', { name: 'Sub-phase Execute' })).toBeNull(); // nothing left under it
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(screen.getByRole('row', { name: '[PAY] Run' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'PIC' }));
+    const pic = screen.getByRole('group', { name: 'PIC' });
+    fireEvent.click(within(pic).getByLabelText('Unassigned'));
+    expect(screen.getByRole('button', { name: /^PIC/, expanded: true }).textContent).toBe('PIC (1)');
+    expect(screen.queryByRole('row', { name: '[PAY] Run' })).toBeNull(); // An carries it
+    expect(screen.getByRole('row', { name: '[PAY] Login – Create' })).toBeTruthy();
+    fireEvent.click(within(pic).getByRole('button', { name: 'Unselect all' }));
+    expect(screen.getByRole('row', { name: '[PAY] Run' })).toBeTruthy();
+    expect((within(pic).getByRole('button', { name: 'Unselect all' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Status' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Status' })).getByLabelText('Planned'));
+    expect(screen.getByText('1 of 3 steps')).toBeTruthy(); // only Run has hours on its days
+    expect(screen.getByRole('row', { name: '[PAY] Run' })).toBeTruthy();
   });
 
   it('types hours into a day and sends them when the cell is left', async () => {
@@ -212,10 +273,10 @@ describe('detail plan', () => {
     expect(within(closed).getByLabelText('PIC, [PAY] Refund – Create').textContent).toBe('Bình'); // by name, though not in the anken
     const pic = screen.getByLabelText('PIC, [PAY] Refund – BAL Review') as HTMLSelectElement;
     expect([...pic.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['An', 'Minh', 'Dũng']); // the anken's members, and who has it
-    const bold = (summary: string) => (screen.getByLabelText(`Not yet plan, ${summary}`) as HTMLElement).style.fontWeight;
-    expect(bold('[PAY] Login – Create')).toBe('700'); // 8h left: red
-    expect(bold('[PAY] Run')).toBe(''); // a hundredth is planned enough, as the push sees it
-    expect(bold('[PAY] Refund – Create')).toBe(''); // Closed: done
+    const left = (summary: string) => screen.getByLabelText(`Not yet plan, ${summary}`).getAttribute('data-left');
+    expect(left('[PAY] Login – Create')).toBe('true'); // 8h left
+    expect(left('[PAY] Run')).toBeNull(); // a hundredth is planned enough, as the push sees it
+    expect(left('[PAY] Refund – Create')).toBeNull(); // Closed: done
   });
 
   it('changes the PIC of a Jira line; its Plan Estimation is changed in Jira', async () => {
@@ -345,7 +406,7 @@ describe('detail plan', () => {
     );
     renderApp('/planning/detail?anken=PAY-1100');
     fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
-    await waitFor(() => expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('an'));
+    await waitFor(() => expect((screen.getByLabelText('PIC, [PAY] Login – Create') as HTMLSelectElement).value).toBe('an'));
     expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('8');
     expect(posts).toBe(1);
   });
@@ -411,7 +472,7 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    await screen.findByLabelText('BA, Login');
+    await screen.findByLabelText('PIC, [PAY] Login – Create');
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     expect(screen.getByRole('menuitem', { name: 'Download template' })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Import Excel / CSV' }));
@@ -428,7 +489,7 @@ describe('detail plan', () => {
     expect(applied!.lines[0]).toEqual({ ref: '1:create', ba_id: 'minh', bal_id: null, jm_id: null, effort_h: 10, cells: {} });
     expect(applied!.lines[1].cells).toEqual({ '2026-10-12': 0, '2026-10-13': 8 });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect((screen.getByLabelText('BA, Login') as HTMLSelectElement).value).toBe('minh');
+    expect((screen.getByLabelText('PIC, [PAY] Login – Create') as HTMLSelectElement).value).toBe('minh');
   });
 
   it('warns about days above the allocation and pushes anyway', async () => {
@@ -505,6 +566,6 @@ describe('detail plan', () => {
     expect(await screen.findByText(/Link the epic first/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Link epic' }).getAttribute('href')).toBe('/onboarding/draft-1/epic');
     expect(screen.queryByRole('button', { name: 'Review push' })).toBeNull();
-    expect(await screen.findByLabelText('BA, Login')).toBeTruthy(); // planned all the same
+    expect(await screen.findByLabelText('PIC, [PAY] Login – Create')).toBeTruthy(); // planned all the same
   });
 });

@@ -2628,6 +2628,7 @@ export interface components {
             pending: boolean;
             phase: string;
             pic_id: string | null;
+            pic_slot: string | null;
             /** Format: double */
             plan_estimate_h: number;
             /** Format: double */
@@ -2645,6 +2646,7 @@ export interface components {
             spent_h: number;
             start: string | null;
             step: string | null;
+            subphase: string;
             summary: string;
             /** Format: double */
             total_h: number;

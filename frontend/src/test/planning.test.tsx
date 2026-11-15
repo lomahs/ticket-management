@@ -83,7 +83,7 @@ describe('detail planning', () => {
 describe('planning tabs', () => {
   const line = { ref: '2', row_id: 2, issue_key: null, phase: 'ITA', function: 'Run', step: null, summary: '[PAY] Run', pic_id: null, reporter_id: null,
     total_h: 16, spent_h: 0, planned_h: 0, not_yet_h: 16, start: null, end: null, cells: [], logged: [], closed: false, pending: false,
-    out_of_order: false, removed: false, edited: false, plan_estimate_h: 16, plan_h: 0, plan_not_yet_h: 16 };
+    out_of_order: false, removed: false, edited: false, plan_estimate_h: 16, plan_h: 0, plan_not_yet_h: 16, subphase: 'Execute', pic_slot: 'ba' as string | null };
   const view = { rows: [{ id: 2, epic_key: 'PAY-1100', position: 1, phase: 'ITA', subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16,
     ba_id: null, bal_id: null, jm_id: null, task_key: 'PAY-1102', pushed_at: null }],
   tasks: [{ key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' }], window: ['2026-10-07', '2026-10-08'], lines: [line],
@@ -103,7 +103,7 @@ describe('planning tabs', () => {
   });
 
   // Export: Original Estimate 30h (approved from 3h), 10h planned; 5h logged and 7h remaining are actuals the screen leaves out
-  const exportLine = { ...line, ref: 'PAY-1301', row_id: null, issue_key: 'PAY-1301', summary: '[PAY] Export', total_h: 12, spent_h: 5,
+  const exportLine = { ...line, ref: 'PAY-1301', row_id: null, issue_key: 'PAY-1301', pic_slot: null, summary: '[PAY] Export', total_h: 12, spent_h: 5,
     planned_h: 12, not_yet_h: 0, plan_estimate_h: 30, plan_h: 10, plan_not_yet_h: 20, cells: [{ day: '2026-10-08', hours: 10, auto: false }] };
 
   it('shows the planning figures of each line, actuals left out', async () => {
@@ -116,7 +116,7 @@ describe('planning tabs', () => {
     expect(within(table).getByLabelText('Planned, [PAY] Export').textContent).toBe('10.00');
     const notYet = within(table).getByLabelText('Not yet plan, [PAY] Export');
     expect(notYet.textContent).toBe('20.00');
-    expect(notYet.style.background).toBe('var(--hl-red)');
+    expect(notYet.getAttribute('data-left')).toBe('true'); // left to plan: a plain figure, counted in the problems above
   });
 
   it('saves a version for the baseline and shows why it is refused', async () => {
@@ -149,8 +149,8 @@ describe('planning tabs', () => {
         issue_key: 'PAY-1201', summary: '[PAY] Refund', function: 'Refund', pic_id: 'ext', closed: true, not_yet_h: 0 }] })),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const pick = await screen.findByLabelText('Member, Run');
-    expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An (BA)']);
+    const pick = await screen.findByLabelText('PIC, [PAY] Run');
+    expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An']);
     expect(screen.getByLabelText('PIC, [PAY] Refund').textContent).toBe('Outsider'); // named all the same
   });
 

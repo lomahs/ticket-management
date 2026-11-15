@@ -151,13 +151,17 @@ public class DetailPlanService {
      * @param planEstimateH Plan Estimation: a row's step effort; a sub-task's Original Estimate (planning only, no actuals)
      * @param planH         Planned effort: the hours of every day in {@code cells}
      * @param planNotYetH   Not yet plan effort: Plan Estimation − Planned effort
+     * @param subphase      the Task the line's function goes under, by its name (a row's subphase; a sub-task's parent); empty if none
+     * @param picSlot       a row's step only: whose person the step's PIC cell picks — "jm" on JM Review (the JM carries it in
+     *                      the plan), else the step's PIC by Settings › Step weights ("ba" or "bal"); "ba" on a ticket
      */
     // issue_key named outright: the OpenAPI resolver leaves "issueKey" (a name starting "is") unconverted
     public record MatrixLine(String ref, @Nullable Long rowId, @JsonProperty("issue_key") @Nullable String issueKey, String phase, String function,
                              @Nullable String step, String summary, @Nullable String picId, @Nullable String reporterId,
                              double totalH, double spentH, double plannedH, double notYetH, @Nullable String start, @Nullable String end,
                              List<DayHours> cells, List<DayHours> logged, boolean closed, boolean pending, boolean outOfOrder,
-                             boolean removed, boolean edited, double planEstimateH, double planH, double planNotYetH) {
+                             boolean removed, boolean edited, double planEstimateH, double planH, double planNotYetH,
+                             String subphase, @Nullable String picSlot) {
     }
 
     /** @param daysLate calendar days from the master schedule's End to the plan's end; positive = later */

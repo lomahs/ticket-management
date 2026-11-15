@@ -13,7 +13,7 @@ const line = (over: Partial<Line>): Line => ({
   ref: '1:create', row_id: 1, issue_key: null, phase: 'ITA', function: 'Login', step: 'create', summary: '[PAY] Login – Create', pic_id: 'an',
   reporter_id: 'minh', total_h: 8, spent_h: 0, planned_h: 8, not_yet_h: 0, start: '2026-10-12', end: '2026-10-13',
   cells: [{ day: '2026-10-12', hours: 5, auto: true }, { day: '2026-10-13', hours: 3, auto: false }], logged: [], closed: false, pending: false,
-  out_of_order: false, removed: false, edited: false, plan_estimate_h: 8, plan_h: 8, plan_not_yet_h: 0, ...over,
+  out_of_order: false, removed: false, edited: false, plan_estimate_h: 8, plan_h: 8, plan_not_yet_h: 0, subphase: 'Create test case', pic_slot: 'ba', ...over,
 });
 const view = (rows: Row[], lines: Line[]) => ({ rows, lines, window: ['2026-10-12', '2026-10-13', '2026-10-14'] } as unknown as DetailPlanView);
 

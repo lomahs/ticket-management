@@ -2,9 +2,9 @@ import type { CSSProperties } from 'react';
 import {
   AlarmClock, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, Calendar, CalendarDays, Camera, ChartGantt, Check,
   ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp, CircleAlert, Clock, CircleCheck, CirclePause, CloudUpload, Download, Eraser,
-  ExternalLink, Eye, EyeOff, FileCheck, FileDown, FileSpreadsheet, FileUp, Flag, GitBranch, Grid3x3, GripVertical, Hourglass, Info, LayoutDashboard, Link, ListTodo, Lock, LogOut,
-  MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Pencil, Plug, Plus, RefreshCw, Repeat, Save, Scale, ScanSearch, ScrollText, Search, Send,
-  Settings, ShieldCheck, Sun, Sunrise, Timer, Trash, TrendingUp, Users, TriangleAlert, Undo2, Upload, X, type LucideIcon,
+  ExternalLink, Eye, EyeOff, FileCheck, FileDown, FileSpreadsheet, FileUp, Flag, GitBranch, Grid3x3, GripVertical, Hourglass, Info, Layers, LayoutDashboard, Link, LocateFixed, ListTodo, Lock, LogOut,
+  MessageSquare, Moon, PanelLeftClose, PanelLeftOpen, Pencil, Plug, Plus, RefreshCw, Repeat, RotateCcw, Save, Scale, ScanSearch, ScrollText, Search, Send,
+  Settings, ShieldCheck, SlidersHorizontal, Sun, Sunrise, Timer, Trash, TrendingUp, Users, TriangleAlert, Undo2, Upload, X, type LucideIcon,
 } from 'lucide-react';
 
 /** Lucide icons used by the app, keyed by their lucide-static names (as in the design). */
@@ -15,10 +15,10 @@ const ICONS = {
   'chevron-right': ChevronRight, 'chevron-up': ChevronUp, 'chevrons-down-up': ChevronsDownUp, 'chevrons-up-down': ChevronsUpDown, 'circle-alert': CircleAlert, clock: Clock, 'circle-check': CircleCheck,
   'pause-circle': CirclePause, 'upload-cloud': CloudUpload, download: Download, eraser: Eraser, 'external-link': ExternalLink, eye: Eye, 'eye-off': EyeOff,
   'file-check': FileCheck, 'file-down': FileDown, 'file-spreadsheet': FileSpreadsheet, 'file-up': FileUp, flag: Flag, 'git-branch': GitBranch,
-  'grid-3x3': Grid3x3, 'grip-vertical': GripVertical, hourglass: Hourglass, info: Info, 'layout-dashboard': LayoutDashboard, link: Link, 'list-todo': ListTodo, lock: Lock, 'log-out': LogOut,
+  'grid-3x3': Grid3x3, 'grip-vertical': GripVertical, hourglass: Hourglass, info: Info, layers: Layers, 'layout-dashboard': LayoutDashboard, link: Link, 'locate-fixed': LocateFixed, 'list-todo': ListTodo, lock: Lock, 'log-out': LogOut,
   'message-square': MessageSquare, moon: Moon, 'panel-left-close': PanelLeftClose, 'panel-left-open': PanelLeftOpen, pencil: Pencil,
-  plug: Plug, plus: Plus, 'refresh-cw': RefreshCw, repeat: Repeat, save: Save, scale: Scale, 'scan-search': ScanSearch, 'scroll-text': ScrollText, search: Search, send: Send,
-  settings: Settings, 'shield-check': ShieldCheck, sun: Sun, sunrise: Sunrise, timer: Timer, 'trash-2': Trash, 'trending-up': TrendingUp,
+  plug: Plug, plus: Plus, 'refresh-cw': RefreshCw, repeat: Repeat, 'rotate-ccw': RotateCcw, save: Save, scale: Scale, 'scan-search': ScanSearch, 'scroll-text': ScrollText, search: Search, send: Send,
+  settings: Settings, 'shield-check': ShieldCheck, 'sliders-horizontal': SlidersHorizontal, sun: Sun, sunrise: Sunrise, timer: Timer, 'trash-2': Trash, 'trending-up': TrendingUp,
   'triangle-alert': TriangleAlert, 'undo-2': Undo2, upload: Upload, users: Users, x: X,
 } satisfies Record<string, LucideIcon>;
 
