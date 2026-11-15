@@ -198,14 +198,20 @@ class OnboardingTest {
     }
 
     @Test
-    void finishNeedsEveryRowPushed() {
+    void finishNeedsASavedMasterSchedule() {
         onboarding.start(PIM, EPIC);
         estimation.save(EPIC, List.of(new EstimationRow(0, EPIC, 0, "Prepare", "Study", "Requirement study", null, 8, null, null, null, null, null)));
-        assertThatThrownBy(() -> onboarding.finish(PIM, EPIC)).isInstanceOf(Invalid.class).hasMessageContaining("Push");
-        estimation.markPushed(List.of(estimation.findByEpic(EPIC).get(0).id()), "2026-10-07T09:00:00Z");
+        assertThatThrownBy(() -> onboarding.finish(PIM, EPIC)).isInstanceOf(Invalid.class).hasMessageContaining("master schedule");
+        versions.add(new tracker.domain.ScheduleVersion(0, EPIC, "2026-10-07T09:00:00Z", PIM.email(), "Kick-off", List.of()));
+        // rows not in Jira yet no longer hold the onboarding: the Detail plan is Planning's
         OnboardingView v = onboarding.finish(PIM, EPIC);
         assertThat(v.finishedAt()).isNotNull();
-        assertThat(v.step()).isEqualTo(6);
+        assertThat(v.step()).isEqualTo(5);
+    }
+
+    @Test
+    void aStepSavedBeyondTheLastReadsAsTheLast() {
+        assertThat(new tracker.domain.Onboarding(EPIC, "", List.of(), 6, "a", "b", "c", "d", null).step()).isEqualTo(5);
     }
 
     @Test

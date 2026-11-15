@@ -44,7 +44,7 @@ import tracker.application.service.TicketService.BatchResult;
 import tracker.domain.StructureImport.StructureImportRow;
 import tracker.domain.Viewer;
 
-/** Onboarding a new anken: the PIM's (admins') step-by-step set-up, from its epic to its detail plan. */
+/** Onboarding a new anken: the PIM's (admins') step-by-step set-up, from its epic to its master schedule. */
 @RestController
 @RequestMapping("/api/v1/onboarding")
 public class OnboardingApi {
@@ -120,7 +120,7 @@ public class OnboardingApi {
         onboarding.discard(epic);
     }
 
-    /** Marks the onboarding finished; refused while estimation rows are not in Jira. */
+    /** Marks the onboarding finished; refused for a draft anken and until the master schedule is saved. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/finish")
     public OnboardingView finish(@PathVariable("epic") String epic, Viewer viewer) {

@@ -93,7 +93,7 @@ public class OnboardingService {
     }
 
     /**
-     * @param step  the furthest step reached (1–6)
+     * @param step  the furthest step reached (1–5)
      * @param draft the anken has no epic yet: {@code epicKey} is its draft key, {@code title} the name entered
      */
     public record OnboardingView(String epicKey, String title, String ankenPrefix, List<String> labels, int step, String startedAt, String startedBy,
@@ -294,13 +294,12 @@ public class OnboardingService {
         }
     }
 
-    /** The last step: refused while estimation rows are not in Jira (so for a draft anken too). */
+    /** The last step: refused for a draft anken and until the master schedule is saved; the Detail plan is Planning's. */
     public OnboardingView finish(Viewer actor, String epic) {
         Onboarding o = require(epic);
         requireEpic(o);
-        long open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).count();
-        if (open > 0) {
-            throw new Invalid("Push the detail plan first: " + open + " row" + (open == 1 ? " is" : "s are") + " not in Jira", "plan");
+        if (versions.findByEpic(epic).isEmpty()) {
+            throw new Invalid("Save the master schedule first", "schedule");
         }
         Onboarding done = new Onboarding(epic, o.ankenPrefix(), o.labels(), Onboarding.STEPS, o.startedAt(), o.startedBy(), now(), actor.email(), now());
         repo.save(done);
