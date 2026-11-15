@@ -153,25 +153,27 @@ in Planning is the sum of the allocation per week; a member with none shows *no 
 work is over capacity. The demo seeds allocations from 2026-09-01 (`an` 5h PAY-1100 and 3h PAY-1300, the others 8h on the anken
 with most of their open sub-tasks).
 
-**Onboarding a new anken** (Onboarding, admins only) takes an anken from its epic to its detail plan in six steps, each
+**Onboarding a new anken** (Onboarding, admins only) takes an anken from its epic to its master schedule in five steps, each
 saved so the PIM can stop and resume: 1 look the epic up in Jira and track it; 2 Setting Phase: create the missing template
 Tasks, named by the Task pattern with the anken prefix (a name its template would not recognise is flagged); 3 the estimation,
 each row under a Task of the epic that matches the Task pattern (its phase and subphase are the Task's; the import file has
 the columns Task (a Jira key), Function, Steps, Effort (h)); 4 the members and their
 hours a day on the anken (allocations from today); 5 the master schedule from one Start date, each phase starting the
-working day after the previous one ends, with a Gantt by phase; 6 the detail plan, pushed to Jira, then Finish. The
+working day after the previous one ends, with a Gantt by phase, then Finish onboarding, which opens the anken's Planning →
+Detail plan (the detail plan is Planning's alone). The
 overview lists the ankens in progress at the furthest step reached; Discard drops the progress and the rows not in Jira,
 and the epic stays tracked.
 
 An anken whose epic does not exist yet starts from its name instead (step 1 → "No, not yet"). It is saved under a draft key
-(`draft-1`, never a Jira key), shows in Onboarding only and is planned the same way: its Tasks are the template's, named with
+(`draft-1`, never a Jira key), shows in Onboarding and, for admins, in the anken switcher under "Draft · no epic" (screens of
+Jira data say it has no epic yet; Planning → Master schedule and Detail plan plan it), and is planned the same way: its Tasks are the template's, named with
 the anken prefix; its members' hours are weighed against their other anken but never count on them. Settings cannot pick a
 draft, so its own Phases & tasks are set in Setting Phase (the default for new anken until saved; a template Task that
-estimation rows are under cannot be dropped). Creating Tasks, pushing and Finish wait for the epic: Link epic (step 1) tracks
+estimation rows are under cannot be dropped). Creating Tasks, pushing and Finish onboarding wait for the epic: Link epic (step 1) tracks
 it and moves everything under it, its Phases & tasks included (replacing the epic's own, if it saved any), and the estimation
 rows take the Tasks created in Setting Phase.
 
-**Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Detail plan once the anken runs; admins
+**Building a plan** (Onboarding steps 3 and 5; Planning → Master schedule and Detail plan; admins
 write, Planning readers look). The estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per
 ticket without steps (its effort). Settings → Step weights (per anken or the default) gives each step its weight
 (× Create), its **PIC** (who Jira assigns the sub-task to at push: the function's BA or BAL) and its **effort shares**
