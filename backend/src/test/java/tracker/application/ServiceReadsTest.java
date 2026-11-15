@@ -30,10 +30,12 @@ import tracker.application.ports.AnkenRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
 import tracker.application.ports.JiraReaderFactory;
+import tracker.application.ports.PlanVersionRepository;
 import tracker.application.ports.SecretBox;
 import tracker.application.ports.SyncRunRepository;
 import tracker.application.service.AnkenService.FunctionDraft;
 import tracker.application.service.AnkenService;
+import tracker.application.service.Baselines;
 import tracker.application.service.CalendarService;
 import tracker.application.service.EffortService;
 import tracker.application.service.JiraSettingsService;
@@ -46,6 +48,7 @@ import tracker.application.service.WorkService;
 import tracker.application.settings.SettingsStore;
 import tracker.domain.Allocation;
 import tracker.domain.AnkenScope;
+import tracker.domain.Baseline;
 import tracker.domain.Burndown;
 import tracker.domain.DateReason;
 import tracker.domain.Function;
@@ -419,6 +422,25 @@ class ServiceReadsTest {
         assertThat(one.burndown().estimateH()).isLessThan(b.estimateH());
         assertThat(one.burndown().start()).isEqualTo(inPhase.burndown().start()); // the phase's start, whoever is picked
         assertThatThrownBy(() -> effort.burndown(ALL, "NOPE-1", null, null, null)).isInstanceOf(NotFound.class);
+    }
+
+    @Test
+    void burndownDrawsTheBaselineOfTheChosenScope(@Autowired PlanVersionRepository planVersions) {
+        EffortService.BurndownView all = effort.burndown(ALL, "PAY-1100", null, null, null);
+        assertThat(all.burndown().baselineH()).isNull();
+        assertThat(all.burndown().days()).allMatch(d -> d.baselineRemainingH() == null);
+        String phase = all.phases().get(0);
+        EffortService.BurndownView inPhase = effort.burndown(ALL, "PAY-1100", phase, null, null);
+        String task = inPhase.tasks().get(0).key();
+        String m = inPhase.members().get(0);
+        planVersions.add("PAY-1100", "2026-10-01T09:00:00Z", "Minh", Baselines.body(Map.of(), List.of(
+                new Baseline.Item("A", 5, task, m, Map.of("2026-10-01", 5.0)),
+                new Baseline.Item("B", 3, "GONE-1", m, Map.of("2026-10-01", 3.0)), // its Task was deleted: Other
+                new Baseline.Item("C", 2, task, "nobody", Map.of("2026-10-02", 2.0)))), true);
+        assertThat(effort.burndown(ALL, "PAY-1100", null, null, null).burndown().baselineH()).isEqualTo(10);
+        assertThat(effort.burndown(ALL, "PAY-1100", phase, null, null).burndown().baselineH()).isEqualTo(7);
+        assertThat(effort.burndown(ALL, "PAY-1100", phase, task, null).burndown().baselineH()).isEqualTo(7);
+        assertThat(effort.burndown(ALL, "PAY-1100", phase, null, m).burndown().baselineH()).isEqualTo(5);
     }
 
     @Test

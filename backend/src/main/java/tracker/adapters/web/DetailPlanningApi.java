@@ -339,10 +339,14 @@ public class DetailPlanningApi {
         return detail.push(viewer, epicScope(viewer, epic), epic);
     }
 
-    /** Saves a version of the plan as it shows now and returns the plan. */
+    /**
+     * Saves a version of the plan as it shows now and returns the plan. {@code baseline} (Planning → Detail plan): only once the
+     * plan is in Jira and up to date with it; the first such version is the anken's Baseline plan.
+     */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/versions")
-    public DetailPlanView saveDetailVersion(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.saveVersion(viewer, epicScope(viewer, epic), epic);
+    public DetailPlanView saveDetailVersion(@PathVariable("epic") String epic, @RequestParam(name = "baseline", defaultValue = "false") boolean baseline,
+                                            Viewer viewer) {
+        return detail.saveVersion(viewer, epicScope(viewer, epic), epic, baseline);
     }
 }

@@ -1,7 +1,9 @@
 package tracker.domain;
 
 public enum EventField {
-    ASSIGNEE("assignee"), STATUS("status");
+    ASSIGNEE("assignee"), STATUS("status"),
+    /** A change of the Original Estimate (the field mapped as Planned Effort), in hours. */
+    ESTIMATE("estimate");
 
     private final String value;
 

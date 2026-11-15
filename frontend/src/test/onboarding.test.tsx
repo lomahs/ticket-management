@@ -622,11 +622,13 @@ describe('onboarding', () => {
 
   it('saves a version', async () => {
     let posts = 0;
+    let search: string | null = null;
     onboarding({ step: 6 });
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
-      http.post('*/api/v1/planning/PAY-1100/detail/versions', () => {
+      http.post('*/api/v1/planning/PAY-1100/detail/versions', ({ request }) => {
         posts++;
+        search = new URL(request.url).search;
         return HttpResponse.json(detailView({ last_version_at: '2026-10-07T09:30:00Z' }));
       }),
     );
@@ -634,6 +636,8 @@ describe('onboarding', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save version' }));
     expect(await screen.findByText('Version saved')).toBeTruthy();
     expect(posts).toBe(1);
+    expect(search).toBe(''); // Onboarding's versions are not a baseline
+    expect(screen.getByRole('columnheader', { name: 'Total' })).toBeTruthy();
     expect(screen.getByText(/^Last version 2026\/10\/0[78] \d\d:\d\d$/)).toBeTruthy();
   });
 

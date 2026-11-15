@@ -64,10 +64,13 @@ interface Group { key: string; name: string; row?: Row; lines: MatrixLine[] }
  * Planned, Not yet and dates, then the hours planned on each day of the plan. The rows not in Jira yet pick their BA, BAL and JM
  * on the function; the sub-tasks in Jira change their PIC and Total here, kept until the push. Days before today of a sub-task in
  * Jira are locked and show the hours logged under the plan.
+ *
+ * `planning` (Planning → Detail plan) shows the planning figures, no actuals: Plan Estimation (the Original Estimate), Planned
+ * (every day's hours) and Not yet plan, red while the hours do not add up to the Plan Estimation (docs/rules.md).
  */
-export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
+export function PlanMatrix({ epic, v, people, admin, assign, swap, planning = false }: {
   epic: string; v: DetailPlanView; people: Person[]; admin: boolean;
-  assign: (r: Row, slot: Slot, id: string | null) => void; swap: (a: number, b: number) => void;
+  assign: (r: Row, slot: Slot, id: string | null) => void; swap: (a: number, b: number) => void; planning?: boolean;
 }) {
   const toast = useToast();
   const today = useMeta().data?.today ?? '';
@@ -187,10 +190,14 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
     } else {
       pic = <span aria-label={`PIC, ${l.summary}`}>{name(l.pic_id) || '–'}</span>;
     }
+    const totalName = planning ? 'Plan Estimation' : 'Total';
     let total: ReactNode;
-    if (live && inJira) total = <HoursInput label={`Total, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendJira(key, n, null)} />;
-    else if (live) total = <HoursInput label={`Total, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendStep(l, { effort_h: n })} style={byHand(l.edited)} />;
-    else total = f2(l.total_h);
+    // on Planning a sub-task's Plan Estimation is its Original Estimate in Jira: changed there, not here
+    if (live && inJira && !planning) total = <HoursInput label={`Total, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendJira(key, n, null)} />;
+    else if (live && !inJira) total = <HoursInput label={`${totalName}, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendStep(l, { effort_h: n })} style={byHand(l.edited)} />;
+    else total = <span aria-label={`${totalName}, ${l.summary}`}>{f2(planning ? l.plan_estimate_h : l.total_h)}</span>;
+    const planned = planning ? l.plan_h : l.planned_h;
+    const notYet = planning ? l.plan_not_yet_h : l.not_yet_h;
     return (
       <tr key={l.ref} aria-label={l.summary} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
         title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}
@@ -213,9 +220,10 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         </th>
         <td style={{ ...CELL, textAlign: 'left' }}>{pic}</td>
         <td style={{ ...CELL, width: 64 }}>{total}</td>
-        <td style={CELL} aria-label={`Planned, ${l.summary}`}>{f2(l.planned_h)}</td>
-        <td style={{ ...CELL, ...(Math.abs(l.not_yet_h) > NOT_YET_EPS && !l.removed && !l.closed ? { ...RED, fontWeight: 700 } : {}) }} aria-label={`Not yet, ${l.summary}`}>
-          {f2(l.not_yet_h)}</td>
+        <td style={CELL} aria-label={`Planned, ${l.summary}`}>{f2(planned)}</td>
+        <td style={{ ...CELL, ...(Math.abs(notYet) > NOT_YET_EPS && !l.removed && !l.closed ? { ...RED, fontWeight: 700 } : {}) }}
+          aria-label={`${planning ? 'Not yet plan' : 'Not yet'}, ${l.summary}`}>
+          {f2(notYet)}</td>
         <td style={CELL} aria-label={`Start, ${l.summary}`}>{l.start ? dm(l.start) : '–'}</td>
         <td style={CELL} aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
         {v.window.map((d) => {
@@ -243,7 +251,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
         <span className="legend">
           <span><span className="swatch" style={{ background: 'var(--hl-manual)', boxShadow: 'inset 0 0 0 1px var(--hl-manual-fg)' }} />Typed by hand: Auto allocate keeps it</span>
-          <span><span className="swatch" style={{ background: 'var(--hl-red)' }} />Out of step order, or Not yet left: blocks the push</span>
+          {planning
+            ? <span><span className="swatch" style={{ background: 'var(--hl-red)' }} />Out of step order: blocks the push · Not yet plan left: the hours do not add up to the Plan Estimation</span>
+            : <span><span className="swatch" style={{ background: 'var(--hl-red)' }} />Out of step order, or Not yet left: blocks the push</span>}
           <span>Days before today of a sub-task in Jira are locked; the hours logged show under the plan</span>
         </span>
         <span className="spacer" />
@@ -256,9 +266,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
             <tr className="eyebrow">
               <th scope="col" style={{ ...CELL, ...STICKY, textAlign: 'left', padding: '6px 8px 6px 44px', zIndex: 2 }}>Step · sub-task</th>
               <th scope="col" style={{ ...CELL, textAlign: 'left' }}>PIC</th>
-              <th scope="col" style={CELL}>Total</th>
+              <th scope="col" style={CELL}>{planning ? 'Plan Estimation' : 'Total'}</th>
               <th scope="col" style={CELL}>Planned</th>
-              <th scope="col" style={CELL}>Not yet</th>
+              <th scope="col" style={CELL}>{planning ? 'Not yet plan' : 'Not yet'}</th>
               <th scope="col" style={CELL}>Start</th>
               <th scope="col" style={CELL}>End</th>
               {v.window.map((d) => (

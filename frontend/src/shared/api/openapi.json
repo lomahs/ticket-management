@@ -2480,6 +2480,14 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "baseline",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
         } ],
         "responses" : {
           "200" : {
@@ -4441,6 +4449,10 @@
             "type" : "number",
             "format" : "double"
           },
+          "baseline_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
           "days" : {
             "type" : "array",
             "items" : {
@@ -4462,12 +4474,16 @@
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "actual_remaining_h", "days", "end", "estimate_h", "plan_remaining_h", "start" ]
+        "required" : [ "actual_remaining_h", "baseline_h", "days", "end", "estimate_h", "plan_remaining_h", "start" ]
       },
       "BurndownDay" : {
         "type" : "object",
         "properties" : {
           "actual_remaining_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "baseline_remaining_h" : {
             "type" : [ "number", "null" ],
             "format" : "double"
           },
@@ -4478,6 +4494,9 @@
             "type" : "number",
             "format" : "double"
           },
+          "off" : {
+            "type" : "boolean"
+          },
           "plan_remaining_h" : {
             "type" : "number",
             "format" : "double"
@@ -4487,7 +4506,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "actual_remaining_h", "date", "logged_h", "plan_remaining_h", "planned_h" ]
+        "required" : [ "actual_remaining_h", "baseline_remaining_h", "date", "logged_h", "off", "plan_remaining_h", "planned_h" ]
       },
       "BurndownOption" : {
         "type" : "object",
@@ -6717,6 +6736,18 @@
           "pic_id" : {
             "type" : [ "string", "null" ]
           },
+          "plan_estimate_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "plan_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "plan_not_yet_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
           "planned_h" : {
             "type" : "number",
             "format" : "double"
@@ -6752,7 +6783,7 @@
             "format" : "double"
           }
         },
-        "required" : [ "cells", "closed", "edited", "end", "function", "issue_key", "logged", "not_yet_h", "out_of_order", "pending", "phase", "pic_id", "planned_h", "ref", "removed", "reporter_id", "row_id", "spent_h", "start", "step", "summary", "total_h" ]
+        "required" : [ "cells", "closed", "edited", "end", "function", "issue_key", "logged", "not_yet_h", "out_of_order", "pending", "phase", "pic_id", "plan_estimate_h", "plan_h", "plan_not_yet_h", "planned_h", "ref", "removed", "reporter_id", "row_id", "spent_h", "start", "step", "summary", "total_h" ]
       },
       "MatrixStats" : {
         "type" : "object",

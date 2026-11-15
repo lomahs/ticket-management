@@ -260,6 +260,19 @@ public class SyncService {
             return Text.hasText(name) ? status(s, name, null).value() : null;
         }
 
+        /** An Original Estimate change in hours; a blank side is null, and a change Jira wrote as no number is left out. */
+        static Optional<IssueEvent> estimateEvent(ChangeSnapshot c, String fieldId) {
+            try {
+                return Optional.of(new IssueEvent(c.at(), EventField.ESTIMATE, hoursText(c.fromValue(), fieldId), hoursText(c.toValue(), fieldId)));
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+
+        private static @Nullable String hoursText(@Nullable String raw, String fieldId) {
+            return Text.hasText(raw) ? String.valueOf(JiraValues.hours(Double.parseDouble(raw.strip()), fieldId)) : null;
+        }
+
         Issue issue(IssueSnapshot snap, @Nullable Issue parent) {
             boolean isParent = isPhaseParent(snap);
             String epic = isParent ? snap.parentKey() : (parent != null ? parent.epicKey() : null);
@@ -283,18 +296,20 @@ public class SyncService {
             String assigneeId = member(snap.assignee());
             List<Worklog> worklogs = snap.worklogs().stream()
                     .map((WorklogSnapshot w) -> new Worklog(w.date(), memberOf(w.author()), w.hours(), w.comment())).toList();
+            TrackerSettings.FieldMapping fm = s.fieldMapping;
             List<IssueEvent> events = new ArrayList<>();
             for (ChangeSnapshot c : snap.changes()) {
                 if (c.field().equals("assignee")) {
                     events.add(new IssueEvent(c.at(), EventField.ASSIGNEE, member(c.fromUser()), member(c.toUser())));
                 } else if (c.field().equals("status")) {
                     events.add(new IssueEvent(c.at(), EventField.STATUS, statusValue(c.fromValue()), statusValue(c.toValue())));
+                } else if (c.field().equals("field:" + fm.effort)) {
+                    estimateEvent(c, fm.effort).ifPresent(events::add);
                 }
             }
             // the first reporter: the one before the first reporter change, else the current one
             String reporterId = snap.changes().stream().filter(c -> c.field().equals("reporter")).findFirst()
                     .map(c -> c.fromUser() != null ? member(c.fromUser()) : member(c.toUser())).orElseGet(() -> member(snap.reporter()));
-            TrackerSettings.FieldMapping fm = s.fieldMapping;
             Double hours = JiraValues.hours(snap.fields().get(fm.effort), fm.effort);
             Double remaining = JiraValues.hours(snap.fields().get(fm.remaining), fm.remaining);
             return new Issue(

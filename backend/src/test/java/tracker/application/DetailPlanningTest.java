@@ -657,7 +657,7 @@ class DetailPlanningTest {
         };
         TicketService tickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
         DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, tickets, onboardingRows, estimation, planDays,
-                cells, planVersions, clock, txTemplate);
+                cells, planVersions, (JiraReader) jira, clock, txTemplate);
         readyToPush();
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         Map<Long, Boolean> pushed = new java.util.HashMap<>();

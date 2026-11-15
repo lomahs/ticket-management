@@ -1,6 +1,7 @@
 package tracker.application;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,9 +15,11 @@ import tracker.domain.Anken;
 import tracker.domain.Burndown;
 import tracker.domain.Capacity;
 import tracker.domain.Effort;
+import tracker.domain.EventField;
 import tracker.domain.Flags;
 import tracker.domain.Function;
 import tracker.domain.Issue;
+import tracker.domain.IssueEvent;
 import tracker.domain.IssueFlags;
 import tracker.domain.IssueKind;
 import tracker.domain.IssueSchedule;
@@ -143,10 +146,34 @@ public final class TrackerContext {
         return days == null || days.isEmpty() ? null : days;
     }
 
-    /** {@code i} for a burndown, with the remaining estimate the Daily Overview captures saw, by day. */
-    public Burndown.Item burndownItem(Issue i, Map<String, Double> remainingOn) {
+    /**
+     * What the Daily Overview captures saw, key → day → hours.
+     *
+     * @param estimates the Original Estimate, on the captures that kept it
+     */
+    public record Seen(Map<String, Map<String, Double>> remaining, Map<String, Map<String, Double>> estimates) {
+    }
+
+    /** {@code i} for a burndown, with what the Daily Overview captures saw, by day. */
+    public Burndown.Item burndownItem(Issue i, Seen seen) {
         return new Burndown.Item(i.key(), i.plannedStart(), i.plannedEnd(), i.estimateH(), planDays(i), i.worklogs(),
-                i.status() == Status.CLOSED ? 0 : i.remainingH(), remainingOn);
+                i.status() == Status.CLOSED ? 0 : i.remainingH(), seen.remaining().getOrDefault(i.key(), Map.of()),
+                seen.estimates().getOrDefault(i.key(), Map.of()), estimateChanges(i));
+    }
+
+    /** The Original Estimate changes of {@code i} by day, in hours added; a blank side counts as 0. */
+    static Map<String, Double> estimateChanges(Issue i) {
+        Map<String, Double> out = new HashMap<>();
+        for (IssueEvent e : i.events()) {
+            if (e.field() == EventField.ESTIMATE) {
+                out.merge(e.at(), hours(e.toValue()) - hours(e.fromValue()), Numbers::sum);
+            }
+        }
+        return out;
+    }
+
+    private static double hours(@Nullable String v) {
+        return v == null ? 0 : Double.parseDouble(v);
     }
 
     private static String worker(Issue i, @Nullable String planOwner) {

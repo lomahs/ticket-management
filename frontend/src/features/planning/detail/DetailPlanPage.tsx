@@ -31,7 +31,7 @@ function Detail({ epic }: { epic: string }) {
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <PushControls epic={epic} v={q.data} name={name} onCheck={() => setChecked(true)} />
       </div>
-      <DetailPlan epic={epic} v={q.data} people={people} checked={checked} />
+      <DetailPlan epic={epic} v={q.data} people={people} checked={checked} planning />
     </>
   );
 }

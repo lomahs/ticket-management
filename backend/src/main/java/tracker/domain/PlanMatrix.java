@@ -51,7 +51,7 @@ public final class PlanMatrix {
             for (Map.Entry<String, DayPlan> e : plan.member(i.plan().memberId()).entrySet()) {
                 Double part = e.getValue().byKey.get(i.plan().key());
                 if (part != null) {
-                    h[days.indexOf(Burndown.snap(days, e.getKey()))] += part;
+                    h[days.indexOf(snap(days, e.getKey()))] += part;
                 }
             }
         }
@@ -66,5 +66,15 @@ public final class PlanMatrix {
             rows.add(new PlanRow(i.phase(), i.taskKey(), i.task(), i.functionKey(), i.function(), i.plan().memberId(), Numbers.round(total, 2), h));
         });
         return new PlanGrid(days, rows);
+    }
+
+    /** The first shown day on or after d, else the last one. */
+    private static String snap(List<String> days, String d) {
+        for (String x : days) {
+            if (x.compareTo(d) >= 0) {
+                return x;
+            }
+        }
+        return days.get(days.size() - 1);
     }
 }

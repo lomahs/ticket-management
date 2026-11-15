@@ -94,12 +94,15 @@ export function useEditJiraLine(epic: string) {
   });
 }
 
-/** Stores a snapshot of the whole plan; the plan comes back with the time of that version. */
-export function useSaveVersion(epic: string) {
+/**
+ * Stores a snapshot of the whole plan; the plan comes back with the time of that version. `baseline` (Planning → Detail plan):
+ * refused until the plan is in Jira and up to date with it; the first such version is the anken's Baseline plan.
+ */
+export function useSaveVersion(epic: string, baseline = false) {
   const qc = useQueryClient();
   return useMutation({
     scope: planScope(epic),
-    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/versions', { params: { path: { epic } } })),
+    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/versions', { params: { path: { epic }, query: baseline ? { baseline } : {} } })),
     onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
   });
 }

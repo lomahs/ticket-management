@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
 import { getRouteApi } from '@tanstack/react-router';
 import type { Schemas } from '../../../shared/api/types';
 import { useMemberMap } from '../../../shared/api/queries';
@@ -7,7 +8,7 @@ import { dm, f2 } from '../../../shared/format/dates';
 import { SCHEDULE_LABEL } from '../../../shared/format/labels';
 import { useAnkenScope } from '../../../shared/state/anken';
 import { Seg } from '../../../shared/ui/bits';
-import { BurndownChart } from '../../../shared/ui/BurndownChart';
+import { BurndownChart, type BurndownLines } from '../../../shared/ui/BurndownChart';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { burndownQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
@@ -17,6 +18,16 @@ import { PlanTable } from './PlanTable';
 const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
 const signed = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + f2(Math.abs(n)) + 'h';
+
+/** A legend item that shows or hides its line. */
+function LineToggle({ on, flip, mark, children }: { on: boolean; flip: () => void; mark: ReactNode; children: string }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={flip} title={on ? `Hide ${children}` : `Show ${children}`} style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px', border: 0, borderRadius: 6, background: 'transparent', cursor: 'pointer',
+      font: 'inherit', color: 'var(--text-muted)', opacity: on ? 1 : 0.45, textDecoration: on ? undefined : 'line-through',
+    }}>{mark}{children}</button>
+  );
+}
 
 export function BurndownPage() {
   const { anken } = useAnkenScope();
@@ -62,7 +73,7 @@ function BurndownOf({ anken }: { anken: string }) {
           onChange={(m) => navigate({ search: (s) => ({ ...s, member: m || undefined }) })}
         />
         <span className="spacer" />
-        <span className="eyebrow">{v.title} · working days only</span>
+        <span className="eyebrow">{v.title} · off days in grey</span>
       </div>
       <Burndown v={v} />
     </>
@@ -71,6 +82,9 @@ function BurndownOf({ anken }: { anken: string }) {
 
 function Burndown({ v }: { v: Schemas['BurndownView'] }) {
   const b = v.burndown;
+  // which lines show: not remembered, every line again on the next visit
+  const [show, setShow] = useState<BurndownLines>({ baseline: true, plan: true, actual: true });
+  const flip = (k: keyof BurndownLines) => () => setShow((s) => ({ ...s, [k]: !s[k] }));
   const E = b.estimate_h;
   const gap = b.actual_remaining_h - b.plan_remaining_h;
   const kpis = [
@@ -97,15 +111,18 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div className="title">Effort burndown</div>
-            <div className="eyebrow">Remaining hours from the day before the start. Plan counts down by the hours planned per day (Detail Planning, else the estimate spread evenly); actual is Jira's remaining estimate: today live, an earlier day as its Daily Overview capture saw it, else what remains now plus the hours logged since.</div>
+            <div className="eyebrow">Remaining hours from the day before the start. Plan counts down by the hours planned per day (Detail Planning, else the estimate spread evenly); actual is Jira's remaining estimate: today live, an earlier day as its Daily Overview capture saw it, else what remains now plus the hours logged since. An Original Estimate change counts from the first day. Baseline plan: the first version saved on Planning › Detail plan.</div>
           </div>
-          <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 0, borderTop: '2px dashed var(--text-muted)' }} />Plan</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 20, height: 3, borderRadius: 2, background: 'var(--st-wip)' }} />Actual</span>
+          <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
+            {b.baseline_h != null && (
+              <LineToggle on={show.baseline} flip={flip('baseline')} mark={<span style={{ width: 20, height: 0, borderTop: '2px dotted var(--text-link)' }} />}>Baseline plan</LineToggle>
+            )}
+            <LineToggle on={show.plan} flip={flip('plan')} mark={<span style={{ width: 20, height: 0, borderTop: '2px dashed var(--text-muted)' }} />}>Plan</LineToggle>
+            <LineToggle on={show.actual} flip={flip('actual')} mark={<span style={{ width: 20, height: 3, borderRadius: 2, background: 'var(--st-wip)' }} />}>Actual</LineToggle>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 0, height: 12, borderLeft: '1.5px solid var(--border-focus)' }} />Today</span>
           </div>
         </div>
-        <BurndownChart b={b} today={v.today}
+        <BurndownChart b={b} today={v.today} show={show}
           empty={`No sub-tasks with a Planned Start, a Planned End and an estimate${v.phase || v.task || v.member ? ' match these filters' : ' in this anken'}.`} />
       </section>
       <PlanTable m={v.matrix} today={v.today} />

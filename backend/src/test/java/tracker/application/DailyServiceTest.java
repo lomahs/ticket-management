@@ -149,6 +149,8 @@ class DailyServiceTest {
         List<Issue> subs = contexts.load(ALL).subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100")).toList();
         Map<String, Map<String, Double>> seen = remainingDays.find(subs.stream().map(Issue::key).toList());
         assertThat(seen.keySet()).containsExactlyInAnyOrderElementsOf(subs.stream().map(Issue::key).toList());
+        Map<String, Map<String, Double>> estimates = remainingDays.findEstimates(subs.stream().map(Issue::key).toList());
+        assertThat(subs).allMatch(i -> estimates.get(i.key()).get("2026-10-07") == i.estimateH());
         assertThat(subs).allMatch(i -> seen.get(i.key()).get("2026-10-07") == (i.status() == Status.CLOSED ? 0 : i.remainingH()));
 
         // a past day: the stored content, notes as they were, and nothing recomputed
@@ -180,5 +182,20 @@ class DailyServiceTest {
         assertThat(today.dailyPhases()).containsExactly("Implement_Coding");
         snapshots.save("PAY-1100", "2026-10-06", "2026-10-06T18:00:00+07:00", "auto", today.content());
         assertThat(daily.view(ALL, "PAY-1100", "2026-10-06").dailyPhases()).containsExactly("Implement_Coding");
+    }
+
+    @Test
+    void anOldSnapshotWithoutABaselineStillLoads(@Autowired org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        DailyView today = daily.view(ALL, "PAY-1100", null);
+        assertThat(today.content().burndowns()).allMatch(b -> b.chart().baselineH() == null);
+        snapshots.save("PAY-1100", "2026-10-06", "2026-10-06T18:00:00+07:00", "auto", today.content());
+        // as it was stored before the Baseline plan existed
+        String payload = jdbc.queryForObject("SELECT payload FROM daily_snapshots WHERE epic_key = 'PAY-1100' AND date = '2026-10-06'", String.class);
+        String old = payload.replace(",\"baseline_remaining_h\":null", "").replace(",\"baseline_h\":null", "");
+        assertThat(old).doesNotContain("baseline_");
+        jdbc.update("UPDATE daily_snapshots SET payload = ? WHERE epic_key = 'PAY-1100' AND date = '2026-10-06'", old);
+        DailyView past = daily.view(ALL, "PAY-1100", "2026-10-06");
+        assertThat(past.content().burndowns()).isNotEmpty().allMatch(b -> b.chart().baselineH() == null
+                && b.chart().days().stream().allMatch(d -> d.baselineRemainingH() == null));
     }
 }

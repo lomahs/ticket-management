@@ -89,6 +89,8 @@ public final class FakeJira implements JiraReader, JiraWriter {
             if (c.field().equals("assignee")) {
                 changes.add(new ChangeSnapshot(c.at(), "assignee", accountOrNull(c.from()), accountOrNull(c.to()),
                         user(c.from()), user(c.to())));
+            } else if (c.field().equals("estimate")) {
+                changes.add(new ChangeSnapshot(c.at(), "field:" + FIELDS.effort, c.from(), c.to()));
             } else {
                 changes.add(new ChangeSnapshot(c.at(), "status", c.from() != null ? Dataset.STATUS_NAMES.get(c.from())[0] : null,
                         c.to() != null ? Dataset.STATUS_NAMES.get(c.to())[0] : null));
@@ -222,6 +224,7 @@ public final class FakeJira implements JiraReader, JiraWriter {
     }
 
     private void update(FakeIssue i, JsonNode fields) {
+        double estimateBefore = i.estH;
         for (var it = fields.fields(); it.hasNext(); ) {
             var e = it.next();
             JsonNode v = e.getValue();
@@ -261,7 +264,14 @@ public final class FakeJira implements JiraReader, JiraWriter {
                 }
             }
         }
+        if (i.estH != estimateBefore) { // Jira's changelog keeps the Original estimate in seconds
+            i.changes.add(new FakeIssue.Change(LocalDate.now(clock).toString(), "estimate", seconds(estimateBefore), seconds(i.estH)));
+        }
         touch(i);
+    }
+
+    private static @Nullable String seconds(double hours) {
+        return hours != 0 ? String.valueOf((long) (hours * 3600)) : null;
     }
 
     /** "90m" → 90; null → 0. */

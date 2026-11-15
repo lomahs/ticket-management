@@ -17,11 +17,13 @@ import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContext;
 import tracker.application.TrackerContextLoader;
+import tracker.application.ports.PlanVersionRepository;
 import tracker.application.ports.RemainingDayRepository;
 import tracker.application.service.PlanningService.DayHead;
 import tracker.domain.Analysis.EffortBar;
 import tracker.domain.Analysis.Rework;
 import tracker.domain.Analysis;
+import tracker.domain.Baseline;
 import tracker.domain.AnkenScope;
 import tracker.domain.Burndown;
 import tracker.domain.Capacity.PlanItem;
@@ -51,11 +53,14 @@ public class EffortService {
 
     private final AllocationService allocations;
     private final RemainingDayRepository remainingDays;
+    private final PlanVersionRepository planVersions;
 
-    public EffortService(TrackerContextLoader context, AllocationService allocations, RemainingDayRepository remainingDays) {
+    public EffortService(TrackerContextLoader context, AllocationService allocations, RemainingDayRepository remainingDays,
+                         PlanVersionRepository planVersions) {
         this.context = context;
         this.allocations = allocations;
         this.remainingDays = remainingDays;
+        this.planVersions = planVersions;
     }
 
     public static final int MAX_DAYS = 62;
@@ -277,17 +282,23 @@ public class EffortService {
         chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.planOwner(i), "")));
         List<String> members = ctx.people.stream().filter(workers::contains).toList();
         String who = Text.hasText(member) ? member : null;
-        Map<String, Map<String, Double>> seen = remainingDays.find(chart.stream().map(Issue::key).toList());
+        List<String> keys = chart.stream().map(Issue::key).toList();
+        TrackerContext.Seen seen = new TrackerContext.Seen(remainingDays.find(keys), remainingDays.findEstimates(keys));
         List<Burndown.Item> items = new ArrayList<>();
         for (Issue i : chart) {
             String w = Objects.requireNonNullElse(ctx.planOwner(i), "");
             if (who == null || who.equals(w)) {
-                items.add(ctx.burndownItem(i, seen.getOrDefault(i.key(), Map.of())));
+                items.add(ctx.burndownItem(i, seen));
             }
         }
         String from = chart.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
+        // the Baseline plan of the same scope: a Task deleted since the lock counts under Other
+        List<Baseline.Item> baseline = Baselines.of(planVersions.baseline(epic)).map(b -> b.items().stream()
+                .filter(x -> ph == null || ph.equals(groups.getOrDefault(Text.orElse(x.parentKey(), ""), PhaseGroups.OTHER)))
+                .filter(x -> tk == null || tk.equals(x.parentKey()))
+                .filter(x -> who == null || who.equals(x.ownerId())).toList()).orElse(null);
         return new BurndownView(epic, titleOf(ctx, epic), ankens, phases, ph, tasks, tk, members, who, items.size(), ctx.today,
-                Burndown.compute(items, ctx.cal, ctx.today, from), matrix(ctx, chart, groups, phases, start, who));
+                Burndown.compute(items, ctx.cal, ctx.today, from, baseline), matrix(ctx, chart, groups, phases, start, who));
     }
 
     /**

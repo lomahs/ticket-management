@@ -192,6 +192,12 @@ planned above a member's allocation is only a warning: the push asks to confirm 
 creates the sub-tasks under each row's Task through the reviewed batch, assigned by the step's PIC, with the BAL as the
 reporter of Create.
 
+On Planning → Detail plan the lines show planning figures only (`docs/glossary.md`): Plan Estimation (the Original
+Estimate), Planned and Not yet plan, red while the hours do not add up. Save version there needs the plan in Jira and up to
+date with it; the first such version is the anken's **Baseline plan**, drawn as a third line on Effort → Burndown
+(`docs/rules.md`). The sync keeps Original Estimate changes from Jira's changelog (after a full sync); an approved change
+counts on the burndown from the first day.
+
 **Schedule state:** the Anken Overview judges every sub-task on its own planned dates. *Start* is early, late or on time (a
 sub-task not started is *late start* only after its planned start day, and one without a recorded start date but past
 Not Yet Started counts as started on time), or *not due* / *no plan*. *Finish* is early, late or on time once Resolved

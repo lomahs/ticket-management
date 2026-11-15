@@ -7,7 +7,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); });
 afterAll(() => server.close());
 
-const day = (date: string, plan: number, act: number | null) => ({ date, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
+const day = (date: string, plan: number, act: number | null) => ({ date, off: false, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
 const chart = { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
   days: [day('2026-10-05', 12, 12), day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] };
 const step = (key: string, s: string, status: string, extra: object = {}) => ({

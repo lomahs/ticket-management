@@ -83,7 +83,7 @@ describe('detail planning', () => {
 describe('planning tabs', () => {
   const line = { ref: '2', row_id: 2, issue_key: null, phase: 'ITA', function: 'Run', step: null, summary: '[PAY] Run', pic_id: null, reporter_id: null,
     total_h: 16, spent_h: 0, planned_h: 0, not_yet_h: 16, start: null, end: null, cells: [], logged: [], closed: false, pending: false,
-    out_of_order: false, removed: false, edited: false };
+    out_of_order: false, removed: false, edited: false, plan_estimate_h: 16, plan_h: 0, plan_not_yet_h: 16 };
   const view = { rows: [{ id: 2, epic_key: 'PAY-1100', position: 1, phase: 'ITA', subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16,
     ba_id: null, bal_id: null, jm_id: null, task_key: 'PAY-1102', pushed_at: null }],
   tasks: [{ key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' }], window: ['2026-10-07', '2026-10-08'], lines: [line],
@@ -100,6 +100,38 @@ describe('planning tabs', () => {
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)));
     renderApp('/planning/detail?anken=PAY-1100');
     expect((await screen.findAllByText('[PAY] Run')).length).toBeGreaterThan(0);
+  });
+
+  // Export: Original Estimate 30h (approved from 3h), 10h planned; 5h logged and 7h remaining are actuals the screen leaves out
+  const exportLine = { ...line, ref: 'PAY-1301', row_id: null, issue_key: 'PAY-1301', summary: '[PAY] Export', total_h: 12, spent_h: 5,
+    planned_h: 12, not_yet_h: 0, plan_estimate_h: 30, plan_h: 10, plan_not_yet_h: 20, cells: [{ day: '2026-10-08', hours: 10, auto: false }] };
+
+  it('shows the planning figures of each line, actuals left out', async () => {
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ ...view, rows: [], lines: [exportLine] })));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const table = await screen.findByRole('region', { name: 'Detail plan matrix' });
+    expect(within(table).getAllByRole('columnheader').map((c) => c.textContent).slice(1, 5)).toEqual(['PIC', 'Plan Estimation', 'Planned', 'Not yet plan']);
+    expect(within(table).getByLabelText('Plan Estimation, [PAY] Export').textContent).toBe('30.00');
+    expect(within(table).queryByRole('spinbutton', { name: 'Total, [PAY] Export' })).toBeNull();
+    expect(within(table).getByLabelText('Planned, [PAY] Export').textContent).toBe('10.00');
+    const notYet = within(table).getByLabelText('Not yet plan, [PAY] Export');
+    expect(notYet.textContent).toBe('20.00');
+    expect(notYet.style.background).toBe('var(--hl-red)');
+  });
+
+  it('saves a version for the baseline and shows why it is refused', async () => {
+    let search: string | null = null;
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ ...view, rows: [], lines: [exportLine] })),
+      http.post('*/api/v1/planning/PAY-1100/detail/versions', ({ request }) => {
+        search = new URL(request.url).search;
+        return HttpResponse.json({ status: 400, code: 'invalid', detail: 'A version is saved once the plan is in Jira. 1 row is not in Jira yet: push first' }, { status: 400 });
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByRole('button', { name: 'Save version' }));
+    expect(await screen.findByText(/1 row is not in Jira yet/)).toBeTruthy();
+    expect(search).toBe('?baseline=true');
   });
 
   it('asks for an anken and shows no matrix without one', async () => {

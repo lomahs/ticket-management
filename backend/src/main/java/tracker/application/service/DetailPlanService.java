@@ -24,8 +24,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tracker.application.AppError.Invalid;
 import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContext;
+import tracker.application.JiraValues;
 import tracker.application.TrackerContextLoader;
+import tracker.application.dto.IssueSnapshot;
 import tracker.application.ports.EstimationRepository;
+import tracker.application.ports.JiraReader;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.OnboardingRepository;
 import tracker.application.ports.PlanCellRepository;
@@ -33,10 +36,12 @@ import tracker.application.ports.PlanCellRepository.Cell;
 import tracker.application.ports.PlanCellRepository.JiraEdit;
 import tracker.application.ports.PlanDayRepository;
 import tracker.application.ports.PlanVersionRepository;
+import tracker.application.settings.TrackerSettings.FieldMapping;
 import tracker.domain.Allocations;
 import tracker.domain.AutoAllocator;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.Baseline;
 import tracker.domain.AutoPicks;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
@@ -61,6 +66,7 @@ import tracker.domain.ScheduleVersion;
 import tracker.domain.ScheduleVersion.PhaseRow;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.Steps;
 import tracker.domain.StepWeights;
 import tracker.domain.Text;
 import tracker.domain.Viewer;
@@ -86,13 +92,14 @@ public class DetailPlanService {
     private final PlanDayRepository planDays;
     private final PlanCellRepository cells;
     private final PlanVersionRepository planVersions;
+    private final JiraReader reader;
     private final Clock clock;
     private final TransactionTemplate tx;
 
     public DetailPlanService(TrackerContextLoader context, EstimationRepository estimation, MasterScheduleRepository versions,
                              AllocationService allocations, TicketService tickets, OnboardingRepository onboarding,
                              EstimationService estimations, PlanDayRepository planDays, PlanCellRepository cells,
-                             PlanVersionRepository planVersions, Clock clock, TransactionTemplate tx) {
+                             PlanVersionRepository planVersions, JiraReader reader, Clock clock, TransactionTemplate tx) {
         this.context = context;
         this.estimation = estimation;
         this.versions = versions;
@@ -103,6 +110,7 @@ public class DetailPlanService {
         this.planDays = planDays;
         this.cells = cells;
         this.planVersions = planVersions;
+        this.reader = reader;
         this.clock = clock;
         this.tx = tx;
     }
@@ -140,13 +148,16 @@ public class DetailPlanService {
      * @param pending   a Jira row with changes not pushed yet
      * @param outOfOrder starts before the previous step of its function ends
      * @param edited    its effort was set by hand instead of Create × its weight
+     * @param planEstimateH Plan Estimation: a row's step effort; a sub-task's Original Estimate (planning only, no actuals)
+     * @param planH         Planned effort: the hours of every day in {@code cells}
+     * @param planNotYetH   Not yet plan effort: Plan Estimation − Planned effort
      */
     // issue_key named outright: the OpenAPI resolver leaves "issueKey" (a name starting "is") unconverted
     public record MatrixLine(String ref, @Nullable Long rowId, @JsonProperty("issue_key") @Nullable String issueKey, String phase, String function,
                              @Nullable String step, String summary, @Nullable String picId, @Nullable String reporterId,
                              double totalH, double spentH, double plannedH, double notYetH, @Nullable String start, @Nullable String end,
                              List<DayHours> cells, List<DayHours> logged, boolean closed, boolean pending, boolean outOfOrder,
-                             boolean removed, boolean edited) {
+                             boolean removed, boolean edited, double planEstimateH, double planH, double planNotYetH) {
     }
 
     /** @param daysLate calendar days from the master schedule's End to the plan's end; positive = later */
@@ -248,8 +259,14 @@ public class DetailPlanService {
         return compute(scope, epic).view();
     }
 
-    /** Saves the plan as it shows (rows, and per line its PIC, Total and cells) as a version; returns the plan that follows. */
-    public DetailPlanView saveVersion(Viewer actor, AnkenScope scope, String epic) {
+    /**
+     * Saves the plan as it shows (rows, and per line its PIC, Total and cells) as a version; returns the plan that follows.
+     *
+     * @param baseline from Planning → Detail plan: refused until every line is in Jira, nothing waits to be pushed and Jira
+     *                 still has what the app has; the version then keeps each sub-task's Original Estimate, Task, plan owner
+     *                 and hours per day, and the first such version is the anken's Baseline plan. Onboarding saves without.
+     */
+    public DetailPlanView saveVersion(Viewer actor, AnkenScope scope, String epic, boolean baseline) {
         DetailPlanView v = view(scope, epic);
         List<Map<String, Object>> rows = new ArrayList<>();
         for (EstimationRow r : v.rows()) {
@@ -272,17 +289,88 @@ public class DetailPlanService {
             o.put("cells", cellMap);
             lines.add(o);
         }
-        String body;
-        try {
-            body = VERSION_JSON.writeValueAsString(Map.of("rows", rows, "lines", lines));
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new IllegalStateException(e);
-        }
-        planVersions.add(epic, Instant.now(clock).toString(), actor.name(), body);
+        Map<String, Object> plan = Map.of("rows", rows, "lines", lines);
+        String body = baseline ? Baselines.body(plan, baselineItems(context.load(scope), epic, v)) : Baselines.write(plan);
+        planVersions.add(epic, Instant.now(clock).toString(), actor.name(), body, baseline);
         return view(scope, epic);
     }
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper VERSION_JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+    /** What a version keeps for the Baseline plan, once the plan is in Jira and up to date with it. */
+    private List<Baseline.Item> baselineItems(TrackerContext ctx, String epic, DetailPlanView v) {
+        List<String> refused = new ArrayList<>();
+        if (DraftAnken.isKey(epic)) {
+            refused.add("Link the anken's epic in Jira first");
+        }
+        long open = v.rows().stream().filter(r -> !r.pushed()).count();
+        if (open > 0) {
+            refused.add(open + (open == 1 ? " row is" : " rows are") + " not in Jira yet: push first");
+        }
+        long pending = v.lines().stream().filter(l -> l.issueKey() != null && l.pending()).count();
+        if (pending > 0) {
+            refused.add(pending + (pending == 1 ? " sub-task has" : " sub-tasks have") + " changes not pushed: push or clear them first");
+        }
+        if (!refused.isEmpty()) {
+            throw new Invalid("A version is saved once the plan is in Jira. " + String.join("; ", refused), "plan");
+        }
+        List<Issue> subs = ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic)).toList();
+        List<String> differ = differFromJira(ctx, epic, subs);
+        if (!differ.isEmpty()) {
+            throw new Invalid("Jira has changed since the last sync: " + String.join("; ", differ) + ". Sync, then save the version again", "plan");
+        }
+        Map<String, MatrixLine> byKey = new HashMap<>();
+        v.lines().stream().filter(l -> l.issueKey() != null).forEach(l -> byKey.put(l.issueKey(), l));
+        List<Baseline.Item> out = new ArrayList<>();
+        for (Issue i : subs) {
+            // the sub-tasks the burndown draws: dated, with an estimate, JM Review aside
+            if (!Text.hasText(i.plannedStart()) || !Text.hasText(i.plannedEnd()) || i.estimateH() <= 0 || Steps.isJmReview(i)) {
+                continue;
+            }
+            MatrixLine l = byKey.get(i.key());
+            Map<String, Double> days = new TreeMap<>();
+            if (l != null) {
+                l.cells().forEach(c -> days.merge(c.day(), c.hours(), Numbers::sum));
+            } else {
+                days.putAll(ctx.planDays(i));
+            }
+            out.add(new Baseline.Item(i.key(), i.estimateH(), i.parentKey(), Objects.requireNonNullElse(ctx.planOwner(i), ""), days));
+        }
+        return out;
+    }
+
+    /**
+     * The sub-tasks whose Original Estimate or planned dates in Jira differ from the app's, and the tickets in Jira the app has
+     * not synced yet: "KEY: what differs".
+     */
+    private List<String> differFromJira(TrackerContext ctx, String epic, List<Issue> subs) {
+        FieldMapping fm = ctx.settings.fieldMapping;
+        Map<String, IssueSnapshot> live = new HashMap<>();
+        reader.search(List.of(epic), null).forEach(s -> live.put(s.key(), s));
+        List<String> out = new ArrayList<>();
+        Set<String> known = new HashSet<>();
+        ctx.parents().forEach(i -> known.add(i.key()));
+        ctx.subtasks().forEach(i -> known.add(i.key()));
+        live.keySet().stream().filter(k -> !known.contains(k)).sorted().forEach(k -> out.add(k + ": not synced yet"));
+        for (Issue i : subs) {
+            IssueSnapshot s = live.get(i.key());
+            if (s == null) {
+                out.add(i.key() + ": not found in Jira");
+                continue;
+            }
+            double est = Objects.requireNonNullElse(JiraValues.hours(s.fields().get(fm.effort), fm.effort), 0.0);
+            if (Math.abs(est - i.estimateH()) > 0.01) {
+                out.add(i.key() + ": Original Estimate " + Numbers.format(est) + "h in Jira, " + Numbers.format(i.estimateH()) + "h here");
+            }
+            String start = JiraValues.date(s.fields().get(fm.plannedStart));
+            if (!Objects.equals(Text.orElse(start, ""), Text.orElse(i.plannedStart(), ""))) {
+                out.add(i.key() + ": Planned Start " + Text.orElse(start, "none") + " in Jira, " + Text.orElse(i.plannedStart(), "none") + " here");
+            }
+            String end = JiraValues.date(s.fields().get(fm.plannedEnd));
+            if (!Objects.equals(Text.orElse(end, ""), Text.orElse(i.plannedEnd(), ""))) {
+                out.add(i.key() + ": Planned End " + Text.orElse(end, "none") + " in Jira, " + Text.orElse(i.plannedEnd(), "none") + " here");
+            }
+        }
+        return out;
+    }
 
     /** Saves the order of the unpushed rows and their people, picked by hand; returns the plan that follows. */
     public DetailPlanView saveDraft(AnkenScope scope, String epic, DraftIn draft) {

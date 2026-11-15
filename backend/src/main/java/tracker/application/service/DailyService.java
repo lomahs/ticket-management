@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import tracker.application.AppError.NotFound;
 import tracker.application.TrackerContext;
+import tracker.application.TrackerContext.Seen;
 import tracker.application.TrackerContextLoader;
 import tracker.application.ports.DailySnapshotRepository;
 import tracker.application.ports.RemainingDayRepository;
@@ -188,9 +189,12 @@ public class DailyService {
         TrackerContext ctx = context.load(scope);
         require(ctx, epic);
         Map<String, Double> remaining = new LinkedHashMap<>();
-        ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic))
-                .forEach(i -> remaining.put(i.key(), i.status() == Status.CLOSED ? 0 : i.remainingH()));
-        remainingDays.save(ctx.today, remaining);
+        Map<String, Double> estimate = new LinkedHashMap<>();
+        ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic)).forEach(i -> {
+            remaining.put(i.key(), i.status() == Status.CLOSED ? 0 : i.remainingH());
+            estimate.put(i.key(), i.estimateH());
+        });
+        remainingDays.save(ctx.today, remaining, estimate);
         snapshots.save(epic, ctx.today, now(), by, content(ctx, epic));
         return view(scope, epic, null);
     }
@@ -222,7 +226,8 @@ public class DailyService {
         WorkStructure st = ctx.settings.structureOf(epic);
         List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
         List<Issue> subs = ctx.subtasks().stream().filter(i -> i.epicKey().equals(epic)).toList();
-        Map<String, Map<String, Double>> seen = remainingDays.find(subs.stream().map(Issue::key).toList());
+        Seen seen = new Seen(remainingDays.find(subs.stream().map(Issue::key).toList()),
+                remainingDays.findEstimates(subs.stream().map(Issue::key).toList()));
         Map<String, String> typeOf = new HashMap<>();
         parents.forEach(p -> typeOf.put(p.key(), st.typeOfTask(p.summary())));
         Map<String, List<Issue>> subsOf = new HashMap<>();
@@ -340,11 +345,11 @@ public class DailyService {
         return out;
     }
 
-    /** @param seen key → day → the remaining estimate a capture saw */
-    private static BurndownChart burndown(TrackerContext ctx, List<Issue> subs, Map<String, Map<String, Double>> seen) {
+    /** @param seen what the captures saw */
+    private static BurndownChart burndown(TrackerContext ctx, List<Issue> subs, Seen seen) {
         List<Burndown.Item> items = subs.stream()
                 .filter(i -> Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0 && !Steps.isJmReview(i))
-                .map(i -> ctx.burndownItem(i, seen.getOrDefault(i.key(), Map.of()))).toList();
+                .map(i -> ctx.burndownItem(i, seen)).toList();
         return Burndown.compute(items, ctx.cal, ctx.today, null);
     }
 }

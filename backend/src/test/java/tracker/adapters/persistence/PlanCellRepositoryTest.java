@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,8 @@ import tracker.application.ports.PlanCellRepository;
 import tracker.application.ports.PlanCellRepository.Cell;
 import tracker.application.ports.PlanCellRepository.JiraEdit;
 import tracker.application.ports.PlanVersionRepository;
+import tracker.application.service.Baselines;
+import tracker.domain.Baseline;
 import tracker.domain.EstimationRow;
 
 @DemoTest
@@ -96,9 +99,28 @@ class PlanCellRepositoryTest {
 
     @Test
     void versionsKeepTheLastTime() {
-        versions.add(EPIC, "2026-10-07T09:00:00Z", "Minh", "{}");
-        versions.add(EPIC, "2026-10-07T10:00:00Z", "Minh", "{}");
+        versions.add(EPIC, "2026-10-07T09:00:00Z", "Minh", "{}", false);
+        versions.add(EPIC, "2026-10-07T10:00:00Z", "Minh", "{}", false);
         assertThat(versions.lastSavedAt(EPIC)).isEqualTo("2026-10-07T10:00:00Z");
         assertThat(versions.lastSavedAt("PAY-9999")).isNull();
+    }
+
+    @Test
+    void theBaselineIsTheFirstVersionWithEstimates() {
+        versions.add(EPIC, "2026-10-07T09:00:00Z", "Minh", "{\"v\":1}", false);
+        versions.add(EPIC, "2026-10-08T09:00:00Z", "Minh", "{\"v\":2}", true);
+        versions.add(EPIC, "2026-10-09T09:00:00Z", "Minh", "{\"v\":3}", true);
+        assertThat(versions.baseline(EPIC)).contains(new PlanVersionRepository.SavedVersion("2026-10-08T09:00:00Z", "{\"v\":2}"));
+        assertThat(versions.baseline("PAY-9999")).isEmpty();
+    }
+
+    @Test
+    void aBaselineReadsBackItsSubtasks() {
+        List<Baseline.Item> items = List.of(new Baseline.Item("PAY-1", 8, "PAY-10", "an", Map.of("2026-10-01", 4.0, "2026-10-02", 4.0)),
+                new Baseline.Item("PAY-2", 3, null, "", Map.of()));
+        String body = Baselines.body(Map.of("rows", List.of()), items);
+        assertThat(Baselines.of(Optional.of(new PlanVersionRepository.SavedVersion("t", body))))
+                .contains(new Baseline("t", items));
+        assertThat(Baselines.of(Optional.empty())).isEmpty();
     }
 }

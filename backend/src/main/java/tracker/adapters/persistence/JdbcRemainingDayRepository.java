@@ -40,11 +40,26 @@ class JdbcRemainingDayRepository implements RemainingDayRepository {
     }
 
     @Override
+    public Map<String, Map<String, Double>> findEstimates(Collection<String> issueKeys) {
+        Map<String, Map<String, Double>> out = new LinkedHashMap<>();
+        List<String> keys = new ArrayList<>(issueKeys);
+        for (int i = 0; i < keys.size(); i += CHUNK) {
+            jdbc.sql("SELECT issue_key, day, estimate_h FROM issue_remaining_days WHERE issue_key IN (:keys) AND estimate_h IS NOT NULL")
+                    .param("keys", keys.subList(i, Math.min(keys.size(), i + CHUNK)))
+                    .query(r -> {
+                        out.computeIfAbsent(r.getString("issue_key"), k -> new TreeMap<>()).put(r.getString("day"), r.getDouble("estimate_h"));
+                    });
+        }
+        return out;
+    }
+
+    @Override
     @Transactional
-    public void save(String date, Map<String, Double> remainingByKey) {
+    public void save(String date, Map<String, Double> remainingByKey, Map<String, Double> estimateByKey) {
         remainingByKey.forEach((key, h) -> jdbc.sql("""
-                INSERT INTO issue_remaining_days (issue_key, day, remaining_h) VALUES (:key, :day, :h)
-                ON CONFLICT (issue_key, day) DO UPDATE SET remaining_h = excluded.remaining_h
-                """).param("key", key).param("day", date).param("h", Numbers.hours(h)).update());
+                INSERT INTO issue_remaining_days (issue_key, day, remaining_h, estimate_h) VALUES (:key, :day, :h, :est)
+                ON CONFLICT (issue_key, day) DO UPDATE SET remaining_h = excluded.remaining_h, estimate_h = excluded.estimate_h
+                """).param("key", key).param("day", date).param("h", Numbers.hours(h))
+                .param("est", estimateByKey.containsKey(key) ? Numbers.hours(estimateByKey.get(key)) : null).update());
     }
 }

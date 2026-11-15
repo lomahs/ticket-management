@@ -1853,6 +1853,8 @@ export interface components {
         BurndownChart: {
             /** Format: double */
             actual_remaining_h: number;
+            /** Format: double */
+            baseline_h: number | null;
             days: components["schemas"]["BurndownDay"][];
             end: string | null;
             /** Format: double */
@@ -1864,9 +1866,12 @@ export interface components {
         BurndownDay: {
             /** Format: double */
             actual_remaining_h: number | null;
+            /** Format: double */
+            baseline_remaining_h: number | null;
             date: string;
             /** Format: double */
             logged_h: number;
+            off: boolean;
             /** Format: double */
             plan_remaining_h: number;
             /** Format: double */
@@ -2591,6 +2596,12 @@ export interface components {
             pending: boolean;
             phase: string;
             pic_id: string | null;
+            /** Format: double */
+            plan_estimate_h: number;
+            /** Format: double */
+            plan_h: number;
+            /** Format: double */
+            plan_not_yet_h: number;
             /** Format: double */
             planned_h: number;
             ref: string;
@@ -5346,7 +5357,9 @@ export interface operations {
     };
     saveDetailVersion: {
         parameters: {
-            query?: never;
+            query?: {
+                baseline?: boolean;
+            };
             header?: never;
             path: {
                 epic: string;

@@ -45,6 +45,7 @@ import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.AllocationService;
+import tracker.application.service.Baselines;
 import tracker.application.service.EstimationService;
 import tracker.application.service.MasterScheduleService;
 import tracker.application.service.MasterScheduleService.PhaseRowIn;
@@ -52,6 +53,7 @@ import tracker.application.service.TicketService;
 import tracker.application.service.TicketService.NewTicket;
 import tracker.domain.AccessStatus;
 import tracker.domain.AnkenScope;
+import tracker.domain.Baseline;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
 import tracker.domain.IssueKind;
@@ -59,6 +61,7 @@ import tracker.domain.Permissions;
 import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepKind;
+import tracker.domain.Steps;
 import tracker.domain.Viewer;
 import tracker.domain.Worklog;
 
@@ -882,7 +885,7 @@ class DetailPlanMatrixTest {
         };
         TicketService flakyTickets = new TicketService(loader, new JiraCalls(Optional.of(failing), log, clock), (JiraReader) jira, sync);
         DetailPlanService flaky = new DetailPlanService(loader, estimationRows, versions, allocations, flakyTickets, onboardingRows, estimation,
-                planDays, cells, planVersions, clock, txTemplate);
+                planDays, cells, planVersions, (JiraReader) jira, clock, txTemplate);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         assertThat(cells.jiraCells(EPIC)).containsOnlyKeys(second);
         assertThat(planDays.find(List.of(first)).get(first)).containsEntry("2026-10-09", 2.0);
@@ -927,7 +930,7 @@ class DetailPlanMatrixTest {
                                   PlanVersionRepository planVersions, org.springframework.transaction.support.TransactionTemplate txTemplate) {
         TicketService t = new TicketService(loader, new JiraCalls(Optional.of(writer), log, clock), (JiraReader) jira, sync);
         return new DetailPlanService(loader, estimationRows, versions, allocations, t, onboardingRows, estimation, planDays, cellRepo, planVersions,
-                clock, txTemplate);
+                (JiraReader) jira, clock, txTemplate);
     }
 
     @Test
@@ -1027,7 +1030,7 @@ class DetailPlanMatrixTest {
         detail.saveCells(ALL, EPIC, List.of(new CellIn(String.valueOf(run), "2026-10-12", 8), new CellIn(String.valueOf(run), "2026-10-13", 6)));
         assertThat(detail.view(ALL, EPIC).lastVersionAt()).isNull();
         java.time.Instant before = java.time.Instant.now(clock);
-        DetailPlanView v = detail.saveVersion(ADMIN, ALL, EPIC);
+        DetailPlanView v = detail.saveVersion(ADMIN, ALL, EPIC, false);
         java.time.Instant after = java.time.Instant.now(clock);
         assertThat(java.time.Instant.parse(Objects.requireNonNull(v.lastVersionAt()))).isBetween(before, after);
         Map<String, Object> saved = jdbc.queryForMap("SELECT saved_by, body FROM plan_versions WHERE epic_key = ?", EPIC);
@@ -1047,5 +1050,137 @@ class DetailPlanMatrixTest {
         assertThat(runLine.get("total_h").asDouble()).isEqualTo(16.0);
         assertThat(runLine.get("cells").get("2026-10-12").asDouble()).isEqualTo(8.0);
         assertThat(runLine.get("cells").get("2026-10-13").asDouble()).isEqualTo(6.0);
+    }
+
+    /** Only the sub-tasks in Jira: the demo's own Closed, and Export (3h, planned 10/06..08) with nothing pending. */
+    String pushedPlan() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of());
+        return smallSubtask("Export");
+    }
+
+    @Test
+    void aBaselineVersionNeedsEveryLineInJira(@Autowired PlanVersionRepository planVersions) {
+        staffed();
+        assertThatThrownBy(() -> detail.saveVersion(ADMIN, ALL, EPIC, true)).isInstanceOf(AppError.Invalid.class).hasMessageContaining("not in Jira yet");
+        assertThat(planVersions.lastSavedAt(EPIC)).isNull();
+    }
+
+    @Test
+    void aBaselineVersionNeedsNothingPending() {
+        String key = pushedPlan();
+        detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null));
+        assertThatThrownBy(() -> detail.saveVersion(ADMIN, ALL, EPIC, true)).isInstanceOf(AppError.Invalid.class).hasMessageContaining("not pushed");
+    }
+
+    @Test
+    void aBaselineVersionNeedsJiraToMatch(@Autowired PlanVersionRepository planVersions) {
+        String key = pushedPlan();
+        Issue i = issues.findByKey(key).orElseThrow(); // 3h in Jira, 10h here
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), 10, i.remainingH(), i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                i.worklogs(), i.events(), i.reporterId(), i.labels()));
+        assertThatThrownBy(() -> detail.saveVersion(ADMIN, ALL, EPIC, true)).isInstanceOf(AppError.Invalid.class)
+                .hasMessageContaining(key).hasMessageContaining("Sync");
+        assertThat(planVersions.baseline(EPIC)).isEmpty();
+    }
+
+    @Test
+    void jiraUnreachableStoresNoVersion(@Autowired tracker.adapters.fake.FakeJira jira, @Autowired JiraWriteLog log, @Autowired SyncService sync,
+                                        @Autowired MasterScheduleRepository versions, @Autowired Clock clock, @Autowired AllocationService allocations,
+                                        @Autowired OnboardingRepository onboardingRows, @Autowired PlanVersionRepository planVersions,
+                                        @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate) {
+        pushedPlan();
+        JiraReader down = (JiraReader) java.lang.reflect.Proxy.newProxyInstance(JiraReader.class.getClassLoader(), new Class<?>[]{JiraReader.class},
+                (proxy, method, args) -> {
+                    throw new tracker.application.ports.JiraError("Jira cannot be reached");
+                });
+        TicketService t = new TicketService(loader, new JiraCalls(Optional.of(jira), log, clock), (JiraReader) jira, sync);
+        DetailPlanService offline = new DetailPlanService(loader, estimationRows, versions, allocations, t, onboardingRows, estimation, planDays,
+                cells, planVersions, down, clock, txTemplate);
+        assertThatThrownBy(() -> offline.saveVersion(ADMIN, ALL, EPIC, true)).isInstanceOf(tracker.application.ports.JiraError.class);
+        assertThat(planVersions.lastSavedAt(EPIC)).isNull();
+    }
+
+    @Test
+    void aBaselineVersionKeepsEachSubtasksEstimateParentOwnerAndDays(@Autowired PlanVersionRepository planVersions) {
+        String key = pushedPlan();
+        detail.saveVersion(ADMIN, ALL, EPIC, true);
+        Baseline b = Baselines.of(planVersions.baseline(EPIC)).orElseThrow();
+        Issue i = issues.findByKey(key).orElseThrow();
+        Baseline.Item export = b.items().stream().filter(x -> x.key().equals(key)).findFirst().orElseThrow();
+        assertThat(export.estimateH()).isEqualTo(3);
+        assertThat(export.parentKey()).isEqualTo(i.parentKey());
+        assertThat(export.ownerId()).isEqualTo("an");
+        assertThat(export.days().values().stream().mapToDouble(Double::doubleValue).sum()).isEqualTo(3);
+        assertThat(b.items()).extracting(Baseline.Item::key).doesNotHaveDuplicates()
+                .allMatch(k -> !Steps.isJmReview(issues.findByKey(k).orElseThrow()));
+        String first = b.savedAt();
+        detail.saveVersion(ADMIN, ALL, EPIC, true);
+        assertThat(Baselines.of(planVersions.baseline(EPIC)).orElseThrow().savedAt()).isEqualTo(first);
+    }
+
+    @Test
+    void anOnboardingVersionIsNotABaseline(@Autowired PlanVersionRepository planVersions) {
+        staffed();
+        detail.saveVersion(ADMIN, ALL, EPIC, false);
+        assertThat(planVersions.lastSavedAt(EPIC)).isNotNull();
+        assertThat(planVersions.baseline(EPIC)).isEmpty();
+    }
+
+    @Test
+    void planningFiguresLeaveActualsOut() {
+        String key = pushedPlan(); // Original Estimate 3h, 1h logged, Remaining 2h
+        detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(6.0, null)); // Remaining 5h: logged + remaining = 6h
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 1)));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.totalH()).isEqualTo(6);
+        assertThat(l.planEstimateH()).isEqualTo(3);
+        assertThat(l.planH()).isEqualTo(l.cells().stream().mapToDouble(DayHours::hours).sum());
+        assertThat(l.planNotYetH()).isEqualTo(3 - l.planH());
+    }
+
+    @Test
+    void aChangedOriginalEstimateShowsAsNotYetPlan() {
+        String key = pushedPlan();
+        planDays.save(key, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0, "2026-10-08", 1.0));
+        Issue i = issues.findByKey(key).orElseThrow(); // approved: 3h → 30h
+        issues.save(new Issue(i.key(), i.project(), i.epicKey(), i.parentKey(), i.kind(), i.summary(), i.phase(), i.status(), i.assigneeId(),
+                i.plannedStart(), i.plannedEnd(), 30, i.remainingH(), i.created(), i.jiraStatus(), i.functionId(), i.functionName(), i.step(),
+                i.worklogs(), i.events(), i.reporterId(), i.labels()));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.planEstimateH()).isEqualTo(30);
+        assertThat(l.planH()).isEqualTo(3);
+        assertThat(l.planNotYetH()).isEqualTo(27);
+    }
+
+    @Test
+    void aRowsPlanEstimationIsItsEffort() {
+        List<EstimationRow> rows = staffed();
+        long run = rows.get(1).id();
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(String.valueOf(run), "2026-10-12", 8), new CellIn(String.valueOf(run), "2026-10-13", 6)));
+        MatrixLine l = line(detail.view(ALL, EPIC), String.valueOf(run));
+        assertThat(l.planEstimateH()).isEqualTo(l.totalH()).isEqualTo(16);
+        assertThat(l.planH()).isEqualTo(l.plannedH()).isEqualTo(14);
+        assertThat(l.planNotYetH()).isEqualTo(2);
+    }
+
+    @Test
+    void aBaselineVersionNeedsEveryJiraTicketSynced() {
+        String key = pushedPlan();
+        issues.deleteAll(List.of(key)); // in Jira, not here yet
+        assertThatThrownBy(() -> detail.saveVersion(ADMIN, ALL, EPIC, true)).isInstanceOf(AppError.Invalid.class)
+                .hasMessageContaining(key + ": not synced yet");
+    }
+
+    @Test
+    void aBaselineLeavesOutSubtasksTheBurndownDoesNotDraw(@Autowired PlanVersionRepository planVersions) {
+        String dated = pushedPlan();
+        String undated = tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("Undated", true, task("ITA Execute"), null,
+                "[PAY] Undated", "an", null, null, null, 8.0, List.of()))).created().get("Undated");
+        detail.saveVersion(ADMIN, ALL, EPIC, true);
+        assertThat(Baselines.of(planVersions.baseline(EPIC)).orElseThrow().items()).extracting(Baseline.Item::key)
+                .contains(dated).doesNotContain(undated);
     }
 }

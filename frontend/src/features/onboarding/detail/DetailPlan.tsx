@@ -45,8 +45,11 @@ const at = (iso: string) => {
  *
  * @param checked show what stands before the push (problems, budgets, days over the allocation) without being asked: once
  *                the PIM saved, tried to finish or reviewed the push, not on the first visit
+ * @param planning Planning → Detail plan: the planning figures (no actuals), and Save version keeps the Baseline plan
  */
-export function DetailPlan({ epic, v, people, checked = true }: { epic: string; v: DetailPlanView; people: Person[]; checked?: boolean }) {
+export function DetailPlan({ epic, v, people, checked = true, planning = false }: {
+  epic: string; v: DetailPlanView; people: Person[]; checked?: boolean; planning?: boolean;
+}) {
   const admin = useCan('planning', 'write');
   const toast = useToast();
   const name = usePersonName(people);
@@ -58,7 +61,7 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
   const save = useSaveDraft(epic);
   const auto = useAutoAllocate(epic);
   const clear = useClearPlan(epic);
-  const version = useSaveVersion(epic);
+  const version = useSaveVersion(epic, planning);
   const busy = auto.isPending || save.isPending || clear.isPending || preview.isPending || version.isPending;
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   const members = useQuery(membersQuery(epic)).data ?? [];
@@ -129,7 +132,8 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
         {v.last_version_at && <span className="eyebrow">{`Last version ${at(v.last_version_at)}`}</span>}
         {admin && (
           <Button appearance="secondary" size="sm" iconBefore="save" disabled={busy}
-            title="Keeps a snapshot of the whole plan: every line's Total, people and hours per day"
+            title={planning ? "Keeps a snapshot of the plan. The first one is the anken's Baseline plan; every line must be in Jira, pushed and up to date"
+              : "Keeps a snapshot of the whole plan: every line's Total, people and hours per day"}
             onClick={() => version.mutate(undefined, { onSuccess: () => toast('Version saved'), onError: (e) => toast(errorMessage(e), true) })}>
             {version.isPending ? 'Saving…' : 'Save version'}
           </Button>
@@ -144,7 +148,7 @@ export function DetailPlan({ epic, v, people, checked = true }: { epic: string; 
       </div>
       {v.days.length ? <EffortDays v={v} name={name} />
         : <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nothing is planned yet: type hours in a day, or Auto allocate.</div>}
-      <PlanMatrix epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} />
+      <PlanMatrix epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} planning={planning} />
       <input ref={fileInput} type="file" accept=".xlsx,.csv" aria-label="Import file" hidden onChange={onFile} />
       {imported && <ImportDialog epic={epic} file={imported.file} lines={imported.lines} name={label} close={() => setImported(null)} />}
       {adding && <AddRowDialog epic={epic} kind={adding} tasks={v.tasks} close={() => setAdding(null)} />}

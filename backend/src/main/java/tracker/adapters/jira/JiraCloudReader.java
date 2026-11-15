@@ -172,6 +172,16 @@ public final class JiraCloudReader implements JiraReader {
         return text(n, field, null);
     }
 
+    private static String fieldId(JsonNode item) {
+        return textOrNull(item, "fieldId");
+    }
+
+    /** A changelog value: the raw one ({@code from} / {@code to}, seconds for time tracking), else its text. */
+    private static String raw(JsonNode item, String field, String text) {
+        String v = textOrNull(item, field);
+        return v != null && !v.isEmpty() ? v : textOrNull(item, text);
+    }
+
     // --- JiraReader -------------------------------------------------------------------------------------------------
 
     private List<JsonNode> search(Client client, String jql) {
@@ -430,6 +440,8 @@ public final class JiraCloudReader implements JiraReader {
                     changes.add(new ChangeSnapshot(at, field, from, to, fromUser, toUser));
                 } else if ("status".equals(field)) {
                     changes.add(new ChangeSnapshot(at, "status", textOrNull(it, "fromString"), textOrNull(it, "toString")));
+                } else if (fieldId(it) != null && client.cfg().fields().contains(fieldId(it))) {
+                    changes.add(new ChangeSnapshot(at, "field:" + fieldId(it), raw(it, "from", "fromString"), raw(it, "to", "toString")));
                 }
             }
         }

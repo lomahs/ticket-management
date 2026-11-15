@@ -37,6 +37,7 @@ import tracker.application.ports.SyncRunRepository;
 import tracker.application.settings.TrackerSettings;
 import tracker.domain.EventField;
 import tracker.domain.Issue;
+import tracker.domain.IssueEvent;
 import tracker.domain.IssueKind;
 import tracker.domain.Member;
 import tracker.domain.MemberIds;
@@ -330,6 +331,39 @@ class SyncTest {
         run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN,
                 Map.of("timeoriginalestimate", 36000, "timeestimate", 7200), List.of(), List.of()))), true);
         assertThat(issues().get("PAY-1201").remainingH()).isEqualTo(2.0);
+    }
+
+    private List<IssueEvent> estimateEvents(ChangeSnapshot... changes) {
+        run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN,
+                Map.of(), List.of(), List.of(changes)))), true);
+        return issues().get("PAY-1201").events().stream().filter(e -> e.field() == EventField.ESTIMATE).toList();
+    }
+
+    @Test
+    void originalEstimateChangesBecomeEstimateEvents() {
+        assertThat(estimateEvents(new ChangeSnapshot("2026-10-07", "field:timeoriginalestimate", "36000", "108000")))
+                .containsExactly(new IssueEvent("2026-10-07", EventField.ESTIMATE, "10.0", "30.0"));
+    }
+
+    @Test
+    void aCustomEstimateFieldIsReadInHours() {
+        TrackerSettings s = settings.load();
+        s.fieldMapping.effort = "customfield_10050";
+        settings.save(s);
+        assertThat(estimateEvents(new ChangeSnapshot("2026-10-07", "field:customfield_10050", "8", "12.5")))
+                .containsExactly(new IssueEvent("2026-10-07", EventField.ESTIMATE, "8.0", "12.5"));
+    }
+
+    @Test
+    void aBlankFromIsNullAndAnUnreadableValueIsSkipped() {
+        assertThat(estimateEvents(new ChangeSnapshot("2026-10-07", "field:timeoriginalestimate", "", "36000"),
+                new ChangeSnapshot("2026-10-08", "field:timeoriginalestimate", "36000", "abc")))
+                .containsExactly(new IssueEvent("2026-10-07", EventField.ESTIMATE, null, "10.0"));
+    }
+
+    @Test
+    void anotherFieldIsNotAnEstimateEvent() {
+        assertThat(estimateEvents(new ChangeSnapshot("2026-10-07", "field:timeestimate", "36000", "7200"))).isEmpty();
     }
 
     @Test

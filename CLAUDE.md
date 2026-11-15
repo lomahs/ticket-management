@@ -35,6 +35,9 @@ planned dates; a sub-task is late only when its finish is overdue (`IssueFlags.l
 creation and Effort Analysis) is a different thing from phase
 groups.
 
+Effort terms (Baseline plan, Approved estimation, Forecast estimation) are defined in `docs/glossary.md`; use those names.
+Rules that hold across screens are in `docs/rules.md`.
+
 ## Commands
 
 ```bash

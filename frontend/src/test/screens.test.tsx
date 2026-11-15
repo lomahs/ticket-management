@@ -226,7 +226,8 @@ describe('screens render API data at their URLs', () => {
   });
 
   it('draws the effort burndown, writes the phase, sub-phase and member filters to the URL and drops them for another anken', async () => {
-    const day = (date: string, plan: number, act: number | null) => ({ date, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act });
+    const day = (date: string, plan: number, act: number | null) => ({ date, off: false, planned_h: 4, logged_h: 3, plan_remaining_h: plan, actual_remaining_h: act,
+      baseline_remaining_h: null });
     let seen: URLSearchParams | undefined;
     server.use(http.get('*/api/v1/effort/burndown', ({ request }) => {
       seen = new URL(request.url).searchParams;
@@ -258,6 +259,34 @@ describe('screens render API data at their URLs', () => {
     expect(seen?.get('phase')).toBeNull(); // another anken has its own phases
     expect(seen?.get('task')).toBeNull();
     expect(seen?.get('member')).toBeNull(); // and its own people
+  });
+
+  it('shows or hides each line of the effort burndown, the Baseline plan only when there is one', async () => {
+    const day = (date: string, plan: number, act: number | null, base: number | null) => ({ date, off: false, planned_h: 4, logged_h: 3,
+      plan_remaining_h: plan, actual_remaining_h: act, baseline_remaining_h: base });
+    const view = (baseline: boolean) => ({
+      epic_key: 'PAY-1100', title: 'Payment flow revision', ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }], phases: [], phase: null,
+      tasks: [], task: null, members: [], member: null, subtasks: 3, today: '2026-10-07',
+      burndown: { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6, baseline_h: baseline ? 10 : null,
+        days: [day('2026-10-05', 12, 12, baseline ? 10 : null), day('2026-10-06', 8, 9, baseline ? 5 : null), day('2026-10-07', 4, 6, baseline ? 0 : null)] },
+      matrix: { days: [], rows: [] },
+    });
+    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json(view(true))));
+    const { container, unmount } = renderApp('/effort/burndown?anken=PAY-1100');
+    const toggle = (name: string) => screen.getByRole('button', { name });
+    await screen.findByRole('button', { name: 'Baseline plan' });
+    expect(['Baseline plan', 'Plan', 'Actual'].map((n) => toggle(n).getAttribute('aria-pressed'))).toEqual(['true', 'true', 'true']);
+    expect(container.querySelector('polyline[data-line="baseline"]')).toBeTruthy();
+    fireEvent.click(toggle('Baseline plan'));
+    expect(toggle('Baseline plan').getAttribute('aria-pressed')).toBe('false');
+    expect(container.querySelector('polyline[data-line="baseline"]')).toBeNull();
+    fireEvent.click(toggle('Plan'));
+    expect(container.querySelector('polyline[data-line="plan"]')).toBeNull();
+    unmount();
+    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json(view(false))));
+    renderApp('/effort/burndown?anken=PAY-1100');
+    expect(await screen.findByRole('button', { name: 'Plan' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Baseline plan' })).toBeNull();
   });
 
   it('lists the planned hours per function, person and day under the burndown', async () => {
