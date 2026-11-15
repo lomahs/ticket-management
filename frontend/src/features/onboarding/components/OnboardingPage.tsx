@@ -18,7 +18,7 @@ export function OnboardingPage() {
   const done = (q.data ?? []).filter((o) => o.finished_at);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
-      <PageHead eyebrow="Set up a new anken from its epic (or before it exists) to its detail plan" title="Onboarding new anken">
+      <PageHead eyebrow="Set up a new anken from its epic (or before it exists) to its master schedule" title="Onboarding new anken">
         <Button iconBefore="plus" onClick={() => void navigate({ to: '/onboarding/new' })}>Start new anken</Button>
       </PageHead>
       <section aria-label="Steps" className="card" style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>

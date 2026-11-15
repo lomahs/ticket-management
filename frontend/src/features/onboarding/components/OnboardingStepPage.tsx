@@ -1,5 +1,4 @@
 import { Navigate, getRouteApi } from '@tanstack/react-router';
-import { DetailStep } from '../steps/DetailStep';
 import { EpicStep } from '../steps/EpicStep';
 import { EstimationStep } from '../steps/EstimationStep';
 import { MembersStep } from '../steps/MembersStep';
@@ -13,6 +12,6 @@ const route = getRouteApi('/app/onboarding/$epic/$step');
 export function OnboardingStepPage() {
   const { epic, step } = route.useParams();
   if (!isStep(step)) return <Navigate to="/onboarding" />;
-  const Step = { epic: EpicStep, tasks: TasksStep, estimation: EstimationStep, members: MembersStep, schedule: ScheduleStep, detail: DetailStep }[step];
+  const Step = { epic: EpicStep, tasks: TasksStep, estimation: EstimationStep, members: MembersStep, schedule: ScheduleStep }[step];
   return <Step key={epic} epic={epic} />;
 }

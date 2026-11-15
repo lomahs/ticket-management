@@ -1,15 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState, type CSSProperties } from 'react';
+import { errorMessage } from '../../../shared/api/errors';
 import type { Schemas } from '../../../shared/api/types';
-import { DateField } from '../../../shared/ds';
+import { Button, DateField } from '../../../shared/ds';
+import { useToast } from '../../../shared/state/toast';
 import { add, dayDiff, dm, dow, hrs, mondayOf, WDN } from '../../../shared/format/dates';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { masterScheduleQuery, schedulePreviewQuery, useSaveMasterSchedule, type PhaseIn, type PhaseRow } from '../../planning';
-import { onboardingMembersQuery, type MemberHours } from '../api';
+import { onboardingMembersQuery, onboardingQuery, useFinishOnboarding, type MemberHours } from '../api';
 import { StepShell } from '../components/StepShell';
 import { useDebounced } from '../../../shared/state/debounce';
 
-/** Step 5: one Start date; the phases follow each other, each ending when its members have given its effort. */
+/**
+ * Step 5, the last: one Start date; the phases follow each other, each ending when its members have given its effort. Finish
+ * onboarding saves the schedule and opens the anken's Detail plan in Planning; an anken without its epic finishes once it is linked.
+ */
 export function ScheduleStep({ epic }: { epic: string }) {
   const q = useQuery(masterScheduleQuery(epic));
   const m = useQuery(onboardingMembersQuery(epic));
@@ -26,6 +32,11 @@ const INPUT: CSSProperties = { height: 32, boxSizing: 'border-box', padding: '0 
 
 function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterScheduleView']; people: MemberHours[] }) {
   const save = useSaveMasterSchedule(epic);
+  const finish = useFinishOnboarding(epic);
+  const toast = useToast();
+  const navigate = useNavigate();
+  const draft = !!useQuery(onboardingQuery(epic)).data?.draft;
+  const [finishing, setFinishing] = useState(false);
   // the default team of a phase: the members who give the anken hours, and its JMs (their reviews take no allocation)
   const team = people.filter((p) => p.role === 'JM' || (p.hours_per_day ?? 0) > 0).map((p) => p.member_id);
   const [start, setStart] = useState(v.current?.phases[0]?.start ?? '');
@@ -43,19 +54,40 @@ function Schedule({ epic, v, people }: { epic: string; v: Schemas['MasterSchedul
     && phases.every((p, i) => p.phase === cur.phases[i].phase && p.member_ids.join() === cur.phases[i].member_ids.join());
   const name = (id: string) => people.find((p) => p.member_id === id)?.name ?? id;
   const end = rows.length ? rows[rows.length - 1].end : null;
+  const saveSchedule = async () => {
+    if (!complete) {
+      if (v.current) return;
+      throw new Error('Enter the start date and the members of every phase');
+    }
+    if (same) return;
+    if (!reason.trim()) throw new Error('Say why the master schedule changes');
+    await save.mutateAsync({ phases, reason: reason.trim() });
+    setReason('');
+  };
+  const finishOnboarding = async () => {
+    setFinishing(true);
+    try {
+      await saveSchedule();
+      await finish.mutateAsync();
+      toast(`${epic} is onboarded`);
+      void navigate({ to: '/planning/detail', search: { anken: epic } });
+    } catch (e) {
+      toast(errorMessage(e), true);
+    } finally {
+      setFinishing(false);
+    }
+  };
   return (
     <StepShell epic={epic} step="schedule" title="Master schedule" sub="Enter the start date: the dates of every phase and the Gantt follow."
-      canContinue={!!v.current || complete}
-      onSave={async () => {
-        if (!complete) {
-          if (v.current) return;
-          throw new Error('Enter the start date and the members of every phase');
-        }
-        if (same) return;
-        if (!reason.trim()) throw new Error('Say why the master schedule changes');
-        await save.mutateAsync({ phases, reason: reason.trim() });
-        setReason('');
-      }}>
+      onSave={saveSchedule}
+      footer={draft ? (
+        <>
+          <span className="eyebrow">The onboarding finishes once the epic is linked.</span>
+          <Link to="/onboarding/$epic/$step" params={{ epic, step: 'epic' }} style={{ fontSize: 13, fontWeight: 600 }}>Link epic</Link>
+        </>
+      ) : (
+        <Button disabled={finishing || (!v.current && !complete)} onClick={() => void finishOnboarding()}>Finish onboarding</Button>
+      )}>
       <section className="card" style={{ padding: '14px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 24 }}>
         <DateField label="Start date" value={start} onChange={setStart} style={{ width: 170 }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}><span className="eyebrow">Anken ends</span><b className="heading" style={{ fontSize: 18 }}>{end ? dm(end) : '–'}</b></div>

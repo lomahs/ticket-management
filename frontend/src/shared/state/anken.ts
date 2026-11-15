@@ -13,6 +13,9 @@ export const forgetAnken = () => writePref(KEY, '');
 /** Remembers `key` as this browser's anken. */
 export const storeAnken = (key: string) => writePref(KEY, key);
 
+/** A draft anken: planned before its epic exists (backend `DraftAnken.KEY_PREFIX`); only Planning's plan screens can show it. */
+export const isDraftKey = (key: string | null | undefined): boolean => !!key?.startsWith('draft-');
+
 /** How the switcher and the anken pickers name an anken. */
 export const ankenLabel = (a: { key: string; title: string }) => (a.title ? `${a.key} · ${a.title}` : a.key);
 

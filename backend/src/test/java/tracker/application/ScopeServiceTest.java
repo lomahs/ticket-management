@@ -7,11 +7,13 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 
 import tracker.DemoTest;
 import tracker.application.AppError.NotFound;
 import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.service.AccessService;
+import tracker.application.service.OnboardingService;
 import tracker.application.service.ScopeService;
 import tracker.domain.AccessStatus;
 import tracker.domain.Feature;
@@ -25,6 +27,8 @@ class ScopeServiceTest {
     ScopeService scopes;
     @Autowired
     AnkenMemberRepository ankenMembers;
+    @Autowired
+    OnboardingService onboarding;
 
     private static Viewer ba(Set<String> epics) {
         return new Viewer("ba@acme.vn", "Ba", "ba", Role.BA, false, AccessStatus.ACTIVE, java.util.Map.of(Feature.MATRIX, Level.READ),
@@ -55,5 +59,16 @@ class ScopeServiceTest {
         assertThat(scopes.visible(admin)).containsExactly("PAY-1100", "PAY-1300", "PAY-1420", "PAY-0980", "CRM-400", "OPS-200");
         assertThat(scopes.scope(admin, null).epics()).hasSize(6);
         assertThat(scopes.scope(admin, "OPS-200").contains("OPS-200")).isTrue();
+    }
+
+    @Test
+    @DirtiesContext
+    void aDraftAnkenIsInTheScopeOfItsAdminOnly() {
+        Viewer admin = new Viewer("a@acme.vn", "A", "a", Role.PM, true, AccessStatus.ACTIVE, java.util.Map.of(), true, Set.of());
+        String draft = onboarding.startDraft(admin, "Refund automation").epicKey();
+        assertThat(scopes.scopeOrDraft(admin, draft).epics()).containsExactly(draft);
+        assertThat(scopes.scopeOrDraft(admin, "OPS-200").epics()).containsExactly("OPS-200");
+        assertThatThrownBy(() -> scopes.scope(admin, draft)).isInstanceOf(NotFound.class);
+        assertThatThrownBy(() -> scopes.scopeOrDraft(ba(Set.of("PAY-1100")), draft)).isInstanceOf(NotFound.class);
     }
 }

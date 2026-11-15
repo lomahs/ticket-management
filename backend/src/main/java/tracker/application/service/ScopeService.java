@@ -51,6 +51,15 @@ public class ScopeService {
         return new AnkenScope(Set.of(anken));
     }
 
+    /** As {@link #scope}, or the draft anken {@code anken} when it is one the viewer works on (Planning › Detail plan picks it). */
+    public AnkenScope scopeOrDraft(Viewer v, @Nullable String anken) {
+        if (DraftAnken.isKey(anken)) {
+            requireVisible(v, anken);
+            return new AnkenScope(Set.of(anken));
+        }
+        return scope(v, anken);
+    }
+
     /** The draft anken being onboarded, for the admin; none for anyone else. */
     public Set<String> drafts(Viewer v) {
         Set<String> out = new LinkedHashSet<>();

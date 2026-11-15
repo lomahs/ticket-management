@@ -167,7 +167,11 @@ const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/
 const onboardingPages = () => import('../features/onboarding');
 const onboarding = createRoute({ getParentRoute: () => app, path: 'onboarding', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingPage') });
 const onboardingNew = createRoute({ getParentRoute: () => app, path: 'onboarding/new', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'NewOnboardingPage') });
-const onboardingStep = createRoute({ getParentRoute: () => app, path: 'onboarding/$epic/$step', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingStepPage') });
+// the Detail plan was onboarding's last step before it became Planning's alone
+const onboardingStep = createRoute({ getParentRoute: () => app, path: 'onboarding/$epic/$step', beforeLoad: async ({ context, params }) => {
+  await adminOnly(context.queryClient);
+  if (params.step === 'detail') throw redirect({ to: '/planning/detail', search: { anken: params.epic } });
+}, component: lazyRouteComponent(onboardingPages, 'OnboardingStepPage') });
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
 const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needs('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });

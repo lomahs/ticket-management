@@ -36,11 +36,11 @@ public class SystemApi {
         return system.meta(scopes.scope(viewer, null));
     }
 
-    /** The people of the viewer's anken (or of {@code anken}) and every member their issues refer to. */
+    /** The people of the viewer's anken (or of {@code anken}, which may be a draft anken) and every member their issues refer to. */
     @Open(Rule.ACTIVE)
     @GetMapping("/members")
     public List<ScopeMember> members(@RequestParam(required = false) @Nullable String anken, Viewer viewer) {
-        return system.members(scopes.scope(viewer, anken));
+        return system.members(scopes.scopeOrDraft(viewer, anken));
     }
 
     /** @param full a full sync (all issues of the epics) instead of the ones changed since the last sync */

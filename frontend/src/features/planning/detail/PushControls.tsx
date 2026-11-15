@@ -6,7 +6,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { Button, Icon } from '../../../shared/ds';
 import { hrs, ymd } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
-import { onboardingQuery } from '../api';
+import { onboardingQuery } from '../../onboarding';
 import { usePushPlan, usePushPreview, type DetailPlanView } from './api';
 import { overDayText } from './PlanSummary';
 
