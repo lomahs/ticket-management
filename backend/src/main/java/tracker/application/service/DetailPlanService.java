@@ -1234,12 +1234,13 @@ public class DetailPlanService {
             if (l == null || l.removed() || l.closed()) {
                 throw new Invalid(ref + " is not in the plan", "ref");
             }
+            String pic = picOf(l, v.rows());
             Map<String, Double> moved = new TreeMap<>();
             for (DayHours c : l.cells()) {
                 if (c.day().compareTo(today) < 0 || c.hours() <= 0) {
                     continue;
                 }
-                String to = Scheduling.shiftWorkDays(ctx.cal, l.picId(), c.day(), in.days());
+                String to = Scheduling.shiftWorkDays(ctx.cal, pic, c.day(), in.days());
                 if (to.compareTo(today) < 0) {
                     throw new Invalid(l.function() + " would move before today", "days");
                 }
@@ -1266,6 +1267,20 @@ public class DetailPlanService {
         });
         cells.saveRowCells(rowCells);
         return view(scope, epic);
+    }
+
+    /** The PIC whose calendar a line follows: for a row's step, the person in its slot (JM Review: the JM), as the matrix shows it. */
+    private static @Nullable String picOf(MatrixLine l, List<EstimationRow> rows) {
+        EstimationRow r = l.issueKey() != null || l.rowId() == null ? null
+                : rows.stream().filter(x -> x.id() == l.rowId()).findFirst().orElse(null);
+        if (r == null || l.picSlot() == null) {
+            return l.picId();
+        }
+        return switch (l.picSlot()) {
+            case "jm" -> r.jmId();
+            case "bal" -> r.balId();
+            default -> r.baId();
+        };
     }
 
     /** Whether {@code s} is a day as YYYY-MM-DD. */

@@ -121,7 +121,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const shift = useShiftPlan(epic);
   // the functions picked to shift (group keys), and by how many working days which way
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [by, setBy] = useState(1);
+  const [by, setBy] = useState('1');
   const [way, setWay] = useState<'later' | 'earlier'>('later');
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
@@ -207,11 +207,13 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const clearAll = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); setFrom(''); setTo(''); };
 
   const togglePick = toggleIn(setPicked);
+  // a pick whose function is no longer in the plan (pushed, removed) is forgotten
+  const pickedGroups = allGroups.filter((g) => picked.has(g.key));
+  const shiftRefs = pickedGroups.flatMap((g) => g.lines).filter((l) => !l.removed && !l.closed).map((l) => l.ref);
+  const shiftBy = Math.min(366, Math.max(1, Math.round(Number(by)) || 1));
   const shiftPicked = () => {
-    const gs = allGroups.filter((g) => picked.has(g.key));
-    const refs = gs.flatMap((g) => g.lines).filter((l) => !l.removed && !l.closed).map((l) => l.ref);
-    shift.mutateAsync({ refs, days: way === 'later' ? by : -by }).then(() => {
-      toast(`Shifted ${plural(gs.length, 'function')} ${plural(by, 'working day')} ${way}`);
+    shift.mutateAsync({ refs: shiftRefs, days: way === 'later' ? shiftBy : -shiftBy }).then(() => {
+      toast(`Shifted ${plural(pickedGroups.length, 'function')} ${plural(shiftBy, 'working day')} ${way}`);
       setPicked(new Set());
     }, fail);
   };
@@ -461,18 +463,18 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <span className="spacer" />
         {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
       </div>
-      {picked.size > 0 && (
+      {pickedGroups.length > 0 && (
         <div className="pm-shift" role="group" aria-label="Shift the picked functions">
-          <span className="pm-count">{`${plural(picked.size, 'function')} selected`}</span>
+          <span className="pm-count">{`${plural(pickedGroups.length, 'function')} selected`}</span>
           <span>Shift</span>
           <input type="number" className="pm-shift-n" aria-label="Working days" min={1} max={366} value={by}
-            onChange={(e) => setBy(Math.max(1, Math.round(Number(e.target.value)) || 1))} />
+            onChange={(e) => setBy(e.target.value)} onBlur={() => setBy(String(shiftBy))} />
           <span>working days</span>
           <select className="pm-shift-way" aria-label="Direction" value={way} onChange={(e) => setWay(e.target.value === 'earlier' ? 'earlier' : 'later')}>
             <option value="later">later</option>
             <option value="earlier">earlier</option>
           </select>
-          <Button size="sm" disabled={shift.isPending} onClick={shiftPicked}>Shift</Button>
+          <Button size="sm" disabled={shift.isPending || shiftRefs.length === 0} onClick={shiftPicked}>Shift</Button>
           <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
         </div>
       )}

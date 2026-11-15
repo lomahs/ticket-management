@@ -228,10 +228,29 @@ describe('detail plan', () => {
     fireEvent.click(await screen.findByLabelText('Pick Login'));
     const bar = screen.getByRole('group', { name: 'Shift the picked functions' });
     expect(within(bar).getByText('1 function selected')).toBeTruthy();
-    fireEvent.change(within(bar).getByLabelText('Working days'), { target: { value: '2' } });
+    const n = within(bar).getByLabelText('Working days') as HTMLInputElement;
+    fireEvent.change(n, { target: { value: '' } });
+    expect(n.value).toBe(''); // cleared while it is typed
+    fireEvent.change(n, { target: { value: '2' } });
     fireEvent.change(within(bar).getByLabelText('Direction'), { target: { value: 'earlier' } });
     fireEvent.click(within(bar).getByRole('button', { name: 'Shift' }));
     await waitFor(() => expect(sent).toEqual([{ refs: ['1:create'], days: -2 }])); // a removed step stays
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
+  });
+
+  it('forgets a picked function that is no longer in the plan', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', () => HttpResponse.json(detailView({ rows: [RUN], lines: [LINES[2]] }))),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByLabelText('Pick Login'));
+    expect(screen.getByRole('group', { name: 'Shift the picked functions' })).toBeTruthy();
+    const cell = screen.getByLabelText('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '8' } });
+    fireEvent.blur(cell);
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
   });
 

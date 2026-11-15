@@ -23,6 +23,7 @@ import org.springframework.test.annotation.DirtiesContext;
 
 import tracker.DemoTest;
 import tracker.adapters.fake.Dataset;
+import tracker.application.ports.CalendarRepository;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.IssueRepository;
 import tracker.application.ports.JiraReader;
@@ -58,6 +59,8 @@ import tracker.domain.AnkenScope;
 import tracker.domain.Baseline;
 import tracker.domain.EstimationRow;
 import tracker.domain.Issue;
+import tracker.domain.Leave;
+import tracker.domain.LeaveType;
 import tracker.domain.IssueKind;
 import tracker.domain.Permissions;
 import tracker.domain.Role;
@@ -94,6 +97,8 @@ class DetailPlanMatrixTest {
     IssueRepository issues;
     @Autowired
     TrackerContextLoader loader;
+    @Autowired
+    CalendarRepository calendar;
 
     Map<String, String> tasks = new HashMap<>();
 
@@ -474,6 +479,22 @@ class DetailPlanMatrixTest {
         assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-10", 5, false), new DayHours("2026-10-12", 3, false));
         v = detail.shift(ALL, EPIC, new ShiftIn(List.of(ref), -1));
         assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-09", 5, false), new DayHours("2026-10-10", 3, false));
+    }
+
+    @Test
+    void aShiftCountsTheWorkingDaysOfTheStepsPicFromItsSlot() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        assign(rows, new RowAssign(login, "an", "minh", "binh"));
+        String jmr = login + ":jmr";
+        cells.saveRowCells(List.of(new Cell(jmr, "2026-10-12", 2, false)));
+        Leave off = calendar.saveLeave(new Leave(0, "binh", "2026-10-13", LeaveType.FULL, "")); // the JM, not the BAL
+        try {
+            DetailPlanView v = detail.shift(ALL, EPIC, new ShiftIn(List.of(jmr), 1));
+            assertThat(line(v, jmr).cells()).containsExactly(new DayHours("2026-10-14", 2, false));
+        } finally {
+            calendar.deleteLeave(off.id());
+        }
     }
 
     @Test

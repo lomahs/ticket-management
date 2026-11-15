@@ -146,7 +146,7 @@ export function DetailPlan({ epic, v, people, checked = true }: {
       </div>
       {v.days.length ? <EffortDays v={v} name={name} />
         : <div className="card" style={{ padding: 16, color: 'var(--text-muted)' }}>Nothing is planned yet: type hours in a day, or Auto allocate.</div>}
-      <PlanMatrix epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} />
+      <PlanMatrix key={epic} epic={epic} v={v} people={people} admin={admin} assign={assign} swap={swap} />
       <input ref={fileInput} type="file" accept=".xlsx,.csv" aria-label="Import file" hidden onChange={onFile} />
       {imported && <ImportDialog epic={epic} file={imported.file} lines={imported.lines} name={label} close={() => setImported(null)} />}
       {adding && <AddRowDialog epic={epic} kind={adding} tasks={v.tasks} close={() => setAdding(null)} />}
