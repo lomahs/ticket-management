@@ -76,6 +76,8 @@ async function home(queryClient: QueryClient) {
 
 /** `staticData.feature` of a screen: without read on it the shell shows "no access" instead of the screen (AppShell). */
 const needs = (feature: Feature) => ({ staticData: { feature } });
+/** {@link needs}, for a screen of the anken's Jira data: a draft anken has none, AppShell says so instead of the screen. */
+const needsAnken = (feature: Feature) => ({ staticData: { feature, ankenScreen: true } });
 
 const index = createRoute({ getParentRoute: () => app, path: '/', beforeLoad: async ({ context }) => { throw redirect({ to: await home(context.queryClient) }); } });
 /**
@@ -93,7 +95,7 @@ function dropOnAnkenChange<K extends string>(...keys: K[]) {
 const myWork = createRoute({
   getParentRoute: () => app,
   path: 'my-work',
-  ...needs('my_work'),
+  ...needsAnken('my_work'),
   validateSearch: myWorkSearch,
   search: { middlewares: [dropOnAnkenChange('member')] },
   component: lazyRouteComponent(() => import('../features/my-work'), 'MyWorkPage'),
@@ -128,24 +130,24 @@ const ticketsEntry = createRoute({
     throw first ? redirect({ to: '/tickets/$epic', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
 });
-const tickets = createRoute({ getParentRoute: () => app, path: 'tickets/$epic', ...needs('ticket'), validateSearch: ticketsSearch, component: lazyRouteComponent(() => import('../features/tickets'), 'TicketsPage') });
-const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
-const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needs('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
+const tickets = createRoute({ getParentRoute: () => app, path: 'tickets/$epic', ...needsAnken('ticket'), validateSearch: ticketsSearch, component: lazyRouteComponent(() => import('../features/tickets'), 'TicketsPage') });
+const overview = createRoute({ getParentRoute: () => app, path: 'anken', ...needsAnken('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
+const ankenDetail = createRoute({ getParentRoute: () => app, path: 'anken/$epic', ...needsAnken('overview'), component: lazyRouteComponent(() => import('../features/overview'), 'OverviewPage') });
 const ticketList = createRoute({
   getParentRoute: () => app,
   path: 'anken/$epic/tickets',
-  ...needs('overview'),
+  ...needsAnken('overview'),
   validateSearch: z.object({ label: z.enum(SCHEDULE_FILTERS).catch('overdue'), phase: z.string().optional().catch(undefined) }),
   component: lazyRouteComponent(() => import('../features/overview'), 'TicketListPage'),
 });
-const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix', ...needs('matrix'), validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
-const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
-const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', ...needs('matrix'), component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
+const matrix = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix', ...needsAnken('matrix'), validateSearch: matrixSearch, component: lazyRouteComponent(matrixPages, 'MatrixPage') });
+const addFunction = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/new', ...needsAnken('matrix'), component: lazyRouteComponent(matrixPages, 'AddFunctionPage') });
+const phaseSettings = createRoute({ getParentRoute: () => app, path: 'anken/$epic/matrix/phases', ...needsAnken('matrix'), component: lazyRouteComponent(matrixPages, 'PhaseSettingsPage') });
 
 const daily = createRoute({
   getParentRoute: () => app,
   path: 'daily',
-  ...needs('overview'),
+  ...needsAnken('overview'),
   validateSearch: dailySearch,
   search: { middlewares: [dropOnAnkenChange('date', 'phase')] },
   component: lazyRouteComponent(() => import('../features/daily'), 'DailyPage'),
@@ -154,12 +156,12 @@ const daily = createRoute({
 const ticketCheck = createRoute({
   getParentRoute: () => app,
   path: 'ticket-check',
-  ...needs('overview'),
+  ...needsAnken('overview'),
   validateSearch: ticketCheckSearch,
   component: lazyRouteComponent(() => import('../features/ticket-check'), 'TicketCheckPage'),
 });
 
-const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needs('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
+const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needsAnken('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
 
 const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), validateSearch: z.object({ anken: z.string().optional().catch(undefined) }), component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
@@ -174,18 +176,18 @@ const onboardingStep = createRoute({ getParentRoute: () => app, path: 'onboardin
 }, component: lazyRouteComponent(onboardingPages, 'OnboardingStepPage') });
 
 const effort = createRoute({ getParentRoute: () => app, path: 'effort', ...needs('effort'), beforeLoad: () => { throw redirect({ to: '/effort/timesheet' }); } });
-const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needs('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
-const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', ...needs('effort'), component: lazyRouteComponent(effortPages, 'AnalysisPage') });
+const timesheet = createRoute({ getParentRoute: () => app, path: 'effort/timesheet', ...needsAnken('effort'), validateSearch: timesheetSearch, component: lazyRouteComponent(effortPages, 'TimesheetPage') });
+const analysis = createRoute({ getParentRoute: () => app, path: 'effort/analysis', ...needsAnken('effort'), component: lazyRouteComponent(effortPages, 'AnalysisPage') });
 const burndown = createRoute({
   getParentRoute: () => app,
   path: 'effort/burndown',
-  ...needs('effort'),
+  ...needsAnken('effort'),
   validateSearch: burndownSearch,
   search: { middlewares: [dropOnAnkenChange('phase', 'task', 'member')] },
   component: lazyRouteComponent(effortPages, 'BurndownPage'),
 });
 
-const calendar = createRoute({ getParentRoute: () => app, path: 'calendar', ...needs('calendar'), validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
+const calendar = createRoute({ getParentRoute: () => app, path: 'calendar', ...needsAnken('calendar'), validateSearch: calendarSearch, component: lazyRouteComponent(calendarPages, 'CalendarPage') });
 const newLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/new', validateSearch: newLeaveSearch, component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });
 const editLeave = createRoute({ getParentRoute: () => calendar, path: 'leave/$id', component: lazyRouteComponent(calendarPages, 'LeaveDialogRoute') });
 const importLeave = createRoute({ getParentRoute: () => calendar, path: 'import/$step', component: lazyRouteComponent(calendarPages, 'ImportWizardRoute') });
@@ -236,5 +238,5 @@ export function makeRouter(queryClient: QueryClient, history?: RouterHistory) {
 
 declare module '@tanstack/react-router' {
   interface Register { router: ReturnType<typeof makeRouter> }
-  interface StaticDataRouteOption { feature?: Feature }
+  interface StaticDataRouteOption { feature?: Feature; ankenScreen?: boolean }
 }

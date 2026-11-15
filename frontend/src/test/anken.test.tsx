@@ -192,3 +192,34 @@ describe('global anken switcher', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('draft anken in the switcher', () => {
+  const draft = { epic_key: 'draft-1', title: 'Refund automation', anken_prefix: '', labels: [], step: 5, started_at: '2026-10-05T09:00:00Z',
+    started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null, draft: true };
+  const tracked = { ...draft, epic_key: 'PAY-1500', title: 'Wallet', draft: false };
+
+  it('lists the draft anken being onboarded after the tracked ones, for an admin', async () => {
+    server.use(http.get('*/api/v1/onboarding', () => HttpResponse.json([tracked, draft])));
+    renderApp('/anken');
+    const s = await switcher();
+    await waitFor(() => expect(s.querySelector('optgroup')?.label).toBe('Draft · no epic'));
+    expect([...s.querySelector('optgroup')!.querySelectorAll('option')].map((o) => o.text)).toEqual(['draft-1 · Refund automation']);
+  });
+
+  it('says a screen has nothing to show for a draft anken and points to its plan', async () => {
+    server.use(http.get('*/api/v1/onboarding', () => HttpResponse.json([draft])));
+    renderApp('/anken?anken=draft-1');
+    expect(await screen.findByText('Refund automation has no epic yet')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Master schedule' }).getAttribute('href')).toBe('/planning/schedule?anken=draft-1');
+    expect(screen.getByRole('link', { name: 'Detail plan' }).getAttribute('href')).toBe('/planning/detail?anken=draft-1');
+    expect(selectedText(await switcher())).toBe('draft-1 · Refund automation');
+  });
+
+  it('asks nobody but the admin for the draft anken', async () => {
+    server.use(http.get('*/api/v1/me', () => HttpResponse.json(meBa)));
+    renderApp('/anken');
+    const s = await switcher();
+    await waitFor(() => expect(s.options.length).toBeGreaterThan(1));
+    expect(s.querySelector('optgroup')).toBeNull(); // GET /api/v1/onboarding is not called: an unhandled request fails the test
+  });
+});

@@ -24,6 +24,16 @@ export const visibleAnkenQuery = {
   staleTime: 60_000,
 };
 
+/**
+ * The draft anken being onboarded (no epic yet), for the admin only: the switcher lists them after the tracked anken. Same key
+ * as Onboarding's list, so starting, linking or finishing one refreshes the switcher.
+ */
+export function useDraftAnken(): { key: string; title: string }[] {
+  const admin = !!useMe().data?.admin;
+  const list = useQuery({ queryKey: ['onboarding'] as const, queryFn: () => unwrap(http.GET('/api/v1/onboarding')), enabled: admin }).data;
+  return admin ? (list ?? []).filter((o) => o.draft && !o.finished_at).map((o) => ({ key: o.epic_key, title: o.title })) : [];
+}
+
 /** The signed-in user; a 401 means no session (the route gate sends it to /login). */
 export const meQuery = {
   queryKey: ['me'] as const,

@@ -29,6 +29,7 @@ export const server = setupServer(
   http.get('*/api/v1/settings/jira', () => HttpResponse.json(jira)),
   http.get('*/api/v1/settings/daily-capture', () => HttpResponse.json({ time: '18:00' })),
   http.get('*/api/v1/admin/access-requests', () => HttpResponse.json([])),
+  http.get('*/api/v1/onboarding', () => HttpResponse.json([])),
 );
 
 export function renderApp(url: string) {

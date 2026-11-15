@@ -1,27 +1,32 @@
 import { getRouteApi, useMatch, useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { useVisibleAnken } from '../shared/api/queries';
+import { useDraftAnken, useVisibleAnken } from '../shared/api/queries';
 import { Select } from '../shared/ds';
 import { ankenLabel, storeAnken, useAnkenScope } from '../shared/state/anken';
 
 const root = getRouteApi('__root__');
 const ALL = '';
+const DRAFTS = 'Draft · no epic';
 
 /**
- * The global anken switcher: one anken, or "All my anken". Mounted once in the shell, it also keeps this browser's
+ * The global anken switcher: one anken, or "All my anken"; for the admin, the draft anken being onboarded come last, in their own
+ * group (only Planning's plan screens can show them, AppShell says so on the others). Mounted once in the shell, it also keeps this browser's
  * stored anken in step with the URL: an explicit `?anken=` is stored, and opening an anken's screen (`/anken/$epic/matrix...`)
  * selects it. The Overview's detail (`/anken/$epic`) and its ticket lists (`/anken/$epic/tickets`) do not: it shows one anken among the others and leaves the switcher alone.
  */
 export function AnkenSwitcher({ compact = false }: { compact?: boolean }) {
   const { anken, setAnken } = useAnkenScope();
-  const visible = useVisibleAnken();
+  const tracked = useVisibleAnken();
+  const drafts = useDraftAnken();
+  const visible = [...tracked, ...drafts];
   useFollowUrl(anken, visible);
   if (compact) return null;
   return (
     <Select
       aria-label="Anken"
       value={anken ?? ALL}
-      options={[{ value: ALL, label: 'All my anken' }, ...visible.map((a) => ({ value: a.key, label: ankenLabel(a) }))]}
+      options={[{ value: ALL, label: 'All my anken' }, ...tracked.map((a) => ({ value: a.key, label: ankenLabel(a) })),
+        ...drafts.map((a) => ({ value: a.key, label: ankenLabel(a), group: DRAFTS }))]}
       onChange={(k) => setAnken(k || null)}
     />
   );
