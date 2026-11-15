@@ -45,6 +45,7 @@ import tracker.application.service.JiraSettingsService.NameRulesView;
 import tracker.application.service.JiraSettingsService.StatusRow;
 import tracker.application.service.JiraSettingsService.StepWeightsView;
 import tracker.application.service.JiraSettingsService.StructureView;
+import tracker.application.service.JiraSettingsService.TaskRulePreview;
 import tracker.application.service.JiraSettingsService;
 import tracker.application.service.TeamSettingsService;
 import tracker.domain.StepWeights;
@@ -273,6 +274,9 @@ public class SettingsApi {
     public record NameRulePreviewIn(@NotNull String rule, @Nullable Map<String, @NotNull String> aliases, @Nullable String sample) {
     }
 
+    public record TaskRulePreviewIn(@NotNull String rule, @Nullable String sample) {
+    }
+
     @Open(Rule.ADMIN)
     @GetMapping("/settings/name-rules")
     public NameRulesView nameRules(@RequestParam(required = false) @Nullable String anken) {
@@ -289,6 +293,12 @@ public class SettingsApi {
     @PostMapping("/settings/name-rules/preview")
     public NameRulePreview previewNameRule(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid NameRulePreviewIn body) {
         return jiraSettings.previewNameRule(anken, body.rule(), body.aliases(), body.sample() == null ? "" : body.sample());
+    }
+
+    @Open(Rule.ADMIN)
+    @PostMapping("/settings/name-rules/task-preview")
+    public TaskRulePreview previewTaskRule(@RequestParam(required = false) @Nullable String anken, @RequestBody @Valid TaskRulePreviewIn body) {
+        return jiraSettings.previewTaskRule(anken, body.rule(), body.sample() == null ? "" : body.sample());
     }
 
     /** @param weights step key ("create", "balr", "fixb", "jmr", "fixj") → weight */

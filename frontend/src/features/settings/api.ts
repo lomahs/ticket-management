@@ -37,6 +37,12 @@ export const namePreviewQuery = (anken: string | null, body: Schemas['NameRulePr
   placeholderData: keepPreviousData,
 });
 
+export const taskNamePreviewQuery = (anken: string | null, body: Schemas['TaskRulePreviewIn']) => ({
+  queryKey: ['settings', 'task-name-preview', anken, body] as const,
+  queryFn: () => unwrap(http.POST('/api/v1/settings/name-rules/task-preview', { body, params: { query: ankenParam(anken) } })),
+  placeholderData: keepPreviousData,
+});
+
 export const structurePreviewQuery = (anken: string | null, body: Schemas['StructureIn']) => ({
   queryKey: ['settings', 'structure-preview', anken, body] as const,
   queryFn: () => unwrap(http.POST('/api/v1/settings/structure/preview', { body, params: { query: ankenParam(anken) } })),

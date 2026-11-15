@@ -14,3 +14,6 @@ docs/
 .vscode/
 .idea
 backend/config/
+.archify/
+data/
+.claude-tmp/

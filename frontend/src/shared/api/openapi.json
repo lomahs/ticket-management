@@ -3086,6 +3086,42 @@
         "tags" : [ "settings-api" ]
       }
     },
+    "/api/v1/settings/name-rules/task-preview" : {
+      "post" : {
+        "operationId" : "previewTaskRule",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TaskRulePreviewIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskRulePreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "settings-api" ]
+      }
+    },
     "/api/v1/settings/status-mapping" : {
       "get" : {
         "operationId" : "statusMapping",
@@ -8516,6 +8552,50 @@
           }
         },
         "required" : [ "key", "name", "phase", "summary" ]
+      },
+      "TaskRulePreview" : {
+        "type" : "object",
+        "properties" : {
+          "error" : {
+            "type" : [ "string", "null" ]
+          },
+          "matched" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "sample_matches" : {
+            "type" : "boolean"
+          },
+          "tokens" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "values" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            }
+          }
+        },
+        "required" : [ "error", "matched", "sample_matches", "tokens", "total", "values" ]
+      },
+      "TaskRulePreviewIn" : {
+        "type" : "object",
+        "properties" : {
+          "rule" : {
+            "type" : "string"
+          },
+          "sample" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "rule" ]
       },
       "TaskTemplate" : {
         "type" : "object",

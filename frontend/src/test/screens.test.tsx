@@ -401,18 +401,42 @@ describe('screens render API data at their URLs', () => {
         http.get('*/api/v1/settings/name-rules', () => HttpResponse.json(rules)),
         http.post('*/api/v1/settings/name-rules/preview', () => HttpResponse.json({ error: null, tokens: [], values: {}, step: null,
           sample_matches: false, matched: 0, total: 0 })),
+        http.post('*/api/v1/settings/name-rules/task-preview', async ({ request }) => {
+          const b = await request.json() as { sample: string };
+          const ok = b.sample.startsWith('[BookUI]');
+          return HttpResponse.json({ error: null, tokens: ['anken_prefix', 'os_task', 'sub_phase'],
+            values: ok ? { anken_prefix: 'BookUI', os_task: 'LocalTask', sub_phase: 'ITA Prepare' } : {}, sample_matches: ok, matched: 7, total: 9 });
+        }),
         http.put('*/api/v1/settings/name-rules', async ({ request }) => { saved = await request.json() as typeof saved; return HttpResponse.json(rules); }),
       );
       renderApp('/settings/name-rules');
       expect(await screen.findByRole('region', { name: 'Phase' })).toBeTruthy();
       expect(screen.getByRole('region', { name: 'Sub-task' })).toBeTruthy();
       expect((screen.getByLabelText('Sub-task pattern') as HTMLInputElement).value).toBe(rules.rule);
+      const phase = screen.getByRole('region', { name: 'Phase' });
+      expect(await within(phase).findByText('ITA Prepare')).toBeTruthy();
+      expect(within(phase).getByText('7 / 9 synced Tasks match this pattern')).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Test with a Task Summary'), { target: { value: 'ITA Prepare' } });
+      expect(await within(phase).findByText('This Summary does not match the Task pattern.')).toBeTruthy();
       fireEvent.change(screen.getByLabelText('Task pattern'), { target: { value: '' } });
       fireEvent.click(screen.getByRole('button', { name: 'Reset Task pattern' }));
       fireEvent.click(within(screen.getByRole('region', { name: 'Phase' })).getByRole('button', { name: '{os_task}' }));
       expect((screen.getByLabelText('Task pattern') as HTMLInputElement).value).toBe('[{anken_prefix}][{os_task}] {sub_phase}{os_task}');
       fireEvent.click(screen.getByRole('button', { name: 'Save' }));
       await waitFor(() => expect(saved).toMatchObject({ rule: rules.rule, task_rule: '[{anken_prefix}][{os_task}] {sub_phase}{os_task}' }));
+    });
+
+    it('name rules say when a pattern cannot be checked', async () => {
+      server.use(
+        http.get('*/api/v1/settings/name-rules', () => HttpResponse.json({ rule: '[{function}] {step}', aliases: {}, matched: 0, total: 0,
+          task_rule: '[{anken_prefix}] {sub_phase}' })),
+        http.post('*/api/v1/settings/name-rules/preview', () => HttpResponse.json({ error: null, tokens: [], values: {}, step: null,
+          sample_matches: false, matched: 0, total: 0 })),
+        http.post('*/api/v1/settings/name-rules/task-preview', () => HttpResponse.json({ code: 'not_found', detail: 'Not found' }, { status: 404 })),
+      );
+      renderApp('/settings/name-rules');
+      const phase = await screen.findByRole('region', { name: 'Phase' });
+      expect(await within(phase).findByText(/Could not check the Task pattern/)).toBeTruthy();
     });
 
     it('structure tab edits the selected anken', async () => {

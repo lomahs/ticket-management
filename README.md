@@ -15,7 +15,7 @@ scripts/   setup.sh · demo.sh · dev.sh · prod.sh · check.sh (and a .ps1 of e
 ```bash
 scripts/demo.sh          # demo data on http://localhost:8000 — same code as the real app, simulated Jira
 scripts/dev.sh           # development: API :8000 + Vite :5173, demo profile
-scripts/dev.sh jira      # development against real Jira (set it up in Settings → Jira)
+scripts/dev.sh jira      # development against real Jira (set it up in Settings → Jira); sign in as breakglass / admin
 scripts/prod.sh          # production build against real Jira on http://localhost:8000 (same database as dev.sh jira)
 scripts/check.sh         # every automated check; add --e2e for the Playwright suite
 ```
@@ -95,7 +95,7 @@ yet lands on a page where they can send an access request; an admin approves it 
 | `TRACKER_LDAP_MAIL_ATTRIBUTE` / `TRACKER_LDAP_NAME_ATTRIBUTE` | attributes with the e-mail and the display name (default `mail`, `displayName`) |
 | `TRACKER_LDAP_AD_DOMAIN` | Active Directory **without** a bind account: see below |
 | `TRACKER_ADMINS` | comma-separated e-mails of the bootstrap admins: always admin and active |
-| `TRACKER_BREAKGLASS_PASSWORD_HASH` | bcrypt hash of an emergency password for the user `breakglass`; **off unless set** |
+| `TRACKER_BREAKGLASS_PASSWORD_HASH` | bcrypt hash of an emergency password for the user `breakglass`; **off unless set** (`scripts/dev.sh jira` alone defaults it to the password `admin`) |
 
 Active Directory example:
 

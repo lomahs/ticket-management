@@ -6,7 +6,7 @@ import { Button, TextField } from '../../../shared/ds';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
 import { Loading, QueryError } from '../../../shared/ui/states';
-import { namePreviewQuery, nameRulesQuery, useSaveNameRules } from '../api';
+import { namePreviewQuery, nameRulesQuery, taskNamePreviewQuery, useSaveNameRules } from '../api';
 import { AnkenPicker, useSettingsTarget } from './AnkenPicker';
 import { ErrText, Section, useDebounced } from './common';
 
@@ -30,6 +30,18 @@ function Insert({ tokens, used, onInsert }: { tokens: [string, string][]; used: 
   );
 }
 
+/** The value a placeholder read from the test Summary; red when it is empty. */
+function Value({ label, value }: { label: string; value: string | undefined }) {
+  return (
+    <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-hover)' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
+      <div style={{ fontWeight: 700, color: value ? 'var(--text-heading)' : 'var(--hl-red-fg)' }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+const valuesGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 } as const;
+
 export function NameRulesTab() {
   const t = useSettingsTarget();
   const anken = t.status === 'ready' ? t.anken : null;
@@ -52,8 +64,13 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
   const [aliases, setAliases] = useState<Record<string, string>>(v.aliases);
   const [taskRule, setTaskRule] = useState(v.task_rule);
   const [sample, setSample] = useState('[BookUI][LocalTask][ITA_Exe]_Domestic card payment_Fix comment BAL');
+  const [taskSample, setTaskSample] = useState('[BookUI][LocalTask] ITA Prepare');
   const body = useDebounced({ rule, aliases, sample }, 250);
-  const p = useQuery(namePreviewQuery(anken, body)).data;
+  const pq = useQuery(namePreviewQuery(anken, body));
+  const p = pq.data;
+  const taskBody = useDebounced({ rule: taskRule, sample: taskSample }, 250);
+  const tq = useQuery(taskNamePreviewQuery(anken, taskBody));
+  const tp = tq.data;
   const parsedStepIndex = STEPS.findIndex((s) => s.k === p?.step);
   const used = p?.tokens ?? [];
   return (
@@ -64,6 +81,18 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
           <Button appearance="subtle" aria-label="Reset Task pattern" onClick={() => setTaskRule(DEFAULT_TASK_RULE)}>Reset</Button>
         </div>
         <Insert tokens={TASK_TOKENS} used={(k) => taskRule.includes('{' + k + '}')} onInsert={(t) => setTaskRule((r) => r + t)} />
+        {tq.isError && <ErrText>Could not check the Task pattern: {errorMessage(tq.error)}</ErrText>}
+        {tp?.error && <ErrText>{tp.error}</ErrText>}
+        <TextField label="Test with a Task Summary" value={taskSample} onChange={setTaskSample} />
+        <div style={valuesGrid}>
+          {TASK_TOKENS.filter(([k]) => tp?.tokens.includes(k)).map(([k, label]) => <Value key={k} label={label} value={tp?.values[k]} />)}
+        </div>
+        {tp && !tp.error && !tp.sample_matches && <ErrText>This Summary does not match the Task pattern.</ErrText>}
+        {tp && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: tp.matched < tp.total ? 'var(--hl-amber-fg)' : 'var(--text-muted)' }}>
+            {tp.matched} / {tp.total} synced Tasks match this pattern
+          </span>
+        )}
       </Section>
       <Section title="Sub-task" sub="The Sub-task pattern: how sub-task Summaries are written. Placeholders are read as values; everything else must match literally. {step} must be one of the aliases below. Write {step?} when a sub-task may have no step: it may then be missing together with the text right before it, and such a sub-task is a single ticket (study, QnA…), not a function step.">
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
@@ -71,18 +100,14 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
           <Button appearance="subtle" aria-label="Reset Sub-task pattern" onClick={() => setRule(DEFAULT_RULE)}>Reset</Button>
         </div>
         <Insert tokens={TOKENS} used={(k) => used.includes(k)} onInsert={(t) => setRule((r) => r + t)} />
+        {pq.isError && <ErrText>Could not check the Sub-task pattern: {errorMessage(pq.error)}</ErrText>}
         {p?.error && <ErrText>{p.error}</ErrText>}
         <TextField label="Test with a Summary" value={sample} onChange={setSample} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
+        <div style={valuesGrid}>
           {TOKENS.filter(([k]) => used.includes(k)).map(([k, label]) => {
             const val = k === 'step' && p?.step ? `Step ${parsedStepIndex + 1} · ${p.values.step}`
               : k === 'step' && p?.sample_matches ? 'None · single ticket' : p?.values[k];
-            return (
-              <div key={k} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-hover)' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div>
-                <div style={{ fontWeight: 700, color: val ? 'var(--text-heading)' : 'var(--hl-red-fg)' }}>{val || '—'}</div>
-              </div>
-            );
+            return <Value key={k} label={label} value={val} />;
           })}
         </div>
         {p && !p.error && !p.sample_matches && <ErrText>This Summary does not match the pattern.</ErrText>}
@@ -104,7 +129,7 @@ function NameRulesForm({ v, anken }: { v: Schemas['NameRulesView']; anken: strin
           ))}
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button disabled={save.isPending || !!p?.error} onClick={() => save.mutate({ rule, aliases, task_rule: taskRule }, {
+          <Button disabled={save.isPending || !!p?.error || !!tp?.error} onClick={() => save.mutate({ rule, aliases, task_rule: taskRule }, {
             onSuccess: () => toast('Name rules saved · synced'), onError: (e) => toast(errorMessage(e), true),
           })}>Save</Button>
         </div>

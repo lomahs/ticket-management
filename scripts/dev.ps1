@@ -1,7 +1,8 @@
 # Windows version of dev.sh. Development: the API on :8000 (spring-boot:run) and Vite on :5173 (proxying /api).
 # Ctrl+C stops both.
 #   powershell -ExecutionPolicy Bypass -File scripts\dev.ps1          # demo profile (simulated Jira, fixed "today")
-#   powershell -ExecutionPolicy Bypass -File scripts\dev.ps1 jira     # your Jira site (configure it in Settings -> Jira)
+#   powershell -ExecutionPolicy Bypass -File scripts\dev.ps1 jira     # your Jira site (configure it in Settings -> Jira);
+#       sign in as breakglass / admin unless TRACKER_BREAKGLASS_PASSWORD_HASH is set
 param([ValidateSet('demo', 'jira')][string]$Mode = 'demo')
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -10,6 +11,10 @@ $Root = Split-Path -Parent $PSScriptRoot
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 $env:SPRING_PROFILES_ACTIVE = if ($Mode -eq 'demo') { 'demo' } else { '' }
+# Jira mode has no directory to sign in with locally: a default break-glass admin (password "admin"), dev only
+if ($Mode -eq 'jira' -and -not $env:TRACKER_BREAKGLASS_PASSWORD_HASH) {
+    $env:TRACKER_BREAKGLASS_PASSWORD_HASH = '$2y$10$masVnw.FKzwitUCIvSSiiOzn94hTXHL1uS48jy5pkDBwdTS79LBSK'
+}
 $env:TRACKER_STATIC_DIR = Join-Path $Root '.tmp\no-static'  # a folder that does not exist: Vite serves the frontend
 
 $backend = Start-Process -FilePath (Join-Path $Root 'backend\mvnw.cmd') -ArgumentList '-q', 'spring-boot:run' `

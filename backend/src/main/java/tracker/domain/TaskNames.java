@@ -80,6 +80,11 @@ public final class TaskNames {
         return Pattern.compile("^\\s*" + src + "\\s*$", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
     }
 
+    /** The placeholders the rule uses, in {@link #TOKENS} order. */
+    public static List<String> tokens(String rule) {
+        return TOKENS.stream().filter(t -> rule.contains("{" + t + "}")).toList();
+    }
+
     /** The placeholders' values in a Task Summary; null when it does not match the rule (or the rule is invalid). */
     public static @Nullable Map<String, String> parse(String rule, String summary) {
         try {
@@ -92,10 +97,8 @@ public final class TaskNames {
             return null;
         }
         Map<String, String> values = new LinkedHashMap<>();
-        for (int i = 0; i < TOKENS.size(); i++) {
-            if (rule.contains("{" + TOKENS.get(i) + "}")) {
-                values.put(TOKENS.get(i), m.group("t" + i).strip());
-            }
+        for (String t : tokens(rule)) {
+            values.put(t, m.group("t" + TOKENS.indexOf(t)).strip());
         }
         return values;
     }

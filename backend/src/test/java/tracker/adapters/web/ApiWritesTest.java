@@ -251,6 +251,9 @@ class ApiWritesTest extends ApiTestSupport {
         JsonNode pv = call(json(post("/api/v1/settings/name-rules/preview"), Map.of("rule", "[{function}] {step}", "sample", "[X] Create"))).json();
         assertThat(pv.get("sample_matches").asBoolean()).isTrue();
         assertThat(pv.get("step").asText()).isEqualTo("create");
+        JsonNode tp = call(json(post("/api/v1/settings/name-rules/task-preview"), Map.of("rule", "[{anken_prefix}] {sub_phase}", "sample", "[PAY] Prepare"))).json();
+        assertThat(tp.get("sample_matches").asBoolean()).isTrue();
+        assertThat(tp.get("values").get("sub_phase").asText()).isEqualTo("Prepare");
     }
 
     @Test

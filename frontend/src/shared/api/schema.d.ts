@@ -1348,6 +1348,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/name-rules/task-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewTaskRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/status-mapping": {
         parameters: {
             query?: never;
@@ -3186,6 +3202,22 @@ export interface components {
             name: string;
             phase: string;
             summary: string;
+        };
+        TaskRulePreview: {
+            error: string | null;
+            /** Format: int32 */
+            matched: number;
+            sample_matches: boolean;
+            tokens: string[];
+            /** Format: int32 */
+            total: number;
+            values: {
+                [key: string]: string;
+            };
+        };
+        TaskRulePreviewIn: {
+            rule: string;
+            sample?: string | null;
         };
         TaskTemplate: {
             match: string;
@@ -5788,6 +5820,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NameRulePreview"];
+                };
+            };
+        };
+    };
+    previewTaskRule: {
+        parameters: {
+            query?: {
+                anken?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskRulePreviewIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskRulePreview"];
                 };
             };
         };

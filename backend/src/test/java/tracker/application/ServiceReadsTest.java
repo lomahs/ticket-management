@@ -692,6 +692,21 @@ class ServiceReadsTest {
     }
 
     @Test
+    void taskRulePreview() {
+        JiraSettingsService.TaskRulePreview p = jiraSettings.previewTaskRule(null, Dataset.TASK_RULE, "[PAY] Implement_Coding");
+        assertThat(p.error()).isNull();
+        assertThat(p.tokens()).containsExactly("anken_prefix", "sub_phase");
+        assertThat(p.sampleMatches()).isTrue();
+        assertThat(p.values()).containsEntry("anken_prefix", "PAY").containsEntry("sub_phase", "Implement_Coding");
+        assertThat(p.total()).isPositive();
+        assertThat(p.matched()).isPositive().isLessThanOrEqualTo(p.total());
+        assertThat(jiraSettings.previewTaskRule(null, Dataset.TASK_RULE, "Implement_Coding").sampleMatches()).isFalse();
+        assertThat(jiraSettings.previewTaskRule(null, "[{anken_prefix}] {task}", "x").error())
+                .isEqualTo("Unknown placeholder {task}: use {anken_prefix}, {os_task} or {sub_phase}");
+        assertThat(jiraSettings.previewTaskRule(null, "[{anken_prefix}]", "x").error()).isEqualTo("The Task pattern must contain {sub_phase}");
+    }
+
+    @Test
     void myWorkOverdueMatchesFlags(@Autowired TrackerContextLoader context) {
         TrackerContext ctx = context.load(ALL);
         for (String member : ctx.people) {

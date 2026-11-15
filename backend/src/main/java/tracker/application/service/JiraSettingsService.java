@@ -560,9 +560,17 @@ public class JiraSettingsService {
                                   boolean sampleMatches, int matched, int total) {
     }
 
+    /** @param matched synced Task summaries the Task pattern reads */
+    public record TaskRulePreview(@Nullable String error, List<String> tokens, Map<String, String> values, boolean sampleMatches,
+                                  int matched, int total) {
+    }
+
     private List<String> summaries(@Nullable String epic) {
-        return issues.findByEpics(scopeOf(settings.load(), epic)).stream().filter(i -> i.kind() == IssueKind.SUBTASK)
-                .map(Issue::summary).toList();
+        return summaries(epic, IssueKind.SUBTASK);
+    }
+
+    private List<String> summaries(@Nullable String epic, IssueKind kind) {
+        return issues.findByEpics(scopeOf(settings.load(), epic)).stream().filter(i -> i.kind() == kind).map(Issue::summary).toList();
     }
 
     /** Step key ("create", "balr", …) → names, as the API sends them. */
@@ -610,6 +618,20 @@ public class JiraSettingsService {
         Naming.Parsed p = Naming.parseSummary(compiled, sample);
         return new NameRulePreview(null, compiled.tokens(), p != null ? p.values() : Map.of(), p != null && p.step() != null ? p.step().value() : null,
                 p != null, Naming.coverage(compiled, summaries), summaries.size());
+    }
+
+    /** The Task pattern against a sample Task Summary and the synced Tasks of the scope. */
+    public TaskRulePreview previewTaskRule(@Nullable String epic, String rule, String sample) {
+        String scope = tracked(epic);
+        List<String> summaries = summaries(scope, IssueKind.PARENT);
+        try {
+            TaskNames.check(rule);
+        } catch (RuleError e) {
+            return new TaskRulePreview(e.getMessage(), List.of(), Map.of(), false, 0, summaries.size());
+        }
+        Map<String, String> values = TaskNames.parse(rule, sample);
+        return new TaskRulePreview(null, TaskNames.tokens(rule), values != null ? values : Map.of(), values != null,
+                (int) summaries.stream().filter(t -> TaskNames.matches(rule, t)).count(), summaries.size());
     }
 
     /** @param rule "" restores the default rule */
