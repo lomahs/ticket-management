@@ -207,8 +207,8 @@ class DetailPlanMatrixTest {
         MatrixLine l = line(detail.view(ALL, EPIC), key);
         assertThat(l.issueKey()).isEqualTo(key);
         assertThat(l.rowId()).isNull();
-        // before today Jira's plan (the pending 5h is ignored); from today on the pending cells
-        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 8, false), new DayHours("2026-10-08", 4, false),
+        // a past day typed here replaces Jira's (5h on the 6th); from today on the pending cells alone (the 7th goes)
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 5, false), new DayHours("2026-10-08", 4, false),
                 new DayHours("2026-10-09", 6, false));
         assertThat(l.totalH()).isEqualTo(l.spentH() + 10);
         assertThat(l.notYetH()).isZero();
@@ -528,8 +528,20 @@ class DetailPlanMatrixTest {
         String key = jiraSubtask();
         assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn("999:create", "2026-10-12", 1))))
                 .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "ref");
-        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-06", 1))))
-                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "day");
+    }
+
+    @Test
+    void aPastDayOfAJiraLineIsTypedAndKeptUntilThePush() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 8.0));
+        DetailPlanView v = detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-06", 3)));
+        MatrixLine l = line(v, key);
+        // the typed past day replaces Jira's; Jira's plan from today on stays
+        assertThat(l.cells()).containsExactly(new DayHours("2026-10-06", 3, false), new DayHours("2026-10-07", 8, false));
+        assertThat(l.pending()).isTrue();
+        l = line(detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-06", 0))), key);
+        assertThat(l.cells()).extracting(DayHours::day).containsExactly("2026-10-07"); // 0 clears a past day too
     }
 
     @Test

@@ -115,9 +115,10 @@ final class PlanLines {
     }
 
     /**
-     * Every sub-task of the anken in Jira, grouped by phase then function. Days before today are Jira's plan (Detail Planning's
-     * days as pushed when they all lie within its Planned Start and End in Jira, else {@link TrackerContext#planDays}); from today
-     * on the pending cells when the sub-task has any, else the same plan (a pending Remaining or PIC alone keeps it).
+     * Every sub-task of the anken in Jira, grouped by phase then function. Its days are Jira's plan (Detail Planning's days as
+     * pushed when they all lie within its Planned Start and End in Jira, else {@link TrackerContext#planDays}); a past day typed
+     * here replaces Jira's, and from today on the pending cells replace the plan when the sub-task has any (a pending Remaining
+     * or PIC alone keeps it).
      */
     private static List<Draft> jira(TrackerContext ctx, String epic, Map<String, List<Cell>> jiraCells, List<JiraEdit> edits, RowLinks links) {
         Map<String, String> groups = DetailPlanService.groupOfTask(ctx, epic);
@@ -148,14 +149,19 @@ final class PlanLines {
         boolean pending = hasCells || edit != null;
         Map<String, Double> saved = ctx.savedPlanDays(i);
         Map<String, Double> plan = saved != null && within(saved, i) ? saved : ctx.planDays(i);
+        // a past day typed here (0 too) replaces Jira's; the others stay Jira's. From today on, the pending cells alone
+        Set<String> typedPast = new java.util.HashSet<>();
+        if (hasCells) {
+            pendingCells.stream().filter(c -> c.day().compareTo(ctx.today) < 0).forEach(c -> typedPast.add(c.day()));
+        }
         List<DayHours> cells = new ArrayList<>();
         plan.forEach((d, h) -> {
-            if (d.compareTo(ctx.today) < 0 || !hasCells) {
+            if (!hasCells || (d.compareTo(ctx.today) < 0 && !typedPast.contains(d))) {
                 cells.add(new DayHours(d, h, false));
             }
         });
         if (hasCells) {
-            pendingCells.stream().filter(c -> c.hours() > 0 && c.day().compareTo(ctx.today) >= 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
+            pendingCells.stream().filter(c -> c.hours() > 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
         }
         List<DayHours> days = sorted(cells);
         boolean closed = i.status() == Status.CLOSED;

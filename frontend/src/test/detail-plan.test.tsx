@@ -94,7 +94,8 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const ba = await screen.findByLabelText('PIC, [PAY] Login – Create'); // Create's PIC is the function's BA
+    // the first test of the file waits for the lazy Planning route too
+    const ba = await screen.findByLabelText('PIC, [PAY] Login – Create', {}, { timeout: 5000 }); // Create's PIC is the function's BA
     expect(ba.getAttribute('data-by-hand')).toBe('true');
     expect(screen.getByLabelText('PIC, [PAY] Login – BAL Review').getAttribute('data-by-hand')).toBeNull(); // the BAL: Auto allocate's pick
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
@@ -166,6 +167,7 @@ describe('detail plan', () => {
     expect(screen.getByRole('row', { name: 'Function Login' })).toBeTruthy();
     // a step shows its step's name; the sub-task's whole name is the row's
     expect(within(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).getByText('BAL Review')).toBeTruthy();
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).getByText('New')).toBeTruthy(); // its ticket ID once it is in Jira
     const execute = screen.getByRole('row', { name: 'Sub-phase Execute' });
     expect(within(execute).getByText('16.00h estimated')).toBeTruthy();
     fireEvent.click(within(execute).getByRole('button', { name: 'Hide the functions of Execute' }));
@@ -296,15 +298,14 @@ describe('detail plan', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('locks the past days of a Jira line and shows the hours logged', async () => {
+  it('plans the past days of a Jira line too and shows the hours logged', async () => {
     onboarding({ step: 5 });
     members();
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, pending: true }] }))));
     renderApp('/planning/detail?anken=PAY-1100');
     const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
-    expect(screen.queryByLabelText('[PAY] Refund – Create 2026-10-06')).toBeNull();
+    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-06') as HTMLInputElement).value).toBe('1'); // a past day: its plan, editable
     const past = row.querySelector('[data-day="2026-10-06"]') as HTMLElement;
-    expect(within(past).getByText('1')).toBeTruthy(); // the plan
     expect(within(past).getByText('1.5h')).toBeTruthy(); // the hours logged
     expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-07') as HTMLInputElement).disabled).toBe(false); // today stays open
     expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-08') as HTMLInputElement).value).toBe('2');

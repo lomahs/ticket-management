@@ -442,9 +442,11 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .pm-ob:disabled { color: var(--text-muted); opacity: .4; cursor: default; }
 
 /* step lines */
-.pm-step > .pm-c0 { padding-left: 70px; box-shadow: inset 3px 0 0 var(--pm-accent); }
+.pm-step > .pm-c0 { padding-left: 56px; box-shadow: inset 3px 0 0 var(--pm-accent); }
 .pm-stp { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .pm-stp-name { font: 500 13px/1.3 var(--font-text); color: var(--text-heading); min-width: 0; }
+.pm-key { flex: none; width: 74px; overflow: hidden; text-overflow: ellipsis; font: 600 11px/1.3 var(--font-mono); color: var(--text-link); }
+.pm-key.new { font: 600 10px/1.3 var(--font-text); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .pm-step[data-removed] { opacity: .5; }
 .pm-step[data-removed] .pm-stp-name { text-decoration: line-through; }
 .pm-step:hover > * { background-color: var(--pm-group); }

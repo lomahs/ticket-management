@@ -104,7 +104,8 @@ function FilterMenu({ label, icon, picked, options, toggle, clear, wide, childre
  * PIC, Plan Estimation, Planned, Not yet plan and dates, then the hours planned on each day. A level folds; folded, it shows the
  * hours of its steps per day. A row not in Jira yet picks its people on its steps' PIC cells (the step's PIC by Settings › Step
  * weights, the JM on JM Review), which set the function's BA, BAL or JM; a sub-task in Jira changes its PIC and is kept until the
- * push. Days before today of a sub-task in Jira are locked and show the hours logged under the plan.
+ * push. Every day can be planned, past ones too (a sub-task in Jira keeps the past day typed here until the push); the hours
+ * logged show under the plan.
  *
  * The figures are the planning ones, no actuals: Plan Estimation (the Original Estimate), Planned (every day's hours) and Not
  * yet plan; what is left to plan blocks the push and is counted in the problems above.
@@ -329,7 +330,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
         <th scope="row" className="pm-c0">
           <span className="pm-stp">
-            {inJira && <span className="key">{l.issue_key}</span>}
+            <span className={`pm-key${inJira ? '' : ' new'}`} title={inJira ? `Sub-task ${l.issue_key} in Jira` : 'Not in Jira yet: the push creates it'}>
+              {inJira ? l.issue_key : 'New'}
+            </span>
             <span className="pm-stp-name ellipsis" title={l.summary}>{st?.short ?? l.summary}</span>
             {l.pending && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}
               title="Changed here: sent to Jira with the push">Not pushed</span>}
@@ -356,8 +359,8 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         {days.map((d) => {
           const planned = sum(l.cells, d);
           const logged = sum(l.logged, d);
-          // a sub-task in Jira cannot be planned before today: those days happened
-          const locked = !live || (inJira && (!today || d < today));
+          // every day of an open line can be planned, past ones too; the hours logged show under the plan
+          const locked = !live;
           const typed = !inJira && l.cells.some((c) => c.day === d && !c.auto && c.hours > 0);
           return (
             <td key={d} data-day={d} data-out-of-order={(l.out_of_order && !l.removed) || undefined}
@@ -431,7 +434,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
             <span className="pm-tip-r"><span className="pm-k hand">4</span><span><b>Typed by hand</b>Auto allocate keeps it.</span></span>
             <span className="pm-tip-r"><span className="pm-k red"><Icon name="triangle-alert" size={12} /></span><span><b>Out of step order</b>Starts before the step before it ends: blocks the push.</span></span>
             <span className="pm-tip-r"><span className="pm-k">2.00</span><span><b>Not yet plan</b>Hours of the Plan Estimation not planned on a day yet: blocks the push.</span></span>
-            <span className="pm-tip-r"><span className="pm-k lock"><Icon name="lock" size={12} /></span><span><b>Locked</b>Days before today of a sub-task in Jira; the hours logged show under the plan.</span></span>
+            <span className="pm-tip-r"><span className="pm-k lock">1.5h</span><span><b>Logged</b>The hours logged on a day show under its plan; a past day can be planned too.</span></span>
             <span className="pm-tip-r"><span className="pm-k today">{today ? Number(today.slice(8)) : ''}</span><span><b>Today</b>The framed column.</span></span>
           </span>}
         </span>

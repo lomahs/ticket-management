@@ -1170,8 +1170,8 @@ public class DetailPlanService {
 
     /**
      * Types hours into cells (a day's hours replace the cell's; 0 clears it, at most 24): a day of the window, or from today to
-     * {@value #MAX_DAYS_AHEAD} days on. A cell of a sub-task in Jira must be today or later and is kept until the push; the first
-     * one of a sub-task keeps Jira's plan from today on besides.
+     * {@value #MAX_DAYS_AHEAD} days on. A cell of a sub-task in Jira, a past day's too, is kept until the push; the first one of a
+     * sub-task keeps Jira's plan from today on besides (its past days stay Jira's until one is typed).
      */
     @Transactional
     public DetailPlanView saveCells(AnkenScope scope, String epic, List<CellIn> in) {
@@ -1200,8 +1200,6 @@ public class DetailPlanService {
             Cell cell = new Cell(c.ref(), c.day(), c.hours(), false);
             if (l.issueKey() == null) {
                 rowCells.add(cell);
-            } else if (c.day().compareTo(today) < 0) {
-                throw new Invalid("Days before today are locked", "day");
             } else {
                 jira.computeIfAbsent(c.ref(), k -> new ArrayList<>()).add(cell);
             }
