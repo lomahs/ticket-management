@@ -215,6 +215,26 @@ describe('detail plan', () => {
     expect(screen.getByRole('row', { name: '[PAY] Run' })).toBeTruthy();
   });
 
+  it('shifts the picked functions by working days', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 5 });
+    members();
+    const view = detailView({ lines: [LINES[0], mline('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2, { removed: true }), LINES[2]] });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.post('*/api/v1/planning/PAY-1100/detail/shift', async ({ request }) => { sent.push(await request.json()); return HttpResponse.json(view); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByLabelText('Pick Login'));
+    const bar = screen.getByRole('group', { name: 'Shift the picked functions' });
+    expect(within(bar).getByText('1 function selected')).toBeTruthy();
+    fireEvent.change(within(bar).getByLabelText('Working days'), { target: { value: '2' } });
+    fireEvent.change(within(bar).getByLabelText('Direction'), { target: { value: 'earlier' } });
+    fireEvent.click(within(bar).getByRole('button', { name: 'Shift' }));
+    await waitFor(() => expect(sent).toEqual([{ refs: ['1:create'], days: -2 }])); // a removed step stays
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
+  });
+
   it('types hours into a day and sends them when the cell is left', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 5 });

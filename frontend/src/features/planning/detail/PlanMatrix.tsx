@@ -6,7 +6,7 @@ import { Button, DateField, Icon, IconButton, type IconName } from '../../../sha
 import { dm, f2, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useToast } from '../../../shared/state/toast';
-import { useEditJiraLine, useEditStep, useSaveCells, type DetailPlanView, type MatrixLine } from './api';
+import { useEditJiraLine, useEditStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 
@@ -118,6 +118,11 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const edit = useEditStep(epic);
   const cells = useSaveCells(epic);
   const jira = useEditJiraLine(epic);
+  const shift = useShiftPlan(epic);
+  // the functions picked to shift (group keys), and by how many working days which way
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [by, setBy] = useState(1);
+  const [way, setWay] = useState<'later' | 'earlier'>('later');
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
   const [pics, setPics] = useState<Set<string>>(new Set());
@@ -201,6 +206,16 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
     set((s) => { const n = new Set(s); if (n.has(x)) n.delete(x); else n.add(x); return n; });
   const clearAll = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); setFrom(''); setTo(''); };
 
+  const togglePick = toggleIn(setPicked);
+  const shiftPicked = () => {
+    const gs = allGroups.filter((g) => picked.has(g.key));
+    const refs = gs.flatMap((g) => g.lines).filter((l) => !l.removed && !l.closed).map((l) => l.ref);
+    shift.mutateAsync({ refs, days: way === 'later' ? by : -by }).then(() => {
+      toast(`Shifted ${plural(gs.length, 'function')} ${plural(by, 'working day')} ${way}`);
+      setPicked(new Set());
+    }, fail);
+  };
+
   const fold = (k: string) => setFolded((f) => { const n = new Set(f); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const toToday = () => {
     const sc = scroller.current;
@@ -246,6 +261,8 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
       <tr key={g.key} className="pm-fn" aria-label={`Function ${g.name}`}>
         <th scope="row" className="pm-c0">
           <span className="pm-fnh">
+            {admin && <input type="checkbox" className="pm-pick" aria-label={`Pick ${g.name}`} title="Pick to shift its plan"
+              checked={picked.has(g.key)} onChange={() => togglePick(g.key)} />}
             {foldButton(g.key, `the steps of ${g.name}`)}
             <span className="pm-fn-name ellipsis" title={g.name}>{g.name}</span>
             {!r && <span className="pm-badge">In Jira</span>}
@@ -444,6 +461,21 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <span className="spacer" />
         {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
       </div>
+      {picked.size > 0 && (
+        <div className="pm-shift" role="group" aria-label="Shift the picked functions">
+          <span className="pm-count">{`${plural(picked.size, 'function')} selected`}</span>
+          <span>Shift</span>
+          <input type="number" className="pm-shift-n" aria-label="Working days" min={1} max={366} value={by}
+            onChange={(e) => setBy(Math.max(1, Math.round(Number(e.target.value)) || 1))} />
+          <span>working days</span>
+          <select className="pm-shift-way" aria-label="Direction" value={way} onChange={(e) => setWay(e.target.value === 'earlier' ? 'earlier' : 'later')}>
+            <option value="later">later</option>
+            <option value="earlier">earlier</option>
+          </select>
+          <Button size="sm" disabled={shift.isPending} onClick={shiftPicked}>Shift</Button>
+          <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
+        </div>
+      )}
       <div className="pm-scroll" ref={scroller}>
         <table className="pm-table">
           <thead>

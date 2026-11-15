@@ -80,6 +80,16 @@ export function useSaveCells(epic: string) {
   });
 }
 
+/** Moves the hours of lines from today on by working days of each line's PIC (negative: earlier); the plan that follows comes back. */
+export function useShiftPlan(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    scope: planScope(epic),
+    mutationFn: (body: { refs: string[]; days: number }) => unwrap(http.POST('/api/v1/planning/{epic}/detail/shift', { params: { path: { epic } }, body })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
 /**
  * Changes the Total (its Remaining, Spent staying) or the PIC of a sub-task in Jira, kept here until the push; a null field keeps
  * what it is. The plan that follows comes back.
