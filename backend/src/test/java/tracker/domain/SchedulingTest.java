@@ -83,4 +83,14 @@ class SchedulingTest {
                 new ArrayList<>(Collections.nCopies(3, null)));
         assertThat(p.get(1).estimateH()).isEqualTo(4.0);
     }
+
+    @Test
+    void shiftWorkDaysCountsTheMembersWorkingDays() {
+        assertThat(Scheduling.shiftWorkDays(CAL, "an", "2026-10-16", 1)).isEqualTo("2026-10-19"); // Fri → Mon
+        assertThat(Scheduling.shiftWorkDays(CAL, "an", "2026-10-19", -1)).isEqualTo("2026-10-16"); // Mon → Fri
+        assertThat(Scheduling.shiftWorkDays(CAL, "an", "2026-10-17", 1)).isEqualTo("2026-10-20"); // Sat counts from Mon
+        assertThat(Scheduling.shiftWorkDays(CAL, "an", "2026-10-08", 1)).isEqualTo("2026-10-09");
+        assertThat(Scheduling.shiftWorkDays(CAL, "chi", "2026-10-08", 1)).isEqualTo("2026-10-10"); // Chi's leave, then the extra day
+        assertThat(Scheduling.shiftWorkDays(CAL, null, "2026-10-16", 2)).isEqualTo("2026-10-20");
+    }
 }

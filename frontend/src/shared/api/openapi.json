@@ -2508,6 +2508,42 @@
         "tags" : [ "detail-planning-api" ]
       }
     },
+    "/api/v1/planning/{epic}/detail/shift" : {
+      "post" : {
+        "operationId" : "shiftDetailPlan",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ShiftBody"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      }
+    },
     "/api/v1/planning/{epic}/detail/step" : {
       "put" : {
         "operationId" : "editDetailStep",
@@ -8358,6 +8394,25 @@
             "format" : "double"
           }
         }
+      },
+      "ShiftBody" : {
+        "type" : "object",
+        "properties" : {
+          "days" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "refs" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "minLength" : 1
+            },
+            "maxItems" : 2147483647,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "refs" ]
       },
       "SnapshotOption" : {
         "type" : "object",

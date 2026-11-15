@@ -5,6 +5,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
 /** Plan suggestions: dates for a new function's steps, and shifting a planned item. */
 public final class Scheduling {
     private Scheduling() {
@@ -72,5 +74,17 @@ public final class Scheduling {
     /** Moves a planned item to {@code newStart}, keeping its length in calendar days. */
     public static String[] shiftPlan(String start, String end, String newStart) {
         return new String[]{newStart, Dates.addDays(newStart, Dates.dayDiff(start, end))};
+    }
+
+    /** {@code day} moved {@code n} working days of the member (earlier when negative); a day off counts from the next working day. */
+    public static String shiftWorkDays(WorkCalendar cal, @Nullable String memberId, String day, int n) {
+        String who = Text.orElse(memberId, ""); // no one: the team's working days
+        String d = cal.nextWork(day, who);
+        for (int left = Math.abs(n); left > 0; left--) {
+            do {
+                d = Dates.addDays(d, n > 0 ? 1 : -1);
+            } while (Text.hasText(cal.off(d, who)));
+        }
+        return d;
     }
 }

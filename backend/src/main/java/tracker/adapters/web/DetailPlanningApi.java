@@ -49,6 +49,7 @@ import tracker.application.service.DetailPlanService.NewRowIn;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.CellIn;
 import tracker.application.service.DetailPlanService.JiraLineIn;
+import tracker.application.service.DetailPlanService.ShiftIn;
 import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.EstimationService;
 import tracker.application.service.EstimationService.EstimationView;
@@ -229,6 +230,17 @@ public class DetailPlanningApi {
     public DetailPlanView saveDetailCells(@PathVariable("epic") String epic, @RequestBody @Valid CellsBody body, Viewer viewer) {
         return detail.saveCells(epicScope(viewer, epic), epic,
                 body.cells().stream().map(c -> new CellIn(c.ref(), c.day(), c.hours())).toList());
+    }
+
+    /** @param days working days to move; negative is earlier */
+    public record ShiftBody(@NotNull @Size(min = 1) List<@NotBlank String> refs, int days) {
+    }
+
+    /** Moves the hours of lines (the steps of the picked functions) from today on and returns the plan that follows. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/detail/shift")
+    public DetailPlanView shiftDetailPlan(@PathVariable("epic") String epic, @RequestBody @Valid ShiftBody body, Viewer viewer) {
+        return detail.shift(epicScope(viewer, epic), epic, new ShiftIn(body.refs(), body.days()));
     }
 
     /** @param totalH Spent + Remaining wanted; null keeps it. @param picId null keeps it */

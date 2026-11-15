@@ -44,6 +44,7 @@ import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
 import tracker.application.service.DetailPlanService.RowAssign;
+import tracker.application.service.DetailPlanService.ShiftIn;
 import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.AllocationService;
 import tracker.application.service.Baselines;
@@ -460,6 +461,44 @@ class DetailPlanMatrixTest {
         v = detail.saveCells(ALL, EPIC, List.of(new CellIn(ref, "2026-10-13", 0)));
         assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-12", 8, false));
         assertThat(line(v, ref).end()).isEqualTo("2026-10-12");
+    }
+
+    @Test
+    void aShiftMovesARowsCellsWorkingDaysLaterAsTyped() {
+        List<EstimationRow> rows = scheduled();
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        String ref = String.valueOf(run);
+        cells.saveRowCells(List.of(new Cell(ref, "2026-10-08", 5, true), new Cell(ref, "2026-10-09", 3, true)));
+        DetailPlanView v = detail.shift(ALL, EPIC, new ShiftIn(List.of(ref), 2)); // Thu, Fri → Sat (a working day), Mon
+        assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-10", 5, false), new DayHours("2026-10-12", 3, false));
+        v = detail.shift(ALL, EPIC, new ShiftIn(List.of(ref), -1));
+        assertThat(line(v, ref).cells()).containsExactly(new DayHours("2026-10-09", 5, false), new DayHours("2026-10-10", 3, false));
+    }
+
+    @Test
+    void aShiftEarlierBeforeTodayIsRefused() {
+        List<EstimationRow> rows = scheduled();
+        long run = rows.get(1).id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        String ref = String.valueOf(run);
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(ref, "2026-10-08", 4)));
+        assertThatThrownBy(() -> detail.shift(ALL, EPIC, new ShiftIn(List.of(ref), -2)))
+                .isInstanceOf(AppError.Invalid.class).hasMessageEndingWith("would move before today").hasFieldOrPropertyWithValue("field", "days");
+        assertThatThrownBy(() -> detail.shift(ALL, EPIC, new ShiftIn(List.of(ref), 0)))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "days");
+        assertThat(cells.rowCells(EPIC)).containsExactly(new Cell(ref, "2026-10-08", 4, false));
+    }
+
+    @Test
+    void aShiftOfAJiraLineIsPendingAndKeepsItsPast() {
+        scheduled();
+        String key = jiraSubtask();
+        planDays.save(key, Map.of("2026-10-06", 8.0, "2026-10-07", 4.0, "2026-10-08", 4.0));
+        DetailPlanView v = detail.shift(ALL, EPIC, new ShiftIn(List.of(key), 1)); // today on: Wed, Thu → Thu, Fri
+        assertThat(line(v, key).cells()).containsExactly(new DayHours("2026-10-06", 8, false), new DayHours("2026-10-08", 4, false),
+                new DayHours("2026-10-09", 4, false));
+        assertThat(line(v, key).pending()).isTrue();
     }
 
     @Test

@@ -1108,6 +1108,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planning/{epic}/detail/shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["shiftDetailPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planning/{epic}/detail/step": {
         parameters: {
             query?: never;
@@ -3143,6 +3159,11 @@ export interface components {
             ba?: number;
             /** Format: double */
             bal?: number;
+        };
+        ShiftBody: {
+            /** Format: int32 */
+            days?: number;
+            refs: string[];
         };
         SnapshotOption: {
             captured_at: string;
@@ -5403,6 +5424,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["NewRowBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    shiftDetailPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftBody"];
             };
         };
         responses: {

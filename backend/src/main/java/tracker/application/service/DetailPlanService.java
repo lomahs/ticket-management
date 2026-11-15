@@ -45,6 +45,7 @@ import tracker.domain.Baseline;
 import tracker.domain.AutoPicks;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
+import tracker.domain.Scheduling;
 import tracker.domain.DetailMatrix;
 import tracker.domain.DetailScheduler;
 import tracker.domain.DraftAnken;
@@ -240,6 +241,10 @@ public class DetailPlanService {
 
     /** Hours typed in one cell: {@code ref} is a step's ref of an unpushed row or the key of a sub-task in Jira; 0 clears it. */
     public record CellIn(String ref, String day, double hours) {
+    }
+
+    /** The lines (refs) of the functions to shift, and by how many working days: negative is earlier. */
+    public record ShiftIn(List<String> refs, int days) {
     }
 
     /**
@@ -1202,6 +1207,62 @@ public class DetailPlanService {
         jira.forEach((key, typed) -> {
             seed(epic, lineOf.get(key), pending, today);
             cells.saveJiraCells(epic, typed);
+        });
+        cells.saveRowCells(rowCells);
+        return view(scope, epic);
+    }
+
+    /**
+     * Moves the hours of lines from today on {@code days} working days of each line's PIC (earlier when negative), as typed cells;
+     * the days before today stay. Refused as a whole when a day would land before today or past today + {@value #MAX_DAYS_AHEAD}.
+     */
+    @Transactional
+    public DetailPlanView shift(AnkenScope scope, String epic, ShiftIn in) {
+        if (in.days() == 0) {
+            throw new Invalid("Shift by 1 day or more", "days");
+        }
+        DetailPlanView v = view(scope, epic);
+        TrackerContext ctx = EstimationService.load(context, scope, epic);
+        String today = ctx.today;
+        String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
+        Map<String, MatrixLine> lineOf = new HashMap<>();
+        v.lines().forEach(l -> lineOf.put(l.ref(), l));
+        List<Cell> rowCells = new ArrayList<>();
+        Map<String, List<Cell>> jira = new LinkedHashMap<>();
+        for (String ref : new LinkedHashSet<>(in.refs())) {
+            MatrixLine l = lineOf.get(ref);
+            if (l == null || l.removed() || l.closed()) {
+                throw new Invalid(ref + " is not in the plan", "ref");
+            }
+            Map<String, Double> moved = new TreeMap<>();
+            for (DayHours c : l.cells()) {
+                if (c.day().compareTo(today) < 0 || c.hours() <= 0) {
+                    continue;
+                }
+                String to = Scheduling.shiftWorkDays(ctx.cal, l.picId(), c.day(), in.days());
+                if (to.compareTo(today) < 0) {
+                    throw new Invalid(l.function() + " would move before today", "days");
+                }
+                if (to.compareTo(lastDay) > 0) {
+                    throw new Invalid(l.function() + " would move beyond " + lastDay, "days");
+                }
+                moved.putIfAbsent(c.day(), 0.0);
+                moved.merge(to, c.hours(), (a, b) -> a + b);
+            }
+            if (moved.values().stream().anyMatch(h -> h > 24)) {
+                throw new Invalid("At most 24 hours a day", "days");
+            }
+            List<Cell> out = moved.entrySet().stream().map(e -> new Cell(ref, e.getKey(), e.getValue(), false)).toList();
+            if (l.issueKey() == null) {
+                rowCells.addAll(out);
+            } else {
+                jira.put(ref, out);
+            }
+        }
+        Map<String, List<Cell>> pending = cells.jiraCells(epic);
+        jira.forEach((key, out) -> {
+            seed(epic, lineOf.get(key), pending, today);
+            cells.saveJiraCells(epic, out);
         });
         cells.saveRowCells(rowCells);
         return view(scope, epic);
