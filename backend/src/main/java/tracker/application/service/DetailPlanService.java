@@ -42,6 +42,7 @@ import tracker.domain.Capacity;
 import tracker.domain.Dates;
 import tracker.domain.DetailMatrix;
 import tracker.domain.DetailScheduler;
+import tracker.domain.DraftAnken;
 import tracker.domain.Effort;
 import tracker.domain.DetailScheduler.DayOverrun;
 import tracker.domain.DetailScheduler.Overrun;
@@ -560,7 +561,7 @@ public class DetailPlanService {
             }
         }
         DetailPlanView view = new DetailPlanView(b.all(), b.tasks(), window, lines, over, allocated, overDay, checks, days, stale,
-                b.problems(), pushBlockers(lines), byHand, planVersions.lastSavedAt(epic));
+                b.problems(), pushBlockers(epic, lines), byHand, planVersions.lastSavedAt(epic));
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
@@ -603,9 +604,15 @@ public class DetailPlanService {
         return a == null || b.compareTo(a) > 0 ? b : a;
     }
 
-    /** Why Push is refused, line by line (removed and Closed lines aside): hours not planned yet, planned over the total, step order. */
-    private static List<String> pushBlockers(List<MatrixLine> lines) {
+    /**
+     * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), hours not
+     * planned yet, planned over the total, step order.
+     */
+    private static List<String> pushBlockers(String epic, List<MatrixLine> lines) {
         List<String> out = new ArrayList<>();
+        if (DraftAnken.isKey(epic)) {
+            out.add("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
+        }
         for (MatrixLine l : lines) {
             if (l.removed() || l.closed()) {
                 continue;

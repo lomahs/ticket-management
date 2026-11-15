@@ -20,6 +20,9 @@ public interface EstimationRepository {
 
     void markPushed(List<Long> ids, String at);
 
+    /** The epic's unpushed rows under the Task {@code from} go under {@code to}. */
+    void retask(String epic, String from, String to);
+
     /** Deletes the epic's unpushed rows. */
     void deleteUnpushed(String epic);
 

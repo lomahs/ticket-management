@@ -32,13 +32,13 @@ class JdbcOnboardingRepository implements OnboardingRepository {
     @Override
     public void save(Onboarding o) {
         jdbc.sql("""
-                INSERT INTO onboarding (epic_key, anken_prefix, labels, step, started_at, started_by, saved_at, saved_by, finished_at)
-                VALUES (:epic, :prefix, :labels, :step, :startedAt, :startedBy, :savedAt, :savedBy, :finishedAt)
+                INSERT INTO onboarding (epic_key, anken_prefix, labels, step, started_at, started_by, saved_at, saved_by, finished_at, draft_title)
+                VALUES (:epic, :prefix, :labels, :step, :startedAt, :startedBy, :savedAt, :savedBy, :finishedAt, :draftTitle)
                 ON CONFLICT (epic_key) DO UPDATE SET anken_prefix = :prefix, labels = :labels, step = :step, saved_at = :savedAt,
-                    saved_by = :savedBy, finished_at = :finishedAt
+                    saved_by = :savedBy, finished_at = :finishedAt, draft_title = :draftTitle
                 """).param("epic", o.epicKey()).param("prefix", o.ankenPrefix()).param("labels", String.join(" ", o.labels())).param("step", o.step()).param("startedAt", o.startedAt())
                 .param("startedBy", o.startedBy()).param("savedAt", o.savedAt()).param("savedBy", o.savedBy()).param("finishedAt", o.finishedAt())
-                .update();
+                .param("draftTitle", o.draftTitle()).update();
     }
 
     @Override
@@ -49,6 +49,6 @@ class JdbcOnboardingRepository implements OnboardingRepository {
     private static Onboarding row(ResultSet r, int n) throws SQLException {
         String labels = r.getString("labels");
         return new Onboarding(r.getString("epic_key"), r.getString("anken_prefix"), labels.isBlank() ? List.of() : List.of(labels.split(" ")), r.getInt("step"), r.getString("started_at"),
-                r.getString("started_by"), r.getString("saved_at"), r.getString("saved_by"), r.getString("finished_at"));
+                r.getString("started_by"), r.getString("saved_at"), r.getString("saved_by"), r.getString("finished_at"), r.getString("draft_title"));
     }
 }

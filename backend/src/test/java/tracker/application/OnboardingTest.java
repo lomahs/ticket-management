@@ -57,6 +57,14 @@ class OnboardingTest {
     MasterScheduleService schedule;
     @Autowired
     tracker.application.service.JiraSettingsService jiraSettings;
+    @Autowired
+    tracker.application.service.EstimationService estimations;
+    @Autowired
+    tracker.application.service.DetailPlanService detail;
+    @Autowired
+    tracker.application.service.AllocationService allocations;
+    @Autowired
+    tracker.application.ports.AnkenMemberRepository ankenMembers;
 
     @Test
     void taskPatternIsSavedWithTheNameRulesAndChecked() {
@@ -208,5 +216,106 @@ class OnboardingTest {
         assertThat(rows.get(1).start()).isEqualTo("2026-10-19"); // the next working day, after the weekend
         assertThatThrownBy(() -> schedule.preview(SCOPE, EPIC, List.of(new PhaseRowIn("Prepare", null, List.of("binh")))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("phases.0.start");
+    }
+
+    // --- an anken without its epic ------------------------------------------------------------------------------------------
+
+    static final String QNA = "template:[*] QnA management";
+
+    private static EstimationRow row(String draft, String taskKey) {
+        return new EstimationRow(0, draft, 0, "", "", "Refund", null, 8, null, null, null, taskKey, null);
+    }
+
+    @Test
+    void aDraftAnkenIsSavedWithItsNameAndSeenInOnboardingOnly() {
+        OnboardingView v = onboarding.startDraft(PIM, " Refund automation ");
+        assertThat(v.epicKey()).isEqualTo("draft-1");
+        assertThat(v.draft()).isTrue();
+        assertThat(v.title()).isEqualTo("Refund automation");
+        assertThat(v.step()).isEqualTo(2);
+        assertThat(onboarding.startDraft(PIM, "Another").epicKey()).isEqualTo("draft-2");
+        assertThat(onboarding.list()).extracting(OnboardingView::epicKey).containsExactlyInAnyOrder("draft-1", "draft-2");
+        assertThat(settings.load().jira.epics).doesNotContain("draft-1");
+        assertThat(loader.load(new AnkenScope(Set.of("draft-1"))).isMember("draft-1", "minh")).isTrue();
+        // every other screen reads the tracked epics: the draft is not among them
+        assertThat(loader.load(new AnkenScope(Set.copyOf(settings.load().jira.epics))).anken).extracting(a -> a.key()).doesNotContain("draft-1");
+        assertThatThrownBy(() -> onboarding.startDraft(PIM, "  ")).isInstanceOf(Invalid.class).extracting("field").isEqualTo("name");
+    }
+
+    @Test
+    void aDraftIsPlannedUnderItsTemplateTasksAndNothingReachesJira() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        AnkenScope scope = new AnkenScope(Set.of(draft));
+        assertThat(estimations.view(scope, draft).tasks()).isEmpty(); // named once the prefix is entered
+        onboarding.save(PIM, draft, 2, "RFD", List.of());
+        assertThat(estimations.view(scope, draft).tasks()).extracting(t -> t.key() + "/" + t.summary())
+                .containsExactly(QNA + "/[RFD] QnA management", "template:[*] Work requests/[RFD] Work requests");
+        assertThat(onboarding.tasks(draft, null).tasks()).allMatch(t -> t.existingKey() == null);
+        estimations.save(scope, draft, List.of(row(draft, QNA)));
+        assertThat(estimation.findByEpic(draft)).extracting(EstimationRow::taskKey).containsExactly(QNA);
+        assertThat(detail.view(scope, draft).pushBlockers()).first().asString().contains("Link the anken's epic");
+        assertThatThrownBy(() -> onboarding.previewTasks(PIM, draft, "RFD", COMMON, List.of(new NewTaskIn("[*] QnA management", "[RFD] QnA management"))))
+                .isInstanceOf(Invalid.class).hasMessageContaining("Link");
+        assertThatThrownBy(() -> onboarding.finish(PIM, draft)).isInstanceOf(Invalid.class).hasMessageContaining("Link");
+    }
+
+    @Test
+    void aDraftsHoursAreCheckedAgainstTheOtherAnkenButNeverCountOnThem() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        // an already gives 8h a day to PAY-1100 and PAY-1300
+        assertThatThrownBy(() -> onboarding.saveMembers(PIM, draft, List.of(new MemberIn("an", true, 2.0)))).isInstanceOf(Invalid.class);
+        MemberHours an = onboarding.saveMembers(PIM, draft, List.of(new MemberIn("an", true, 2.0)), true).stream()
+                .filter(m -> m.memberId().equals("an")).findFirst().orElseThrow();
+        assertThat(an.hoursPerDay()).isEqualTo(2.0);
+        assertThat(an.elsewhere()).extracting(h -> h.epicKey()).containsExactlyInAnyOrder("PAY-1100", "PAY-1300");
+        String today = loader.today();
+        assertThat(allocations.counted(new AnkenScope(Set.of(draft))).allocations().totalOn("an", today)).isEqualTo(10.0);
+        assertThat(allocations.counted(new AnkenScope(Set.of("PAY-1100"))).allocations().totalOn("an", today)).isEqualTo(8.0);
+    }
+
+    @Test
+    void linkingTheEpicMovesTheDraftAndItsRowsTakeTheTasksCreated() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        AnkenScope scope = new AnkenScope(Set.of(draft));
+        onboarding.save(PIM, draft, 4, "RFD", List.of("RFD"));
+        onboarding.saveMembers(PIM, draft, List.of(new MemberIn("tanaka", true, 1.0)));
+        estimations.save(scope, draft, List.of(row(draft, QNA)));
+
+        OnboardingView v = onboarding.link(PIM, draft, " pay-1500 ");
+        assertThat(v.epicKey()).isEqualTo(EPIC);
+        assertThat(v.draft()).isFalse();
+        assertThat(v.title()).isEqualTo("Refund automation");
+        assertThat(v.step()).isEqualTo(4);
+        assertThat(v.ankenPrefix()).isEqualTo("RFD");
+        assertThat(settings.load().jira.epics).contains(EPIC);
+        assertThat(onboarding.list()).extracting(OnboardingView::epicKey).containsExactly(EPIC);
+        assertThat(loader.load(SCOPE).isMember(EPIC, "tanaka")).isTrue();
+        assertThat(ankenMembers.findByEpic(draft)).isEmpty();
+        assertThat(estimation.findByEpic(draft)).isEmpty();
+        assertThat(estimation.findByEpic(EPIC)).extracting(EstimationRow::taskKey).containsExactly(QNA); // until its Task exists
+
+        List<NewTaskIn> in = onboarding.tasks(EPIC, null).tasks().stream().map(t -> new NewTaskIn(t.match(), t.name())).toList();
+        String created = onboarding.createTasks(PIM, EPIC, "RFD", COMMON, in).created().get("task:0");
+        assertThat(estimation.findByEpic(EPIC)).extracting(EstimationRow::taskKey).containsExactly(created);
+    }
+
+    @Test
+    void linkingIsRefusedForAnEpicOnboardedAlready() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        onboarding.start(PIM, EPIC);
+        assertThatThrownBy(() -> onboarding.link(PIM, draft, EPIC)).isInstanceOf(Invalid.class).hasMessageContaining("being onboarded");
+        assertThatThrownBy(() -> onboarding.link(PIM, EPIC, "PAY-1100")).isInstanceOf(Invalid.class).hasMessageContaining("already");
+    }
+
+    @Test
+    void discardingADraftDropsEverythingOfIt() {
+        String draft = onboarding.startDraft(PIM, "Refund automation").epicKey();
+        onboarding.save(PIM, draft, 2, "RFD", List.of());
+        onboarding.saveMembers(PIM, draft, List.of(new MemberIn("tanaka", true, 1.0)));
+        estimations.save(new AnkenScope(Set.of(draft)), draft, List.of(row(draft, QNA)));
+        onboarding.discard(draft);
+        assertThat(onboarding.list()).isEmpty();
+        assertThat(estimation.findByEpic(draft)).isEmpty();
+        assertThat(ankenMembers.findByEpic(draft)).isEmpty();
     }
 }

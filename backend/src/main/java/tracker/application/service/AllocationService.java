@@ -26,6 +26,7 @@ import tracker.application.settings.SettingsStore;
 import tracker.domain.Allocation;
 import tracker.domain.Allocations;
 import tracker.domain.AnkenScope;
+import tracker.domain.DraftAnken;
 import tracker.domain.Member;
 import tracker.domain.Numbers;
 import tracker.domain.Viewer;
@@ -63,12 +64,22 @@ public class AllocationService {
     public record Counted(Allocations allocations, Set<String> epics) {
     }
 
-    /** What Timesheet and Capacity measure {@code scope} against. */
+    /**
+     * What Timesheet and Capacity measure {@code scope} against. A draft anken counts only in a scope that names it: its hours
+     * never weigh on the other anken.
+     */
     public Counted counted(AnkenScope scope) {
-        Set<String> tracked = Set.copyOf(settings.load().jira.epics);
+        Set<String> tracked = counts(scope.epics());
         Set<String> epics = new HashSet<>(tracked);
         epics.retainAll(scope.epics());
         return new Counted(new Allocations(counting(allocations.findAll(), tracked)), epics);
+    }
+
+    /** The tracked epics and the draft anken among {@code named}. */
+    private Set<String> counts(Set<String> named) {
+        Set<String> out = new HashSet<>(settings.load().jira.epics);
+        named.stream().filter(DraftAnken::isKey).forEach(out::add);
+        return out;
     }
 
     /**
@@ -93,7 +104,7 @@ public class AllocationService {
     }
 
     private Member requireVisibleMember(Viewer v, String memberId) {
-        if (!loader.load(scopes.scope(v, null)).people.contains(memberId)) {
+        if (!loader.people(new AnkenScope(scopes.visibleWithDrafts(v))).contains(memberId)) {
             throw new NotFound("Member " + memberId + " was not found", "member_id");
         }
         return members.findById(memberId).orElseThrow(() -> new NotFound("Member " + memberId + " was not found", "member_id"));
@@ -140,7 +151,7 @@ public class AllocationService {
     @Transactional
     public AllocationTimeline set(Viewer v, String memberId, AllocationChange c, boolean allowOverTheDay) {
         Member m = requireVisibleMember(v, memberId);
-        Set<String> visible = scopes.visible(v);
+        Set<String> visible = scopes.visibleWithDrafts(v);
         for (Map.Entry<String, Double> e : c.hours().entrySet()) {
             String epic = e.getKey();
             if (!visible.contains(epic) || !ankenMembers.exists(epic, memberId)) {
@@ -157,7 +168,7 @@ public class AllocationService {
             next.add(new Allocation(memberId, e.getKey(), c.from(), e.getValue()));
         }
         if (!allowOverTheDay) {
-            List<Allocation> counted = counting(next, Set.copyOf(settings.load().jira.epics));
+            List<Allocation> counted = counting(next, counts(c.hours().keySet()));
             Allocations after = new Allocations(counted);
             double day = team.workingHours().hoursPerDay();
             TreeSet<String> dates = new TreeSet<>(after.datesOf(memberId).stream().filter(d -> d.compareTo(c.from()) >= 0).toList());

@@ -8,16 +8,27 @@ import { useToast } from '../../../shared/state/toast';
 import { onboardingQuery, useSaveProgress } from '../api';
 import { STEPS, type StepKey } from './steps';
 
-/** The progress band of one anken: its epic, when it was saved, and the six steps (those reached can be opened). */
-export function Stepper({ epic, title, savedAt, current, reached, onExit }: {
-  epic?: string; title?: string; savedAt?: string; current: number; reached: number; onExit?: () => void;
+/** The badge of an anken planned before its epic exists. */
+export function NoEpic() {
+  return <span className="status-pill" style={{ alignSelf: 'flex-start', background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}>No epic yet</span>;
+}
+
+/**
+ * The progress band of one anken: its epic (or, for a draft, the way to link it), when it was saved, and the six steps (those
+ * reached can be opened).
+ */
+export function Stepper({ epic, title, draft, savedAt, current, reached, onExit }: {
+  epic?: string; title?: string; draft?: boolean; savedAt?: string; current: number; reached: number; onExit?: () => void;
 }) {
   return (
     <section aria-label="Onboarding progress" className="card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         <span className="eyebrow">Onboarding new anken ·</span>
-        {epic && <span style={{ font: '600 12px/1 var(--font-mono)', color: 'var(--color-accent)' }}>{epic}</span>}
+        {epic && (draft ? <NoEpic /> : <span style={{ font: '600 12px/1 var(--font-mono)', color: 'var(--color-accent)' }}>{epic}</span>)}
         {title && <b className="heading">{title}</b>}
+        {epic && draft && current !== 1 && (
+          <Link to="/onboarding/$epic/$step" params={{ epic, step: 'epic' }} style={{ fontSize: 12, fontWeight: 600 }}>Link epic</Link>
+        )}
         <span className="spacer" />
         {savedAt && (
           <span className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -90,7 +101,7 @@ export function StepShell({ epic, step, title, sub, onSave, canContinue = true, 
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
-      <Stepper epic={epic} title={o?.title} savedAt={o?.saved_at} current={n} reached={o?.step ?? n}
+      <Stepper epic={epic} title={o?.title} draft={o?.draft} savedAt={o?.saved_at} current={n} reached={o?.step ?? n}
         onExit={() => void run(n, () => void navigate({ to: '/onboarding' }))} />
       <header style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <h1 style={{ margin: 0, font: '700 22px/1.2 var(--font-text)', color: 'var(--text-heading)' }}>{title}</h1>

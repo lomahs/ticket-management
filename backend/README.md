@@ -105,7 +105,7 @@ See "Sign-in and access" in the top-level README. The Jira token is stored encry
 - building a plan: `StepWeightsTest`, `MasterScheduleTest`, `DetailSchedulerTest` (domain), `DetailPlanningTest` (estimation,
   master schedule versions, detail plan, push to the simulated site with a refusal half-way), `EstimationFilesTest`;
 - onboarding: `TaskNamesTest` (domain), `OnboardingTest` (lookup and tracking, template Tasks, members, progress, discard,
-  finish, phases that follow each other, the Task pattern);
+  finish, phases that follow each other, the Task pattern, an anken without its epic and linking it);
 - `ArchitectureTest`: layer rules.
 
 `JiraLiveTest` reads a real site and is excluded by default:

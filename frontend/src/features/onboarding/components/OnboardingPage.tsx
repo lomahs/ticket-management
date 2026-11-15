@@ -7,6 +7,7 @@ import { useToast } from '../../../shared/state/toast';
 import { PageHead } from '../../../shared/ui/bits';
 import { Loading, QueryError } from '../../../shared/ui/states';
 import { onboardingListQuery, useDiscardOnboarding, type OnboardingView } from '../api';
+import { NoEpic } from './StepShell';
 import { STEPS } from './steps';
 
 /** The ankens being onboarded, the step each one is at, and the way into a new one. */
@@ -17,7 +18,7 @@ export function OnboardingPage() {
   const done = (q.data ?? []).filter((o) => o.finished_at);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
-      <PageHead eyebrow="Set up a new anken from its epic to its detail plan" title="Onboarding new anken">
+      <PageHead eyebrow="Set up a new anken from its epic (or before it exists) to its detail plan" title="Onboarding new anken">
         <Button iconBefore="plus" onClick={() => void navigate({ to: '/onboarding/new' })}>Start new anken</Button>
       </PageHead>
       <section aria-label="Steps" className="card" style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
@@ -60,10 +61,11 @@ function Card({ o }: { o: OnboardingView }) {
   const navigate = useNavigate();
   const discard = useDiscardOnboarding();
   const at = STEPS[Math.min(Math.max(o.step, 1), STEPS.length) - 1];
+  const name = o.draft ? o.title : o.epic_key;
   return (
     <article className="card" style={{ padding: '14px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 18 }}>
       <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ font: '600 12px/1 var(--font-mono)', color: 'var(--color-accent)' }}>{o.epic_key}</span>
+        {o.draft ? <NoEpic /> : <span style={{ font: '600 12px/1 var(--font-mono)', color: 'var(--color-accent)' }}>{o.epic_key}</span>}
         <b className="heading" style={{ fontSize: 16 }}>{o.title || o.epic_key}</b>
         <span className="eyebrow">{`Saved ${relTime(o.saved_at)} · ${o.saved_by}`}</span>
       </div>
@@ -75,11 +77,12 @@ function Card({ o }: { o: OnboardingView }) {
         </div>
         <span style={{ fontSize: 12 }}>{`Step ${at.n} of 6 · `}<b>{at.label}</b></span>
       </div>
-      <Button appearance="secondary" size="sm" iconAfter="arrow-right" aria-label={`Resume ${o.epic_key}`}
+      <Button appearance="secondary" size="sm" iconAfter="arrow-right" aria-label={`Resume ${name}`}
         onClick={() => void navigate({ to: '/onboarding/$epic/$step', params: { epic: o.epic_key, step: at.key } })}>Resume</Button>
-      <IconButton icon="trash-2" label={`Discard ${o.epic_key}`} appearance="subtle" disabled={discard.isPending} onClick={() => {
-        if (window.confirm(`Discard the onboarding of ${o.epic_key}? Its estimation rows not in Jira are deleted; the epic stays tracked and what is in Jira stays.`)) {
-          discard.mutate(o.epic_key, { onSuccess: () => toast(`${o.epic_key} discarded`), onError: (e) => toast(errorMessage(e), true) });
+      <IconButton icon="trash-2" label={`Discard ${name}`} appearance="subtle" disabled={discard.isPending} onClick={() => {
+        if (window.confirm(o.draft ? `Discard ${name}? The anken has no epic yet: its estimation, members, master schedule and plan are deleted.`
+          : `Discard the onboarding of ${o.epic_key}? Its estimation rows not in Jira are deleted; the epic stays tracked and what is in Jira stays.`)) {
+          discard.mutate(o.epic_key, { onSuccess: () => toast(`${name} discarded`), onError: (e) => toast(errorMessage(e), true) });
         }
       }} />
     </article>

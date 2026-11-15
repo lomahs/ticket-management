@@ -8,7 +8,8 @@ afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); vi.re
 afterAll(() => server.close());
 
 const ONB = { epic_key: 'PAY-1100', title: 'Payment flow revision', anken_prefix: 'PAY', labels: [] as string[], step: 3, started_at: '2026-10-05T09:00:00Z',
-  started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null };
+  started_by: 'minh.hoang@acme.vn', saved_at: '2026-10-07T09:00:00Z', saved_by: 'minh.hoang@acme.vn', finished_at: null, draft: false };
+const DRAFT = { ...ONB, epic_key: 'draft-1', title: 'Refund automation', anken_prefix: '', step: 2, draft: true };
 const PEOPLE = [
   { member_id: 'an', name: 'An', role: 'BA', country: 'VN', in_anken: true, hours_per_day: 8, elsewhere: [], working_day_h: 8 },
   { member_id: 'minh', name: 'Minh', role: 'BAL', country: 'VN', in_anken: true, hours_per_day: null,
@@ -78,6 +79,65 @@ describe('onboarding', () => {
     expect(screen.getByText('Not yet')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Track & continue' }));
     await waitFor(() => expect(started).toEqual({ key: 'PAY-1500' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/PAY-1500/tasks'));
+  });
+
+  it('starts an anken without its epic from its name', async () => {
+    let started: unknown = null;
+    server.use(
+      http.post('*/api/v1/onboarding/draft', async ({ request }) => { started = await request.json(); return HttpResponse.json(DRAFT); }),
+      http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json(DRAFT)),
+      http.get('*/api/v1/onboarding/draft-1/tasks', () => HttpResponse.json({ anken_prefix: '', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [] })),
+      http.get('*/api/v1/onboarding/draft-1/members', () => HttpResponse.json(PEOPLE)),
+    );
+    const { router } = renderApp('/onboarding/new');
+    fireEvent.click(await screen.findByRole('radio', { name: /No, not yet/ }));
+    expect(screen.queryByLabelText('Epic key')).toBeNull();
+    const start = screen.getByRole('button', { name: 'Start without epic' }) as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Anken name'), { target: { value: ' Refund automation ' } });
+    fireEvent.click(start);
+    await waitFor(() => expect(started).toEqual({ name: 'Refund automation' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/draft-1/tasks'));
+  });
+
+  it('shows an anken without its epic by its name, and its Tasks wait for the epic', async () => {
+    server.use(
+      http.get('*/api/v1/onboarding', () => HttpResponse.json([DRAFT])),
+      http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json({ ...DRAFT, anken_prefix: 'RFD' })),
+      http.get('*/api/v1/onboarding/draft-1/members', () => HttpResponse.json(PEOPLE)),
+      http.get('*/api/v1/onboarding/draft-1/tasks', () => HttpResponse.json({ anken_prefix: 'RFD', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [
+        { match: '[*][LocalTask] ITA Prepare', phase: 'ITA', existing_key: null, name: '[RFD][LocalTask] ITA Prepare', recognised: true },
+      ] })),
+    );
+    renderApp('/onboarding');
+    const open = await screen.findByRole('region', { name: 'In progress' });
+    expect(within(open).getByText('No epic yet')).toBeTruthy();
+    expect(within(open).getByRole('button', { name: 'Resume Refund automation' })).toBeTruthy();
+    cleanup();
+    renderApp('/onboarding/draft-1/tasks');
+    expect(await screen.findByText('[RFD][LocalTask] ITA Prepare')).toBeTruthy();
+    expect(screen.getByText('1 Tasks, created once the epic is linked')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Review/ })).toBeNull();
+    expect(within(screen.getByRole('region', { name: 'Onboarding progress' })).getByRole('link', { name: 'Link epic' })).toBeTruthy();
+  });
+
+  it('links the epic of an anken planned without it, then opens Setting Phase under the epic', async () => {
+    let linked: unknown = null;
+    server.use(
+      http.get('*/api/v1/onboarding/draft-1', () => HttpResponse.json(DRAFT)),
+      http.get('*/api/v1/onboarding/lookup', ({ request }) => HttpResponse.json({ key: new URL(request.url).searchParams.get('key'), title: 'Refund automation', project: 'PAY', tracked: false, onboarding: false })),
+      http.post('*/api/v1/onboarding/draft-1/link', async ({ request }) => { linked = await request.json(); return HttpResponse.json({ ...DRAFT, epic_key: 'PAY-1500', draft: false }); }),
+      http.get('*/api/v1/onboarding/PAY-1500', () => HttpResponse.json({ ...DRAFT, epic_key: 'PAY-1500', draft: false })),
+      http.get('*/api/v1/onboarding/PAY-1500/tasks', () => HttpResponse.json({ anken_prefix: '', task_rule: '[{anken_prefix}][{os_task}] {sub_phase}', tasks: [] })),
+      http.get('*/api/v1/onboarding/PAY-1500/members', () => HttpResponse.json(PEOPLE)),
+    );
+    const { router } = renderApp('/onboarding/draft-1/epic');
+    const link = await screen.findByRole('region', { name: 'Link epic' });
+    fireEvent.change(within(link).getByLabelText('Epic key'), { target: { value: 'pay-1500' } });
+    fireEvent.click(within(link).getByRole('button', { name: 'Look up in Jira' }));
+    fireEvent.click(await within(link).findByRole('button', { name: 'Link PAY-1500' }));
+    await waitFor(() => expect(linked).toEqual({ key: 'PAY-1500' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/PAY-1500/tasks'));
   });
 

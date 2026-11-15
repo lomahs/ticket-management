@@ -25,6 +25,12 @@ export function EstimationEditor({ epic, save }: { epic: string; save: SaveRef }
   return <Editor key={JSON.stringify(q.data.rows)} epic={epic} rows={q.data.rows} phases={q.data.phases} tasks={q.data.tasks} saveRef={save} />;
 }
 
+/** A Task of the template, before the anken's epic is linked and its Tasks are created ("template:" and the template's match). */
+const TEMPLATE = 'template:';
+const isTemplate = (key: string) => key.startsWith(TEMPLATE);
+/** A row's Task that is not among the epic's: a template Task not created in Jira yet, or a key no longer there. */
+const missingTask = (key: string) => (isTemplate(key) ? `${key.slice(TEMPLATE.length)} (not created yet)` : key);
+
 const blank = (epic: string): EstimationRow => ({ id: 0, epic_key: epic, position: 0, phase: '', subphase: '', function_name: '', steps: 5, effort_h: 0, ba_id: null, bal_id: null, jm_id: null, task_key: null, pushed_at: null });
 
 function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
@@ -105,8 +111,8 @@ function Editor({ epic, rows: saved, phases, tasks, saveRef }: {
                   <select aria-label={`Task, row ${n}`} disabled={ro} value={r.task_key ?? ''} onChange={(e) => pickTask(i, e.target.value)}
                     style={{ ...CELL, borderColor: r.task_key || ro ? 'var(--border-strong)' : 'var(--hl-red-fg)' }}>
                     <option value="">Choose Task…</option>
-                    {r.task_key && !tasks.some((t) => t.key === r.task_key) && <option value={r.task_key}>{r.task_key}</option>}
-                    {tasks.map((t) => <option key={t.key} value={t.key}>{`${t.key} · ${t.summary}`}</option>)}
+                    {r.task_key && !tasks.some((t) => t.key === r.task_key) && <option value={r.task_key}>{missingTask(r.task_key)}</option>}
+                    {tasks.map((t) => <option key={t.key} value={t.key}>{isTemplate(t.key) ? t.summary : `${t.key} · ${t.summary}`}</option>)}
                   </select>
                   <span aria-label={`Task name, row ${n}`} className="ellipsis" title={taskName(r)} style={{ fontSize: 13, color: 'var(--text-heading)' }}>{taskName(r) || '–'}</span>
                   <input aria-label={`Function, row ${n}`} disabled={ro} value={r.function_name} onChange={(e) => edit(i, { function_name: e.target.value })} style={CELL} />

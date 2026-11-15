@@ -15,10 +15,10 @@ export function TasksStep({ epic }: { epic: string }) {
   const o = useQuery(onboardingQuery(epic));
   if (o.isPending) return <Loading />;
   if (o.isError) return <QueryError error={o.error} />;
-  return <Tasks epic={epic} savedPrefix={o.data.anken_prefix} savedLabels={o.data.labels} />;
+  return <Tasks epic={epic} draft={o.data.draft} savedPrefix={o.data.anken_prefix} savedLabels={o.data.labels} />;
 }
 
-function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: string; savedLabels: string[] }) {
+function Tasks({ epic, draft, savedPrefix, savedLabels }: { epic: string; draft: boolean; savedPrefix: string; savedLabels: string[] }) {
   const toast = useToast();
   const me = useMe().data;
   const [prefix, setPrefix] = useState(savedPrefix);
@@ -43,7 +43,9 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
   });
   return (
     <StepShell epic={epic} step="tasks" title="Setting Phase"
-      sub="Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go. The labels go on the new Tasks and on the sub-tasks pushed from the Detail plan."
+      sub={draft ? 'Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). The anken has no epic yet: the estimation and the plan use these Tasks as named here, and they are created in Jira once you link the epic.'
+        : 'Every anken carries the Tasks of its template (Settings › Phases & tasks), named by the Task pattern (Settings › Name rules › Phase). Create the missing ones in one go. The labels go on the new Tasks and on the sub-tasks pushed from the Detail plan.'}
+      canContinue={!draft || !!prefix.trim()}
       onSave={() => progress.mutateAsync({ step: 2, anken_prefix: prefix.trim(), labels: labelList })}>
       <section className="card card-clip" aria-label="Setting Phase">
         <div style={{ padding: '12px 16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -51,7 +53,8 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
           <TextField mono label="Labels" placeholder="e.g. BookUI" value={labels} onChange={setLabels} style={{ width: 200 }} />
           <span className="eyebrow" style={{ paddingBottom: 10 }}>{q.data ? `Task pattern: ${q.data.task_rule}` : ''}</span>
           <span className="spacer" />
-          <span className="eyebrow" style={{ paddingBottom: 10 }}>{`${rows.length - missing.length} found · ${missing.length} missing`}</span>
+          <span className="eyebrow" style={{ paddingBottom: 10 }}>{draft ? (prefix.trim() ? `${rows.length} Tasks, created once the epic is linked` : 'Enter the anken prefix to name the Tasks')
+            : `${rows.length - missing.length} found · ${missing.length} missing`}</span>
         </div>
         {q.isError ? <div style={{ padding: 16 }}><QueryError error={q.error} /></div> : !q.data ? <Loading /> : rows.length === 0 ? (
           <div style={{ padding: 16, color: 'var(--text-muted)' }}>The anken's template has no Tasks (Settings › Phases &amp; tasks).</div>
@@ -72,9 +75,11 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
                     <td style={{ padding: '8px 16px', fontWeight: 600 }}>{t.match}</td>
                     <td style={{ padding: 8 }}>{t.phase}</td>
                     <td style={{ padding: 8 }}>{t.existing_key ? <span style={{ font: '600 12px/1 var(--font-mono)' }}>{t.existing_key}</span>
+                      : draft ? <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}>No epic yet</span>
                       : <span className="status-pill" style={{ background: 'var(--hl-red)', color: 'var(--hl-red-fg)' }}>Missing</span>}</td>
                     <td style={{ padding: '6px 16px' }}>
-                      {t.existing_key ? <span className="muted">{t.name}</span> : (
+                      {/* a draft's Tasks are named when they are created, after the epic is linked */}
+                      {t.existing_key || draft ? <span className="muted">{t.name}</span> : (
                         <>
                           <input aria-label={`Name, ${t.match}`} value={names[t.match] ?? t.name} onChange={(e) => setNames((n) => ({ ...n, [t.match]: e.target.value }))}
                             style={{ height: 30, width: '100%', boxSizing: 'border-box', padding: '0 8px', border: `1px solid ${t.recognised ? 'var(--border-strong)' : 'var(--hl-red-fg)'}`, borderRadius: 6, font: '500 13px/1 var(--font-text)', background: 'var(--surface-card)', color: 'var(--text-heading)' }} />
@@ -92,7 +97,7 @@ function Tasks({ epic, savedPrefix, savedLabels }: { epic: string; savedPrefix: 
             </table>
           </div>
         )}
-        {missing.length > 0 && (
+        {!draft && missing.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, padding: '12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
             <Select label="Assignee of the new Tasks" value={who} onChange={setAssignee} style={{ minWidth: 200 }}
               options={people.length ? people.map((m) => ({ value: m.member_id, label: m.name })) : [{ value: '', label: 'No member yet' }]} />

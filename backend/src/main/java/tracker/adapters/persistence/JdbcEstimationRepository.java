@@ -68,6 +68,12 @@ class JdbcEstimationRepository implements EstimationRepository {
     }
 
     @Override
+    public void retask(String epic, String from, String to) {
+        jdbc.sql("UPDATE estimation_rows SET task_key = :to WHERE epic_key = :epic AND task_key = :from AND pushed_at IS NULL")
+                .param("epic", epic).param("from", from).param("to", to).update();
+    }
+
+    @Override
     public void deleteUnpushed(String epic) {
         jdbc.sql("DELETE FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL").param("epic", epic).update();
     }

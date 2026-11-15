@@ -163,6 +163,12 @@ working day after the previous one ends, with a Gantt by phase; 6 the detail pla
 overview lists the ankens in progress at the furthest step reached; Discard drops the progress and the rows not in Jira,
 and the epic stays tracked.
 
+An anken whose epic does not exist yet starts from its name instead (step 1 → "No, not yet"). It is saved under a draft key
+(`draft-1`, never a Jira key), shows in Onboarding only and is planned the same way: its Tasks are the template's, named with
+the anken prefix; its members' hours are weighed against their other anken but never count on them. Creating Tasks, pushing
+and Finish wait for the epic: Link epic (step 1) tracks it and moves everything under it, and the estimation rows take the
+Tasks created in Setting Phase.
+
 **Building a plan** (Onboarding steps 3, 5 and 6; Planning → Master schedule and Detail plan once the anken runs; admins
 write, Planning readers look). The estimation of an anken has one row per function (Create effort, 3 or 5 steps) or per
 ticket without steps (its effort). Settings → Step weights (per anken or the default) gives each step its weight

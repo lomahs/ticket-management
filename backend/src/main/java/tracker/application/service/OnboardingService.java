@@ -21,6 +21,7 @@ import tracker.application.TrackerContextLoader;
 import tracker.application.ports.AllocationRepository;
 import tracker.application.ports.AnkenMemberRepository;
 import tracker.application.ports.AnkenRepository;
+import tracker.application.ports.DraftAnkenRepository;
 import tracker.application.ports.EstimationRepository;
 import tracker.application.ports.MasterScheduleRepository;
 import tracker.application.ports.MemberRepository;
@@ -32,6 +33,7 @@ import tracker.application.service.TicketService.NewTicket;
 import tracker.domain.Allocations;
 import tracker.domain.Anken;
 import tracker.domain.AnkenScope;
+import tracker.domain.DraftAnken;
 import tracker.domain.Issue;
 import tracker.domain.Member;
 import tracker.domain.Onboarding;
@@ -43,7 +45,9 @@ import tracker.domain.WorkStructure;
 
 /**
  * Onboarding a new anken, step by step: track its epic, create the template Tasks, then estimation, members, master schedule
- * and detail plan (their own services). Each step's data is saved by that step; this keeps how far the anken got.
+ * and detail plan (their own services). Each step's data is saved by that step; this keeps how far the anken got. An anken
+ * whose epic does not exist yet starts as a draft ({@link DraftAnken}): planned the same way, nothing reaches Jira until its
+ * epic is linked.
  */
 @Service
 public class OnboardingService {
@@ -60,13 +64,14 @@ public class OnboardingService {
     private final MasterScheduleRepository versions;
     private final TicketService tickets;
     private final TeamSettingsService team;
+    private final DraftAnkenRepository drafts;
     private final Clock clock;
 
     public OnboardingService(OnboardingRepository repo, JiraSettingsService jira, TrackerContextLoader context, AnkenRepository anken,
                              AnkenMemberRepository ankenMembers, AnkenMembersService membersService, MemberRepository members,
                              AllocationRepository allocationRows, AllocationService allocations, EstimationRepository estimation,
                              MasterScheduleRepository versions, TicketService tickets, TeamSettingsService team,
-                             Clock clock) {
+                             DraftAnkenRepository drafts, Clock clock) {
         this.repo = repo;
         this.jira = jira;
         this.context = context;
@@ -80,12 +85,16 @@ public class OnboardingService {
         this.versions = versions;
         this.tickets = tickets;
         this.team = team;
+        this.drafts = drafts;
         this.clock = clock;
     }
 
-    /** @param step the furthest step reached (1–6) */
+    /**
+     * @param step  the furthest step reached (1–6)
+     * @param draft the anken has no epic yet: {@code epicKey} is its draft key, {@code title} the name entered
+     */
     public record OnboardingView(String epicKey, String title, String ankenPrefix, List<String> labels, int step, String startedAt, String startedBy,
-                                 String savedAt, String savedBy, @Nullable String finishedAt) {
+                                 String savedAt, String savedBy, @Nullable String finishedAt, boolean draft) {
     }
 
     /** @param onboarding whether the epic is being (or was) onboarded already */
@@ -135,9 +144,17 @@ public class OnboardingService {
     }
 
     private OnboardingView view(Onboarding o) {
-        String title = anken.findAll().stream().filter(a -> a.key().equals(o.epicKey())).map(Anken::title).findFirst().orElse("");
+        String title = o.draft() ? o.draftTitle()
+                : anken.findAll().stream().filter(a -> a.key().equals(o.epicKey())).map(Anken::title).findFirst().orElse("");
         return new OnboardingView(o.epicKey(), title, o.ankenPrefix(), o.labels(), o.step(), o.startedAt(), o.startedBy(), o.savedAt(), o.savedBy(),
-                o.finishedAt());
+                o.finishedAt(), o.draft());
+    }
+
+    /** What needs the epic in Jira is refused for a draft anken. */
+    private static void requireEpic(Onboarding o) {
+        if (o.draft()) {
+            throw new Invalid("Link the anken's epic in Jira first", "epic");
+        }
     }
 
     private Onboarding require(String epic) {
@@ -180,6 +197,69 @@ public class OnboardingService {
         return view(o);
     }
 
+    /**
+     * Step 1 without an epic: the anken is saved under a draft key with the name entered and its onboarding starts at step 2;
+     * the PIM becomes a member of it. It shows in Onboarding only, and its hours never count on the other anken.
+     */
+    @Transactional
+    public OnboardingView startDraft(Viewer actor, String name) {
+        String title = Text.orElse(name, "").strip();
+        if (title.isEmpty()) {
+            throw new Invalid("Enter the anken's name", "name");
+        }
+        String key = drafts.nextKey();
+        String at = now();
+        if (actor.memberId() != null && members.findById(actor.memberId()).isPresent()) {
+            ankenMembers.add(key, actor.memberId(), actor.email(), at);
+        }
+        Onboarding o = new Onboarding(key, "", List.of(), 2, at, actor.email(), at, actor.email(), null, title);
+        repo.save(o);
+        return view(o);
+    }
+
+    /**
+     * Links a draft anken to its epic once it exists: the epic is tracked (a full sync) when it is not yet, then everything of
+     * the draft moves under it, and the estimation rows take the epic's Tasks that match their template Task. Refused when the
+     * epic is being onboarded already or has an estimation or a master schedule of its own. Not one transaction: tracking runs a sync.
+     */
+    public OnboardingView link(Viewer actor, String draft, String key) {
+        Onboarding o = require(draft);
+        if (!o.draft()) {
+            throw new Invalid(draft + " is linked to its epic already", "epic");
+        }
+        JiraSettingsService.EpicLookup e = jira.lookupEpic(key);
+        if (repo.find(e.key()).isPresent()) {
+            throw new Invalid(e.key() + " is being onboarded already", "key");
+        }
+        if (!estimation.findByEpic(e.key()).isEmpty() || !versions.findByEpic(e.key()).isEmpty()) {
+            throw new Invalid(e.key() + " has an estimation or a master schedule already", "key");
+        }
+        if (!e.tracked()) {
+            jira.addEpic(e.key());
+        }
+        drafts.moveTo(draft, e.key());
+        save(actor, e.key(), o.step(), null, null);
+        relinkTasks(e.key());
+        return get(e.key());
+    }
+
+    /** The estimation rows under a template Task ({@link DraftAnken#taskKey}) take the epic's Task that the template matches. */
+    private void relinkTasks(String epic) {
+        if (estimation.findByEpic(epic).stream().noneMatch(r -> DraftAnken.isTask(r.taskKey()))) {
+            return;
+        }
+        TrackerContext ctx = load(epic);
+        WorkStructure st = ctx.settings.structureOf(epic);
+        Map<String, String> keyOf = new HashMap<>();
+        ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).forEach(p -> {
+            TaskTemplate t = st.taskTemplate(p.summary());
+            if (t != null) {
+                keyOf.putIfAbsent(DraftAnken.taskKey(t), p.key());
+            }
+        });
+        keyOf.forEach((from, to) -> estimation.retask(epic, from, to));
+    }
+
     /** Records progress: the furthest of the saved step and {@code step}; a null prefix or null labels keep the saved ones. */
     public OnboardingView save(Viewer actor, String epic, int step, @Nullable String ankenPrefix, @Nullable List<String> labels) {
         if (step < 1 || step > Onboarding.STEPS) {
@@ -187,7 +267,7 @@ public class OnboardingService {
         }
         Onboarding o = require(epic);
         Onboarding next = new Onboarding(epic, ankenPrefix == null ? o.ankenPrefix() : ankenPrefix.strip(), labels == null ? o.labels() : labels(labels),
-                Math.max(o.step(), step), o.startedAt(), o.startedBy(), now(), actor.email(), o.finishedAt());
+                Math.max(o.step(), step), o.startedAt(), o.startedBy(), now(), actor.email(), o.finishedAt(), o.draftTitle());
         repo.save(next);
         return view(next);
     }
@@ -198,7 +278,10 @@ public class OnboardingService {
      */
     @Transactional
     public void discard(String epic) {
-        require(epic);
+        if (require(epic).draft()) {
+            drafts.delete(epic);
+            return;
+        }
         repo.delete(epic);
         estimation.deleteUnpushed(epic);
         if (estimation.findByEpic(epic).isEmpty()) {
@@ -206,9 +289,10 @@ public class OnboardingService {
         }
     }
 
-    /** The last step: refused while estimation rows are not in Jira. */
+    /** The last step: refused while estimation rows are not in Jira (so for a draft anken too). */
     public OnboardingView finish(Viewer actor, String epic) {
         Onboarding o = require(epic);
+        requireEpic(o);
         long open = estimation.findByEpic(epic).stream().filter(r -> !r.pushed()).count();
         if (open > 0) {
             throw new Invalid("Push the detail plan first: " + open + " row" + (open == 1 ? " is" : "s are") + " not in Jira", "plan");
@@ -230,7 +314,7 @@ public class OnboardingService {
         TrackerContext ctx = load(epic);
         WorkStructure st = ctx.settings.structureOf(epic);
         String rule = Text.orElse(ctx.settings.nameRulesOf(epic).taskRule, TaskNames.DEFAULT_RULE);
-        List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic)).toList();
+        List<Issue> parents = ctx.parents().stream().filter(p -> p.epicKey().equals(epic) && !DraftAnken.isTask(p.key())).toList();
         List<TemplateTask> out = new ArrayList<>();
         for (TaskTemplate t : st.tasks()) {
             Issue found = parents.stream().filter(p -> t.equals(st.taskTemplate(p.summary()))).findFirst().orElse(null);
@@ -275,7 +359,7 @@ public class OnboardingService {
 
     /** The review of the Tasks to create, with the requests. */
     public BatchPreview previewTasks(Viewer actor, String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
-        require(epic);
+        requireEpic(require(epic));
         return tickets.previewBatch(new AnkenScope(Set.of(epic)), epic, List.of(), newTasks(epic, ankenPrefix, common, in));
     }
 
@@ -288,12 +372,17 @@ public class OnboardingService {
         return out;
     }
 
-    /** Creates the Tasks in Jira and keeps the anken prefix and the labels (the detail plan's sub-tasks get them too). */
+    /**
+     * Creates the Tasks in Jira and keeps the anken prefix and the labels (the detail plan's sub-tasks get them too). Rows of the
+     * estimation planned under a template Task, before the epic was linked, take the Tasks created.
+     */
     public BatchResult createTasks(Viewer actor, String epic, String ankenPrefix, NewTasksCommon common, List<NewTaskIn> in) {
-        require(epic);
+        requireEpic(require(epic));
         List<NewTicket> creates = newTasks(epic, ankenPrefix, common, in);
         save(actor, epic, 2, ankenPrefix, common.labels());
-        return tickets.applyBatch(actor, new AnkenScope(Set.of(epic)), epic, List.of(), creates);
+        BatchResult r = tickets.applyBatch(actor, new AnkenScope(Set.of(epic)), epic, List.of(), creates);
+        relinkTasks(epic);
+        return r;
     }
 
     // --- step 4: members ---------------------------------------------------------------------------------------------------

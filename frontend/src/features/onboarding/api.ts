@@ -30,6 +30,25 @@ export function useStartOnboarding() {
   });
 }
 
+/** An anken whose epic does not exist yet: planned under a draft key, seen in Onboarding only. */
+export function useStartDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => unwrap(http.POST('/api/v1/onboarding/draft', { body: { name } })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['onboarding'] }),
+  });
+}
+
+/** Links a draft anken to its epic; everything of the draft moves under the epic's key. */
+export function useLinkEpic(draft: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => unwrap(http.POST('/api/v1/onboarding/{epic}/link', { params: { path: { epic: draft } }, body: { key } })),
+    // tracking an epic runs a full sync: every screen reads again
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
 /** Records the furthest step reached (and the anken prefix when given). */
 export function useSaveProgress(epic: string) {
   const qc = useQueryClient();

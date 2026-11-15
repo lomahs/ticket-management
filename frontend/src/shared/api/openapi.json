@@ -1429,6 +1429,34 @@
         "tags" : [ "onboarding-api" ]
       }
     },
+    "/api/v1/onboarding/draft" : {
+      "post" : {
+        "operationId" : "startDraft",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DraftIn"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
     "/api/v1/onboarding/lookup" : {
       "get" : {
         "operationId" : "lookup",
@@ -1543,6 +1571,42 @@
             "type" : "string"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OnboardingView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "onboarding-api" ]
+      }
+    },
+    "/api/v1/onboarding/{epic}/link" : {
+      "post" : {
+        "operationId" : "link",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartIn"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {
@@ -5395,6 +5459,17 @@
         },
         "required" : [ "assigns", "order" ]
       },
+      "DraftIn" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "name" ]
+      },
       "EffortAnalysis" : {
         "type" : "object",
         "properties" : {
@@ -7361,6 +7436,9 @@
           "anken_prefix" : {
             "type" : "string"
           },
+          "draft" : {
+            "type" : "boolean"
+          },
           "epic_key" : {
             "type" : "string"
           },
@@ -7393,7 +7471,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "anken_prefix", "epic_key", "finished_at", "labels", "saved_at", "saved_by", "started_at", "started_by", "step", "title" ]
+        "required" : [ "anken_prefix", "draft", "epic_key", "finished_at", "labels", "saved_at", "saved_by", "started_at", "started_by", "step", "title" ]
       },
       "Overrun" : {
         "type" : "object",

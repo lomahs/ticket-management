@@ -676,6 +676,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding/lookup": {
         parameters: {
             query?: never;
@@ -718,6 +734,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/{epic}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["link"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2147,6 +2179,9 @@ export interface components {
             assigns: components["schemas"]["RowAssign"][];
             order: number[];
         };
+        DraftIn: {
+            name: string;
+        };
         EffortAnalysis: {
             by_phase: components["schemas"]["EffortBar"][];
             by_step: components["schemas"]["EffortBar"][];
@@ -2793,6 +2828,7 @@ export interface components {
         };
         OnboardingView: {
             anken_prefix: string;
+            draft: boolean;
             epic_key: string;
             finished_at: string | null;
             labels: string[];
@@ -4513,6 +4549,30 @@ export interface operations {
             };
         };
     };
+    startDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftIn"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
     lookup: {
         parameters: {
             query: {
@@ -4613,6 +4673,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingView"];
+                };
+            };
+        };
+    };
+    link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartIn"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

@@ -69,6 +69,23 @@ public class OnboardingApi {
         return onboarding.start(viewer, body.key());
     }
 
+    public record DraftIn(@NotBlank @Size(max = 255) String name) {
+    }
+
+    /** Starts the onboarding of an anken whose epic does not exist yet: it is planned under a draft key until the epic is linked. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/draft")
+    public OnboardingView startDraft(@RequestBody @Valid DraftIn body, Viewer viewer) {
+        return onboarding.startDraft(viewer, body.name());
+    }
+
+    /** Links a draft anken to its epic (tracked with a full sync when needed); everything of the draft moves under the epic. */
+    @Open(Rule.ADMIN)
+    @PostMapping("/{epic}/link")
+    public OnboardingView link(@PathVariable("epic") String epic, @RequestBody @Valid StartIn body, Viewer viewer) {
+        return onboarding.link(viewer, epic, body.key());
+    }
+
     @Open(Rule.ADMIN)
     @GetMapping("/{epic}")
     public OnboardingView get(@PathVariable("epic") String epic) {
