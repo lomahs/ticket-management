@@ -222,4 +222,16 @@ describe('draft anken in the switcher', () => {
     await waitFor(() => expect(s.options.length).toBeGreaterThan(1));
     expect(s.querySelector('optgroup')).toBeNull(); // GET /api/v1/onboarding is not called: an unhandled request fails the test
   });
+
+  it('opens the Matrix and Tickets of a draft anken on the notice, not on another anken', async () => {
+    server.use(http.get('*/api/v1/onboarding', () => HttpResponse.json([draft])));
+    const { router } = renderApp('/matrix?anken=draft-1');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/anken/draft-1/matrix'));
+    expect(await screen.findByText('Refund automation has no epic yet')).toBeTruthy();
+    cleanup();
+    const second = renderApp('/tickets?anken=draft-1');
+    await waitFor(() => expect(second.router.state.location.pathname).toBe('/tickets/draft-1'));
+    expect(await screen.findByText('Refund automation has no epic yet')).toBeTruthy();
+  });
 });
+

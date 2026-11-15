@@ -18,7 +18,7 @@ import { ApiError } from '../shared/api/errors';
 import { can, meQuery, visibleAnkenQuery } from '../shared/api/queries';
 import type { Feature } from '../shared/api/types';
 import { homeOf } from '../shared/nav';
-import { storedAnken } from '../shared/state/anken';
+import { isDraftKey, storedAnken } from '../shared/state/anken';
 import { AppShell, NotFound } from './AppShell';
 
 const calendarPages = () => import('../features/calendar');
@@ -113,6 +113,8 @@ const matrixEntry = createRoute({
     if (!can(await context.queryClient.ensureQueryData(meQuery), 'matrix')) return;
     const anken = await context.queryClient.ensureQueryData(visibleAnkenQuery);
     const scope = search.anken || storedAnken();
+    // a draft anken opens on AppShell's notice, not on another anken
+    if (isDraftKey(scope)) throw redirect({ to: '/anken/$epic/matrix', params: { epic: scope } });
     const first = anken.find((a) => a.key === scope) ?? anken.find((a) => a.has_functions) ?? anken[0];
     throw first ? redirect({ to: '/anken/$epic/matrix', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
@@ -126,6 +128,7 @@ const ticketsEntry = createRoute({
     if (!can(await context.queryClient.ensureQueryData(meQuery), 'ticket')) return;
     const anken = await context.queryClient.ensureQueryData(visibleAnkenQuery);
     const scope = (search as { anken?: string }).anken || storedAnken();
+    if (isDraftKey(scope)) throw redirect({ to: '/tickets/$epic', params: { epic: scope } });
     const first = anken.find((a) => a.key === scope) ?? anken[0];
     throw first ? redirect({ to: '/tickets/$epic', params: { epic: first.key } }) : redirect({ to: '/anken' });
   },
