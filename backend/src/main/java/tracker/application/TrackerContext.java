@@ -158,7 +158,14 @@ public final class TrackerContext {
     public Burndown.Item burndownItem(Issue i, Seen seen) {
         return new Burndown.Item(i.key(), i.plannedStart(), i.plannedEnd(), i.estimateH(), planDays(i), i.worklogs(),
                 i.status() == Status.CLOSED ? 0 : i.remainingH(), seen.remaining().getOrDefault(i.key(), Map.of()),
-                seen.estimates().getOrDefault(i.key(), Map.of()), estimateChanges(i));
+                seen.estimates().getOrDefault(i.key(), Map.of()), estimateChanges(i), remainingChanges(i));
+    }
+
+    /** The Remaining Estimate changes of {@code i}, in changelog order. */
+    static List<Burndown.RemainingChange> remainingChanges(Issue i) {
+        return i.events().stream().filter(e -> e.field() == EventField.REMAINING)
+                .map(e -> new Burndown.RemainingChange(e.at(), e.fromValue() == null ? null : hours(e.fromValue()),
+                        e.toValue() == null ? null : hours(e.toValue()))).toList();
     }
 
     /** The Original Estimate changes of {@code i} by day, in hours added; a blank side counts as 0. */

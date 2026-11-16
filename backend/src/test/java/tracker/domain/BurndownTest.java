@@ -188,6 +188,39 @@ class BurndownTest {
         assertThat(r.days().stream().filter(d -> d.date().equals("2026-10-19")).findFirst().orElseThrow().actualRemainingH()).isZero();
     }
 
+    private static Map<String, Double> actualOn(Burndown.Item i, String today) {
+        Map<String, Double> out = new java.util.HashMap<>();
+        Burndown.compute(List.of(i), CAL, today, null).days().forEach(d -> out.put(d.date(), d.actualRemainingH()));
+        return out;
+    }
+
+    @Test
+    void theChangelogGivesTheRemainingOfADayWithoutCapture() {
+        // 4h, overrun: 2h logged Mon (4 → 2), 5.5h Tue (2 → 0); worklogs alone would rebuild Friday as 0 + 7.5
+        Burndown.Item i = new Burndown.Item("PAY-1213", "2026-10-19", "2026-10-20", 4, Map.of("2026-10-19", 2.0, "2026-10-20", 2.0),
+                List.of(new Worklog("2026-10-19", "an", 2), new Worklog("2026-10-20", "an", 5.5)), 0, Map.of(), Map.of(), Map.of(),
+                List.of(new Burndown.RemainingChange("2026-10-19", 4.0, 2.0), new Burndown.RemainingChange("2026-10-20", 2.0, 0.0)));
+        Map<String, Double> on = actualOn(i, "2026-10-21");
+        assertThat(List.of(on.get("2026-10-16"), on.get("2026-10-19"), on.get("2026-10-20"))).containsExactly(4.0, 2.0, 0.0);
+    }
+
+    @Test
+    void aReEstimateByTheTeamShowsOnItsDay() {
+        Burndown.Item i = new Burndown.Item("PAY-9", "2026-10-19", "2026-10-20", 8, Map.of("2026-10-19", 4.0, "2026-10-20", 4.0), List.of(), 12,
+                Map.of(), Map.of(), Map.of(), List.of(new Burndown.RemainingChange("2026-10-20", 8.0, 12.0)));
+        Map<String, Double> on = actualOn(i, "2026-10-21");
+        assertThat(List.of(on.get("2026-10-16"), on.get("2026-10-19"), on.get("2026-10-20"))).containsExactly(8.0, 8.0, 12.0);
+    }
+
+    @Test
+    void anEstimateSetLaterCountsFromTheFirstDayInTheChangelogToo() {
+        // Remaining and Original Estimate set on Tue (none → 8h): approved, so Monday shows the 8h too
+        Burndown.Item i = new Burndown.Item("PAY-10", "2026-10-19", "2026-10-20", 8, Map.of("2026-10-19", 4.0, "2026-10-20", 4.0), List.of(), 8,
+                Map.of(), Map.of(), Map.of("2026-10-20", 8.0), List.of(new Burndown.RemainingChange("2026-10-20", null, 8.0)));
+        Map<String, Double> on = actualOn(i, "2026-10-21");
+        assertThat(List.of(on.get("2026-10-16"), on.get("2026-10-19"), on.get("2026-10-20"))).containsExactly(8.0, 8.0, 8.0);
+    }
+
     @Test
     void theBaselineIsDrawnWhenNoItemIsLeft() {
         Burndown.BurndownChart r = Burndown.compute(List.of(), CAL, "2026-10-07", null,

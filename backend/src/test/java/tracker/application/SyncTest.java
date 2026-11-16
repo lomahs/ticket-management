@@ -367,6 +367,13 @@ class SyncTest {
     }
 
     @Test
+    void remainingEstimateChangesBecomeRemainingEvents() {
+        run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN, Map.of(), List.of(),
+                List.of(new ChangeSnapshot("2026-10-07", "field:timeestimate", "36000", "7200"))))), true);
+        assertThat(issues().get("PAY-1201").events()).containsExactly(new IssueEvent("2026-10-07", EventField.REMAINING, "10.0", "2.0"));
+    }
+
+    @Test
     void missingRemainingFallsBackToOriginalEstimate() {
         run(new StubReader(List.of(PARENT, snap("PAY-1201", "x", "PAY-1102", "In Progress", "indeterminate", AN,
                 Map.of("timeoriginalestimate", 36000), List.of(), List.of()))), true);

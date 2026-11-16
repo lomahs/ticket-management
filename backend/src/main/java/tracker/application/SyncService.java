@@ -260,10 +260,10 @@ public class SyncService {
             return Text.hasText(name) ? status(s, name, null).value() : null;
         }
 
-        /** An Original Estimate change in hours; a blank side is null, and a change Jira wrote as no number is left out. */
-        static Optional<IssueEvent> estimateEvent(ChangeSnapshot c, String fieldId) {
+        /** An Original or Remaining Estimate change in hours; a blank side is null, and a change Jira wrote as no number is left out. */
+        static Optional<IssueEvent> hoursEvent(ChangeSnapshot c, EventField field, String fieldId) {
             try {
-                return Optional.of(new IssueEvent(c.at(), EventField.ESTIMATE, hoursText(c.fromValue(), fieldId), hoursText(c.toValue(), fieldId)));
+                return Optional.of(new IssueEvent(c.at(), field, hoursText(c.fromValue(), fieldId), hoursText(c.toValue(), fieldId)));
             } catch (NumberFormatException e) {
                 return Optional.empty();
             }
@@ -304,7 +304,9 @@ public class SyncService {
                 } else if (c.field().equals("status")) {
                     events.add(new IssueEvent(c.at(), EventField.STATUS, statusValue(c.fromValue()), statusValue(c.toValue())));
                 } else if (c.field().equals("field:" + fm.effort)) {
-                    estimateEvent(c, fm.effort).ifPresent(events::add);
+                    hoursEvent(c, EventField.ESTIMATE, fm.effort).ifPresent(events::add);
+                } else if (c.field().equals("field:" + fm.remaining)) {
+                    hoursEvent(c, EventField.REMAINING, fm.remaining).ifPresent(events::add);
                 }
             }
             // the first reporter: the one before the first reporter change, else the current one

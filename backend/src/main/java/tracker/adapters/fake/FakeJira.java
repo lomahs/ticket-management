@@ -96,10 +96,47 @@ public final class FakeJira implements JiraReader, JiraWriter {
                         c.to() != null ? Dataset.STATUS_NAMES.get(c.to())[0] : null));
             }
         }
+        changes.addAll(remainingChanges(i));
         List<WorklogSnapshot> logs = i.worklogs.stream()
                 .map(w -> new WorklogSnapshot(USERS.get(w.member()), w.date(), w.hours(), w.comment())).toList();
         return new IssueSnapshot(i.key, i.project(), i.summary, status[0], status[1], user(i.assignee), i.parent, i.created,
                 i.updated, fields, logs, changes, user(i.reporter), i.labels);
+    }
+
+    /**
+     * The Remaining Estimate changes Jira's changelog would hold, day by day: each worklog takes its hours off, down to 0; an
+     * Original estimate change sets it to the new estimate less the hours logged; a Remaining set by hand comes last.
+     */
+    private List<ChangeSnapshot> remainingChanges(FakeIssue i) {
+        record Step(String date, boolean estimate, double hours) {
+        }
+        List<Step> steps = new ArrayList<>();
+        Double first = null;
+        for (FakeIssue.Change c : i.changes) {
+            if (c.field().equals("estimate")) {
+                if (first == null) {
+                    first = c.from() == null ? 0 : Double.parseDouble(c.from()) / 3600;
+                }
+                steps.add(new Step(c.at(), true, c.to() == null ? 0 : Double.parseDouble(c.to()) / 3600));
+            }
+        }
+        i.worklogs.forEach(w -> steps.add(new Step(w.date(), false, w.hours())));
+        steps.sort(java.util.Comparator.comparing(Step::date).thenComparing(x -> !x.estimate()));
+        List<ChangeSnapshot> out = new ArrayList<>();
+        double remaining = first != null ? first : i.estH;
+        double logged = 0;
+        for (Step x : steps) {
+            double next = x.estimate() ? Math.max(0, x.hours() - logged) : Math.max(0, remaining - x.hours());
+            logged += x.estimate() ? 0 : x.hours();
+            if (next != remaining) {
+                out.add(new ChangeSnapshot(x.date(), "field:" + FIELDS.remaining, seconds(remaining), seconds(next)));
+                remaining = next;
+            }
+        }
+        if (i.remainingOverrideH != null && i.remainingOverrideH != remaining) {
+            out.add(new ChangeSnapshot(LocalDate.now(clock).toString(), "field:" + FIELDS.remaining, seconds(remaining), seconds(i.remainingOverrideH)));
+        }
+        return out;
     }
 
     /** An update time as the demo data writes it: ISO-8601 in UTC with a "+00:00" offset. */

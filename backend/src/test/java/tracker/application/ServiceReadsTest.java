@@ -462,6 +462,16 @@ class ServiceReadsTest {
     }
 
     @Test
+    void beforeAnyWorkTheActualRemainingIsTheEstimate() {
+        for (String epic : Dataset.TRACKED_EPICS) {
+            Burndown.BurndownChart c = effort.burndown(ALL, epic, null, null, null).burndown();
+            if (!c.days().isEmpty()) {
+                assertThat(c.days().get(0).actualRemainingH()).as(epic).isEqualTo(c.estimateH());
+            }
+        }
+    }
+
+    @Test
     void burndownDayListsTheSubTasksWhoseSumsAreTheChartsPoint() {
         EffortService.BurndownView all = effort.burndown(ALL, "PAY-1100", null, null, null);
         org.assertj.core.data.Offset<Double> cent = org.assertj.core.data.Offset.offset(0.011);

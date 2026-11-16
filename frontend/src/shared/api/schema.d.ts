@@ -1965,7 +1965,7 @@ export interface components {
             /** Format: double */
             planned_h: number;
             /** @enum {string|null} */
-            source: "jira" | "capture" | "worklogs" | null;
+            source: "jira" | "capture" | "changelog" | "worklogs" | null;
             step: string | null;
             task: string;
             task_key: string;

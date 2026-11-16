@@ -4821,7 +4821,7 @@
           },
           "source" : {
             "type" : [ "string", "null" ],
-            "enum" : [ "jira", "capture", "worklogs" ]
+            "enum" : [ "jira", "capture", "changelog", "worklogs" ]
           },
           "step" : {
             "type" : [ "string", "null" ]

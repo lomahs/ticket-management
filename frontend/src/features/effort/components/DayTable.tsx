@@ -19,7 +19,8 @@ const sum = (rows: Row[], f: (r: Row) => number | null) => rows.reduce((a, r) =>
 const SOURCE: Record<NonNullable<Row['source']>, [string, string]> = {
   jira: ['Jira now', "Jira's Remaining Estimate now"],
   capture: ['Capture', "The Daily Overview capture of that day, plus the Original Estimate changes approved since"],
-  worklogs: ['From worklogs', 'No capture of that day: the Remaining Estimate now plus the hours logged after that day'],
+  changelog: ['Jira history', "No capture of that day: the Remaining Estimate at the end of that day in Jira's history, plus the Original Estimate changes approved since"],
+  worklogs: ['From worklogs', 'No capture or Jira history of that day: the Remaining Estimate now plus the hours logged after that day'],
 };
 
 /**

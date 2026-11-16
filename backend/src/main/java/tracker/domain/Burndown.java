@@ -14,8 +14,9 @@ import org.jspecify.annotations.Nullable;
  * baseline: nothing is planned or logged on it, so the plan still has the whole estimate left. The Baseline plan, when the
  * anken has one, is drawn the same way from its own estimates and days (docs/glossary.md).
  * Plan: the estimate less the hours planned up to the day ({@link PlanDays}). Actual: Jira's remaining estimate, live today;
- * on an earlier day as the Daily Overview capture saw it plus the Original Estimate changes approved after it, else rebuilt
- * from the worklogs as Jira keeps it: what remains now plus the hours logged after that day.
+ * on an earlier day as the Daily Overview capture saw it plus the Original Estimate changes approved after it, else as Jira's
+ * changelog had it at the end of that day plus those changes, else (no changelog) rebuilt from the worklogs: what remains now
+ * plus the hours logged after that day.
  */
 public final class Burndown {
     private Burndown() {
@@ -27,9 +28,20 @@ public final class Burndown {
      * @param remainingOn the remaining estimate the captures saw, by day
      * @param estimateOn  the Original Estimate the captures saw, by day (captures taken before it was kept have none)
      * @param estimateChanges the Original Estimate changes (approved), by day: the hours added (negative: taken off)
+     * @param remainingChanges the Remaining Estimate changes in Jira's changelog, in the order Jira made them
      */
     public record Item(String key, String start, String end, double estimateH, Map<String, Double> planDays, List<Worklog> worklogs,
-                       double remainingH, Map<String, Double> remainingOn, Map<String, Double> estimateOn, Map<String, Double> estimateChanges) {
+                       double remainingH, Map<String, Double> remainingOn, Map<String, Double> estimateOn, Map<String, Double> estimateChanges,
+                       List<RemainingChange> remainingChanges) {
+        /** An item whose Remaining Estimate has no changelog. */
+        public Item(String key, String start, String end, double estimateH, Map<String, Double> planDays, List<Worklog> worklogs,
+                    double remainingH, Map<String, Double> remainingOn, Map<String, Double> estimateOn, Map<String, Double> estimateChanges) {
+            this(key, start, end, estimateH, planDays, worklogs, remainingH, remainingOn, estimateOn, estimateChanges, List.of());
+        }
+    }
+
+    /** One Remaining Estimate change of the changelog, in hours; a blank side is null. */
+    public record RemainingChange(String date, @Nullable Double from, @Nullable Double to) {
     }
 
     /**
@@ -126,7 +138,8 @@ public final class Burndown {
 
     /**
      * The remaining hours at the end of {@code day} (before {@code today}): each item's as the capture of that day saw it, plus
-     * the Original Estimate changes since (never below 0); else what remains now plus the hours logged after that day up to today.
+     * the Original Estimate changes since (never below 0); else the changelog's plus those changes; else what remains now plus the
+     * hours logged after that day up to today.
      */
     private static double actualOn(List<Item> items, String day, String today) {
         double sum = 0;
@@ -142,6 +155,8 @@ public final class Burndown {
         JIRA("jira"),
         /** the Daily Overview capture of that day, plus the Original Estimate changes approved since */
         CAPTURE("capture"),
+        /** no capture: the Remaining Estimate at the end of that day by Jira's changelog, plus the Original Estimate changes approved since */
+        CHANGELOG("changelog"),
         /** no capture: what remains now plus the hours logged after that day up to today */
         WORKLOGS("worklogs");
 
@@ -160,6 +175,22 @@ public final class Burndown {
     private record Remain(double hours, RemainSource source) {
     }
 
+    /** The Remaining Estimate at the end of {@code day}: the last change up to it, else what the first change started from. */
+    private static double remainingAt(List<RemainingChange> changes, String day) {
+        Double at = changes.getFirst().from();
+        for (RemainingChange c : changes) {
+            if (c.date().compareTo(day) <= 0) {
+                at = c.to();
+            }
+        }
+        return at == null ? 0 : at;
+    }
+
+    /** The Original Estimate changes approved after {@code day}: they count from the first day (docs/rules.md). */
+    private static double changesAfter(Item i, String day) {
+        return i.estimateChanges().entrySet().stream().filter(c -> c.getKey().compareTo(day) > 0).mapToDouble(Map.Entry::getValue).sum();
+    }
+
     /** An item's remaining hours at the end of {@code day}, today or before, as {@link #actualOn} counts them. */
     private static Remain remainOn(Item i, String day, String today) {
         if (day.equals(today)) {
@@ -170,9 +201,11 @@ public final class Burndown {
             // an Original Estimate change approved after the capture counts from the first day (docs/rules.md): what the
             // estimate moved since the capture saw it, else (an older capture) the changes dated after its day
             Double was = i.estimateOn().get(day);
-            double added = was != null ? i.estimateH() - was : i.estimateChanges().entrySet().stream()
-                    .filter(c -> c.getKey().compareTo(day) > 0).mapToDouble(Map.Entry::getValue).sum();
+            double added = was != null ? i.estimateH() - was : changesAfter(i, day);
             return new Remain(Math.max(0, seen + added), RemainSource.CAPTURE);
+        }
+        if (!i.remainingChanges().isEmpty()) {
+            return new Remain(Math.max(0, remainingAt(i.remainingChanges(), day) + changesAfter(i, day)), RemainSource.CHANGELOG);
         }
         double sum = i.remainingH();
         for (Worklog w : i.worklogs()) {
