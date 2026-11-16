@@ -5593,6 +5593,12 @@
               "$ref" : "#/components/schemas/DayLoad"
             }
           },
+          "issues" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanIssue"
+            }
+          },
           "last_version_at" : {
             "type" : [ "string", "null" ]
           },
@@ -5651,7 +5657,7 @@
             }
           }
         },
-        "required" : [ "allocated", "by_hand", "checks", "days", "last_version_at", "lines", "over_budget", "over_day", "problems", "push_blockers", "rows", "stale_phases", "tasks", "window" ]
+        "required" : [ "allocated", "by_hand", "checks", "days", "issues", "last_version_at", "lines", "over_budget", "over_day", "problems", "push_blockers", "rows", "stale_phases", "tasks", "window" ]
       },
       "DraftBody" : {
         "type" : "object",
@@ -8035,6 +8041,25 @@
           }
         },
         "required" : [ "days", "rows" ]
+      },
+      "PlanIssue" : {
+        "type" : "object",
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "ref" : {
+            "type" : [ "string", "null" ]
+          },
+          "row_id" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int64"
+          }
+        },
+        "required" : [ "field", "message", "ref", "row_id" ]
       },
       "PlanRow" : {
         "type" : "object",

@@ -44,6 +44,7 @@ import tracker.application.service.DetailPlanService.JiraLineIn;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
+import tracker.application.service.DetailPlanService.PlanIssue;
 import tracker.application.service.DetailPlanService.PushIn;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.ShiftIn;
@@ -266,6 +267,16 @@ class DetailPlanMatrixTest {
         assertThatThrownBy(() -> detail.editJiraLine(ALL, EPIC, "PAY-9003", new JiraLineIn(null, "binh")))
                 .isInstanceOf(AppError.Invalid.class);
         assertThatThrownBy(() -> detail.shift(ALL, EPIC, new ShiftIn(List.of("PAY-9003"), 1))).isInstanceOf(AppError.Invalid.class);
+    }
+
+    @Test
+    void eachProblemPointsAtItsRowOrLine() {
+        List<EstimationRow> rows = scheduled();
+        long login = rows.get(0).id();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.issues()).contains(new PlanIssue(login, null, "pic_ba", "Row 1 (Login): pick a BA"),
+                new PlanIssue(null, login + ":create", "not_yet", "[PAY] Login – Create: 8h not planned yet"));
+        assertThat(v.problems()).contains("Row 1 (Login): pick a BA"); // the list above the plan says the same
     }
 
     @Test

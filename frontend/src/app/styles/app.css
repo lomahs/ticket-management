@@ -353,6 +353,16 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .pm-pick { margin: 0 2px 0 0; cursor: pointer; }
 .pm-key-open { border: 0; padding: 0; background: none; text-align: left; cursor: pointer; }
 .pm-key-open:hover { text-decoration: underline; }
+.pm-cellm { display: inline-flex; align-items: center; gap: 4px; }
+.pm-table td.pm-bad { background: var(--hl-red); color: var(--hl-red-fg); box-shadow: inset 0 0 0 1px var(--hl-red-fg); }
+.pm-table td.pm-cell.warn { background: var(--hl-amber); color: var(--hl-amber-fg); }
+.pm-mark { display: inline-flex; flex: none; cursor: help; border-radius: 50%; }
+.pm-mark.error { color: var(--hl-red-fg); }
+.pm-mark.warning { color: var(--hl-amber-fg); }
+.pm-mark-tip { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; max-width: 360px; padding: 8px 10px; border-radius: 8px;
+  font: 500 12px/1.4 var(--font-text); text-align: left; white-space: normal; box-shadow: 0 6px 18px rgba(16, 18, 24, .18); }
+.pm-mark-tip.error { background: var(--hl-red); color: var(--hl-red-fg); border: 1px solid var(--hl-red-fg); }
+.pm-mark-tip.warning { background: var(--hl-amber); color: var(--hl-amber-fg); border: 1px solid var(--hl-amber-fg); }
 .pm-force { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .pm-search { display: inline-flex; align-items: center; gap: 6px; height: 32px; width: 260px; padding: 0 6px 0 10px; box-sizing: border-box; border: 1px solid var(--border-subtle);
   border-radius: 999px; background: var(--surface-card); color: var(--text-muted); }

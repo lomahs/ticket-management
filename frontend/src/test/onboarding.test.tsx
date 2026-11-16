@@ -352,7 +352,7 @@ describe('onboarding', () => {
       http.post('*/api/v1/planning/PAY-1100/master-schedule/preview', async ({ request }) => { previews.push(await request.json()); return HttpResponse.json(rows); }),
       http.post('*/api/v1/planning/PAY-1100/master-schedule', async ({ request }) => { saved = await request.json(); return HttpResponse.json({ estimation_phases: ['ITA', 'ITB'], current: null, versions: [], shifts: [] }); }),
       http.post('*/api/v1/onboarding/PAY-1100/finish', () => { finished = saved != null; return HttpResponse.json({ ...ONB, step: 5, finished_at: '2026-10-07T10:00:00Z' }); }),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null, issues: [] })),
     );
     renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.change(await screen.findByLabelText('Start date'), { target: { value: '2026-10-12' } });
@@ -382,7 +382,7 @@ describe('onboarding', () => {
       http.post('*/api/v1/planning/PAY-1100/master-schedule', () => { saves++; return HttpResponse.json({}); }),
       http.post('*/api/v1/onboarding/PAY-1100/finish', () => HttpResponse.json({ ...ONB, step: 5, finished_at: '2026-10-07T10:00:00Z' })),
       http.get('*/api/v1/onboarding', () => HttpResponse.json([])),
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null })),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [], allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null, issues: [] })),
     );
     const { router } = renderApp('/onboarding/PAY-1100/schedule');
     fireEvent.click(await screen.findByRole('button', { name: 'Finish onboarding' })); // before the preview is back
@@ -407,7 +407,7 @@ describe('onboarding', () => {
 
   it('sends the old Detail plan step to Planning', async () => {
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json({ rows: [], tasks: [], window: [], lines: [], over_budget: [],
-      allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null })));
+      allocated: [], over_day: [], checks: [], problems: [], push_blockers: [], days: [], stale_phases: [], by_hand: [], last_version_at: null, issues: [] })));
     const { router } = renderApp('/onboarding/PAY-1100/detail');
     await waitFor(() => expect(router.state.location.pathname).toBe('/planning/detail'));
     expect(router.state.location.search).toEqual({ anken: 'PAY-1100' });

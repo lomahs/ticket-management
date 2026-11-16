@@ -2217,6 +2217,7 @@ export interface components {
             by_hand: components["schemas"]["HandPicks"][];
             checks: components["schemas"]["PhaseCheck"][];
             days: components["schemas"]["DayLoad"][];
+            issues: components["schemas"]["PlanIssue"][];
             last_version_at: string | null;
             lines: components["schemas"]["MatrixLine"][];
             over_budget: components["schemas"]["Overrun"][];
@@ -3018,6 +3019,13 @@ export interface components {
         PlanGrid: {
             days: string[];
             rows: components["schemas"]["PlanRow"][];
+        };
+        PlanIssue: {
+            field: string;
+            message: string;
+            ref: string | null;
+            /** Format: int64 */
+            row_id: number | null;
         };
         PlanRow: {
             function: string;

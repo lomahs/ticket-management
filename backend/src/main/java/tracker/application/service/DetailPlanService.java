@@ -223,11 +223,22 @@ public class DetailPlanService {
      * @param allocated    one per entry of {@code overBudget}, in the same order
      * @param byHand       the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
      * @param lastVersionAt when the last version of the plan was saved; null when none was
+     * @param issues       {@code problems} and {@code pushBlockers} each on the row or line it is about
      */
     public record DetailPlanView(List<EstimationRow> rows, List<EstimationService.TaskOption> tasks, List<String> window,
                                  List<MatrixLine> lines, List<Overrun> overBudget, List<OverrunAllocation> allocated,
                                  List<DayOverrun> overDay, List<PhaseCheck> checks, List<DayLoad> days, List<String> stalePhases,
-                                 List<String> problems, List<String> pushBlockers, List<HandPicks> byHand, @Nullable String lastVersionAt) {
+                                 List<String> problems, List<String> pushBlockers, List<HandPicks> byHand, @Nullable String lastVersionAt,
+                                 List<PlanIssue> issues) {
+    }
+
+    /**
+     * A problem of the plan where it shows: on a row ({@code rowId}) or a line ({@code ref}), or on the plan as a whole (both null).
+     *
+     * @param field what is wrong: task, phase, pic_ba, pic_bal, pic_jm (the person of that slot), not_yet (Not yet plan left or
+     *              planned over the total), order (out of step order), schedule (no master schedule), epic (no epic yet)
+     */
+    public record PlanIssue(@Nullable Long rowId, @Nullable String ref, String field, String message) {
     }
 
     /** Which slots of a row hold someone picked by hand. */
@@ -518,7 +529,7 @@ public class DetailPlanService {
             throw new Invalid(e.getMessage(), "plan");
         }
         saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
-        List<String> problems = basis(scope, epic).problems();
+        List<String> problems = messages(basis(scope, epic).problems());
         if (!problems.isEmpty()) {
             throw new Invalid(problems.getFirst(), "plan");
         }
@@ -609,7 +620,7 @@ public class DetailPlanService {
     /** @param links the rows' steps already in Jira: {@code stepsOf} leaves them out */
     private record Basis(TrackerContext ctx, List<EstimationRow> all, List<EstimationRow> rows, List<StepEdit> edits, StepWeights w,
                          Map<Long, List<PlanRows.RowStep>> stepsOf, @Nullable ScheduleVersion schedule,
-                         List<EstimationService.TaskOption> tasks, List<String> problems, RowLinks links) {
+                         List<EstimationService.TaskOption> tasks, List<PlanIssue> problems, RowLinks links) {
     }
 
     private Basis basis(AnkenScope scope, String epic) {
@@ -691,8 +702,11 @@ public class DetailPlanService {
                 byHand.add(h);
             }
         }
+        List<PlanIssue> blockers = pushBlockers(epic, lines);
+        List<PlanIssue> issues = new ArrayList<>(b.problems());
+        issues.addAll(blockers);
         DetailPlanView view = new DetailPlanView(b.all(), b.tasks(), window, lines, over, allocated, overDay, checks, days, stale,
-                b.problems(), pushBlockers(epic, lines), byHand, planVersions.lastSavedAt(epic));
+                messages(b.problems()), messages(blockers), byHand, planVersions.lastSavedAt(epic), issues);
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
@@ -739,25 +753,30 @@ public class DetailPlanService {
      * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), hours not
      * planned yet, planned over the total, step order.
      */
-    private static List<String> pushBlockers(String epic, List<MatrixLine> lines) {
-        List<String> out = new ArrayList<>();
+    private static List<PlanIssue> pushBlockers(String epic, List<MatrixLine> lines) {
+        List<PlanIssue> out = new ArrayList<>();
         if (DraftAnken.isKey(epic)) {
-            out.add("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
+            out.add(new PlanIssue(null, null, "epic", "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it"));
         }
         for (MatrixLine l : lines) {
             if (l.removed() || l.closed()) {
                 continue;
             }
             if (l.notYetH() > 0.01) {
-                out.add(l.summary() + ": " + Numbers.format(l.notYetH()) + "h not planned yet");
+                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(l.notYetH()) + "h not planned yet"));
             } else if (l.notYetH() < -0.01) {
-                out.add(l.summary() + ": " + Numbers.format(-l.notYetH()) + "h planned over the total");
+                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(-l.notYetH()) + "h planned over the total"));
             }
             if (l.outOfOrder()) {
-                out.add(l.summary() + ": starts before the step before it ends");
+                out.add(new PlanIssue(null, l.ref(), "order", l.summary() + ": starts before the step before it ends"));
             }
         }
         return out;
+    }
+
+    /** The messages of {@code issues}, each once, in order. */
+    private static List<String> messages(List<PlanIssue> issues) {
+        return issues.stream().map(PlanIssue::message).distinct().toList();
     }
 
     /** Hours per member and day of the plan's parts. */
@@ -895,18 +914,18 @@ public class DetailPlanService {
      * @param only      the rows to check (all when null); the others keep their numbers
      * @param forcePush only what makes a sub-task impossible to create (its Task, its people), not the master schedule
      */
-    private static List<String> problems(TrackerContext ctx, String epic, @Nullable ScheduleVersion schedule, List<EstimationRow> rows,
-                                         Map<Long, List<PlanRows.RowStep>> stepsOf, StepWeights w, List<EstimationService.TaskOption> tasks,
-                                         @Nullable Set<Long> only, boolean forcePush) {
-        List<String> out = new ArrayList<>();
+    private static List<PlanIssue> problems(TrackerContext ctx, String epic, @Nullable ScheduleVersion schedule, List<EstimationRow> rows,
+                                            Map<Long, List<PlanRows.RowStep>> stepsOf, StepWeights w, List<EstimationService.TaskOption> tasks,
+                                            @Nullable Set<Long> only, boolean forcePush) {
+        List<PlanIssue> out = new ArrayList<>();
         if (rows.isEmpty() || only != null && rows.stream().noneMatch(r -> only.contains(r.id()))) {
             return out;
         }
         if (schedule == null && !forcePush) {
-            out.add("Save a master schedule first");
+            out.add(new PlanIssue(null, null, "schedule", "Save a master schedule first"));
         }
         Map<String, PhaseRow> phases = phases(schedule);
-        Set<String> missing = new LinkedHashSet<>();
+        List<PlanIssue> missing = new ArrayList<>();
         for (int n = 0; n < rows.size(); n++) {
             EstimationRow r = rows.get(n);
             if (only != null && !only.contains(r.id())) {
@@ -914,34 +933,35 @@ public class DetailPlanService {
             }
             String row = "Row " + (n + 1) + " (" + r.functionName() + ")";
             if (schedule != null && !forcePush && !phases.containsKey(r.phase())) {
-                missing.add(r.phase() + " is not in the master schedule");
+                missing.add(new PlanIssue(r.id(), null, "phase", r.phase() + " is not in the master schedule"));
             }
             if (!Text.hasText(r.taskKey())) {
-                out.add(row + ": choose a Task");
+                out.add(new PlanIssue(r.id(), null, "task", row + ": choose a Task"));
             } else if (tasks.stream().noneMatch(t -> t.key().equals(r.taskKey()))) {
-                out.add(row + ": " + r.taskKey() + " is not a Task of " + epic);
+                out.add(new PlanIssue(r.id(), null, "task", row + ": " + r.taskKey() + " is not a Task of " + epic));
             }
             if (r.steps() == null) {
-                person(ctx, epic, out, row, r.baId(), "a member");
+                person(ctx, epic, out, row, r.id(), r.baId(), "a member", "pic_ba");
                 continue;
             }
-            person(ctx, epic, out, row, r.baId(), "a BA");
+            person(ctx, epic, out, row, r.id(), r.baId(), "a BA", "pic_ba");
             if (PlanRows.needs(stepsOf.get(r.id()), Role.BAL, w)) {
-                person(ctx, epic, out, row, r.balId(), "a BAL");
+                person(ctx, epic, out, row, r.id(), r.balId(), "a BAL", "pic_bal");
             }
             if (PlanRows.needs(stepsOf.get(r.id()), Role.JM, w)) {
-                person(ctx, epic, out, row, r.jmId(), "a JM");
+                person(ctx, epic, out, row, r.id(), r.jmId(), "a JM", "pic_jm");
             }
         }
         out.addAll(missing);
         return out;
     }
 
-    private static void person(TrackerContext ctx, String epic, List<String> out, String row, @Nullable String id, String what) {
+    private static void person(TrackerContext ctx, String epic, List<PlanIssue> out, String row, long rowId, @Nullable String id, String what,
+                               String field) {
         if (!Text.hasText(id)) {
-            out.add(row + ": pick " + what);
+            out.add(new PlanIssue(rowId, null, field, row + ": pick " + what));
         } else if (!ctx.isMember(epic, id)) {
-            out.add(row + ": " + ctx.notAMember(epic, id));
+            out.add(new PlanIssue(rowId, null, field, row + ": " + ctx.notAMember(epic, id)));
         }
     }
 
@@ -1139,15 +1159,15 @@ public class DetailPlanService {
         }
         Set<Long> rowIds = new HashSet<>();
         sendable.stream().filter(l -> refs.contains(l.ref()) && l.rowId() != null).forEach(l -> rowIds.add(l.rowId()));
-        List<String> problems = problems(c.ctx(), epic, c.schedule(), c.rows(), c.stepsOf(), c.weights(), c.view().tasks(),
-                in.refs() == null ? null : rowIds, in.force());
+        List<String> problems = new ArrayList<>(messages(problems(c.ctx(), epic, c.schedule(), c.rows(), c.stepsOf(), c.weights(),
+                c.view().tasks(), in.refs() == null ? null : rowIds, in.force())));
         if (DraftAnken.isKey(epic)) {
             problems.addFirst("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
         }
         if (!problems.isEmpty()) {
             throw new Invalid(problems.getFirst(), "plan");
         }
-        List<String> blockers = in.force() ? List.of() : pushBlockers(epic, sendable.stream().filter(l -> refs.contains(l.ref())).toList());
+        List<String> blockers = in.force() ? List.of() : messages(pushBlockers(epic, sendable.stream().filter(l -> refs.contains(l.ref())).toList()));
         if (!blockers.isEmpty()) {
             throw new Invalid(blockers.getFirst(), "plan");
         }

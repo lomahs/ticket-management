@@ -3,13 +3,13 @@ import { errorMessage } from '../../../shared/api/errors';
 import { useMeta } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, Icon, IconButton, type IconName } from '../../../shared/ds';
-import { dm, f2, WDN } from '../../../shared/format/dates';
+import { dm, f2, hrs, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
 import { useEditJiraLine, useEditStep, useDeleteStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
 import { usePersonName, type Person } from './DetailPlan';
-import { checkText } from './PlanSummary';
+import { checkText, overDayText } from './PlanSummary';
 import { PushFlow } from './PushControls';
 
 type Row = Schemas['EstimationRow'];
@@ -96,6 +96,27 @@ function FilterMenu({ label, icon, picked, options, toggle, clear, wide, childre
           ))}
           {children}
         </div>
+      )}
+    </span>
+  );
+}
+
+/**
+ * What is wrong on a row or a cell: an error (Invalid, red: it stops the push) or a warning (amber: it does not). Its messages
+ * open above everything on hover or focus, not clipped by the scrolling matrix.
+ */
+function Mark({ level, msgs }: { level: 'error' | 'warning'; msgs: string[] }) {
+  const [at, setAt] = useState<DOMRect | null>(null);
+  if (!msgs.length) return null;
+  const show = (e: { currentTarget: Element }) => setAt(e.currentTarget.getBoundingClientRect());
+  return (
+    <span className={`pm-mark ${level}`} tabIndex={0} role="img" aria-label={`${level === 'error' ? 'Invalid' : 'Warning'}: ${msgs.join('; ')}`}
+      onMouseEnter={show} onFocus={show} onMouseLeave={() => setAt(null)} onBlur={() => setAt(null)}>
+      <Icon name={level === 'error' ? 'circle-alert' : 'triangle-alert'} size={12} />
+      {at && (
+        <span className={`pm-mark-tip ${level}`} role="tooltip" style={{ left: Math.max(8, at.left - 8), top: at.bottom + 6 }}>
+          {msgs.map((m) => <span key={m}>{m}</span>)}
+        </span>
       )}
     </span>
   );
@@ -192,6 +213,16 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const rowOf = (l: MatrixLine) => open.find((r) => r.id === l.row_id);
   const picOf = (l: MatrixLine) => { const s = slotOf(l); const r = rowOf(l); return (s && r ? r[s] : l.pic_id) ?? ''; };
 
+  // what is wrong where: the problems on their row or line, the warnings on the day or phase they are about
+  const issuesOn = (l: MatrixLine, field: string) => v.issues.filter((i) => i.ref === l.ref && i.field === field).map((i) => i.message);
+  const picIssues = (l: MatrixLine) => (l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed
+    ? v.issues.filter((i) => i.row_id === l.row_id && i.field === `pic_${l.pic_slot}`).map((i) => i.message) : []);
+  const rowIssues = (r: Row) => [...new Set(v.issues.filter((i) => i.row_id === r.id && (i.field === 'task' || i.field === 'phase')).map((i) => i.message))];
+  const dayWarnings = (l: MatrixLine, d: string) => (l.removed || l.closed ? [] : v.over_day.filter((o) => o.date === d && o.member_id === picOf(l)))
+    .map((o) => overDayText(o, name));
+  const phaseWarnings = (p: string) => v.over_budget.filter((o) => o.phase === p)
+    .map((o) => `${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`);
+
   // the filters
   const filtering = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0 || !!from || !!to;
   const needle = q.trim().toLowerCase();
@@ -276,6 +307,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
               checked={picked.has(g.key)} onChange={() => togglePick(g.key)} />}
             {foldButton(g.key, `the steps of ${g.name}`)}
             <span className="pm-fn-name ellipsis" title={g.name}>{g.name}</span>
+            {r && <Mark level="error" msgs={rowIssues(r)} />}
             {!r && <span className="pm-badge">In Jira</span>}
             <span className="spacer" />
             {r && (
@@ -330,6 +362,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
       pic = <span aria-label={`PIC, ${l.summary}`}>{name(slot && r ? r[slot] : l.pic_id) || '–'}</span>;
     }
     // a sub-task's Plan Estimation is its Original Estimate in Jira: changed there, not here
+    const picBad = picIssues(l);
+    const notYet = issuesOn(l, 'not_yet');
+    const order = issuesOn(l, 'order');
     const estimate = live && !inJira
       ? <HoursInput label={`Plan Estimation, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendStep(l, { effort_h: n })} className={`pm-in-est${l.edited ? ' hand' : ''}`} />
       : <span aria-label={`Plan Estimation, ${l.summary}`}>{f2(l.plan_estimate_h)}</span>;
@@ -363,11 +398,13 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
               disabled={del.isPending} onClick={() => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); }}>Delete</Button>}
           </span>
         </th>
-        <td className="pm-c1">{pic}</td>
+        <td className={`pm-c1${picBad.length ? ' pm-bad' : ''}`}><span className="pm-cellm">{pic}<Mark level="error" msgs={picBad} /></span></td>
         <td className="pm-c2">{estimate}</td>
         <td className="pm-c3" aria-label={`Planned, ${l.summary}`}>{f2(l.plan_h)}</td>
-        <td className="pm-c4" aria-label={`Not yet plan, ${l.summary}`} data-left={left(l) || undefined}>{f2(l.plan_not_yet_h)}</td>
-        <td className="pm-c5" aria-label={`Start, ${l.summary}`}>{l.start ? dm(l.start) : '–'}</td>
+        <td className={`pm-c4${notYet.length ? ' pm-bad' : ''}`} aria-label={`Not yet plan, ${l.summary}`} data-left={left(l) || undefined}>
+          <span className="pm-cellm"><Mark level="error" msgs={notYet} />{f2(l.plan_not_yet_h)}</span>
+        </td>
+        <td className="pm-c5" aria-label={`Start, ${l.summary}`}><span className="pm-cellm">{l.start ? dm(l.start) : '–'}<Mark level="error" msgs={order} /></span></td>
         <td className="pm-c6" aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
         <td className="pm-c7" aria-label={`Actual remaining, ${l.summary}`}>{l.actual_remaining_h == null ? '–' : f2(l.actual_remaining_h)}</td>
         {days.map((d) => {
@@ -376,9 +413,11 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
           // every day of an open line can be planned, past ones too; the hours logged show under the plan
           const locked = !live;
           const typed = !inJira && l.cells.some((c) => c.day === d && !c.auto && c.hours > 0);
+          const warn = planned > 0 ? dayWarnings(l, d) : [];
           return (
             <td key={d} data-day={d} data-out-of-order={(l.out_of_order && !l.removed) || undefined}
-              className={`pm-cell${d === today ? ' pm-today' : ''}${locked ? ' locked' : ''}${l.out_of_order && !l.removed ? ' red' : ''}`}>
+              className={`pm-cell${d === today ? ' pm-today' : ''}${locked ? ' locked' : ''}${l.out_of_order && !l.removed ? ' red' : ''}${warn.length ? ' warn' : ''}`}>
+              <Mark level="warning" msgs={warn} />
               {locked
                 ? <span className="pm-lk">{h(planned)}</span>
                 : <HoursInput label={`${l.summary} ${d}`} value={planned} blank="zero" send={(n) => sendCell(l, d, n)} className={typed ? 'hand' : undefined} />}
@@ -401,7 +440,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
     body.push(
       <tr key={`phase:${p}`} className="pm-phase" aria-label={`Phase ${p}`}>
         <th scope="row" className="pm-c0">
-          <span className="pm-ph">{foldButton(`phase:${p}`, `the functions of ${p}`)}<span className="pm-ph-name">{p}</span><span className="pm-badge">{plural(fns, 'function')}</span></span>
+          <span className="pm-ph">{foldButton(`phase:${p}`, `the functions of ${p}`)}<span className="pm-ph-name">{p}</span><span className="pm-badge">{plural(fns, 'function')}</span><Mark level="warning" msgs={phaseWarnings(p)} /></span>
         </th>
         <td colSpan={4} className={`pm-meta${c && c.plan_end && c.days_late > 0 ? ' late' : ''}`}>
           {c ? checkText(c).replace(`${p} `, '').replace(`${p}: `, '') : ''}

@@ -67,7 +67,7 @@ describe('detail plan', () => {
     cells: [{ day: '2026-10-06', hours: 1, auto: false }, { day: '2026-10-08', hours: 2, auto: false }], logged: [{ day: '2026-10-06', hours: 1.5, auto: false }] });
   const detailView = (over: Record<string, unknown> = {}) => ({
     rows: [LOGIN, RUN], tasks: [TASK], window: WINDOW, lines: LINES, over_budget: [], allocated: [], over_day: [], checks: [], days: [],
-    stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null, ...over,
+    stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null, issues: [], ...over,
   });
   const run = (over: Record<string, unknown>) => mline('2', 2, null, '[PAY] Run', 16, over);
   const planned = {
@@ -344,6 +344,34 @@ describe('detail plan', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete [PAY] Login – BAL Review' }));
     await waitFor(() => expect(sent).toEqual(['?row_id=1&step=balr']));
     await waitFor(() => expect(screen.queryByRole('row', { name: '[PAY] Login – BAL Review' })).toBeNull());
+  });
+
+  it('marks each problem on its cell and each warning on its day, with what is wrong on hover', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ ...planned,
+      issues: [
+        { row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA' },
+        { row_id: 1, ref: null, field: 'task', message: 'Row 1 (Login): choose a Task' },
+        { row_id: null, ref: '1:create', field: 'not_yet', message: '[PAY] Login – Create: 8h not planned yet' },
+      ],
+      over_day: [{ member_id: 'an', date: '2026-10-12', planned_h: 9, allocation_h: 8 }] }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const create = await screen.findByRole('row', { name: '[PAY] Login – Create' });
+    const pic = within(create).getByLabelText('PIC, [PAY] Login – Create').closest('td') as HTMLElement;
+    expect(pic.className).toContain('pm-bad');
+    expect(within(pic).getByRole('img', { name: 'Invalid: Row 1 (Login): pick a BA' })).toBeTruthy();
+    const notYet = within(create).getByLabelText('Not yet plan, [PAY] Login – Create');
+    expect(notYet.className).toContain('pm-bad');
+    const mark = within(notYet).getByRole('img', { name: 'Invalid: [PAY] Login – Create: 8h not planned yet' });
+    fireEvent.mouseEnter(mark);
+    expect(screen.getByRole('tooltip').textContent).toBe('[PAY] Login – Create: 8h not planned yet');
+    expect(within(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).getByLabelText('PIC, [PAY] Login – BAL Review').closest('td')?.className)
+      .not.toContain('pm-bad'); // the BAL's slot is fine
+    expect(within(screen.getByRole('row', { name: 'Function Login' })).getByRole('img', { name: 'Invalid: Row 1 (Login): choose a Task' })).toBeTruthy();
+    const day = within(screen.getByRole('row', { name: '[PAY] Run' })).getByLabelText('[PAY] Run 2026-10-12').closest('td') as HTMLElement;
+    expect(day.className).toContain('warn'); // An is over the day's allocation
+    expect(within(day).getByRole('img', { name: /^Warning: An has 9/ })).toBeTruthy();
   });
 
   it('types hours into a day and sends them when the cell is left', async () => {

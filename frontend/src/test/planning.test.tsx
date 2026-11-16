@@ -87,7 +87,7 @@ describe('planning tabs', () => {
   const view = { rows: [{ id: 2, epic_key: 'PAY-1100', position: 1, phase: 'ITA', subphase: 'Execute', function_name: 'Run', steps: null, effort_h: 16,
     ba_id: null, bal_id: null, jm_id: null, task_key: 'PAY-1102', pushed_at: null }],
   tasks: [{ key: 'PAY-1102', summary: '[PAY][LocalTask] ITA Execute', name: 'ITA Execute', phase: 'ITA' }], window: ['2026-10-07', '2026-10-08'], lines: [line],
-  over_budget: [], allocated: [], over_day: [], checks: [], days: [], stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null };
+  over_budget: [], allocated: [], over_day: [], checks: [], days: [], stale_phases: [], problems: [], push_blockers: [], by_hand: [], last_version_at: null, issues: [] };
 
   it('lists the Detail plan tab and no Re-plan tab', async () => {
     renderApp('/planning/schedule?anken=PAY-1100');
