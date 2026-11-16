@@ -127,6 +127,28 @@ class JiraReaderTest {
     }
 
     @Test
+    void theChangelogIsReadOldestFirstWhateverOrderJiraSendsItIn() {
+        // Jira Cloud embeds the changelog newest first; two changes on 10/19 must keep their order by time
+        String issue = """
+                {"key": "PAY-1213", "fields": {"summary": "x", "project": {"key": "PAY"},
+                  "status": {"name": "Done", "statusCategory": {"key": "done"}}},
+                 "changelog": {"startAt": 0, "maxResults": 3, "total": 3, "histories": [
+                  {"created": "2026-10-20T09:00:00.000+0700", "items": [
+                    {"field": "timeoriginalestimate", "fieldId": "timeoriginalestimate", "from": "21600", "to": "0"}]},
+                  {"created": "2026-10-19T17:00:00.000+0700", "items": [
+                    {"field": "timeoriginalestimate", "fieldId": "timeoriginalestimate", "from": "21600", "to": "21600"},
+                    {"field": "status", "fromString": "In Progress", "toString": "Done"}]},
+                  {"created": "2026-10-19T09:00:00.000+0700", "items": [
+                    {"field": "timeoriginalestimate", "fieldId": "timeoriginalestimate", "from": "28800", "to": "21600"}]}]}}
+                """;
+        FakeSite site = new FakeSite().on("GET", "/rest/api/3/issue/PAY-1213", c -> ok(issue));
+        IssueSnapshot s = reader(site, new ArrayList<>()).findIssue("PAY-1213").orElseThrow();
+        assertThat(s.changes()).extracting(x -> x.at() + "/" + x.field() + "/" + x.fromValue() + "/" + x.toValue()).containsExactly(
+                "2026-10-19/field:timeoriginalestimate/28800/21600", "2026-10-19/field:timeoriginalestimate/21600/21600",
+                "2026-10-19/status/In Progress/Done", "2026-10-20/field:timeoriginalestimate/21600/0");
+    }
+
+    @Test
     void incrementalSearchFiltersByRelativeUpdatedTime() {
         FakeSite site = searchSite(true)
                 .on("GET", "/rest/api/3/issue/PAY-1213/worklog", c -> ok(fx("worklog_PAY-1213.json")))

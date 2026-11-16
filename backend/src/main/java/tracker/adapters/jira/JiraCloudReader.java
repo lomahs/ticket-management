@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -378,7 +379,14 @@ public final class JiraCloudReader implements JiraReader {
         }
     }
 
+    /** The changelog oldest first: Jira Cloud embeds it newest first, while the changelog endpoint pages it oldest first. */
     private List<JsonNode> histories(Client client, String key, JsonNode embedded) {
+        List<JsonNode> out = new ArrayList<>(allHistories(client, key, embedded));
+        out.sort(Comparator.comparing(h -> parseTime(h.path("created").asText())));
+        return out;
+    }
+
+    private List<JsonNode> allHistories(Client client, String key, JsonNode embedded) {
         List<JsonNode> hist = new ArrayList<>();
         embedded.path("histories").forEach(hist::add);
         if (!embedded.has("total") || embedded.get("total").asInt() <= hist.size()) {
