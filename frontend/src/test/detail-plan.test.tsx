@@ -314,6 +314,18 @@ describe('detail plan', () => {
     expect(screen.queryByRole('button', { name: /^Open New/ })).toBeNull(); // not in Jira yet: nothing to open
   });
 
+  it('shows a done sub-task as Done and locks it', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, closed: true }] }))));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
+    expect(within(row).getByText('Done')).toBeTruthy();
+    expect(within(row).queryByRole('textbox')).toBeNull(); // no day can be typed
+    expect(within(row).queryByRole('combobox')).toBeNull(); // nor its PIC picked
+    expect(within(row).queryByRole('checkbox')).toBeNull(); // nor picked to shift or push
+  });
+
   it('types hours into a day and sends them when the cell is left', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 5 });

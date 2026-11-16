@@ -93,7 +93,7 @@ final class PlanLines {
             DetailMatrix.Line l = d.line();
             String start = DetailMatrix.start(l);
             String end = DetailMatrix.end(l);
-            // a Closed sub-task is done: nothing is left to plan, whatever its plan in Jira says
+            // a done sub-task (Resolved or Closed): nothing is left to plan, whatever its plan in Jira says
             lines.add(new MatrixLine(b.ref(), b.rowId(), b.issueKey(), b.phase(), b.function(), b.step(), b.summary(), b.picId(), b.reporterId(),
                     b.totalH(), b.spentH(), b.closed() ? b.totalH() : DetailMatrix.plannedH(l, ctx.today),
                     b.closed() ? 0 : DetailMatrix.notYetH(l, ctx.today), start, end, b.cells(),
@@ -164,7 +164,7 @@ final class PlanLines {
             pendingCells.stream().filter(c -> c.hours() > 0).forEach(c -> cells.add(new DayHours(c.day(), c.hours(), c.auto())));
         }
         List<DayHours> days = sorted(cells);
-        boolean closed = i.status() == Status.CLOSED;
+        boolean closed = i.status() == Status.RESOLVED || i.status() == Status.CLOSED; // done: Resolved or Closed
         double spent = i.loggedH();
         double remaining = edit != null && edit.remainingH() != null ? edit.remainingH() : i.remainingH();
         double total = Numbers.hours(closed ? spent : spent + remaining);

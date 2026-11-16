@@ -254,6 +254,21 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void aResolvedJiraLineIsDoneAndCannotChange() {
+        scheduled();
+        issues.save(new Issue("PAY-9003", "PAY", EPIC, task("ITA Execute"), IssueKind.SUBTASK, "[PAY] PAY-9003", "", Status.RESOLVED, "an",
+                "2026-10-12", "2026-10-16", 40, 4, "2026-10-07", Status.RESOLVED.value(), null, null, null, List.of(), List.of(), "an", List.of()));
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(line(v, "PAY-9003").closed()).isTrue();
+        assertThat(v.pushBlockers()).noneMatch(b -> b.startsWith("[PAY] PAY-9003"));
+        assertThatThrownBy(() -> detail.saveCells(ALL, EPIC, List.of(new CellIn("PAY-9003", "2026-10-12", 2))))
+                .isInstanceOf(AppError.Invalid.class).hasFieldOrPropertyWithValue("field", "ref");
+        assertThatThrownBy(() -> detail.editJiraLine(ALL, EPIC, "PAY-9003", new JiraLineIn(null, "binh")))
+                .isInstanceOf(AppError.Invalid.class);
+        assertThatThrownBy(() -> detail.shift(ALL, EPIC, new ShiftIn(List.of("PAY-9003"), 1))).isInstanceOf(AppError.Invalid.class);
+    }
+
+    @Test
     void closedJiraLineIsReadOnlyAndNeverBlocks() {
         scheduled();
         issues.save(new Issue("PAY-9002", "PAY", EPIC, task("ITA Execute"), IssueKind.SUBTASK, "[PAY] PAY-9002", "", Status.CLOSED, "an",

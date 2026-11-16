@@ -147,6 +147,7 @@ public class DetailPlanService {
      * @param cells     the hours planned per day, by day
      * @param logged    logged hours by day (Jira only)
      * @param pending   a Jira row with changes not pushed yet
+     * @param closed    a sub-task in Jira that is done (Resolved or Closed): shown as Done, it cannot change and counts for nothing
      * @param outOfOrder starts before the previous step of its function ends
      * @param edited    its effort was set by hand instead of Create × its weight
      * @param planEstimateH Plan Estimation: a row's step effort; a sub-task's Original Estimate (planning only, no actuals)

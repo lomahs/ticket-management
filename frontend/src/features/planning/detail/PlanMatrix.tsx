@@ -346,7 +346,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
             <span className="pm-stp-name ellipsis" title={l.summary}>{st?.short ?? l.summary}</span>
             {l.pending && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}
               title="Changed here: sent to Jira with the push">Not pushed</span>}
-            {l.closed && <span className="status-pill">Closed</span>}
+            {l.closed && <span className="status-pill" title="Resolved or Closed in Jira: it cannot change here">Done</span>}
             <span className="spacer" />
             {!inJira && admin && l.edited && !l.removed && <IconButton icon="undo-2" label={`Reset ${l.summary}`} size="sm"
               title="Back to the effort of the estimation" onClick={() => void sendStep(l, { effort_h: null })} style={{ width: 26, height: 26 }} />}
