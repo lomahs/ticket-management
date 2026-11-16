@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { http, unwrap } from '../../../shared/api/client';
 import type { Schemas } from '../../../shared/api/types';
 
@@ -74,14 +75,40 @@ export type StepBody = Schemas['StepBody'];
 export type MatrixLine = Schemas['MatrixLine'];
 export type CellIn = Schemas['CellBody'];
 
-/** Saves hours on days of lines (0 clears the day); the plan that follows comes back. */
-export function useSaveCells(epic: string) {
+const cellsKey = (epic: string) => ['detail-plan', 'cells', epic] as const;
+
+/**
+ * Saves hours on days of lines (0 clears the day); the plan that follows comes back.
+ *
+ * `send` puts the cell in the plan's queue of writes at once, so a write made after it still goes after it. The first goes out
+ * at once; the cells typed while a write is in flight wait and go out together, in one request, when their turn comes (a cell
+ * typed twice: its last hours). `typed`: the cells not saved yet, in the order they were typed, to show them at once; a cell
+ * whose write is refused drops out of it.
+ */
+export function useCellWriter(epic: string) {
   const qc = useQueryClient();
-  return useMutation({
+  // the cells waiting for their turn, by ref and day: the first write whose turn comes takes them all
+  const waiting = useRef(new Map<string, CellIn>());
+  const save = useMutation({
+    mutationKey: cellsKey(epic),
     scope: planScope(epic),
-    mutationFn: (cells: CellIn[]) => unwrap(http.PUT('/api/v1/planning/{epic}/detail/cells', { params: { path: { epic } }, body: { cells } })),
-    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+    mutationFn: async (_cell: CellIn) => {
+      const cells = [...waiting.current.values()];
+      waiting.current.clear();
+      // taken by an earlier write: nothing left to send
+      if (!cells.length) return qc.getQueryData<DetailPlanView>(detailPlanQuery(epic).queryKey) ?? null;
+      return unwrap(http.PUT('/api/v1/planning/{epic}/detail/cells', { params: { path: { epic } }, body: { cells } }));
+    },
+    onSuccess: (v) => { if (v) qc.setQueryData(detailPlanQuery(epic).queryKey, v); },
   });
+  const typed = useMutationState({ filters: { mutationKey: cellsKey(epic), status: 'pending' }, select: (m) => m.state.variables as CellIn });
+  const send = (cell: CellIn) => {
+    const k = `${cell.ref}\u0000${cell.day}`;
+    waiting.current.delete(k); // typed again: it goes in the order of its last hours
+    waiting.current.set(k, cell);
+    return save.mutateAsync(cell);
+  };
+  return { send, typed };
 }
 
 /** Moves the hours of lines from today on by working days of each line's PIC (negative: earlier); the plan that follows comes back. */

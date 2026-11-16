@@ -7,7 +7,8 @@ import { dm, f2, hrs, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
-import { useEditJiraLine, useEditStep, useDeleteStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
+import { useCellWriter, useEditJiraLine, useEditStep, useDeleteStep, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
+import { withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText, overDayText } from './PlanSummary';
 import { PushFlow } from './PushControls';
@@ -133,7 +134,7 @@ function Mark({ level, msgs }: { level: 'error' | 'warning'; msgs: string[] }) {
  * The figures are the planning ones, no actuals: Plan Estimation (the Original Estimate), Planned (every day's hours) and Not
  * yet plan; what is left to plan blocks the push and is counted in the problems above.
  */
-export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
+export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   epic: string; v: DetailPlanView; people: Person[]; admin: boolean;
   assign: (r: Row, slot: Slot, id: string | null) => void; swap: (a: number, b: number) => void;
 }) {
@@ -141,7 +142,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const openTicket = useOpenTicket();
   const today = useMeta().data?.today ?? '';
   const edit = useEditStep(epic);
-  const cells = useSaveCells(epic);
+  const cells = useCellWriter(epic);
+  // the hours typed show at once, before the plan that follows comes back
+  const v = withTyped(plan, cells.typed);
   const jira = useEditJiraLine(epic);
   const shift = useShiftPlan(epic);
   const del = useDeleteStep(epic);
@@ -168,7 +171,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
     if (l.row_id == null) return Promise.resolve();
     return edit.mutateAsync({ row_id: l.row_id, step: l.step, effort_h: l.edited ? l.total_h : null, removed: l.removed, ...p }).catch(fail);
   };
-  const sendCell = (l: MatrixLine, day: string, hours: number) => cells.mutateAsync([{ ref: l.ref, day, hours }]).catch(fail);
+  const sendCell = (l: MatrixLine, day: string, hours: number) => cells.send({ ref: l.ref, day, hours }).catch(fail);
   const sendJira = (key: string, total: number | null, pic: string | null) => jira.mutateAsync({ key, total_h: total, pic_id: pic }).catch(fail);
 
   // Ctrl / Cmd + K: the search

@@ -18,7 +18,9 @@ export function hoursByDay(cells: MatrixLine['cells']): Map<string, number> {
  */
 export function withTyped(v: DetailPlanView, typed: CellIn[]): DetailPlanView {
   const byRef = new Map<string, Map<string, number>>();
-  for (const c of typed) byRef.set(c.ref, (byRef.get(c.ref) ?? new Map<string, number>()).set(c.day, c.hours));
+  for (const c of typed) {
+    if (c.day) byRef.set(c.ref, (byRef.get(c.ref) ?? new Map<string, number>()).set(c.day, c.hours ?? 0));
+  }
   let changed = false;
   const lines = v.lines.map((l) => {
     const days = byRef.get(l.ref);

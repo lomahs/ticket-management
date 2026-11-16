@@ -487,6 +487,7 @@ describe('detail plan', () => {
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
       http.put('*/api/v1/planning/PAY-1100/detail/cells', async () => {
         order.push('cells');
+        if (order.length > 1) return HttpResponse.json(detailView());
         await new Promise<void>((r) => { release = r; });
         order.push('cells done');
         return HttpResponse.json(detailView());
@@ -498,11 +499,88 @@ describe('detail plan', () => {
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
     await waitFor(() => expect(order).toEqual(['cells']));
+    const next = screen.getByLabelText('[PAY] Run 2026-10-13'); // typed while the first cell is being saved
+    fireEvent.change(next, { target: { value: '4' } });
+    fireEvent.blur(next);
     fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
     await new Promise((r) => setTimeout(r, 100));
     expect(order).toEqual(['cells']); // the version waits for the cell
     release();
-    await waitFor(() => expect(order).toEqual(['cells', 'cells done', 'version']));
+    // the cell typed before the version goes before it
+    await waitFor(() => expect(order).toEqual(['cells', 'cells done', 'cells', 'version']));
+  });
+
+  it('sends the cells typed while a write is in flight in one request', async () => {
+    const sent: unknown[] = [];
+    let release = () => {};
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async ({ request }) => {
+        sent.push(await request.json());
+        if (sent.length === 1) await new Promise<void>((r) => { release = r; });
+        return HttpResponse.json(detailView());
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    const type = (day: string, value: string) => {
+      const c = screen.getByLabelText(`[PAY] Run ${day}`);
+      fireEvent.change(c, { target: { value } });
+      fireEvent.blur(c);
+    };
+    await screen.findByLabelText('[PAY] Run 2026-10-12');
+    type('2026-10-12', '8');
+    await waitFor(() => expect(sent).toHaveLength(1));
+    type('2026-10-13', '4');
+    type('2026-10-13', '2'); // the same day again: only the last goes
+    type('2026-10-14', '1');
+    release();
+    await waitFor(() => expect(sent).toEqual([{ cells: [{ ref: '2', day: '2026-10-12', hours: 8 }] },
+      { cells: [{ ref: '2', day: '2026-10-13', hours: 2 }, { ref: '2', day: '2026-10-14', hours: 1 }] }]));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent).toHaveLength(2);
+  });
+
+  it('shows the typed hours at once, before the plan comes back', async () => {
+    let release = () => {};
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async () => {
+        await new Promise<void>((r) => { release = r; });
+        return HttpResponse.json(detailView());
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '8' } });
+    fireEvent.blur(cell);
+    const row = screen.getByRole('row', { name: '[PAY] Run' });
+    await waitFor(() => expect(within(row).getByLabelText('Planned, [PAY] Run').textContent).toBe('8.00'));
+    expect(within(row).getByLabelText('Not yet plan, [PAY] Run').textContent).toBe('8.00');
+    const foot = document.querySelector('tr.pm-foot') as HTMLElement;
+    expect(foot.children[8 + WINDOW.indexOf('2026-10-12')].textContent).toBe('8.00'); // the total of the day
+    release();
+  });
+
+  it('puts the figures back when the write is refused', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', () => HttpResponse.json(
+        { code: 'invalid', detail: 'At most 24 hours a day', errors: [] }, { status: 400, headers: { 'Content-Type': 'application/problem+json' } })),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '30' } });
+    fireEvent.blur(cell);
+    expect(await screen.findByText('At most 24 hours a day')).toBeTruthy();
+    const row = screen.getByRole('row', { name: '[PAY] Run' });
+    await waitFor(() => expect(within(row).getByLabelText('Planned, [PAY] Run').textContent).toBe('0.00'));
+    expect(within(row).getByLabelText('Not yet plan, [PAY] Run').textContent).toBe('16.00');
   });
 
   it('keeps hours typed again while the earlier ones are being saved', async () => {
