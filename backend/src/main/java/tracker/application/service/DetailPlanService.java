@@ -883,7 +883,7 @@ public class DetailPlanService {
                 continue;
             }
             // the sub-phase prefix of the names: the Task's, else its phase, else its phase group, else the row's phase
-            String phase = Text.hasText(p.phase()) ? p.phase() : !PhaseGroups.OTHER.equals(p.group()) ? p.group() : r.phase();
+            String phase = Text.hasText(p.phase()) ? p.phase() : Text.hasText(p.group()) ? p.group() : r.phase();
             String prefix = Text.hasText(p.prefix()) ? p.prefix() : phase;
             String ankenPrefix = AnkenService.ankenPrefix(ctx, epic, onboardedPrefix, p.summary());
             for (PlanRows.RowStep st : stepsOf.get(r.id())) {
@@ -1021,7 +1021,7 @@ public class DetailPlanService {
         for (Issue i : openSubtasks(ctx, epic, except)) {
             for (Effort.PlanShare sh : ctx.planShares(i)) {
                 if (ctx.isMember(epic, sh.memberId())) {
-                    out.merge(sh.memberId() + "|" + groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER),
+                    out.merge(sh.memberId() + "|" + groups.get(Text.orElse(i.parentKey(), "")),
                             i.estimateH() * sh.fraction(), Numbers::sum);
                 }
             }

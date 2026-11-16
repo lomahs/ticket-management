@@ -266,12 +266,12 @@ public class EffortService {
         List<String> keys = s.picked().stream().map(Issue::key).toList();
         List<Burndown.Item> items = items(ctx, s.picked());
         String from = s.chart().stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
-        // the Baseline plan of the same scope: a Task deleted since the lock counts under Other
+        // the Baseline plan of the same scope
         String ph = s.phase();
         String tk = s.task();
         String who = s.who();
         List<Baseline.Item> baseline = Baselines.of(planVersions.baseline(s.epic())).map(b -> b.items().stream()
-                .filter(x -> ph == null || ph.equals(s.groups().getOrDefault(Text.orElse(x.parentKey(), ""), PhaseGroups.OTHER)))
+                .filter(x -> ph == null || ph.equals(s.groups().get(Text.orElse(x.parentKey(), ""))))
                 .filter(x -> tk == null || tk.equals(x.parentKey()))
                 .filter(x -> who == null || who.equals(x.ownerId())).toList()).orElse(null);
         return new BurndownView(s.epic(), titleOf(ctx, s.epic()), s.ankens(), s.phases(), ph, s.tasks(), tk, s.members(), who, keys.size(),
@@ -324,7 +324,7 @@ public class EffortService {
         for (Issue i : ctx.subtasks()) {
             if (i.epicKey().equals(epic) && Text.hasText(i.plannedStart()) && Text.hasText(i.plannedEnd()) && i.estimateH() > 0
                     && !Steps.isJmReview(i)) {
-                byPhase.computeIfAbsent(groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER), k -> new ArrayList<>()).add(i);
+                byPhase.computeIfAbsent(groups.get(Text.orElse(i.parentKey(), "")), k -> new ArrayList<>()).add(i);
                 if (i.parentKey() != null) {
                     start.merge(i.parentKey(), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b);
                 }
@@ -358,7 +358,7 @@ public class EffortService {
         subtasks.forEach(i -> fnStart.merge(functionKey(ctx, i), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b));
         java.util.function.Function<Issue, String> taskOf = i -> Text.orElse(i.parentKey(), "");
         return subtasks.stream().sorted(Comparator
-                .comparingInt((Issue i) -> phases.indexOf(groups.getOrDefault(taskOf.apply(i), PhaseGroups.OTHER)))
+                .comparingInt((Issue i) -> phases.indexOf(groups.get(taskOf.apply(i))))
                 .thenComparing(i -> taskStart.getOrDefault(taskOf.apply(i), ""))
                 .thenComparing(taskOf)
                 .thenComparing(i -> fnStart.get(functionKey(ctx, i)))

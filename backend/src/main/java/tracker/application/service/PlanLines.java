@@ -128,7 +128,7 @@ final class PlanLines {
         Map<String, Map<String, List<Issue>>> grouped = new LinkedHashMap<>();
         for (Issue i : ctx.subtasks()) {
             if (i.epicKey().equals(epic)) {
-                String phase = groups.getOrDefault(Text.orElse(i.parentKey(), ""), PhaseGroups.OTHER);
+                String phase = groups.get(Text.orElse(i.parentKey(), ""));
                 grouped.computeIfAbsent(phase, k -> new LinkedHashMap<>()).computeIfAbsent(chain(i), k -> new ArrayList<>()).add(i);
             }
         }

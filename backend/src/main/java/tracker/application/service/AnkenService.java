@@ -129,8 +129,7 @@ public class AnkenService {
         Map<String, List<Issue>> byPhase = new LinkedHashMap<>();
         groups.values().forEach(g -> byPhase.computeIfAbsent(g, x -> new ArrayList<>()));
         for (Issue i : subs) {
-            String g = groups.get(i.parentKey() == null ? "" : i.parentKey());
-            byPhase.computeIfAbsent(g != null ? g : PhaseGroups.OTHER, x -> new ArrayList<>()).add(i);
+            byPhase.get(groups.get(Text.orElse(i.parentKey(), ""))).add(i); // every sub-task loaded is under a tracked Task
         }
         List<PhaseRollup> phases = PhaseGroups.ordered(byPhase, ctx.settings.structureOf(key).phases()).stream()
                 .map(n -> Overview.phaseRollup(n, byPhase.get(n), ctx.schedule)).toList();
@@ -226,7 +225,7 @@ public class AnkenService {
             if (card(ctx, epic).phases().stream().noneMatch(p -> p.name().equals(phase))) {
                 throw new NotFound(phase + " is not a phase of " + epic, "phase");
             }
-            subs = subs.stream().filter(i -> phase.equals(groups.getOrDefault(i.parentKey() == null ? "" : i.parentKey(), PhaseGroups.OTHER)))
+            subs = subs.stream().filter(i -> phase.equals(groups.get(Text.orElse(i.parentKey(), ""))))
                     .toList();
         }
         java.util.function.ToDoubleFunction<IssueSchedule> weight = switch (label) {
@@ -440,7 +439,7 @@ public class AnkenService {
         ctx.issue(key).orElseThrow(() -> new NotFound("Ticket " + key + " was not found", "key"));
         Function f = ctx.functions.stream().filter(fn -> fn.issues().stream().anyMatch(i -> i.key().equals(key))).findFirst()
                 .orElseThrow(() -> new NotFound(key + " is not a step of a function", "key"));
-        String phase = groupOfTask(ctx, f.epicKey()).getOrDefault(f.parentKey(), PhaseGroups.OTHER);
+        String phase = groupOfTask(ctx, f.epicKey()).get(f.parentKey());
         return new FunctionSteps(f.epicKey(), f.parentKey(), phase, f.id(), f.name(),
                 f.steps().stream().map(c -> c != null ? ctx.card(c) : null).toList());
     }
