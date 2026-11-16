@@ -653,12 +653,26 @@ public class DetailPlanService {
         return links;
     }
 
+    /** The matrix lines with their cells and the day columns, without what follows from them (allocations, overruns, checks). */
+    private record Drawn(Basis basis, Map<String, String> names, PlanLines.Built built, List<String> window) {
+    }
+
+    private Drawn drawn(AnkenScope scope, String epic) {
+        Basis b = basis(scope, epic);
+        TrackerContext ctx = b.ctx();
+        Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), b.rows(), b.stepsOf());
+        PlanLines.Built built = PlanLines.build(ctx, epic, b.rows(), b.stepsOf(), names, b.w(), cells.rowCells(epic), cells.jiraCells(epic),
+                cells.jiraEdits(epic), b.links());
+        return new Drawn(b, names, built, window(ctx, b.schedule(), built.lines()));
+    }
+
     /**
      * The plan as it shows: the matrix lines (the unpushed rows' steps, then the anken's sub-tasks in Jira) with their cells; effort
      * per day, overruns and the phase checks follow from the cells, with the allocations as they are now.
      */
     Computed compute(AnkenScope scope, String epic) {
-        Basis b = basis(scope, epic);
+        Drawn dr = drawn(scope, epic);
+        Basis b = dr.basis();
         TrackerContext ctx = b.ctx();
         List<EstimationRow> rows = b.rows();
         StepWeights w = b.w();
@@ -666,10 +680,9 @@ public class DetailPlanService {
         ScheduleVersion schedule = b.schedule();
         Allocations a = allocations.counted(scope).allocations();
         Map<String, PhaseRow> phases = phases(schedule);
-        Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), rows, stepsOf);
+        Map<String, String> names = dr.names();
         DetailScheduler.Hours hours = DetailScheduler.hours(epic, a, ctx.cal);
-        PlanLines.Built built = PlanLines.build(ctx, epic, rows, stepsOf, names, w, cells.rowCells(epic), cells.jiraCells(epic),
-                cells.jiraEdits(epic), b.links());
+        PlanLines.Built built = dr.built();
         List<MatrixLine> lines = built.lines();
         List<Placed> placed = built.placed();
         List<DetailScheduler.Part> parts = built.parts();
@@ -679,7 +692,7 @@ public class DetailPlanService {
                 givenBefore(ctx, epic, Set.of()), phases, epic, a, ctx.cal);
         List<OverrunAllocation> allocated = over.stream()
                 .map(o -> allocated(ctx, epic, a, o.memberId(), o.phase(), phases.get(o.phase()).start())).toList();
-        List<String> window = window(ctx, schedule, lines);
+        List<String> window = dr.window();
         List<PhaseCheck> checks = schedule == null ? List.of() : checks(schedule, lines);
         List<DayLoad> days = days(ctx, epic, a, ledger, parts, lines, window);
         List<String> stale = new ArrayList<>();
@@ -1269,12 +1282,13 @@ public class DetailPlanService {
      */
     @Transactional
     public DetailPlanView saveCells(AnkenScope scope, String epic, List<CellIn> in) {
-        DetailPlanView v = view(scope, epic);
-        String today = EstimationService.load(context, scope, epic).today;
+        // the cells are checked against the lines only: the whole plan is computed once, after they are saved
+        Drawn dr = drawn(scope, epic);
+        String today = dr.basis().ctx().today;
         String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
-        Set<String> window = new HashSet<>(v.window());
+        Set<String> window = new HashSet<>(dr.window());
         Map<String, MatrixLine> lineOf = new HashMap<>();
-        v.lines().forEach(l -> lineOf.put(l.ref(), l));
+        dr.built().lines().forEach(l -> lineOf.put(l.ref(), l));
         List<Cell> rowCells = new ArrayList<>();
         Map<String, List<Cell>> jira = new LinkedHashMap<>();
         for (CellIn c : in) {
