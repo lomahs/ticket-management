@@ -228,7 +228,7 @@ describe('detail plan', () => {
     );
     renderApp('/planning/detail?anken=PAY-1100');
     fireEvent.click(await screen.findByLabelText('Pick Login'));
-    const bar = screen.getByRole('group', { name: 'Shift the picked functions' });
+    const bar = screen.getByRole('group', { name: 'Picked functions and steps' });
     expect(within(bar).getByText('1 function selected')).toBeTruthy();
     const n = within(bar).getByLabelText('Working days') as HTMLInputElement;
     fireEvent.change(n, { target: { value: '' } });
@@ -237,7 +237,7 @@ describe('detail plan', () => {
     fireEvent.change(within(bar).getByLabelText('Direction'), { target: { value: 'earlier' } });
     fireEvent.click(within(bar).getByRole('button', { name: 'Shift' }));
     await waitFor(() => expect(sent).toEqual([{ refs: ['1:create'], days: -2 }])); // a removed step stays
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Picked functions and steps' })).toBeNull());
   });
 
   it('forgets a picked function that is no longer in the plan', async () => {
@@ -249,11 +249,11 @@ describe('detail plan', () => {
     );
     renderApp('/planning/detail?anken=PAY-1100');
     fireEvent.click(await screen.findByLabelText('Pick Login'));
-    expect(screen.getByRole('group', { name: 'Shift the picked functions' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Picked functions and steps' })).toBeTruthy();
     const cell = screen.getByLabelText('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
-    await waitFor(() => expect(screen.queryByRole('group', { name: 'Shift the picked functions' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Picked functions and steps' })).toBeNull());
   });
 
   it('shows the remaining in Jira of a sub-task, for reference only', async () => {
@@ -265,6 +265,43 @@ describe('detail plan', () => {
     expect((await screen.findByLabelText('Actual remaining, [PAY] Refund – Create')).textContent).toBe('2.50');
     expect(screen.getByLabelText('Actual remaining, [PAY] Run').textContent).toBe('–'); // not in Jira yet
     expect(screen.getByRole('columnheader', { name: 'Actual remaining' })).toBeTruthy();
+  });
+
+  it('force pushes past what stands before the push', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ push_blockers: ['[PAY] Run: 16h not planned yet'] }))),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', async ({ request }) => { sent.push(['preview', await request.json()]); return HttpResponse.json({ updates: [], creates: [] }); }),
+      http.post('*/api/v1/planning/PAY-1100/detail/push', async ({ request }) => { sent.push(['push', await request.json()]); return HttpResponse.json({ updated: [], created: {} }); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect((await screen.findByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Force push' }));
+    const review = await screen.findByRole('dialog', { name: 'Push review' });
+    expect(within(review).getByRole('note', { name: 'Forced' }).textContent).toContain('[PAY] Run: 16h not planned yet');
+    fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
+    await waitFor(() => expect(sent).toEqual([['preview', { refs: null, force: true }], ['push', { refs: null, force: true }]]));
+  });
+
+  it('pushes only the picked functions and steps', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.post('*/api/v1/planning/PAY-1100/detail/push/preview', async ({ request }) => { sent.push(await request.json()); return HttpResponse.json({ updates: [], creates: [] }); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByLabelText('Pick [PAY] Login – BAL Review'));
+    fireEvent.click(screen.getByLabelText('Pick Run'));
+    const bar = screen.getByRole('group', { name: 'Picked functions and steps' });
+    expect(within(bar).getByText('1 function, 1 step selected')).toBeTruthy();
+    fireEvent.click(within(bar).getByLabelText('Force'));
+    fireEvent.click(within(bar).getByRole('button', { name: 'Push' }));
+    await waitFor(() => expect(sent).toEqual([{ refs: ['2', '1:balr'], force: true }]));
+    expect(await screen.findByRole('dialog', { name: 'Push review' })).toBeTruthy();
   });
 
   it('types hours into a day and sends them when the cell is left', async () => {

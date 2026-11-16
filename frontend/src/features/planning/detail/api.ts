@@ -51,9 +51,13 @@ export function useClearPlan(epic: string) {
   });
 }
 
+/** What to push: the lines picked (`refs`, all when null), and `force` past Not yet plan, steps out of order and the master schedule. */
+export type PushBody = Schemas['PushBody'];
+export const PUSH_ALL: PushBody = { refs: null, force: false };
+
 export const usePushPreview = (epic: string) => useMutation({
   scope: planScope(epic),
-  mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } } })),
+  mutationFn: (body: PushBody) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push/preview', { params: { path: { epic } }, body })),
 });
 
 export function usePushPlan(epic: string) {
@@ -61,7 +65,7 @@ export function usePushPlan(epic: string) {
   return useMutation({
     mutationKey: ['write', 'detail-plan'],
     scope: planScope(epic),
-    mutationFn: () => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic } } })),
+    mutationFn: (body: PushBody) => unwrap(http.POST('/api/v1/planning/{epic}/detail/push', { params: { path: { epic } }, body })),
     onSettled: () => qc.invalidateQueries(),
   });
 }

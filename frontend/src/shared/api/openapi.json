@@ -2431,6 +2431,15 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PushBody"
+              }
+            }
+          }
+        },
         "responses" : {
           "200" : {
             "content" : {
@@ -2457,6 +2466,15 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PushBody"
+              }
+            }
+          }
+        },
         "responses" : {
           "200" : {
             "content" : {
@@ -8149,6 +8167,21 @@
           "step" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }
+      },
+      "PushBody" : {
+        "type" : "object",
+        "properties" : {
+          "force" : {
+            "type" : "boolean"
+          },
+          "refs" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "type" : "string",
+              "minLength" : 1
+            }
           }
         }
       },

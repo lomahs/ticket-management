@@ -9,6 +9,7 @@ import { useToast } from '../../../shared/state/toast';
 import { useEditJiraLine, useEditStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
+import { PushFlow } from './PushControls';
 
 type Row = Schemas['EstimationRow'];
 export type Slot = 'ba_id' | 'bal_id' | 'jm_id';
@@ -124,6 +125,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [by, setBy] = useState('1');
   const [way, setWay] = useState<'later' | 'earlier'>('later');
+  const [force, setForce] = useState(false);
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
   const [pics, setPics] = useState<Set<string>>(new Set());
@@ -208,13 +210,16 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const clearAll = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); setFrom(''); setTo(''); };
 
   const togglePick = toggleIn(setPicked);
-  // a pick whose function is no longer in the plan (pushed, removed) is forgotten
+  // picks are functions (group keys) and steps (line refs); one no longer in the plan (pushed, removed) is forgotten
   const pickedGroups = allGroups.filter((g) => picked.has(g.key));
-  const shiftRefs = pickedGroups.flatMap((g) => g.lines).filter((l) => !l.removed && !l.closed).map((l) => l.ref);
+  const pickedSteps = v.lines.filter((l) => picked.has(l.ref) && !l.removed && !l.closed);
+  const shiftRefs = [...new Set([...pickedGroups.flatMap((g) => g.lines), ...pickedSteps].filter((l) => !l.removed && !l.closed).map((l) => l.ref))];
+  const pickedText = [pickedGroups.length > 0 && plural(pickedGroups.length, 'function'), pickedSteps.length > 0 && plural(pickedSteps.length, 'step')]
+    .filter(Boolean).join(', ');
   const shiftBy = Math.min(366, Math.max(1, Math.round(Number(by)) || 1));
   const shiftPicked = () => {
     shift.mutateAsync({ refs: shiftRefs, days: way === 'later' ? shiftBy : -shiftBy }).then(() => {
-      toast(`Shifted ${plural(pickedGroups.length, 'function')} ${plural(shiftBy, 'working day')} ${way}`);
+      toast(`Shifted ${pickedText} ${plural(shiftBy, 'working day')} ${way}`);
       setPicked(new Set());
     }, fail);
   };
@@ -330,6 +335,8 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
         <th scope="row" className="pm-c0">
           <span className="pm-stp">
+            {admin && !l.removed && !l.closed && <input type="checkbox" className="pm-pick" aria-label={`Pick ${l.summary}`}
+              title="Pick to shift or push this step" checked={picked.has(l.ref)} onChange={() => togglePick(l.ref)} />}
             <span className={`pm-key${inJira ? '' : ' new'}`} title={inJira ? `Sub-task ${l.issue_key} in Jira` : 'Not in Jira yet: the push creates it'}>
               {inJira ? l.issue_key : 'New'}
             </span>
@@ -467,9 +474,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
         <span className="spacer" />
         {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
       </div>
-      {pickedGroups.length > 0 && (
-        <div className="pm-shift" role="group" aria-label="Shift the picked functions">
-          <span className="pm-count">{`${plural(pickedGroups.length, 'function')} selected`}</span>
+      {shiftRefs.length > 0 && (
+        <div className="pm-shift" role="group" aria-label="Picked functions and steps">
+          <span className="pm-count">{`${pickedText} selected`}</span>
           <span>Shift</span>
           <input type="number" className="pm-shift-n" aria-label="Working days" min={1} max={366} value={by}
             onChange={(e) => setBy(e.target.value)} onBlur={() => setBy(String(shiftBy))} />
@@ -479,6 +486,12 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
             <option value="earlier">earlier</option>
           </select>
           <Button size="sm" disabled={shift.isPending || shiftRefs.length === 0} onClick={shiftPicked}>Shift</Button>
+          <span className="pm-tsep" aria-hidden="true" />
+          <label className="pm-force" title="Push past Not yet plan, steps out of order and the master schedule (a Task and a PIC are still needed)">
+            <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />Force
+          </label>
+          <PushFlow epic={epic} v={v} name={name} body={{ refs: shiftRefs, force }} label="Push" icon="upload" size="sm"
+            title="Push the picked functions and steps to Jira" onDone={() => setPicked(new Set())} />
           <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
         </div>
       )}

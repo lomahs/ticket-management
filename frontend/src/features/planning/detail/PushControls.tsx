@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, Icon } from '../../../shared/ds';
+import { Button, Icon, type IconName } from '../../../shared/ds';
 import { hrs, ymd } from '../../../shared/format/dates';
 import { useToast } from '../../../shared/state/toast';
 import { onboardingQuery } from '../../onboarding';
-import { usePushPlan, usePushPreview, type DetailPlanView } from './api';
+import { PUSH_ALL, usePushPlan, usePushPreview, type DetailPlanView, type PushBody } from './api';
 import { overDayText } from './PlanSummary';
 
 /**
@@ -16,10 +16,6 @@ import { overDayText } from './PlanSummary';
  */
 export function PushControls({ epic, v, name, onCheck }: { epic: string; v: DetailPlanView; name: (id: string) => string; onCheck: () => void }) {
   const admin = useCan('planning', 'write');
-  const toast = useToast();
-  const preview = usePushPreview(epic);
-  const push = usePushPlan(epic);
-  const [open, setOpen] = useState(false);
   // the sub-tasks to create, and the sub-tasks in Jira changed here
   const lines = v.lines.filter((l) => (l.row_id != null && !l.removed) || (l.issue_key != null && l.pending)).length;
   if (!admin || (!v.rows.some((r) => !r.pushed_at) && lines === 0)) return null;
@@ -34,15 +30,41 @@ export function PushControls({ epic, v, name, onCheck }: { epic: string; v: Deta
           <Icon name="circle-alert" size={14} />{why}
         </button>
       )}
-      <Button iconBefore="eye" disabled={blocked || preview.isPending} title={why ?? 'What the push creates and changes in Jira'} onClick={() => {
-        onCheck();
-        preview.mutate(undefined, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
-      }}>Review push</Button>
+      {issues > 0 && lines > 0 && (
+        <PushFlow epic={epic} v={v} name={name} body={{ refs: null, force: true }} label="Force push" icon="upload" appearance="secondary"
+          title="Push anyway: Not yet plan, steps out of order and the master schedule are ignored (a Task and a PIC are still needed)"
+          forced={before} />
+      )}
+      <PushFlow epic={epic} v={v} name={name} body={PUSH_ALL} label="Review push" icon="eye" disabled={blocked}
+        title={why ?? 'What the push creates and changes in Jira'} onStart={onCheck} />
+    </>
+  );
+}
+
+/**
+ * A button that opens the review of a push of `body` and pushes it from there.
+ *
+ * @param forced what the push goes past, shown in the review; null when it is not forced
+ */
+export function PushFlow({ epic, v, name, body, label, icon, appearance, size, disabled = false, title, forced = null, onStart, onDone }: {
+  epic: string; v: DetailPlanView; name: (id: string) => string; body: PushBody; label: string; icon: IconName;
+  appearance?: 'primary' | 'secondary'; size?: 'sm' | 'md'; disabled?: boolean; title?: string; forced?: string[] | null; onStart?: () => void; onDone?: () => void;
+}) {
+  const toast = useToast();
+  const preview = usePushPreview(epic);
+  const push = usePushPlan(epic);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button iconBefore={icon} appearance={appearance} size={size} disabled={disabled || preview.isPending} title={title} onClick={() => {
+        onStart?.();
+        preview.mutate(body, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
+      }}>{label}</Button>
       {open && preview.data && (
         <PushDialog epic={epic} v={v} name={name} creates={preview.data.creates} updates={preview.data.updates} pushing={push.isPending}
-          close={() => setOpen(false)}
-          push={() => push.mutate(undefined, {
-            onSuccess: (r) => { toast(pushed(Object.keys(r.created).length, r.updated.length)); setOpen(false); preview.reset(); },
+          forced={forced ?? (body.force ? [] : null)} close={() => setOpen(false)}
+          push={() => push.mutate(body, {
+            onSuccess: (r) => { toast(pushed(Object.keys(r.created).length, r.updated.length)); setOpen(false); preview.reset(); onDone?.(); },
             onError: (e) => toast(errorMessage(e), true),
           })} />
       )}
@@ -73,9 +95,9 @@ function value(field: Field, x: string | null | undefined, name: (id: string) =>
   return x;
 }
 
-function PushDialog({ epic, v, name, creates, updates, pushing, push, close }: {
-  epic: string; v: DetailPlanView; name: (id: string) => string; creates: Create[]; updates: Update[]; pushing: boolean; push: () => void;
-  close: () => void;
+function PushDialog({ epic, v, name, creates, updates, pushing, forced, push, close }: {
+  epic: string; v: DetailPlanView; name: (id: string) => string; creates: Create[]; updates: Update[]; pushing: boolean;
+  forced: string[] | null; push: () => void; close: () => void;
 }) {
   const labels = useQuery(onboardingQuery(epic)).data?.labels ?? [];
   useEffect(() => {
@@ -92,6 +114,12 @@ function PushDialog({ epic, v, name, creates, updates, pushing, push, close }: {
             : [creates.length > 0 && `${creates.length} sub-tasks to create`, updates.length > 0 && `${updates.length} to update`].filter(Boolean).join(' · ')}</span>
           <span className="muted" style={{ fontSize: 12 }}>{`Labels ${labels.length ? labels.join(', ') : '—'} (Setting Phase)`}</span>
         </div>
+        {forced && (
+          <div role="note" aria-label="Forced" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-red)', color: 'var(--hl-red-fg)', fontSize: 13 }}>
+            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="circle-alert" size={14} />Forced: pushed as it is, past what stands before the push.</b>
+            {forced.map((f) => <span key={f}>{f}</span>)}
+          </div>
+        )}
         {v.over_day.length > 0 && (
           <div role="note" aria-label="Days above the allocation" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)', fontSize: 13 }}>
             <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="triangle-alert" size={14} />Some days go above the allocation: the sub-tasks are created with these dates.</b>

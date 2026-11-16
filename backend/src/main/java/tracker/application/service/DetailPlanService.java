@@ -246,6 +246,14 @@ public class DetailPlanService {
     public record CellIn(String ref, String day, double hours) {
     }
 
+    /**
+     * What to push: {@code refs} the lines picked (all when null), {@code force} past Not yet plan, steps out of order and the
+     * master schedule.
+     */
+    public record PushIn(@Nullable List<String> refs, boolean force) {
+        public static final PushIn ALL = new PushIn(null, false);
+    }
+
     /** The lines (refs) of the functions to shift, and by how many working days: negative is earlier. */
     public record ShiftIn(List<String> refs, int days) {
     }
@@ -615,7 +623,7 @@ public class DetailPlanService {
         List<ScheduleVersion> saved = versions.findByEpic(epic);
         ScheduleVersion schedule = saved.isEmpty() ? null : saved.getLast();
         List<EstimationService.TaskOption> tasks = EstimationService.tasks(ctx, epic);
-        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, schedule, rows, stepsOf, w, tasks), links);
+        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, schedule, rows, stepsOf, w, tasks, null, false), links);
     }
 
     /**
@@ -882,21 +890,29 @@ public class DetailPlanService {
         return out;
     }
 
+    /**
+     * @param only      the rows to check (all when null); the others keep their numbers
+     * @param forcePush only what makes a sub-task impossible to create (its Task, its people), not the master schedule
+     */
     private static List<String> problems(TrackerContext ctx, String epic, @Nullable ScheduleVersion schedule, List<EstimationRow> rows,
-                                         Map<Long, List<PlanRows.RowStep>> stepsOf, StepWeights w, List<EstimationService.TaskOption> tasks) {
+                                         Map<Long, List<PlanRows.RowStep>> stepsOf, StepWeights w, List<EstimationService.TaskOption> tasks,
+                                         @Nullable Set<Long> only, boolean forcePush) {
         List<String> out = new ArrayList<>();
-        if (rows.isEmpty()) {
+        if (rows.isEmpty() || only != null && rows.stream().noneMatch(r -> only.contains(r.id()))) {
             return out;
         }
-        if (schedule == null) {
+        if (schedule == null && !forcePush) {
             out.add("Save a master schedule first");
         }
         Map<String, PhaseRow> phases = phases(schedule);
         Set<String> missing = new LinkedHashSet<>();
         for (int n = 0; n < rows.size(); n++) {
             EstimationRow r = rows.get(n);
+            if (only != null && !only.contains(r.id())) {
+                continue;
+            }
             String row = "Row " + (n + 1) + " (" + r.functionName() + ")";
-            if (schedule != null && !phases.containsKey(r.phase())) {
+            if (schedule != null && !forcePush && !phases.containsKey(r.phase())) {
                 missing.add(r.phase() + " is not in the master schedule");
             }
             if (!Text.hasText(r.taskKey())) {
@@ -992,8 +1008,12 @@ public class DetailPlanService {
 
     /** The review of the push: every change to a sub-task in Jira, and every sub-task to create with the request that creates it. */
     public BatchPreview pushPreview(AnkenScope scope, String epic) {
-        Computed c = pushable(scope, epic);
-        return tickets.previewBatch(scope, epic, jiraUpdates(c, epic), newTickets(c, labels(epic)));
+        return pushPreview(scope, epic, PushIn.ALL);
+    }
+
+    public BatchPreview pushPreview(AnkenScope scope, String epic, PushIn in) {
+        Pushable p = pushable(scope, epic, in);
+        return tickets.previewBatch(scope, epic, jiraUpdates(p.c(), epic, p.refs()), newTickets(p.c(), labels(epic), p.refs()));
     }
 
     /**
@@ -1004,9 +1024,15 @@ public class DetailPlanService {
      * is kept the same way.
      */
     public BatchResult push(Viewer actor, AnkenScope scope, String epic) {
-        Computed c = pushable(scope, epic);
-        List<NewTicket> creates = newTickets(c, labels(epic));
-        List<TicketUpdate> wanted = jiraUpdates(c, epic);
+        return push(actor, scope, epic, PushIn.ALL);
+    }
+
+    /** As {@link #push(Viewer, AnkenScope, String)}, for the picked lines only, or forced past what does not stop a create. */
+    public BatchResult push(Viewer actor, AnkenScope scope, String epic, PushIn in) {
+        Pushable sel = pushable(scope, epic, in);
+        Computed c = sel.c();
+        List<NewTicket> creates = newTickets(c, labels(epic), sel.refs());
+        List<TicketUpdate> wanted = jiraUpdates(c, epic, sel.refs());
         BatchPreview review = tickets.previewBatch(scope, epic, wanted, List.of());
         List<ExpectedUpdate> updates = review.updates().stream().map(p -> new ExpectedUpdate(p.key(),
                 p.changes().stream().map(f -> new ExpectedChange(f.field(), f.before(), f.after())).toList())).toList();
@@ -1020,8 +1046,9 @@ public class DetailPlanService {
         BatchResult r = tickets.applyBatch(actor, scope, epic, updates, creates, created -> {
             List<Long> done = new ArrayList<>();
             for (EstimationRow row : c.rows()) { // a row whose steps were all removed has nothing to create and is done too
-                List<String> refs = creates.stream().map(NewTicket::ref).filter(ref -> rowOf(ref) == row.id()).toList();
-                if (created.keySet().containsAll(refs)) {
+                List<String> refs = c.stepsOf().get(row.id()).stream().filter(st -> !st.removed()).map(PlanRows.RowStep::ref).toList();
+                boolean sent = in.refs() == null || refs.stream().anyMatch(sel.refs()::contains);
+                if (sent && created.keySet().containsAll(refs)) {
                     done.add(row.id());
                 }
             }
@@ -1047,13 +1074,13 @@ public class DetailPlanService {
      * One update per pending sub-task in Jira that is not Closed: its PIC if it differs, its edited Remaining, and Planned Start /
      * End only when its hours per day changed (a PIC or Total edit alone keeps Jira's dates).
      */
-    private List<TicketUpdate> jiraUpdates(Computed c, String epic) {
+    private List<TicketUpdate> jiraUpdates(Computed c, String epic, Set<String> refs) {
         Map<String, JiraEdit> edits = new HashMap<>();
         cells.jiraEdits(epic).forEach(e -> edits.put(e.issueKey(), e));
         Set<String> withCells = cells.jiraCells(epic).keySet();
         List<TicketUpdate> out = new ArrayList<>();
         for (MatrixLine l : c.view().lines()) {
-            if (l.issueKey() == null || !l.pending() || l.closed()) {
+            if (l.issueKey() == null || !l.pending() || l.closed() || !refs.contains(l.ref())) {
                 continue;
             }
             JiraEdit e = edits.get(l.issueKey());
@@ -1092,18 +1119,38 @@ public class DetailPlanService {
      * The plan as it shows, refused while it has input problems; over a budget or over the day's allocation are only warnings
      * (on the screen).
      */
-    private Computed pushable(AnkenScope scope, String epic) {
+    /** The plan to push and the lines it sends (all when nothing is picked). */
+    private record Pushable(Computed c, Set<String> refs) {
+    }
+
+    /**
+     * The plan, refused while the lines to send have problems: the picked ones only. Forced, only what makes a sub-task
+     * impossible to create stops it (no Task, no PIC, no epic); Not yet plan, steps out of order and the master schedule do not.
+     */
+    private Pushable pushable(AnkenScope scope, String epic, PushIn in) {
         Computed c = compute(scope, epic);
-        if (c.rows().isEmpty() && c.view().lines().stream().noneMatch(l -> l.issueKey() != null && l.pending() && !l.closed())) {
-            throw new Invalid("There is nothing to push", "plan");
+        List<MatrixLine> sendable = c.view().lines().stream().filter(l -> !l.removed() && !l.closed()
+                && (l.issueKey() == null || l.pending())).toList();
+        Set<String> refs = new LinkedHashSet<>();
+        sendable.stream().map(MatrixLine::ref).filter(r -> in.refs() == null || in.refs().contains(r)).forEach(refs::add);
+        if (in.refs() == null ? c.rows().isEmpty() && refs.isEmpty() : refs.isEmpty()) {
+            throw new Invalid(in.refs() == null ? "There is nothing to push" : "Nothing picked can be pushed", "plan");
         }
-        if (!c.view().problems().isEmpty()) {
-            throw new Invalid(c.view().problems().getFirst(), "plan");
+        Set<Long> rowIds = new HashSet<>();
+        sendable.stream().filter(l -> refs.contains(l.ref()) && l.rowId() != null).forEach(l -> rowIds.add(l.rowId()));
+        List<String> problems = problems(c.ctx(), epic, c.schedule(), c.rows(), c.stepsOf(), c.weights(), c.view().tasks(),
+                in.refs() == null ? null : rowIds, in.force());
+        if (DraftAnken.isKey(epic)) {
+            problems.addFirst("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
         }
-        if (!c.view().pushBlockers().isEmpty()) {
-            throw new Invalid(c.view().pushBlockers().getFirst(), "plan");
+        if (!problems.isEmpty()) {
+            throw new Invalid(problems.getFirst(), "plan");
         }
-        return c;
+        List<String> blockers = in.force() ? List.of() : pushBlockers(epic, sendable.stream().filter(l -> refs.contains(l.ref())).toList());
+        if (!blockers.isEmpty()) {
+            throw new Invalid(blockers.getFirst(), "plan");
+        }
+        return new Pushable(c, refs);
     }
 
     /**
@@ -1111,12 +1158,12 @@ public class DetailPlanService {
      * Create step, so the function's BAL is read back from Jira. Each gets {@code labels} and the dates the plan shows, none
      * when it has none yet.
      */
-    private static List<NewTicket> newTickets(Computed c, List<String> labels) {
+    private static List<NewTicket> newTickets(Computed c, List<String> labels, Set<String> refs) {
         List<NewTicket> out = new ArrayList<>();
         for (EstimationRow r : c.rows()) {
             String parentKey = Objects.requireNonNull(r.taskKey());
             for (PlanRows.RowStep st : c.stepsOf().get(r.id())) {
-                if (st.removed()) {
+                if (st.removed() || !refs.contains(st.ref())) {
                     continue;
                 }
                 MatrixLine shown = line(c, st.ref());

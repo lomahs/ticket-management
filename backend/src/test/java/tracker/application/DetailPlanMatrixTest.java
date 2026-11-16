@@ -44,6 +44,7 @@ import tracker.application.service.DetailPlanService.JiraLineIn;
 import tracker.application.service.DetailPlanService.DetailPlanView;
 import tracker.application.service.DetailPlanService.DraftIn;
 import tracker.application.service.DetailPlanService.MatrixLine;
+import tracker.application.service.DetailPlanService.PushIn;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.ShiftIn;
 import tracker.application.service.DetailPlanService.StepIn;
@@ -904,6 +905,59 @@ class DetailPlanMatrixTest {
         assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
                 .hasMessage("[PAY] Run: 2h not planned yet").hasFieldOrPropertyWithValue("field", "plan");
         assertThatThrownBy(() -> detail.pushPreview(ALL, EPIC)).isInstanceOf(AppError.Invalid.class).hasMessage("[PAY] Run: 2h not planned yet");
+    }
+
+    @Test
+    void aForcedPushIgnoresWhatIsNotPlannedYet() {
+        scheduled();
+        closeDemoSubtasks();
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 16, task("ITA Execute"))));
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        long run = rows.getFirst().id();
+        assign(rows, new RowAssign(run, "an", null, null));
+        cells.saveRowCells(List.of(new Cell(String.valueOf(run), "2026-10-12", 8, false)));
+        assertThat(detail.pushPreview(ALL, EPIC, new PushIn(null, true)).creates()).hasSize(1);
+        assertThat(detail.push(ADMIN, ALL, EPIC, new PushIn(null, true)).created()).containsOnlyKeys(String.valueOf(run));
+        assertThat(estimationRows.findByEpic(EPIC).getFirst().pushed()).isTrue();
+    }
+
+    @Test
+    void aForcedPushStillNeedsAPicAndATask() {
+        scheduled();
+        closeDemoSubtasks();
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 16, task("ITA Execute"))));
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC, new PushIn(null, true))).isInstanceOf(AppError.Invalid.class)
+                .hasMessageContaining("pick a member").hasFieldOrPropertyWithValue("field", "plan");
+    }
+
+    @Test
+    void onlyThePickedLinesArePushedAndCheckedForProblems() {
+        scheduled();
+        closeDemoSubtasks();
+        estimation.save(ALL, EPIC, List.of(row(0, "Run", null, 16, task("ITA Execute")), row(1, "Pay", null, 8, task("ITA Execute"))));
+        List<EstimationRow> rows = estimationRows.findByEpic(EPIC);
+        String run = String.valueOf(rows.get(0).id());
+        assign(rows, new RowAssign(rows.get(0).id(), "an", null, null)); // Pay has no one and no plan
+        cells.saveRowCells(List.of(new Cell(run, "2026-10-12", 8, false), new Cell(run, "2026-10-13", 8, false)));
+        assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class);
+        assertThat(detail.push(ADMIN, ALL, EPIC, new PushIn(List.of(run), false)).created()).containsOnlyKeys(run);
+        assertThat(estimationRows.findByEpic(EPIC)).extracting(EstimationRow::functionName, EstimationRow::pushed)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Run", true), org.assertj.core.groups.Tuple.tuple("Pay", false));
+    }
+
+    @Test
+    void pushingSomeStepsOfAFunctionLeavesItsOtherStepsToPush() {
+        List<EstimationRow> rows = staffed();
+        closeDemoSubtasks();
+        detail.autoAllocate(ALL, EPIC);
+        String login = String.valueOf(rows.get(0).id());
+        assertThat(detail.push(ADMIN, ALL, EPIC, new PushIn(List.of(login + ":create"), false)).created()).containsOnlyKeys(login + ":create");
+        assertThat(estimationRows.findByEpic(EPIC).getFirst().pushed()).isFalse();
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.lines()).filteredOn(l -> l.issueKey() != null && Long.valueOf(rows.get(0).id()).equals(l.linkedRowId()))
+                .extracting(MatrixLine::step).containsExactly("create"); // in Jira now, shown in its function
+        assertThat(v.lines()).filteredOn(l -> Long.valueOf(rows.get(0).id()).equals(l.rowId())).extracting(MatrixLine::step)
+                .containsExactly("balr", "fixb", "jmr", "fixj");
     }
 
     @Test

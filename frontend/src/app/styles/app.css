@@ -351,6 +351,7 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .pm-shift-n { width: 56px; height: 28px; padding: 0 6px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-card); color: inherit; }
 .pm-shift-way { height: 28px; padding: 0 6px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-card); color: inherit; }
 .pm-pick { margin: 0 2px 0 0; cursor: pointer; }
+.pm-force { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .pm-search { display: inline-flex; align-items: center; gap: 6px; height: 32px; width: 260px; padding: 0 6px 0 10px; box-sizing: border-box; border: 1px solid var(--border-subtle);
   border-radius: 999px; background: var(--surface-card); color: var(--text-muted); }
 .pm-search:focus-within { border-color: var(--pm-today); box-shadow: 0 0 0 3px var(--pm-today-bg); }

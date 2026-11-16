@@ -3066,6 +3066,10 @@ export interface components {
             /** Format: int32 */
             step?: number;
         };
+        PushBody: {
+            force?: boolean;
+            refs?: string[] | null;
+        };
         QuestionIn: {
             q: string;
         };
@@ -5379,7 +5383,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PushBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -5401,7 +5409,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PushBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

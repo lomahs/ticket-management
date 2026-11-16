@@ -49,6 +49,7 @@ import tracker.application.service.DetailPlanService.NewRowIn;
 import tracker.application.service.DetailPlanService.RowAssign;
 import tracker.application.service.DetailPlanService.CellIn;
 import tracker.application.service.DetailPlanService.JiraLineIn;
+import tracker.application.service.DetailPlanService.PushIn;
 import tracker.application.service.DetailPlanService.ShiftIn;
 import tracker.application.service.DetailPlanService.StepIn;
 import tracker.application.service.EstimationService;
@@ -340,15 +341,27 @@ public class DetailPlanningApi {
      */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push/preview")
-    public BatchPreview previewDetailPush(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.pushPreview(epicScope(viewer, epic), epic);
+    public BatchPreview previewDetailPush(@PathVariable("epic") String epic, @RequestBody(required = false) @Nullable PushBody body,
+                                          Viewer viewer) {
+        return detail.pushPreview(epicScope(viewer, epic), epic, in(body));
+    }
+
+    /**
+     * What to push: the lines picked ({@code refs}; all when null) and whether past Not yet plan, steps out of order and the
+     * master schedule ({@code force}); no Task, no PIC or no epic still stop it.
+     */
+    public record PushBody(@Nullable List<@NotBlank String> refs, boolean force) {
+    }
+
+    private static PushIn in(@Nullable PushBody body) {
+        return body == null ? PushIn.ALL : new PushIn(body.refs(), body.force());
     }
 
     /** Creates the plan's sub-tasks in Jira; rows whose sub-tasks were all created are marked pushed. */
     @Open(Rule.ADMIN)
     @PostMapping("/{epic}/detail/push")
-    public BatchResult pushDetailPlan(@PathVariable("epic") String epic, Viewer viewer) {
-        return detail.push(viewer, epicScope(viewer, epic), epic);
+    public BatchResult pushDetailPlan(@PathVariable("epic") String epic, @RequestBody(required = false) @Nullable PushBody body, Viewer viewer) {
+        return detail.push(viewer, epicScope(viewer, epic), epic, in(body));
     }
 
     /**
