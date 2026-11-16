@@ -450,9 +450,12 @@ class ServiceReadsTest {
         String m = inPhase.members().get(0);
         planVersions.add("PAY-1100", "2026-10-01T09:00:00Z", "Minh", Baselines.body(Map.of(), List.of(
                 new Baseline.Item("A", 5, task, m, Map.of("2026-10-01", 5.0)),
-                new Baseline.Item("B", 3, "GONE-1", m, Map.of("2026-10-01", 3.0)), // its Task was deleted: Other
-                new Baseline.Item("C", 2, task, "nobody", Map.of("2026-10-02", 2.0)))), true);
-        assertThat(effort.burndown(ALL, "PAY-1100", null, null, null).burndown().baselineH()).isEqualTo(10);
+                new Baseline.Item("B", 3, "GONE-1", m, Map.of("2026-10-01", 3.0)), // its Task was deleted: not tracked
+                new Baseline.Item("C", 2, task, "nobody", Map.of("2026-10-02", 2.0)),
+                new Baseline.Item("D", 8, null, m, Map.of("2025-01-01", 8.0)))), true); // under no Task: not tracked
+        Burndown.BurndownChart chart = effort.burndown(ALL, "PAY-1100", null, null, null).burndown();
+        assertThat(chart.baselineH()).isEqualTo(7);
+        assertThat(chart.start()).isEqualTo(all.burndown().start()); // the untracked items do not widen the span
         assertThat(effort.burndown(ALL, "PAY-1100", phase, null, null).burndown().baselineH()).isEqualTo(7);
         assertThat(effort.burndown(ALL, "PAY-1100", phase, task, null).burndown().baselineH()).isEqualTo(7);
         assertThat(effort.burndown(ALL, "PAY-1100", phase, null, m).burndown().baselineH()).isEqualTo(5);

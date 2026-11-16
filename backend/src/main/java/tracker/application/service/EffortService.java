@@ -266,12 +266,13 @@ public class EffortService {
         List<String> keys = s.picked().stream().map(Issue::key).toList();
         List<Burndown.Item> items = items(ctx, s.picked());
         String from = s.chart().stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
-        // the Baseline plan of the same scope
+        // the Baseline plan of the same scope, under tracked Tasks only (docs/rules.md)
         String ph = s.phase();
         String tk = s.task();
         String who = s.who();
         List<Baseline.Item> baseline = Baselines.of(planVersions.baseline(s.epic())).map(b -> b.items().stream()
-                .filter(x -> ph == null || ph.equals(s.groups().get(Text.orElse(x.parentKey(), ""))))
+                .filter(x -> x.parentKey() != null && s.groups().containsKey(x.parentKey()))
+                .filter(x -> ph == null || ph.equals(s.groups().get(x.parentKey())))
                 .filter(x -> tk == null || tk.equals(x.parentKey()))
                 .filter(x -> who == null || who.equals(x.ownerId())).toList()).orElse(null);
         return new BurndownView(s.epic(), titleOf(ctx, s.epic()), s.ankens(), s.phases(), ph, s.tasks(), tk, s.members(), who, keys.size(),
