@@ -88,7 +88,7 @@ class JdbcEstimationRepository implements EstimationRepository {
             Double e = r.wasNull() ? null : effort;
             String step = r.getString("step");
             return new StepEdit(r.getLong("row_id"), step.isEmpty() ? null : StepKind.of(step), e, r.getString("planned_start"),
-                    r.getString("planned_end"), r.getInt("removed") != 0);
+                    r.getString("planned_end"), r.getInt("removed") != 0, r.getInt("deleted") != 0);
         }).list();
     }
 
@@ -99,17 +99,18 @@ class JdbcEstimationRepository implements EstimationRepository {
         jdbc.sql("DELETE FROM estimation_steps WHERE row_id = :row AND step = :step").param("row", e.rowId()).param("step", step).update();
         if (!e.empty()) {
             jdbc.sql("""
-                    INSERT INTO estimation_steps (row_id, step, effort_h, planned_start, planned_end, removed)
-                    VALUES (:row, :step, :effort, :start, :end, :removed)
+                    INSERT INTO estimation_steps (row_id, step, effort_h, planned_start, planned_end, removed, deleted)
+                    VALUES (:row, :step, :effort, :start, :end, :removed, :deleted)
                     """).param("row", e.rowId()).param("step", step).param("effort", e.effortH() == null ? null : Numbers.hours(e.effortH())).param("start", e.start())
-                    .param("end", e.end()).param("removed", e.removed() ? 1 : 0).update();
+                    .param("end", e.end()).param("removed", e.removed() ? 1 : 0).param("deleted", e.deleted() ? 1 : 0).update();
         }
     }
 
     @Override
     public void deleteUnpushedStepEdits(String epic) {
         jdbc.sql("""
-                DELETE FROM estimation_steps WHERE row_id IN (SELECT id FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL)
+                DELETE FROM estimation_steps WHERE deleted = 0
+                  AND row_id IN (SELECT id FROM estimation_rows WHERE epic_key = :epic AND pushed_at IS NULL)
                 """).param("epic", epic).update();
     }
 

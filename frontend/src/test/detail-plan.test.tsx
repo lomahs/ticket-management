@@ -326,6 +326,26 @@ describe('detail plan', () => {
     expect(within(row).queryByRole('checkbox')).toBeNull(); // nor picked to shift or push
   });
 
+  it('deletes a removed step for good next to its Restore', async () => {
+    const sent: string[] = [];
+    onboarding({ step: 5 });
+    members();
+    const view = detailView({ lines: [LINES[0], mline('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2, { removed: true }), LINES[2]] });
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(view)),
+      http.delete('*/api/v1/planning/PAY-1100/detail/step', ({ request }) => {
+        sent.push(new URL(request.url).search);
+        return HttpResponse.json(detailView({ lines: [LINES[0], LINES[2]] }));
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    expect(await screen.findByRole('button', { name: 'Restore [PAY] Login – BAL Review' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Delete [PAY] Login – Create' })).toBeNull(); // removed first, then deleted
+    fireEvent.click(screen.getByRole('button', { name: 'Delete [PAY] Login – BAL Review' }));
+    await waitFor(() => expect(sent).toEqual(['?row_id=1&step=balr']));
+    await waitFor(() => expect(screen.queryByRole('row', { name: '[PAY] Login – BAL Review' })).toBeNull());
+  });
+
   it('types hours into a day and sends them when the cell is left', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 5 });

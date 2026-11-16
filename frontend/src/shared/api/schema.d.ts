@@ -1134,7 +1134,7 @@ export interface paths {
         get?: never;
         put: operations["editDetailStep"];
         post?: never;
-        delete?: never;
+        delete: operations["deleteDetailStep"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5492,6 +5492,31 @@ export interface operations {
                 "application/json": components["schemas"]["StepBody"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPlanView"];
+                };
+            };
+        };
+    };
+    deleteDetailStep: {
+        parameters: {
+            query: {
+                row_id: number;
+                step?: string;
+            };
+            header?: never;
+            path: {
+                epic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

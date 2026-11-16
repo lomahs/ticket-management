@@ -7,7 +7,7 @@ import { dm, f2, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
-import { useEditJiraLine, useEditStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
+import { useEditJiraLine, useEditStep, useDeleteStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
@@ -123,6 +123,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   const cells = useSaveCells(epic);
   const jira = useEditJiraLine(epic);
   const shift = useShiftPlan(epic);
+  const del = useDeleteStep(epic);
   // the functions picked to shift (group keys), and by how many working days which way
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [by, setBy] = useState('1');
@@ -357,6 +358,9 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
             )}
             {!inJira && l.removed && <Button appearance="subtle" size="sm" aria-label={`Restore ${l.summary}`} disabled={!admin}
               onClick={() => void sendStep(l, { removed: false })}>Restore</Button>}
+            {!inJira && l.removed && admin && l.row_id != null && <Button appearance="subtle" size="sm" aria-label={`Delete ${l.summary}`}
+              title="Delete for good: it cannot be restored; a function left without a step is deleted"
+              disabled={del.isPending} onClick={() => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); }}>Delete</Button>}
           </span>
         </th>
         <td className="pm-c1">{pic}</td>

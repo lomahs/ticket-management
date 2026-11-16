@@ -19,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -215,6 +216,17 @@ public class DetailPlanningApi {
     @PutMapping("/{epic}/detail/step")
     public DetailPlanView editDetailStep(@PathVariable("epic") String epic, @RequestBody @Valid StepBody body, Viewer viewer) {
         return detail.editStep(epicScope(viewer, epic), epic, body.in());
+    }
+
+    /**
+     * Deletes a removed sub-task of a row not in Jira yet for good (a row left without one is deleted) and returns the plan.
+     * {@code step}: the step's value, none for a ticket.
+     */
+    @Open(Rule.ADMIN)
+    @DeleteMapping("/{epic}/detail/step")
+    public DetailPlanView deleteDetailStep(@PathVariable("epic") String epic, @RequestParam("row_id") long rowId,
+                                           @RequestParam(name = "step", required = false) @Nullable String step, Viewer viewer) {
+        return detail.deleteStep(epicScope(viewer, epic), epic, rowId, step);
     }
 
     /** Hours typed in a cell; 0 clears it. */

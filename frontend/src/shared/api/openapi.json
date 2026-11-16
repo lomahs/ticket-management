@@ -2563,6 +2563,45 @@
       }
     },
     "/api/v1/planning/{epic}/detail/step" : {
+      "delete" : {
+        "operationId" : "deleteDetailStep",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "epic",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "row_id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "in" : "query",
+          "name" : "step",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DetailPlanView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "detail-planning-api" ]
+      },
       "put" : {
         "operationId" : "editDetailStep",
         "parameters" : [ {

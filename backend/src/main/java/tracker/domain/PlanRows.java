@@ -36,11 +36,14 @@ public final class PlanRows {
     public static List<RowStep> steps(long id, @Nullable Integer steps, double effortH, List<StepEdit> edits, StepWeights w) {
         if (steps == null) {
             StepEdit e = edit(id, null, edits);
-            return List.of(new RowStep(null, String.valueOf(id), effortH, e));
+            return e != null && e.deleted() ? List.of() : List.of(new RowStep(null, String.valueOf(id), effortH, e));
         }
         List<RowStep> out = new ArrayList<>();
         for (StepKind k : StepWeights.stepsOf(steps)) {
             StepEdit e = edit(id, k, edits);
+            if (e != null && e.deleted()) { // deleted for good: no longer a step of the row
+                continue;
+            }
             double h = e != null && e.effortH() != null ? e.effortH() : k == StepKind.CREATE ? effortH : w.stepHours(effortH, k);
             out.add(new RowStep(k, id + ":" + k.value(), h, e));
         }

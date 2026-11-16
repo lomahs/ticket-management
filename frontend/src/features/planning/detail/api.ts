@@ -131,6 +131,17 @@ export function useEditStep(epic: string) {
   });
 }
 
+/** Deletes a removed step of a row not in Jira yet for good (a row left without one goes too); the plan that follows comes back. */
+export function useDeleteStep(epic: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    scope: planScope(epic),
+    mutationFn: ({ rowId, step }: { rowId: number; step: string | null }) => unwrap(http.DELETE('/api/v1/planning/{epic}/detail/step', {
+      params: { path: { epic }, query: { row_id: rowId, ...(step ? { step } : {}) } } })),
+    onSuccess: (v) => qc.setQueryData(detailPlanQuery(epic).queryKey, v),
+  });
+}
+
 /** Adds a function or a ticket to the estimation; the plan that follows comes back. */
 export function useAddRow(epic: string) {
   const qc = useQueryClient();

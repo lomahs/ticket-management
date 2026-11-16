@@ -1213,6 +1213,32 @@ public class DetailPlanService {
         return view(scope, epic);
     }
 
+    /**
+     * Deletes a removed step for good: its hours per day go and it is no longer a step of the row (clearing the plan keeps it
+     * out). A row left without a step is deleted from the estimation.
+     *
+     * @param step the step's value; null or blank for a ticket
+     */
+    @Transactional
+    public DetailPlanView deleteStep(AnkenScope scope, String epic, long rowId, @Nullable String step) {
+        Computed c = compute(scope, epic);
+        EstimationRow row = c.rows().stream().filter(r -> r.id() == rowId).findFirst()
+                .orElseThrow(() -> new NotFound("Estimation row " + rowId + " is not in the plan", "row_id"));
+        PlanRows.RowStep st = c.stepsOf().get(rowId).stream()
+                .filter(x -> Objects.equals(x.kind() == null ? null : x.kind().value(), Text.hasText(step) ? step : null)).findFirst()
+                .orElseThrow(() -> new NotFound((Text.hasText(step) ? step : "The ticket") + " is not a step of " + row.functionName(), "step"));
+        if (!st.removed()) {
+            throw new Invalid("Remove the step first, then delete it", "step");
+        }
+        cells.saveRowCells(line(c, st.ref()).cells().stream().map(d -> new Cell(st.ref(), d.day(), 0, false)).toList());
+        estimation.saveStepEdit(new StepEdit(rowId, st.kind(), null, null, null, true, true));
+        List<StepEdit> edits = estimation.stepEdits(epic);
+        if (PlanRows.steps(rowId, row.steps(), row.effortH(), edits, c.weights()).isEmpty()) {
+            estimation.save(epic, estimation.findByEpic(epic).stream().filter(r -> r.id() != rowId).toList());
+        }
+        return view(scope, epic);
+    }
+
     /** How far from today a cell can be typed outside the plan's window. */
     static final int MAX_DAYS_AHEAD = 366;
 

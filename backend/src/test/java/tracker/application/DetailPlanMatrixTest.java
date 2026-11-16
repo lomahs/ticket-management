@@ -514,6 +514,30 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void aRemovedStepIsDeletedForGood() {
+        List<EstimationRow> rows = staffed();
+        long login = rows.get(0).id();
+        assertThatThrownBy(() -> detail.deleteStep(ALL, EPIC, login, "balr")).isInstanceOf(AppError.Invalid.class)
+                .hasMessage("Remove the step first, then delete it");
+        detail.editStep(ALL, EPIC, new StepIn(login, "balr", null, true));
+        cells.saveRowCells(List.of(new Cell(login + ":balr", "2026-10-12", 2, false)));
+        DetailPlanView v = detail.deleteStep(ALL, EPIC, login, "balr");
+        assertThat(v.lines()).extracting(MatrixLine::ref).doesNotContain(login + ":balr").contains(login + ":create");
+        assertThat(cells.rowCells(EPIC)).noneMatch(c -> c.ref().equals(login + ":balr"));
+        v = detail.clear(ALL, EPIC, false); // starting the plan over does not bring it back
+        assertThat(v.lines()).extracting(MatrixLine::ref).doesNotContain(login + ":balr");
+    }
+
+    @Test
+    void deletingTheLastStepDeletesTheFunction() {
+        List<EstimationRow> rows = staffed();
+        long run = rows.get(1).id();
+        detail.editStep(ALL, EPIC, new StepIn(run, null, null, true));
+        detail.deleteStep(ALL, EPIC, run, null);
+        assertThat(estimationRows.findByEpic(EPIC)).extracting(EstimationRow::functionName).containsExactly("Login", "Pay");
+    }
+
+    @Test
     void aShiftEarlierBeforeTodayIsRefused() {
         List<EstimationRow> rows = scheduled();
         long run = rows.get(1).id();

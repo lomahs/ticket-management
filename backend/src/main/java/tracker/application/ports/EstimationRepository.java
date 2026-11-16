@@ -32,7 +32,7 @@ public interface EstimationRepository {
     /** Replaces the edit of that row and step; an empty edit is deleted. */
     void saveStepEdit(StepEdit edit);
 
-    /** Deletes the step edits of the epic's unpushed rows. */
+    /** Deletes the step edits of the epic's unpushed rows; the steps deleted for good stay deleted. */
     void deleteUnpushedStepEdits(String epic);
 
     /** Who Auto allocate put in the slots of the epic's rows. */
