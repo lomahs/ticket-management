@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,12 +27,14 @@ import tracker.domain.AnkenScope;
 import tracker.domain.DraftAnken;
 import tracker.domain.Effort;
 import tracker.domain.Issue;
+import tracker.domain.IssueKind;
 import tracker.domain.Leave;
 import tracker.domain.Member;
 import tracker.domain.Onboarding;
 import tracker.domain.TaskNames;
 import tracker.domain.Text;
 import tracker.domain.WorkCalendar;
+import tracker.domain.WorkStructure;
 
 /** Loads the team context the screens are computed from, and knows what "today" is for the team. */
 @Component
@@ -110,9 +113,19 @@ public class TrackerContextLoader {
         return people(membersOf(keysOf(epicsOf(settings.load(), scope), draftsOf(scope))));
     }
 
+    /** The Tasks declared in their anken's Phase & Task ({@link WorkStructure#trackedPhase}) and the sub-tasks under them. */
+    private static List<Issue> tracked(TrackerSettings s, List<Issue> all) {
+        Set<String> tasks = new HashSet<>();
+        all.stream().filter(i -> i.kind() == IssueKind.PARENT && s.structureOf(i.epicKey()).trackedPhase(i.summary()) != null)
+                .forEach(i -> tasks.add(i.key()));
+        return all.stream().filter(i -> i.kind() == IssueKind.PARENT ? tasks.contains(i.key()) : i.parentKey() != null && tasks.contains(i.parentKey()))
+                .toList();
+    }
+
     /**
      * Members, calendar and the issues of the tracked epics in {@code scope} (JM worklogs dropped), with the flags derived from them. Epics that are not
-     * tracked are left out, unless they are draft anken: those come with their template Tasks ({@link DraftAnken#tasks}).
+     * tracked are left out, unless they are draft anken: those come with their template Tasks ({@link DraftAnken#tasks}). Only the
+     * Tasks declared in Phase & Task and their sub-tasks are kept ({@link #tracked}).
      * {@link TrackerContext#people} are the members of the anken kept.
      */
     public TrackerContext load(AnkenScope scope) {
@@ -129,6 +142,7 @@ public class TrackerContextLoader {
             loaded.addAll(DraftAnken.tasks(d.epicKey(), s.structureOf(d.epicKey()), Text.orElse(s.nameRulesOf(d.epicKey()).taskRule, TaskNames.DEFAULT_RULE),
                     d.ankenPrefix(), d.startedAt().substring(0, 10)));
         }
+        loaded = tracked(s, loaded);
         TrackerContext ctx = new TrackerContext(today(), s, team, tracking, loaded, leaves,
                 calendar(s, team, leaves), people(membersOf), membersOf, planDays.find(loaded.stream().map(Issue::key).toList()));
         ctx.deriveFlags();

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.ApplicationRunner;
@@ -92,12 +93,21 @@ public class DemoConfig {
                 s.jira = new TrackerSettings.JiraConnection("https://acme-pay.atlassian.net", "tracker-bot@acme.vn",
                         secrets.encrypt("ATATT3xFfGF0-demo-token"), "15", Dataset.TRACKED_EPICS, "ok");
                 s.statusMapping = new TrackerSettings.StatusMapping(Dataset.STATUS_BY_NAME);
-                // The QnA and WorkRequest Tasks are typed for the Daily Overview.
+                // The QnA and WorkRequest Tasks are typed for the Daily Overview: the Tasks a new anken starts with.
                 s.structure = new WorkStructure(List.of("Prepare", "Implement_Coding", "Function Unit Test"), List.of(
                         new TaskTemplate("[*] QnA management", "Prepare", "", false, TaskTemplate.QNA),
                         new TaskTemplate("[*] Work requests", "Prepare", "", false, TaskTemplate.WORK_REQUEST)));
                 s.nameRules.rule = Dataset.SUBTASK_RULE;
                 s.nameRules.taskRule = Dataset.TASK_RULE;
+                // the demo anken declare their other Tasks by "[Phase]"; the back-office one also its Operation Task (the team's meetings)
+                for (String epic : Dataset.TRACKED_EPICS) {
+                    List<String> phases = epic.equals("OPS-200") ? List.of("Prepare", "Implement_Coding", "Function Unit Test", "Operation")
+                            : s.structure.phases();
+                    TrackerSettings.AnkenSettings a = TrackerSettings.AnkenSettings.copyOf(s.structure, s.nameRules);
+                    a.structure = new WorkStructure(phases, Stream.concat(s.structure.tasks().stream(),
+                            phases.stream().map(p -> new TaskTemplate("[" + p + "] *", p, p))).toList());
+                    s.anken.put(epic, a);
+                }
                 settings.save(s);
                 Dataset.NOTES.forEach((key, note) -> notes.save(key, note, "minh", "2026-10-06T10:00:00+07:00"));
             });

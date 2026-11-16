@@ -157,7 +157,7 @@ class ServiceWritesTest {
         jiraSettings.saveStructure("PAY-1100", new WorkStructure(List.of("Coding", "Prepare"),
                 List.of(new TaskTemplate("[Implement_Coding] *", "Coding", "UCI"))));
         AnkenService.AnkenCard card = anken.overview(ALL).stream().filter(c -> c.key().equals("PAY-1100")).findFirst().orElseThrow();
-        assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding", "Prepare", "Other"); // an unconfigured "[Phase]" is not a phase
+        assertThat(card.phases()).extracting(x -> x.name()).containsExactly("Coding"); // the "[Prepare]" Tasks are not declared: not tracked
     }
 
     @Test
@@ -180,16 +180,18 @@ class ServiceWritesTest {
     }
 
     @Test
-    void overviewPhasesFollowTaskTitleGroups(@Autowired IssueRepository issues) {
+    void overviewPhasesAreThoseOfTheDeclaredTasks(@Autowired IssueRepository issues) {
+        JiraSettingsService.StructureView st = jiraSettings.structure("CRM-400");
+        jiraSettings.saveStructure("CRM-400", new WorkStructure(java.util.stream.Stream.concat(st.phases().stream(), java.util.stream.Stream.of("ITA")).toList(),
+                java.util.stream.Stream.concat(st.tasks().stream(), java.util.stream.Stream.of(new TaskTemplate("[*] ITA *", "ITA", ""))).toList()));
         List.of(task("CRM-901", "[Hub][LocalTask] ITA Prepare"), task("CRM-902", "[Hub[LocalTask] ITA Execute"),
                 task("CRM-903", "[Hub][LocalTask] WorkRequest"), sub("CRM-911", "CRM-901", Status.CLOSED, 3, 0),
                 sub("CRM-912", "CRM-902", Status.WIP, 1, 4)).forEach(issues::save);
         List<AnkenService.AnkenCard> cards = anken.overview(ALL).stream().filter(c -> c.key().equals("CRM-400")).toList();
         var phases = cards.get(0).phases();
-        assertThat(phases).extracting(p -> p.name()).containsExactly("Implement_Coding", "ITA", "Other");
+        assertThat(phases).extracting(p -> p.name()).containsExactly("Implement_Coding", "ITA"); // WorkRequest is not declared
         assertThat(List.of(phases.get(1).pct(), phases.get(1).closed(), phases.get(1).total())).containsExactly(50, 1, 2);
         assertThat(List.of(phases.get(1).start(), phases.get(1).end())).containsExactly("2026-10-01", "2026-10-09");
-        assertThat(List.of(phases.get(2).pct(), phases.get(2).total())).containsExactly(0, 0);
     }
 
     /** Without a JiraWriter nothing is written to Jira; Planning pushes to the demo site only. */
@@ -364,7 +366,7 @@ class ServiceWritesTest {
         TicketService.BoardTask coding = b.tasks().stream().filter(t -> t.task().key().equals("PAY-1102")).findFirst().orElseThrow();
         assertThat(coding.workflow()).isTrue();
         assertThat(coding.subtasks()).extracting(TicketService.BoardRow::key).contains("PAY-1213");
-        assertThat(b.templates()).hasSize(2);
+        assertThat(b.templates()).hasSize(5);
         assertThat(b.site()).isEqualTo("https://acme-pay.atlassian.net");
     }
 

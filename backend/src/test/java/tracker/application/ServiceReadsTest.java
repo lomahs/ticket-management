@@ -106,6 +106,22 @@ class ServiceReadsTest {
     TrackerContextLoader contexts;
 
     @Test
+    void untrackedTaskAndItsSubTasksAreLeftOut(@Autowired SettingsStore store) {
+        assertThat(contexts.load(ALL).issue("OPS-201")).isPresent();
+        tracker.domain.WorkStructure before = store.load().structureOf("OPS-200");
+        try {
+            store.update(s -> s.anken.get("OPS-200").structure = new tracker.domain.WorkStructure(before.phases(),
+                    before.tasks().stream().filter(t -> !t.phase().equals("Operation")).toList(), before.daily()));
+            TrackerContext ctx = contexts.load(ALL);
+            assertThat(ctx.issue("OPS-210")).isEmpty();
+            assertThat(ctx.issue("OPS-201")).isEmpty();
+            assertThat(ctx.issue("OPS-205")).isPresent();
+        } finally {
+            store.update(s -> s.anken.get("OPS-200").structure = before);
+        }
+    }
+
+    @Test
     void cardCarriesTheEpicRollup() {
         TrackerContext ctx = contexts.load(ALL);
         for (AnkenService.AnkenCard c : anken.overview(ALL)) {

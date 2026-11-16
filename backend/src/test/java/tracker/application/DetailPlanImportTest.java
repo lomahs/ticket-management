@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -47,6 +48,11 @@ class DetailPlanImportTest {
     static final String EPIC = "PAY-1100";
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
+
+    @BeforeEach
+    void declare(@Autowired tracker.application.settings.SettingsStore store) {
+        DetailPlanningTest.declareItaAndItb(store, EPIC);
+    }
 
     @Autowired
     EstimationService estimation;

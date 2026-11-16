@@ -62,6 +62,12 @@ public record WorkStructure(List<String> phases, List<TaskTemplate> tasks, List<
         return t != null ? t.phase() : Naming.parsePhase(summary);
     }
 
+    /** The phase of a tracked Task: its template's, when that is a declared phase; null for a Task the app does not track. */
+    public @Nullable String trackedPhase(String summary) {
+        TaskTemplate t = taskTemplate(summary);
+        return t != null && phases.contains(t.phase()) ? t.phase() : null;
+    }
+
     /** Whether the sub-tasks of a Task with this Summary can be function steps. */
     public boolean hasWorkflow(String summary) {
         TaskTemplate t = taskTemplate(summary);

@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -102,6 +103,23 @@ class DetailPlanningTest {
     static final Viewer ADMIN = new Viewer("minh.hoang@acme.vn", "Minh", "minh", Role.BAL, true, AccessStatus.ACTIVE,
             Permissions.defaults(Role.BAL));
 
+    /** The plan's Tasks are declared: phases ITA and ITB of {@code epic}, after the demo's; their sub-tasks are named "[PAY] …". */
+    static void declareItaAndItb(tracker.application.settings.SettingsStore store, String epic) {
+        store.update(s -> {
+            tracker.domain.WorkStructure st = s.structureOf(epic);
+            s.anken.get(epic).structure = new tracker.domain.WorkStructure(
+                    java.util.stream.Stream.concat(st.phases().stream(), java.util.stream.Stream.of("ITA", "ITB")).toList(),
+                    java.util.stream.Stream.concat(st.tasks().stream(), java.util.stream.Stream.of(
+                            new tracker.domain.TaskTemplate("[*] ITA *", "ITA", "PAY"), new tracker.domain.TaskTemplate("[*] ITB *", "ITB", "PAY"))).toList(),
+                    st.daily());
+        });
+    }
+
+    @BeforeEach
+    void declare(@Autowired tracker.application.settings.SettingsStore store) {
+        declareItaAndItb(store, EPIC);
+    }
+
     /** Tasks created in Jira for the plan, named by the demo's Task pattern "[{anken_prefix}] {sub_phase}": name → key. */
     Map<String, String> tasks = new java.util.HashMap<>();
 
@@ -110,7 +128,7 @@ class DetailPlanningTest {
                 List.of(new NewTicket("t", false, null, null, "[PAY] " + n, "an", null, null, null, null, List.of()))).created().get("t"));
     }
 
-    /** Login and Run under new ITA Tasks, Pay under a new ITB Task (ITB Execute makes ITB a phase group: two Tasks share it). */
+    /** Login and Run under new ITA Tasks, Pay under a new ITB Task. */
     void estimate() {
         task("ITB Execute");
         estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(task("ITA Create test case")),
@@ -153,10 +171,10 @@ class DetailPlanningTest {
                 .isInstanceOf(Invalid.class).hasMessage("Task is required").extracting("field").isEqualTo("rows.0.task_key");
         assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Run", null, 0).withTask(t))))
                 .isInstanceOf(Invalid.class).extracting("field").isEqualTo("rows.0.effort_h");
-        tickets.applyBatch(ADMIN, ALL, EPIC, List.of(), List.of(new NewTicket("t", false, null, null, "Kick-off", "an", null, null, null, null, List.of())));
-        String other = loader.load(ALL).parents().stream().filter(p -> p.summary().equals("Kick-off")).findFirst().orElseThrow().key();
+        String other = tickets.applyBatch(ADMIN, ALL, EPIC, List.of(),
+                List.of(new NewTicket("t", false, null, null, "Kick-off", "an", null, null, null, null, List.of()))).created().get("t");
         assertThatThrownBy(() -> estimation.save(ALL, EPIC, List.of(row(0, 0, "Login", 5, 8).withTask(other))))
-                .isInstanceOf(Invalid.class).hasMessageContaining("Task pattern"); // a Task the Task pattern does not read
+                .isInstanceOf(Invalid.class).hasMessageContaining("Task pattern"); // a Task not declared in Phase & Task
     }
 
     @Test

@@ -49,6 +49,15 @@ class WorkStructureTest {
     }
 
     @Test
+    void trackedPhaseNeedsADeclaredTemplateAndPhase() {
+        WorkStructure ws = new WorkStructure(List.of("Test"),
+                List.of(new TaskTemplate("* ita prepare", "Test", ""), new TaskTemplate("* ita execute", "Gone", "")));
+        assertThat(ws.trackedPhase("[A] ITA Prepare")).isEqualTo("Test");
+        assertThat(ws.trackedPhase("[A] ITA Execute")).isNull();
+        assertThat(ws.trackedPhase("[Test] ITA Bug fix")).isNull();
+    }
+
+    @Test
     void workflowIsOnUnlessTheTemplateTurnsItOff() {
         assertThat(WS.hasWorkflow("FUT create test case")).isTrue();
         assertThat(WS.hasWorkflow("QnA management for UC")).isFalse();
