@@ -20,12 +20,12 @@ This rule drives every roll-up, so do not mix the levels up:
 - Sub-task: `[{anken_prefix}][LocalTask][{phase_name_prefix}]_{function_name}_{step}`.
 - `BookUI` is the anken prefix. `LocalTask` only marks our own tickets apart from the client's. **Neither is a phase.**
 
-**Phase groups** (`backend/src/main/java/tracker/domain/PhaseGroups.java`) are computed per epic at read time:
+**Tracked tickets and phase groups** (`backend/src/main/java/tracker/domain/PhaseGroups.java`, `WorkStructure.trackedPhase`):
 
-1. A Task template from **the anken's** Settings → Structure that matches the Task decides its phase. So does a leading `[Phase]`
-   that names a configured phase; the demo data relies on this.
-2. Otherwise, drop the leading `[...]` groups. The first word of what remains (`ITA`) is a phase if **two or more**
-   Tasks of the epic share it. Every other Task goes to `Other` (e.g. `WorkRequest`, `Change Request`).
+1. The app tracks only the Tasks that match a Task template of **the anken's** Settings › Phase & Task whose phase is a declared
+   phase, and their sub-tasks. Any other Task (and its sub-tasks) is on no screen and counts for nothing; there is no `Other`
+   group. `TrackerContextLoader.load` drops them; sync and Settings still see every issue.
+2. A tracked Task's phase is its template's phase.
 3. A sub-task belongs to its parent Task's phase, through the Jira parent link and never through its title.
 
 Phase progress = `Σ logged hours / (Σ logged + Σ remaining estimate)` over the phase's **sub-tasks** (Jira's progress
