@@ -304,6 +304,16 @@ describe('detail plan', () => {
     expect(await screen.findByRole('dialog', { name: 'Push review' })).toBeTruthy();
   });
 
+  it('opens a sub-task in Jira in the ticket panel', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, REFUND] }))));
+    const { router } = renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByRole('button', { name: 'Open PAY-1201' }));
+    await waitFor(() => expect((router.state.location.search as { ticket?: string }).ticket).toBe('PAY-1201'));
+    expect(screen.queryByRole('button', { name: /^Open New/ })).toBeNull(); // not in Jira yet: nothing to open
+  });
+
   it('types hours into a day and sends them when the cell is left', async () => {
     const sent: unknown[] = [];
     onboarding({ step: 5 });

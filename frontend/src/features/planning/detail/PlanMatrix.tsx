@@ -5,6 +5,7 @@ import type { Schemas } from '../../../shared/api/types';
 import { Button, DateField, Icon, IconButton, type IconName } from '../../../shared/ds';
 import { dm, f2, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
+import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
 import { useEditJiraLine, useEditStep, useSaveCells, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
 import { usePersonName, type Person } from './DetailPlan';
@@ -116,6 +117,7 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
   assign: (r: Row, slot: Slot, id: string | null) => void; swap: (a: number, b: number) => void;
 }) {
   const toast = useToast();
+  const openTicket = useOpenTicket();
   const today = useMeta().data?.today ?? '';
   const edit = useEditStep(epic);
   const cells = useSaveCells(epic);
@@ -337,9 +339,10 @@ export function PlanMatrix({ epic, v, people, admin, assign, swap }: {
           <span className="pm-stp">
             {admin && !l.removed && !l.closed && <input type="checkbox" className="pm-pick" aria-label={`Pick ${l.summary}`}
               title="Pick to shift or push this step" checked={picked.has(l.ref)} onChange={() => togglePick(l.ref)} />}
-            <span className={`pm-key${inJira ? '' : ' new'}`} title={inJira ? `Sub-task ${l.issue_key} in Jira` : 'Not in Jira yet: the push creates it'}>
-              {inJira ? l.issue_key : 'New'}
-            </span>
+            {inJira
+              ? <button type="button" className="pm-key pm-key-open" aria-label={`Open ${key}`} title={`Sub-task ${key} in Jira: open its details`}
+                onClick={() => openTicket(key)}>{key}</button>
+              : <span className="pm-key new" title="Not in Jira yet: the push creates it">New</span>}
             <span className="pm-stp-name ellipsis" title={l.summary}>{st?.short ?? l.summary}</span>
             {l.pending && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}
               title="Changed here: sent to Jira with the push">Not pushed</span>}
