@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderApp, server } from './renderApp';
@@ -58,6 +58,15 @@ describe('detail plan', () => {
     const l = base(ref, row, step, summary, total, over);
     return { plan_estimate_h: l.total_h, plan_h: l.planned_h, plan_not_yet_h: l.not_yet_h, ...l };
   };
+  /** A day cell's box: a cell becomes one once it has focus. */
+  const cellInput = (label: string) => {
+    const c = screen.getByLabelText(label);
+    if (!(c instanceof HTMLInputElement)) fireEvent.focus(c);
+    return screen.getByLabelText(label) as HTMLInputElement;
+  };
+  const findCell = async (label: string) => { await screen.findByLabelText(label); return cellInput(label); };
+  /** What a day cell shows, at rest or typed in. */
+  const shown = (el: HTMLElement) => (el instanceof HTMLInputElement ? el.value : el.textContent);
   const LINES = [mline('1:create', 1, 'create', '[PAY] Login – Create', 8), mline('1:balr', 1, 'balr', '[PAY] Login – BAL Review', 2),
     mline('2', 2, null, '[PAY] Run', 16)];
   // today is 2026-10-07 (meta): the 6th is past
@@ -140,7 +149,7 @@ describe('detail plan', () => {
     await waitFor(() => expect(within(runRow).getByLabelText('Start, [PAY] Run').textContent).toBe('10/12'));
     expect(within(runRow).getByLabelText('End, [PAY] Run').textContent).toBe('10/14');
     expect(within(runRow).getByLabelText('Planned, [PAY] Run').textContent).toBe('16.00');
-    expect((within(runRow).getByLabelText('[PAY] Run 2026-10-14') as HTMLInputElement).value).toBe('8');
+    expect(shown(within(runRow).getByLabelText('[PAY] Run 2026-10-14'))).toBe('8');
     expect((within(runRow).getByLabelText('PIC, [PAY] Run') as HTMLSelectElement).value).toBe('an'); // who carries the line
     expect(screen.getByText('ITA ends 10/14 · master 10/13 · 1 day late')).toBeTruthy();
     const days = screen.getByRole('region', { name: 'Effort per member per day' });
@@ -250,7 +259,7 @@ describe('detail plan', () => {
     renderApp('/planning/detail?anken=PAY-1100');
     fireEvent.click(await screen.findByLabelText('Pick Login'));
     expect(screen.getByRole('group', { name: 'Picked functions and steps' })).toBeTruthy();
-    const cell = screen.getByLabelText('[PAY] Run 2026-10-12');
+    const cell = cellInput('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Picked functions and steps' })).toBeNull());
@@ -387,7 +396,7 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement;
+    const cell = await findCell('[PAY] Run 2026-10-12');
     expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByLabelText('Not yet plan, [PAY] Run').textContent).toBe('16.00');
     fireEvent.change(cell, { target: { value: '8' } });
     expect(sent).toEqual([]); // not while it is typed
@@ -397,12 +406,46 @@ describe('detail plan', () => {
     const row = screen.getByRole('row', { name: '[PAY] Run' });
     await waitFor(() => expect(within(row).getByLabelText('Not yet plan, [PAY] Run').textContent).toBe('8.00'));
     expect(within(row).getByLabelText('Start, [PAY] Run').textContent).toBe('10/12');
-    expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('8');
-    const next = screen.getByLabelText('[PAY] Run 2026-10-13');
+    expect(shown(screen.getByLabelText('[PAY] Run 2026-10-12'))).toBe('8');
+    const next = cellInput('[PAY] Run 2026-10-13');
     fireEvent.change(next, { target: { value: '' } });
     fireEvent.keyDown(next, { key: 'Enter' });
     fireEvent.blur(next); // nothing changed: nothing sent
     expect(sent).toHaveLength(1);
+  });
+
+  it('has one box in the matrix, the day cell being typed', async () => {
+    onboarding({ step: 5 });
+    members();
+    server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())));
+    renderApp('/planning/detail?anken=PAY-1100');
+    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    const boxes = () => document.querySelectorAll('.pm-table .pm-cell input');
+    expect(boxes()).toHaveLength(0);
+    expect(cell.getAttribute('role')).toBe('button');
+    fireEvent.focus(cell);
+    expect(boxes()).toHaveLength(1);
+    expect(document.activeElement).toBe(screen.getByLabelText('[PAY] Run 2026-10-12'));
+    fireEvent.blur(document.activeElement as HTMLElement);
+    expect(boxes()).toHaveLength(0);
+  });
+
+  it('sends a cell when the next one takes the focus, as Tab does, and types in the next', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async ({ request }) => { sent.push(await request.json()); return HttpResponse.json(detailView()); }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    const cell = await findCell('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '8' } });
+    act(() => (screen.getByLabelText('[PAY] Run 2026-10-13') as HTMLElement).focus());
+    await waitFor(() => expect(sent).toEqual([{ cells: [{ ref: '2', day: '2026-10-12', hours: 8 }] }]));
+    const next = screen.getByLabelText('[PAY] Run 2026-10-13');
+    expect(next.tagName).toBe('INPUT');
+    expect(document.activeElement).toBe(next);
   });
 
   it('plans the past days of a Jira line too and shows the hours logged', async () => {
@@ -411,11 +454,11 @@ describe('detail plan', () => {
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, pending: true }] }))));
     renderApp('/planning/detail?anken=PAY-1100');
     const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
-    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-06') as HTMLInputElement).value).toBe('1'); // a past day: its plan, editable
+    expect(shown(screen.getByLabelText('[PAY] Refund – Create 2026-10-06'))).toBe('1'); // a past day: its plan, editable
     const past = row.querySelector('[data-day="2026-10-06"]') as HTMLElement;
     expect(within(past).getByText('1.5h')).toBeTruthy(); // the hours logged
-    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-07') as HTMLInputElement).disabled).toBe(false); // today stays open
-    expect((screen.getByLabelText('[PAY] Refund – Create 2026-10-08') as HTMLInputElement).value).toBe('2');
+    expect(screen.getByLabelText('[PAY] Refund – Create 2026-10-07')).toBeTruthy(); // today stays open: a locked day has no box
+    expect(shown(screen.getByLabelText('[PAY] Refund – Create 2026-10-08'))).toBe('2');
     expect(within(row).getByText('Not pushed')).toBeTruthy();
     expect(within(row).getByText('PAY-1201')).toBeTruthy();
   });
@@ -495,11 +538,11 @@ describe('detail plan', () => {
       http.post('*/api/v1/planning/PAY-1100/detail/versions', () => { order.push('version'); return HttpResponse.json(detailView()); }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    const cell = await findCell('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
     await waitFor(() => expect(order).toEqual(['cells']));
-    const next = screen.getByLabelText('[PAY] Run 2026-10-13'); // typed while the first cell is being saved
+    const next = cellInput('[PAY] Run 2026-10-13'); // typed while the first cell is being saved
     fireEvent.change(next, { target: { value: '4' } });
     fireEvent.blur(next);
     fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
@@ -525,7 +568,7 @@ describe('detail plan', () => {
     );
     renderApp('/planning/detail?anken=PAY-1100');
     const type = (day: string, value: string) => {
-      const c = screen.getByLabelText(`[PAY] Run ${day}`);
+      const c = cellInput(`[PAY] Run ${day}`);
       fireEvent.change(c, { target: { value } });
       fireEvent.blur(c);
     };
@@ -554,7 +597,7 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    const cell = await findCell('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
     const row = screen.getByRole('row', { name: '[PAY] Run' });
@@ -574,7 +617,7 @@ describe('detail plan', () => {
         { code: 'invalid', detail: 'At most 24 hours a day', errors: [] }, { status: 400, headers: { 'Content-Type': 'application/problem+json' } })),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12');
+    const cell = await findCell('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '30' } });
     fireEvent.blur(cell);
     expect(await screen.findByText('At most 24 hours a day')).toBeTruthy();
@@ -598,16 +641,17 @@ describe('detail plan', () => {
       }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    const cell = await screen.findByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement;
+    const cell = await findCell('[PAY] Run 2026-10-12');
     fireEvent.change(cell, { target: { value: '8' } });
     fireEvent.blur(cell);
     await waitFor(() => expect(sent).toHaveLength(1));
-    fireEvent.change(cell, { target: { value: '6' } }); // typed again before the 8 is saved
+    const again = cellInput('[PAY] Run 2026-10-12');
+    fireEvent.change(again, { target: { value: '6' } }); // typed again before the 8 is saved
     release();
-    await waitFor(() => expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('6'));
+    await waitFor(() => expect(shown(screen.getByLabelText('[PAY] Run 2026-10-12'))).toBe('6'));
     await new Promise((r) => setTimeout(r, 50));
-    expect(cell.value).toBe('6'); // the answer to the 8 does not wipe the 6
-    fireEvent.blur(cell);
+    expect(again.value).toBe('6'); // the answer to the 8 does not wipe the 6
+    fireEvent.blur(again);
     await waitFor(() => expect(sent).toEqual([{ cells: [{ ref: '2', day: '2026-10-12', hours: 8 }] }, { cells: [{ ref: '2', day: '2026-10-12', hours: 6 }] }]));
   });
 
@@ -643,7 +687,7 @@ describe('detail plan', () => {
     renderApp('/planning/detail?anken=PAY-1100');
     fireEvent.click(await screen.findByRole('button', { name: 'Auto allocate' }));
     await waitFor(() => expect((screen.getByLabelText('PIC, [PAY] Login – Create') as HTMLSelectElement).value).toBe('an'));
-    expect((screen.getByLabelText('[PAY] Run 2026-10-12') as HTMLInputElement).value).toBe('8');
+    expect(shown(screen.getByLabelText('[PAY] Run 2026-10-12'))).toBe('8');
     expect(posts).toBe(1);
   });
 

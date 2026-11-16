@@ -34,8 +34,9 @@ const left = (l: MatrixLine) => Math.abs(l.plan_not_yet_h) > NOT_YET_EPS && !l.r
  * Hours typed in a box: sent once the box is left (or Enter), only when they changed; what was typed stays on screen until the
  * plan comes back. A cleared box is 0 when {@code blank} is 0, else it is put back.
  */
-function HoursInput({ label, value, blank, send, className }: {
+function HoursInput({ label, value, blank, send, className, autoFocus, onDone }: {
   label: string; value: number; blank: 'zero' | 'keep'; send: (hours: number) => Promise<unknown>; className?: string;
+  autoFocus?: boolean; onDone?: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? (blank === 'zero' ? h(value) : String(Number(f2(value))));
@@ -50,9 +51,25 @@ function HoursInput({ label, value, blank, send, className }: {
     void send(Math.round(n * 100) / 100).finally(() => setDraft((d) => (d === sent ? null : d)));
   };
   return (
-    <input type="number" min={0} step={0.5} aria-label={label} value={shown} onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} onBlur={leave}
+    <input type="number" min={0} step={0.5} aria-label={label} value={shown} onChange={(e) => setDraft(e.target.value)} autoFocus={autoFocus}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} onBlur={() => { leave(); onDone?.(); }}
       className={`pm-in${shown === '' ? ' empty' : ''}${className ? ` ${className}` : ''}`} />
+  );
+}
+
+/**
+ * A day cell of a line that can be planned: its hours as text, and a box only while it has the focus (a click or Tab), so the
+ * matrix holds one box, not one per day. The box sends what is typed when it is left, as {@link HoursInput} does.
+ */
+function DayCell({ label, value, hand, send }: { label: string; value: number; hand: boolean; send: (hours: number) => Promise<unknown> }) {
+  const [typing, setTyping] = useState(false);
+  if (typing) {
+    return <HoursInput label={label} value={value} blank="zero" send={send} className={hand ? 'hand' : undefined} autoFocus onDone={() => setTyping(false)} />;
+  }
+  const shown = h(value);
+  return (
+    <span role="button" tabIndex={0} aria-label={label} onFocus={() => setTyping(true)}
+      className={`pm-in pm-in-v${shown === '' ? ' empty' : ''}${hand ? ' hand' : ''}`}>{shown}</span>
   );
 }
 
@@ -423,7 +440,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
               <Mark level="warning" msgs={warn} />
               {locked
                 ? <span className="pm-lk">{h(planned)}</span>
-                : <HoursInput label={`${l.summary} ${d}`} value={planned} blank="zero" send={(n) => sendCell(l, d, n)} className={typed ? 'hand' : undefined} />}
+                : <DayCell label={`${l.summary} ${d}`} value={planned} hand={typed} send={(n) => sendCell(l, d, n)} />}
               {logged > 0 && <span className="muted pm-logged" title={`${h(logged)}h logged`}>{`${h(logged)}h`}</span>}
             </td>
           );

@@ -489,6 +489,7 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .pm-cell:hover .pm-in, .pm-in:hover { border-color: var(--border-strong); }
 .pm-in:focus { outline: none; border-color: var(--pm-today); box-shadow: 0 0 0 3px var(--pm-today-bg); }
 .pm-in.hand { background: var(--hl-manual); border-color: var(--hl-manual-fg); color: var(--hl-manual-fg); font-weight: 700; }
+.pm-in-v { display: flex; align-items: center; justify-content: center; cursor: text; }
 .pm-in-est { text-align: right; }
 .pm-in-est:not(.hand) { border-color: var(--border-subtle); font-weight: 600; }
 
