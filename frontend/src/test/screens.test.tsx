@@ -300,8 +300,8 @@ describe('screens render API data at their URLs', () => {
       http.get('*/api/v1/effort/burndown', () => HttpResponse.json({
         epic_key: 'PAY-1100', title: 'Payment flow revision', ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }],
         phases: ['ITA'], phase: null, tasks: [], task: null, members: ['an'], member: null, subtasks: 3, today: '2026-10-07',
-        burndown: { estimate_h: 20, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 9, actual_remaining_h: 12,
-          days: [day('2026-10-05', 20, 20), day('2026-10-06', 14, 16), day('2026-10-07', 9, 12), day('2026-10-08', 0, null)] },
+        burndown: { estimate_h: 20, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 9, actual_remaining_h: 11,
+          days: [day('2026-10-05', 20, 20), day('2026-10-06', 14, 16), day('2026-10-07', 9, 11), day('2026-10-08', 0, null)] },
       })),
       http.get('*/api/v1/effort/burndown/day', ({ request }) => {
         const date = new URL(request.url).searchParams.get('date') ?? '';
@@ -310,7 +310,7 @@ describe('screens render API data at their URLs', () => {
         return HttpResponse.json({ date, today: '2026-10-07', rows: [
           ticket('PAY-1311', 'ITA Prepare', 'Login', 'create', 'an', future ? { logged_h: null, actual_remaining_h: null, source: null } : { source: 'jira' }),
           ticket('PAY-1312', 'ITA Prepare', 'Login', 'balr', 'minh', { estimate_h: 4, planned_h: 3, plan_remaining_h: 1,
-            ...(future ? { logged_h: null, actual_remaining_h: null, source: null } : { logged_h: 1, actual_remaining_h: 2 }) }),
+            ...(future ? { logged_h: null, actual_remaining_h: null, source: null } : { logged_h: 3, actual_remaining_h: 1 }) }),
           ticket('PAY-1321', 'ITA Execute', 'Search', null, 'an', { estimate_h: 8, planned_h: 4, plan_remaining_h: 4,
             ...(future ? { logged_h: null, actual_remaining_h: null, source: null } : { logged_h: 0, actual_remaining_h: 5, source: 'worklogs' }) }),
         ] });
@@ -325,14 +325,20 @@ describe('screens render API data at their URLs', () => {
     expect(cells()[0]).toEqual(['Sub-Phase', 'Function', 'Step', 'Ticket', 'PIC', 'Estimate', 'Plan effort', 'Actual effort',
       'Plan Remain effort', 'Actual Remain effort']);
     expect(cells()[1]).toEqual(['ITA Prepare', 'Login', 'Create', 'PAY-1311', 'An (BA)', '8.00', '4.00', '3.00', '4.00', '5.00Jira now']);
-    expect(cells()[2]).toEqual(['', '', 'BAL Review', 'PAY-1312', 'Minh (BAL)', '4.00', '3.00', '1.00', '1.00', '2.00Capture']);
+    expect(cells()[2]).toEqual(['', '', 'BAL Review', 'PAY-1312', 'Minh (BAL)', '4.00', '3.00', '3.00', '1.00', '1.00Capture']);
     expect(cells()[3]).toEqual(['ITA Execute', 'Search', '–', 'PAY-1321', 'An (BA)', '8.00', '4.00', '0.00', '4.00', '5.00From worklogs']);
-    expect(cells()[4]).toEqual(['Total', '', '', '', '', '20.00', '11.00', '4.00', '9.00', '12.00']); // the chart's point of 10/07
+    expect(cells()[4]).toEqual(['Total', '', '', '', '', '20.00', '11.00', '6.00', '9.00', '11.00']); // the chart's point of 10/07
+    // a plan and its actual that differ are highlighted, both of them: Plan / Actual effort, then Plan / Actual Remain effort
+    const diff = () => within(table).getAllByRole('row').slice(1).map((r) => [...r.querySelectorAll('td')].slice(-4)
+      .map((c) => c.getAttribute('data-diff') === 'true'));
+    expect(diff()).toEqual([[true, true, true, true], [false, false, false, false], [true, true, true, true], [true, true, true, true]]);
+    expect(within(table).getAllByRole('row')[1].querySelectorAll('td')[7].getAttribute('title')).toBe('Actual − Plan: −1.00h');
     expect(container.querySelector('[data-day="2026-10-07"]')?.getAttribute('data-picked')).toBe('true');
     fireEvent.click(container.querySelector('[data-day="2026-10-08"]') as HTMLElement); // a day after today
     await waitFor(() => expect(router.state.location.search).toMatchObject({ day: '2026-10-08' }));
     await waitFor(() => expect(screen.getByText('Effort by ticket · Thu 10/08')).toBeTruthy());
     await waitFor(() => expect(cells()[4]).toEqual(['Total', '', '', '', '', '20.00', '11.00', '–', '9.00', '–']));
+    expect(diff().flat()).not.toContain(true); // nothing actual after today
     expect(cells()[1].slice(7)).toEqual(['–', '4.00', '–']);
     expect(container.querySelector('[data-day="2026-10-08"]')?.getAttribute('data-picked')).toBe('true');
     expect(container.querySelector('[data-day="2026-10-07"]')?.getAttribute('data-picked')).toBeNull();
