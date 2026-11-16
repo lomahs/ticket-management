@@ -25,7 +25,7 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
   const plan = days.map((d) => d.plan_remaining_h);
   const act = days.flatMap((d, k) => (d.actual_remaining_h == null ? [] : [[k, d.actual_remaining_h] as const]));
   const base = days.flatMap((d, k) => (d.baseline_remaining_h == null ? [] : [[k, d.baseline_remaining_h] as const]));
-  const top = Math.max(E, b.baseline_h ?? 0);
+  const top = Math.max(E, b.baseline_h ?? 0, ...plan, ...act.map(([, h]) => h), ...base.map(([, h]) => h));
   const ti = days.findLastIndex((d) => d.date <= today);
   const step = top > 400 ? 100 : top > 200 ? 50 : top > 80 ? 20 : 10;
   const yMax = Math.max(step, Math.ceil(top / step) * step);

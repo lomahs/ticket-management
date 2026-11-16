@@ -56,6 +56,11 @@ describe('BurndownChart', () => {
     expect(line('baseline')).toBeTruthy();
   });
 
+  it('raises the y axis to an actual remaining above the estimate', () => {
+    const { container } = render(<BurndownChart b={chart([11, 18, 26, null])} today="2026-10-07" empty="none" />);
+    expect(container.textContent).toContain('30.00h'); // 26h actual, above the 12h estimate
+  });
+
   it('draws no Baseline plan without one', () => {
     const { container } = render(<BurndownChart b={chart([11, 9, 6, null])} today="2026-10-07" empty="none" />);
     expect(container.querySelector('polyline[data-line="baseline"]')).toBeNull();
