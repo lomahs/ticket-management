@@ -3,6 +3,16 @@ import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { renderApp, server } from './renderApp';
 
+// how many times each step line renders, by its ref: the real line, behind a memo with the same props
+const renders = vi.hoisted(() => new Map<string, number>());
+vi.mock('../features/planning/detail/StepLine', async (importOriginal) => {
+  const m = await importOriginal<typeof import('../features/planning/detail/StepLine')>();
+  const { createElement, memo } = await import('react');
+  type Props = Parameters<typeof m.StepLine>[0];
+  const Line = (m.StepLine as unknown as { type: (p: Props) => React.ReactNode }).type;
+  return { ...m, StepLine: memo((p: Props) => { renders.set(p.l.ref, (renders.get(p.l.ref) ?? 0) + 1); return createElement(Line, p); }) };
+});
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { cleanup(); server.resetHandlers(); localStorage.clear(); vi.restoreAllMocks(); });
 afterAll(() => server.close());
@@ -412,6 +422,34 @@ describe('detail plan', () => {
     fireEvent.keyDown(next, { key: 'Enter' });
     fireEvent.blur(next); // nothing changed: nothing sent
     expect(sent).toHaveLength(1);
+  });
+
+  it('renders again only the line whose plan changed', async () => {
+    const sent: unknown[] = [];
+    onboarding({ step: 5 });
+    members();
+    server.use(
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView())),
+      http.put('*/api/v1/planning/PAY-1100/detail/cells', async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json(detailView({ lines: [...LINES.slice(0, 2),
+          run({ planned_h: 8, not_yet_h: 8, cells: [{ day: '2026-10-12', hours: 8, auto: false }] })] }));
+      }),
+    );
+    renderApp('/planning/detail?anken=PAY-1100');
+    await screen.findByLabelText('[PAY] Run 2026-10-12');
+    await new Promise((r) => setTimeout(r, 100)); // everything the screen reads has come
+    const login = renders.get('1:create') ?? 0;
+    const runs = renders.get('2') ?? 0;
+    expect(login).toBeGreaterThan(0);
+    const cell = cellInput('[PAY] Run 2026-10-12');
+    fireEvent.change(cell, { target: { value: '8' } });
+    fireEvent.blur(cell);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await waitFor(() => expect(within(screen.getByRole('row', { name: '[PAY] Run' })).getByLabelText('Not yet plan, [PAY] Run').textContent).toBe('8.00'));
+    await new Promise((r) => setTimeout(r, 100)); // the plan that follows has come back
+    expect(renders.get('2')).toBeGreaterThan(runs);
+    expect(renders.get('1:create')).toBe(login); // Login's lines did not change
   });
 
   it('has one box in the matrix, the day cell being typed', async () => {

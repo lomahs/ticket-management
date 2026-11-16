@@ -1,77 +1,27 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useMeta } from '../../../shared/api/queries';
 import type { Schemas } from '../../../shared/api/types';
-import { Button, DateField, Icon, IconButton, type IconName } from '../../../shared/ds';
+import { Button, DateField, Icon, type IconName } from '../../../shared/ds';
 import { dm, f2, hrs, WDN } from '../../../shared/format/dates';
 import { STEPS } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
-import { useCellWriter, useEditJiraLine, useEditStep, useDeleteStep, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
-import { withTyped } from './matrixModel';
+import { detailPlanQuery, useCellWriter, useEditJiraLine, useEditStep, useDeleteStep, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
+import { hoursByDay, lineMarks, withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
-import { checkText, overDayText } from './PlanSummary';
+import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
+import { left, LineActionsContext, Mark, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
 type Row = Schemas['EstimationRow'];
-export type Slot = 'ba_id' | 'bal_id' | 'jm_id';
+export type { Slot };
 
-/** Not yet within a hundredth counts as planned, as the push sees it. */
-const NOT_YET_EPS = 0.01;
-const step = (k?: string | null) => STEPS.find((s) => s.k === k);
-/** Hours as they are typed: "8", "1.5"; nothing for none. */
-const h = (n: number) => (Math.abs(n) < 0.005 ? '' : String(Number(f2(n))));
 /** A sum on a folded row: "–" for none. */
 const sumText = (n: number) => (Math.abs(n) < 0.005 ? '–' : f2(n));
-const sum = (cells: MatrixLine['cells'], day: string) => cells.filter((c) => c.day === day).reduce((a, c) => a + c.hours, 0);
 const weekday = (d: string) => WDN[new Date(`${d}T00:00:00Z`).getUTCDay()];
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const SLOT: Record<string, Slot> = { ba: 'ba_id', bal: 'bal_id', jm: 'jm_id' };
-/** Whether a line still has hours to plan, as the push sees it. */
-const left = (l: MatrixLine) => Math.abs(l.plan_not_yet_h) > NOT_YET_EPS && !l.removed && !l.closed;
-
-/**
- * Hours typed in a box: sent once the box is left (or Enter), only when they changed; what was typed stays on screen until the
- * plan comes back. A cleared box is 0 when {@code blank} is 0, else it is put back.
- */
-function HoursInput({ label, value, blank, send, className, autoFocus, onDone }: {
-  label: string; value: number; blank: 'zero' | 'keep'; send: (hours: number) => Promise<unknown>; className?: string;
-  autoFocus?: boolean; onDone?: () => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (blank === 'zero' ? h(value) : String(Number(f2(value))));
-  const leave = () => {
-    if (draft == null) return;
-    const t = draft.trim();
-    const n = t === '' && blank === 'zero' ? 0 : Number(t);
-    if (t === '' && blank === 'keep') { setDraft(null); return; }
-    if (!Number.isFinite(n) || n < 0 || Math.abs(n - value) < 0.005) { setDraft(null); return; }
-    const sent = draft;
-    // what was typed again meanwhile stays until it is left in turn
-    void send(Math.round(n * 100) / 100).finally(() => setDraft((d) => (d === sent ? null : d)));
-  };
-  return (
-    <input type="number" min={0} step={0.5} aria-label={label} value={shown} onChange={(e) => setDraft(e.target.value)} autoFocus={autoFocus}
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} onBlur={() => { leave(); onDone?.(); }}
-      className={`pm-in${shown === '' ? ' empty' : ''}${className ? ` ${className}` : ''}`} />
-  );
-}
-
-/**
- * A day cell of a line that can be planned: its hours as text, and a box only while it has the focus (a click or Tab), so the
- * matrix holds one box, not one per day. The box sends what is typed when it is left, as {@link HoursInput} does.
- */
-function DayCell({ label, value, hand, send }: { label: string; value: number; hand: boolean; send: (hours: number) => Promise<unknown> }) {
-  const [typing, setTyping] = useState(false);
-  if (typing) {
-    return <HoursInput label={label} value={value} blank="zero" send={send} className={hand ? 'hand' : undefined} autoFocus onDone={() => setTyping(false)} />;
-  }
-  const shown = h(value);
-  return (
-    <span role="button" tabIndex={0} aria-label={label} onFocus={() => setTyping(true)}
-      className={`pm-in pm-in-v${shown === '' ? ' empty' : ''}${hand ? ' hand' : ''}`}>{shown}</span>
-  );
-}
 
 /** Where a line's step comes in its function (a ticket first). */
 const stepOrder = (l: MatrixLine) => (l.step ? STEPS.findIndex((x) => x.k === l.step) + 1 : 0);
@@ -114,27 +64,6 @@ function FilterMenu({ label, icon, picked, options, toggle, clear, wide, childre
           ))}
           {children}
         </div>
-      )}
-    </span>
-  );
-}
-
-/**
- * What is wrong on a row or a cell: an error (Invalid, red: it stops the push) or a warning (amber: it does not). Its messages
- * open above everything on hover or focus, not clipped by the scrolling matrix.
- */
-function Mark({ level, msgs }: { level: 'error' | 'warning'; msgs: string[] }) {
-  const [at, setAt] = useState<DOMRect | null>(null);
-  if (!msgs.length) return null;
-  const show = (e: { currentTarget: Element }) => setAt(e.currentTarget.getBoundingClientRect());
-  return (
-    <span className={`pm-mark ${level}`} tabIndex={0} role="img" aria-label={`${level === 'error' ? 'Invalid' : 'Warning'}: ${msgs.join('; ')}`}
-      onMouseEnter={show} onFocus={show} onMouseLeave={() => setAt(null)} onBlur={() => setAt(null)}>
-      <Icon name={level === 'error' ? 'circle-alert' : 'triangle-alert'} size={12} />
-      {at && (
-        <span className={`pm-mark-tip ${level}`} role="tooltip" style={{ left: Math.max(8, at.left - 8), top: at.bottom + 6 }}>
-          {msgs.map((m) => <span key={m}>{m}</span>)}
-        </span>
       )}
     </span>
   );
@@ -190,7 +119,6 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   };
   const sendCell = (l: MatrixLine, day: string, hours: number) => cells.send({ ref: l.ref, day, hours }).catch(fail);
   const sendJira = (key: string, total: number | null, pic: string | null) => jira.mutateAsync({ key, total_h: total, pic_id: pic }).catch(fail);
-
   // Ctrl / Cmd + K: the search
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -229,17 +157,11 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const allGroups = tree.flatMap((t) => t.subs.flatMap((s) => s.groups));
 
   // a row's step picks the function's person in its slot; a sub-task in Jira its own PIC
-  const slotOf = (l: MatrixLine): Slot | null => (l.issue_key == null && l.pic_slot ? SLOT[l.pic_slot] ?? null : null);
   const rowOf = (l: MatrixLine) => open.find((r) => r.id === l.row_id);
   const picOf = (l: MatrixLine) => { const s = slotOf(l); const r = rowOf(l); return (s && r ? r[s] : l.pic_id) ?? ''; };
 
-  // what is wrong where: the problems on their row or line, the warnings on the day or phase they are about
-  const issuesOn = (l: MatrixLine, field: string) => v.issues.filter((i) => i.ref === l.ref && i.field === field).map((i) => i.message);
-  const picIssues = (l: MatrixLine) => (l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed
-    ? v.issues.filter((i) => i.row_id === l.row_id && i.field === `pic_${l.pic_slot}`).map((i) => i.message) : []);
+  // what is wrong where: the problems on their row (the lines' own come with each line), the warnings on the phase
   const rowIssues = (r: Row) => [...new Set(v.issues.filter((i) => i.row_id === r.id && (i.field === 'task' || i.field === 'phase')).map((i) => i.message))];
-  const dayWarnings = (l: MatrixLine, d: string) => (l.removed || l.closed ? [] : v.over_day.filter((o) => o.date === d && o.member_id === picOf(l)))
-    .map((o) => overDayText(o, name));
   const phaseWarnings = (p: string) => v.over_budget.filter((o) => o.phase === p)
     .map((o) => `${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`);
 
@@ -255,7 +177,8 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     }
     return !stories.size || stories.has(g.key);
   };
-  const days = v.window.filter((d) => (!from || d >= from) && (!to || d <= to));
+  // kept as it is while the window and the days asked do not change: every line gets it
+  const days = useMemo(() => plan.window.filter((d) => (!from || d >= from) && (!to || d <= to)), [plan.window, from, to]);
   const shownLines = (g: Group, sub: Sub) => (filtering ? g.lines.filter((l) => passes(l, g, sub)) : g.lines);
   const total = v.lines.length;
   const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g, s).length, 0), 0), 0);
@@ -286,18 +209,34 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     if (sc && th && edge) sc.scrollTo({ left: Math.max(0, th.offsetLeft - edge.offsetLeft - edge.offsetWidth - 8), behavior: 'smooth' });
   };
 
-  // BA and BAL: anyone but a JM; JM: anyone but a BA or a BAL; whoever is picked stays listed
-  const choices = (slot: Slot, picked?: string | null) => people.filter((m) => m.id === picked
-    || (slot === 'jm_id' ? m.role !== 'BA' && m.role !== 'BAL' : m.role !== 'JM'));
-  // a person picked by hand, not by Auto allocate: "Clear, keep my input" keeps them
-  const byHand = (r: Row, slot: Slot) => {
-    const x = v.by_hand.find((y) => y.row_id === r.id);
-    return !!x && (slot === 'ba_id' ? x.ba : slot === 'bal_id' ? x.bal : x.jm);
-  };
+  const deleteStep = (l: MatrixLine) => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); };
+
+  // what the step lines ask of the matrix: one object for its whole life, calling the handlers of the last render, so a line
+  // renders again only when its own data changes
+  const latest = useRef<LineActions | null>(null);
+  useLayoutEffect(() => {
+    latest.current = { sendCell, sendStep, sendJira, deleteStep, assign, togglePick, openTicket };
+  });
+  const [actions] = useState<LineActions>(() => ({
+    sendCell: (l, day, hours) => latest.current?.sendCell(l, day, hours) ?? Promise.resolve(),
+    sendStep: (l, p) => latest.current?.sendStep(l, p) ?? Promise.resolve(),
+    sendJira: (key, total, pic) => latest.current?.sendJira(key, total, pic) ?? Promise.resolve(),
+    deleteStep: (l) => latest.current?.deleteStep(l),
+    assign: (r, slot, id) => latest.current?.assign(r, slot, id),
+    togglePick: (key) => latest.current?.togglePick(key),
+    openTicket: (key) => latest.current?.openTicket(key),
+  }));
+  // the marks of each line, kept as they were while they do not change (a select is shared structurally)
+  const marks = useQuery({ ...detailPlanQuery(epic), select: lineMarks }).data;
+
+
+  // each line's hours per day, once per render, for the folded levels and the total per day
+  const perDay = new Map(v.lines.map((l) => [l.ref, hoursByDay(l.cells)]));
+  const byDay = (l: MatrixLine) => perDay.get(l.ref) ?? new Map<string, number>();
 
   /** The day cells of a folded level: its steps' hours per day; empty while it is open. */
   const sums = (lines: MatrixLine[], closed: boolean) => days.map((d) => {
-    const t = closed ? lines.filter((l) => !l.removed).reduce((a, l) => a + sum(l.cells, d), 0) : 0;
+    const t = closed ? lines.filter((l) => !l.removed).reduce((a, l) => a + (byDay(l).get(d) ?? 0), 0) : 0;
     return <td key={d} className={`pm-cell pm-sum${d === today ? ' pm-today' : ''}${closed && t < 0.005 ? ' zero' : ''}`}>{closed ? sumText(t) : ''}</td>;
   });
   const linesOf = (gs: Group[]) => gs.flatMap((g) => g.lines);
@@ -351,103 +290,10 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     );
   };
 
-  const line = (l: MatrixLine) => {
-    const st = step(l.step);
-    const inJira = l.issue_key != null;
-    const key = l.issue_key ?? '';
-    const live = admin && !l.removed && !l.closed; // its Plan Estimation, PIC and days can change
-    const slot = slotOf(l);
-    const r = rowOf(l);
-    let pic: ReactNode;
-    if (!inJira && slot && r && admin && !l.removed) {
-      const hand = byHand(r, slot);
-      pic = (
-        <select className="pm-pic" aria-label={`PIC, ${l.summary}`} value={r[slot] ?? ''} onChange={(e) => assign(r, slot, e.target.value || null)}
-          data-by-hand={hand || undefined} data-empty={!r[slot] || undefined}
-          title={hand ? 'Picked by hand: Clear, keep my input keeps it' : slot === 'jm_id' ? 'The JM who reviews the function' : undefined}>
-          <option value="">–</option>
-          {choices(slot, r[slot]).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-      );
-    } else if (inJira && live) {
-      const now = l.pic_id;
-      const options = !now || people.some((p) => p.id === now) ? people : [...people, { id: now, name: name(now) }];
-      pic = (
-        <select className="pm-pic" aria-label={`PIC, ${l.summary}`} value={l.pic_id ?? ''} onChange={(e) => { if (e.target.value) void sendJira(key, null, e.target.value); }}>
-          {!l.pic_id && <option value="">–</option>}
-          {options.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      );
-    } else {
-      pic = <span aria-label={`PIC, ${l.summary}`}>{name(slot && r ? r[slot] : l.pic_id) || '–'}</span>;
-    }
-    // a sub-task's Plan Estimation is its Original Estimate in Jira: changed there, not here
-    const picBad = picIssues(l);
-    const notYet = issuesOn(l, 'not_yet');
-    const order = issuesOn(l, 'order');
-    const estimate = live && !inJira
-      ? <HoursInput label={`Plan Estimation, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => sendStep(l, { effort_h: n })} className={`pm-in-est${l.edited ? ' hand' : ''}`} />
-      : <span aria-label={`Plan Estimation, ${l.summary}`}>{f2(l.plan_estimate_h)}</span>;
-    return (
-      <tr key={l.ref} className="pm-step" aria-label={l.summary} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
-        title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
-        <th scope="row" className="pm-c0">
-          <span className="pm-stp">
-            {admin && !l.removed && !l.closed && <input type="checkbox" className="pm-pick" aria-label={`Pick ${l.summary}`}
-              title="Pick to shift or push this step" checked={picked.has(l.ref)} onChange={() => togglePick(l.ref)} />}
-            {inJira
-              ? <button type="button" className="pm-key pm-key-open" aria-label={`Open ${key}`} title={`Sub-task ${key} in Jira: open its details`}
-                onClick={() => openTicket(key)}>{key}</button>
-              : <span className="pm-key new" title="Not in Jira yet: the push creates it">New</span>}
-            <span className="pm-stp-name ellipsis" title={l.summary}>{st?.short ?? l.summary}</span>
-            {l.pending && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)' }}
-              title="Changed here: sent to Jira with the push">Not pushed</span>}
-            {l.closed && <span className="status-pill" title="Resolved or Closed in Jira: it cannot change here">Done</span>}
-            <span className="spacer" />
-            {!inJira && admin && l.edited && !l.removed && <IconButton icon="undo-2" label={`Reset ${l.summary}`} size="sm"
-              title="Back to the effort of the estimation" onClick={() => void sendStep(l, { effort_h: null })} style={{ width: 26, height: 26 }} />}
-            {!inJira && admin && !l.removed && (
-              <button type="button" className="pm-del" aria-label={`Remove ${l.summary}`} title="Remove this step" onClick={() => void sendStep(l, { removed: true })}>
-                <Icon name="trash-2" size={14} />
-              </button>
-            )}
-            {!inJira && l.removed && <Button appearance="subtle" size="sm" aria-label={`Restore ${l.summary}`} disabled={!admin}
-              onClick={() => void sendStep(l, { removed: false })}>Restore</Button>}
-            {!inJira && l.removed && admin && l.row_id != null && <Button appearance="subtle" size="sm" aria-label={`Delete ${l.summary}`}
-              title="Delete for good: it cannot be restored; a function left without a step is deleted"
-              disabled={del.isPending} onClick={() => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); }}>Delete</Button>}
-          </span>
-        </th>
-        <td className={`pm-c1${picBad.length ? ' pm-bad' : ''}`}><span className="pm-cellm">{pic}<Mark level="error" msgs={picBad} /></span></td>
-        <td className="pm-c2">{estimate}</td>
-        <td className="pm-c3" aria-label={`Planned, ${l.summary}`}>{f2(l.plan_h)}</td>
-        <td className={`pm-c4${notYet.length ? ' pm-bad' : ''}`} aria-label={`Not yet plan, ${l.summary}`} data-left={left(l) || undefined}>
-          <span className="pm-cellm"><Mark level="error" msgs={notYet} />{f2(l.plan_not_yet_h)}</span>
-        </td>
-        <td className="pm-c5" aria-label={`Start, ${l.summary}`}><span className="pm-cellm">{l.start ? dm(l.start) : '–'}<Mark level="error" msgs={order} /></span></td>
-        <td className="pm-c6" aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
-        <td className="pm-c7" aria-label={`Actual remaining, ${l.summary}`}>{l.actual_remaining_h == null ? '–' : f2(l.actual_remaining_h)}</td>
-        {days.map((d) => {
-          const planned = sum(l.cells, d);
-          const logged = sum(l.logged, d);
-          // every day of an open line can be planned, past ones too; the hours logged show under the plan
-          const locked = !live;
-          const typed = !inJira && l.cells.some((c) => c.day === d && !c.auto && c.hours > 0);
-          const warn = planned > 0 ? dayWarnings(l, d) : [];
-          return (
-            <td key={d} data-day={d} data-out-of-order={(l.out_of_order && !l.removed) || undefined}
-              className={`pm-cell${d === today ? ' pm-today' : ''}${locked ? ' locked' : ''}${l.out_of_order && !l.removed ? ' red' : ''}${warn.length ? ' warn' : ''}`}>
-              <Mark level="warning" msgs={warn} />
-              {locked
-                ? <span className="pm-lk">{h(planned)}</span>
-                : <DayCell label={`${l.summary} ${d}`} value={planned} hand={typed} send={(n) => sendCell(l, d, n)} />}
-              {logged > 0 && <span className="muted pm-logged" title={`${h(logged)}h logged`}>{`${h(logged)}h`}</span>}
-            </td>
-          );
-        })}
-      </tr>
-    );
-  };
+  const line = (l: MatrixLine) => (
+    <StepLine key={l.ref} l={l} row={rowOf(l)} hand={v.by_hand.find((y) => y.row_id === l.row_id)} marks={marks?.[l.ref]} days={days} today={today}
+      admin={admin} picked={picked.has(l.ref)} people={people} deleting={del.isPending} />
+  );
 
   const body: ReactNode[] = [];
   for (const { phase: p, subs } of tree) {
@@ -496,117 +342,119 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     ...people.map((m): [string, string, string] => [m.id, m.name, pics.has(m.id) ? 'on' : ''])];
 
   return (
-    <section className="card pm" aria-label="Detail plan matrix">
-      <div className="pm-bar">
-        <span className="pm-bar-t">Plan by day</span>
-        <span className="pm-info" tabIndex={0} role="button" aria-label="How to read the plan" aria-expanded={legend}
-          onMouseEnter={() => setLegend(true)} onMouseLeave={() => setLegend(false)} onFocus={() => setLegend(true)} onBlur={() => setLegend(false)}>
-          <Icon name="info" size={16} />
-          {legend && <span className="pm-tip" role="tooltip">
-            <span className="pm-tip-h">How to read the plan</span>
-            <span className="pm-tip-r"><span className="pm-k hand">4</span><span><b>Typed by hand</b>Auto allocate keeps it.</span></span>
-            <span className="pm-tip-r"><span className="pm-k red"><Icon name="triangle-alert" size={12} /></span><span><b>Out of step order</b>Starts before the step before it ends: blocks the push.</span></span>
-            <span className="pm-tip-r"><span className="pm-k">2.00</span><span><b>Not yet plan</b>Hours of the Plan Estimation not planned on a day yet: blocks the push.</span></span>
-            <span className="pm-tip-r"><span className="pm-k lock">1.5h</span><span><b>Logged</b>The hours logged on a day show under its plan; a past day can be planned too.</span></span>
-            <span className="pm-tip-r"><span className="pm-k today">{today ? Number(today.slice(8)) : ''}</span><span><b>Today</b>The framed column.</span></span>
-          </span>}
-        </span>
-        <span className="spacer" />
-        {allGroups.length > 0 && (
-          <span className="pm-tools" role="group" aria-label="Plan view">
-            <button type="button" className="pm-tb" onClick={() => setFolded(new Set())}><Icon name="chevrons-up-down" size={14} />Expand all</button>
-            <button type="button" className="pm-tb" onClick={() => setFolded(new Set(allGroups.map((g) => g.key)))}><Icon name="chevrons-down-up" size={14} />Collapse all</button>
-            <span className="pm-tsep" aria-hidden="true" />
-            <button type="button" className="pm-tb today" onClick={toToday} title="Scroll the days back to today"><Icon name="locate-fixed" size={14} />Today</button>
+    <LineActionsContext value={actions}>
+      <section className="card pm" aria-label="Detail plan matrix">
+        <div className="pm-bar">
+          <span className="pm-bar-t">Plan by day</span>
+          <span className="pm-info" tabIndex={0} role="button" aria-label="How to read the plan" aria-expanded={legend}
+            onMouseEnter={() => setLegend(true)} onMouseLeave={() => setLegend(false)} onFocus={() => setLegend(true)} onBlur={() => setLegend(false)}>
+            <Icon name="info" size={16} />
+            {legend && <span className="pm-tip" role="tooltip">
+              <span className="pm-tip-h">How to read the plan</span>
+              <span className="pm-tip-r"><span className="pm-k hand">4</span><span><b>Typed by hand</b>Auto allocate keeps it.</span></span>
+              <span className="pm-tip-r"><span className="pm-k red"><Icon name="triangle-alert" size={12} /></span><span><b>Out of step order</b>Starts before the step before it ends: blocks the push.</span></span>
+              <span className="pm-tip-r"><span className="pm-k">2.00</span><span><b>Not yet plan</b>Hours of the Plan Estimation not planned on a day yet: blocks the push.</span></span>
+              <span className="pm-tip-r"><span className="pm-k lock">1.5h</span><span><b>Logged</b>The hours logged on a day show under its plan; a past day can be planned too.</span></span>
+              <span className="pm-tip-r"><span className="pm-k today">{today ? Number(today.slice(8)) : ''}</span><span><b>Today</b>The framed column.</span></span>
+            </span>}
           </span>
-        )}
-      </div>
-      <div className="pm-filters" role="search" aria-label="Filter the plan">
-        <label className="pm-search">
-          <Icon name="search" size={14} />
-          <input ref={search} type="search" placeholder="Search steps or functions" aria-label="Search steps or functions" value={q} onChange={(e) => setQ(e.target.value)} />
-          <kbd>Ctrl K</kbd>
-        </label>
-        <FilterMenu label="PIC" picked={pics.size} options={picOptions} toggle={toggleIn(setPics)} clear={() => setPics(new Set())} />
-        <FilterMenu label="Status" picked={statuses.size} options={STATUS.map(([k, t]): [string, string, string] => [k, t, statuses.has(k) ? 'on' : ''])}
-          toggle={toggleIn(setStatuses)} clear={() => setStatuses(new Set())} />
-        <FilterMenu label="Function" picked={stories.size} options={storyOptions} toggle={toggleIn(setStories)} clear={() => setStories(new Set())} />
-        <FilterMenu label="More filters" icon="sliders-horizontal" picked={(from ? 1 : 0) + (to ? 1 : 0)} wide>
-          <span className="pm-mh"><Icon name="calendar" size={13} />Days shown</span>
-          <DateField size="sm" label="From" value={from} onChange={setFrom} min={v.window[0]} max={to || v.window.at(-1)} />
-          <DateField size="sm" label="To" value={to} onChange={setTo} min={from || v.window[0]} max={v.window.at(-1)} />
-        </FilterMenu>
-        {filtering && <span className="pm-count" aria-live="polite">{`${matched} of ${total} steps`}</span>}
-        <span className="spacer" />
-        {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
-      </div>
-      {shiftRefs.length > 0 && (
-        <div className="pm-shift" role="group" aria-label="Picked functions and steps">
-          <span className="pm-count">{`${pickedText} selected`}</span>
-          <span>Shift</span>
-          <input type="number" className="pm-shift-n" aria-label="Working days" min={1} max={366} value={by}
-            onChange={(e) => setBy(e.target.value)} onBlur={() => setBy(String(shiftBy))} />
-          <span>working days</span>
-          <select className="pm-shift-way" aria-label="Direction" value={way} onChange={(e) => setWay(e.target.value === 'earlier' ? 'earlier' : 'later')}>
-            <option value="later">later</option>
-            <option value="earlier">earlier</option>
-          </select>
-          <Button size="sm" disabled={shift.isPending || shiftRefs.length === 0} onClick={shiftPicked}>Shift</Button>
-          <span className="pm-tsep" aria-hidden="true" />
-          <label className="pm-force" title="Push past Not yet plan, steps out of order and the master schedule (a Task and a PIC are still needed)">
-            <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />Force
-          </label>
-          <PushFlow epic={epic} v={v} name={name} body={{ refs: shiftRefs, force }} label="Push" icon="upload" size="sm"
-            title="Push the picked functions and steps to Jira" onDone={() => setPicked(new Set())} />
-          <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
-        </div>
-      )}
-      <div className="pm-scroll" ref={scroller}>
-        <table className="pm-table">
-          <thead>
-            <tr className="pm-head">
-              <th scope="col" className="pm-c0">Step · sub-task</th>
-              <th scope="col" className="pm-c1">PIC</th>
-              <th scope="col" className="pm-c2">Plan Estimation</th>
-              <th scope="col" className="pm-c3">Planned</th>
-              <th scope="col" className="pm-c4">Not yet plan</th>
-              <th scope="col" className="pm-c5">Start</th>
-              <th scope="col" className="pm-c6">End</th>
-              <th scope="col" className="pm-c7" title="Remaining Estimate in Jira now (Forecast estimation), for reference: the plan does not use it">Actual remaining</th>
-              {days.map((d) => (
-                <th key={d} scope="col" aria-label={d} className={`pm-day${d === today ? ' pm-today' : ''}`}>
-                  <span className="pm-wd">{d === today ? 'Today' : weekday(d)}</span><span className="pm-dn">{dm(d)}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {phases.length === 0 && (
-              <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>Nothing to plan yet: add a function or a task.</td></tr>
-            )}
-            {phases.length > 0 && filtering && matched === 0 && (
-              <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>No step matches the filters.</td></tr>
-            )}
-            {body}
-          </tbody>
-          {footLines.length > 0 && (
-            <tfoot>
-              <tr className="pm-foot">
-                <th scope="row" className="pm-c0">Total per day</th>
-                <td className="pm-c1" />
-                <td className="pm-c2">{sumText(footLines.reduce((a, l) => a + l.plan_estimate_h, 0))}</td>
-                <td className="pm-c3">{sumText(footLines.reduce((a, l) => a + l.plan_h, 0))}</td>
-                <td className="pm-c4">{sumText(footLines.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0))}</td>
-                <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
-                {days.map((d) => {
-                  const t = footLines.reduce((a, l) => a + sum(l.cells, d), 0);
-                  return <td key={d} className={`pm-cell${d === today ? ' pm-today' : ''}${t < 0.005 ? ' zero' : ''}`}>{sumText(t)}</td>;
-                })}
-              </tr>
-            </tfoot>
+          <span className="spacer" />
+          {allGroups.length > 0 && (
+            <span className="pm-tools" role="group" aria-label="Plan view">
+              <button type="button" className="pm-tb" onClick={() => setFolded(new Set())}><Icon name="chevrons-up-down" size={14} />Expand all</button>
+              <button type="button" className="pm-tb" onClick={() => setFolded(new Set(allGroups.map((g) => g.key)))}><Icon name="chevrons-down-up" size={14} />Collapse all</button>
+              <span className="pm-tsep" aria-hidden="true" />
+              <button type="button" className="pm-tb today" onClick={toToday} title="Scroll the days back to today"><Icon name="locate-fixed" size={14} />Today</button>
+            </span>
           )}
-        </table>
-      </div>
-    </section>
+        </div>
+        <div className="pm-filters" role="search" aria-label="Filter the plan">
+          <label className="pm-search">
+            <Icon name="search" size={14} />
+            <input ref={search} type="search" placeholder="Search steps or functions" aria-label="Search steps or functions" value={q} onChange={(e) => setQ(e.target.value)} />
+            <kbd>Ctrl K</kbd>
+          </label>
+          <FilterMenu label="PIC" picked={pics.size} options={picOptions} toggle={toggleIn(setPics)} clear={() => setPics(new Set())} />
+          <FilterMenu label="Status" picked={statuses.size} options={STATUS.map(([k, t]): [string, string, string] => [k, t, statuses.has(k) ? 'on' : ''])}
+            toggle={toggleIn(setStatuses)} clear={() => setStatuses(new Set())} />
+          <FilterMenu label="Function" picked={stories.size} options={storyOptions} toggle={toggleIn(setStories)} clear={() => setStories(new Set())} />
+          <FilterMenu label="More filters" icon="sliders-horizontal" picked={(from ? 1 : 0) + (to ? 1 : 0)} wide>
+            <span className="pm-mh"><Icon name="calendar" size={13} />Days shown</span>
+            <DateField size="sm" label="From" value={from} onChange={setFrom} min={v.window[0]} max={to || v.window.at(-1)} />
+            <DateField size="sm" label="To" value={to} onChange={setTo} min={from || v.window[0]} max={v.window.at(-1)} />
+          </FilterMenu>
+          {filtering && <span className="pm-count" aria-live="polite">{`${matched} of ${total} steps`}</span>}
+          <span className="spacer" />
+          {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
+        </div>
+        {shiftRefs.length > 0 && (
+          <div className="pm-shift" role="group" aria-label="Picked functions and steps">
+            <span className="pm-count">{`${pickedText} selected`}</span>
+            <span>Shift</span>
+            <input type="number" className="pm-shift-n" aria-label="Working days" min={1} max={366} value={by}
+              onChange={(e) => setBy(e.target.value)} onBlur={() => setBy(String(shiftBy))} />
+            <span>working days</span>
+            <select className="pm-shift-way" aria-label="Direction" value={way} onChange={(e) => setWay(e.target.value === 'earlier' ? 'earlier' : 'later')}>
+              <option value="later">later</option>
+              <option value="earlier">earlier</option>
+            </select>
+            <Button size="sm" disabled={shift.isPending || shiftRefs.length === 0} onClick={shiftPicked}>Shift</Button>
+            <span className="pm-tsep" aria-hidden="true" />
+            <label className="pm-force" title="Push past Not yet plan, steps out of order and the master schedule (a Task and a PIC are still needed)">
+              <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />Force
+            </label>
+            <PushFlow epic={epic} v={v} name={name} body={{ refs: shiftRefs, force }} label="Push" icon="upload" size="sm"
+              title="Push the picked functions and steps to Jira" onDone={() => setPicked(new Set())} />
+            <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
+          </div>
+        )}
+        <div className="pm-scroll" ref={scroller}>
+          <table className="pm-table">
+            <thead>
+              <tr className="pm-head">
+                <th scope="col" className="pm-c0">Step · sub-task</th>
+                <th scope="col" className="pm-c1">PIC</th>
+                <th scope="col" className="pm-c2">Plan Estimation</th>
+                <th scope="col" className="pm-c3">Planned</th>
+                <th scope="col" className="pm-c4">Not yet plan</th>
+                <th scope="col" className="pm-c5">Start</th>
+                <th scope="col" className="pm-c6">End</th>
+                <th scope="col" className="pm-c7" title="Remaining Estimate in Jira now (Forecast estimation), for reference: the plan does not use it">Actual remaining</th>
+                {days.map((d) => (
+                  <th key={d} scope="col" aria-label={d} className={`pm-day${d === today ? ' pm-today' : ''}`}>
+                    <span className="pm-wd">{d === today ? 'Today' : weekday(d)}</span><span className="pm-dn">{dm(d)}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {phases.length === 0 && (
+                <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>Nothing to plan yet: add a function or a task.</td></tr>
+              )}
+              {phases.length > 0 && filtering && matched === 0 && (
+                <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>No step matches the filters.</td></tr>
+              )}
+              {body}
+            </tbody>
+            {footLines.length > 0 && (
+              <tfoot>
+                <tr className="pm-foot">
+                  <th scope="row" className="pm-c0">Total per day</th>
+                  <td className="pm-c1" />
+                  <td className="pm-c2">{sumText(footLines.reduce((a, l) => a + l.plan_estimate_h, 0))}</td>
+                  <td className="pm-c3">{sumText(footLines.reduce((a, l) => a + l.plan_h, 0))}</td>
+                  <td className="pm-c4">{sumText(footLines.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0))}</td>
+                  <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
+                  {days.map((d) => {
+                    const t = footLines.reduce((a, l) => a + (byDay(l).get(d) ?? 0), 0);
+                    return <td key={d} className={`pm-cell${d === today ? ' pm-today' : ''}${t < 0.005 ? ' zero' : ''}`}>{sumText(t)}</td>;
+                  })}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </section>
+    </LineActionsContext>
   );
 }

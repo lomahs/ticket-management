@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMembers } from '../../../shared/api/queries';
 import { isDraftKey } from '../../../shared/state/anken';
 import { PageHead } from '../../../shared/ui/bits';
@@ -25,8 +25,10 @@ export function DetailPlanPage() {
 }
 
 function Detail({ epic }: { epic: string }) {
-  // `people`: the members of the anken, who can be picked (the list also names assignees and worklog authors who are not)
-  const people = (useMembers().data ?? []).filter((m) => m.people).map((m) => ({ id: m.id, name: m.name, role: m.role ?? null }));
+  // `people`: the members of the anken, who can be picked (the list also names assignees and worklog authors who are not); kept
+  // as it is while the members do not change, as every line of the plan gets it
+  const all = useMembers().data;
+  const people = useMemo(() => (all ?? []).filter((m) => m.people).map((m) => ({ id: m.id, name: m.name, role: m.role ?? null })), [all]);
   const name = usePersonName(people);
   const q = useQuery(detailPlanQuery(epic));
   // what stands before the push opens on its own once the push is tried
