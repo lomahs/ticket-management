@@ -13,4 +13,6 @@ export const burndownSearch = z.object({
   phase: z.string().optional().catch(undefined),
   task: z.string().optional().catch(undefined),
   member: z.string().optional().catch(undefined),
+  /** The day shown ticket by ticket under the chart; none: today. */
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
 });

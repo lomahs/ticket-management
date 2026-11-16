@@ -13,7 +13,7 @@ import { Loading, QueryError } from '../../../shared/ui/states';
 import { burndownQuery } from '../api';
 import { EffortHeader } from './EffortHeader';
 import { PickAnken } from '../../../shared/ui/PickAnken';
-import { PlanTable } from './PlanTable';
+import { DayTable } from './DayTable';
 
 const route = getRouteApi('/app/effort/burndown');
 const ALL = '';
@@ -41,7 +41,7 @@ export function BurndownPage() {
 
 /** The anken is picked in the global switcher; changing it drops the phase, sub-phase and member (see the route). */
 function BurndownOf({ anken }: { anken: string }) {
-  const { phase, task, member } = route.useSearch();
+  const { phase, task, member, day } = route.useSearch();
   const navigate = route.useNavigate();
   const members = useMemberMap();
   const q = useQuery(burndownQuery({ phase, task, member }, anken));
@@ -75,12 +75,17 @@ function BurndownOf({ anken }: { anken: string }) {
         <span className="spacer" />
         <span className="eyebrow">{v.title} · off days in grey</span>
       </div>
-      <Burndown v={v} />
+      <Burndown v={v} day={day ?? v.today} pick={(d) => navigate({ search: (s) => ({ ...s, day: d === v.today ? undefined : d }), replace: true })} />
+      <DayTable anken={anken} filters={{ phase, task, member }} day={day ?? v.today} />
     </>
   );
 }
 
-function Burndown({ v }: { v: Schemas['BurndownView'] }) {
+/**
+ * @param day  the day shown ticket by ticket under the chart
+ * @param pick picks another day
+ */
+function Burndown({ v, day, pick }: { v: Schemas['BurndownView']; day: string; pick: (date: string) => void }) {
   const b = v.burndown;
   // which lines show: not remembered, every line again on the next visit
   const [show, setShow] = useState<BurndownLines>({ baseline: true, plan: true, actual: true });
@@ -122,10 +127,9 @@ function Burndown({ v }: { v: Schemas['BurndownView'] }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 0, height: 12, borderLeft: '1.5px solid var(--border-focus)' }} />Today</span>
           </div>
         </div>
-        <BurndownChart b={b} today={v.today} show={show}
+        <BurndownChart b={b} today={v.today} show={show} picked={day} onPick={pick}
           empty={`No sub-tasks with a Planned Start, a Planned End and an estimate${v.phase || v.task || v.member ? ' match these filters' : ' in this anken'}.`} />
       </section>
-      <PlanTable m={v.matrix} today={v.today} />
     </>
   );
 }

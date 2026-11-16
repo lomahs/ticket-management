@@ -12,10 +12,12 @@ const ALL_LINES: BurndownLines = { baseline: true, plan: true, actual: true };
 /**
  * Remaining effort per day: the plan (dashed), the actual remaining (solid; a dot when it has a single day) and the Baseline plan
  * when the anken has one (dotted), with a marker on `today`. Point k is the end of day k, drawn at the centre of its column; day 0
- * is the baseline, the day before the start. Off days have a narrower, grey column. `show` hides lines.
+ * is the baseline, the day before the start. Off days have a narrower, grey column. `show` hides lines. With `onPick`, a day
+ * is picked by a click and `picked` is marked.
  */
-export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, empty, show = ALL_LINES }: {
+export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, empty, show = ALL_LINES, picked, onPick }: {
   b: Schemas['BurndownChart']; today: string; todayLabel?: string; height?: number; empty: string; show?: BurndownLines;
+  picked?: string; onPick?: (date: string) => void;
 }) {
   const [hov, setHov] = useState<number | null>(null);
   const days = b.days;
@@ -58,10 +60,13 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
       >
         <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
           {days.map((d, i) => (
-            <div key={d.date} data-day={d.date} data-off={d.off || undefined} onMouseEnter={() => setHov(i)} style={{
-              flexGrow: w[i], flexBasis: 0, minWidth: 0,
-              background: hov === i ? 'color-mix(in oklch, var(--surface-tint) 45%, transparent)' : d.off ? 'var(--surface-hover)' : 'transparent',
-            }} />
+            <div key={d.date} data-day={d.date} data-off={d.off || undefined} data-picked={(onPick && d.date === picked) || undefined}
+              onMouseEnter={() => setHov(i)} onClick={onPick && (() => onPick(d.date))} style={{
+                flexGrow: w[i], flexBasis: 0, minWidth: 0, cursor: onPick ? 'pointer' : undefined,
+                background: onPick && d.date === picked ? 'color-mix(in oklch, var(--surface-tint) 80%, transparent)'
+                  : hov === i ? 'color-mix(in oklch, var(--surface-tint) 45%, transparent)' : d.off ? 'var(--surface-hover)' : 'transparent',
+                boxShadow: onPick && d.date === picked ? 'inset 0 0 0 1px var(--border-focus)' : undefined,
+              }} />
           ))}
         </div>
         {[0, 1, 2, 3].map((i) => <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * 25 + '%', borderTop: '1px solid var(--border-subtle)', pointerEvents: 'none' }} />)}

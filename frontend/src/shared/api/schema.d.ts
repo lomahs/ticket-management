@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/effort/burndown/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["burndownDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/effort/timesheet": {
         parameters: {
             query?: never;
@@ -1925,15 +1941,39 @@ export interface components {
             /** Format: double */
             planned_h: number;
         };
+        BurndownDayView: {
+            date: string;
+            rows: components["schemas"]["BurndownTicket"][];
+            today: string;
+        };
         BurndownOption: {
             key: string;
             label: string;
+        };
+        BurndownTicket: {
+            /** Format: double */
+            actual_remaining_h: number | null;
+            /** Format: double */
+            estimate_h: number;
+            function: string;
+            key: string;
+            /** Format: double */
+            logged_h: number | null;
+            pic_id: string | null;
+            /** Format: double */
+            plan_remaining_h: number;
+            /** Format: double */
+            planned_h: number;
+            /** @enum {string|null} */
+            source: "jira" | "capture" | "worklogs" | null;
+            step: string | null;
+            task: string;
+            task_key: string;
         };
         BurndownView: {
             ankens: components["schemas"]["BurndownOption"][];
             burndown: components["schemas"]["BurndownChart"];
             epic_key: string | null;
-            matrix: components["schemas"]["PlanGrid"];
             member: string | null;
             members: string[];
             phase: string | null;
@@ -3016,27 +3056,12 @@ export interface components {
             member_id: string;
             start: string;
         };
-        PlanGrid: {
-            days: string[];
-            rows: components["schemas"]["PlanRow"][];
-        };
         PlanIssue: {
             field: string;
             message: string;
             ref: string | null;
             /** Format: int64 */
             row_id: number | null;
-        };
-        PlanRow: {
-            function: string;
-            function_key: string;
-            hours: number[];
-            member_id: string;
-            phase: string;
-            task: string;
-            task_key: string;
-            /** Format: double */
-            total_h: number;
         };
         PlanningPreview: {
             capacity: components["schemas"]["MemberCapacity"][];
@@ -4123,6 +4148,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BurndownView"];
+                };
+            };
+        };
+    };
+    burndownDay: {
+        parameters: {
+            query: {
+                anken?: string;
+                phase?: string;
+                task?: string;
+                member?: string;
+                date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BurndownDayView"];
                 };
             };
         };

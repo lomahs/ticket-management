@@ -56,7 +56,6 @@ import tracker.domain.Issue;
 import tracker.domain.LeaveType;
 import tracker.domain.Member;
 import tracker.domain.Numbers;
-import tracker.domain.PlanMatrix;
 import tracker.domain.Role;
 import tracker.domain.StepKind;
 import tracker.domain.Steps;
@@ -444,18 +443,27 @@ class ServiceReadsTest {
     }
 
     @Test
-    void burndownMatrixSharesEachStepBetweenTheBaAndTheBalByTheStepWeights() {
-        TrackerContext ctx = contexts.load(ALL);
-        Map<String, Member> team = contexts.membersById();
-        double shared = ctx.subtasks().stream().filter(i -> i.epicKey().equals("PAY-1100") && !Steps.isJmReview(i)
-                        && i.plannedStart() != null && i.plannedEnd() != null && i.estimateH() > 0)
-                .flatMap(i -> ctx.planShares(i).stream().map(s -> i.estimateH() * s.fraction())).mapToDouble(Double::doubleValue).sum();
-        PlanMatrix.PlanGrid m = effort.burndown(ALL, "PAY-1100", null, null, null).matrix();
-        assertThat(m.rows()).allMatch(r -> r.hours().size() == m.days().size());
-        assertThat(m.rows().stream().mapToDouble(PlanMatrix.PlanRow::totalH).sum()).isCloseTo(shared, org.assertj.core.data.Offset.offset(0.1));
-        assertThat(m.rows()).anyMatch(r -> team.get(r.memberId()).role() == Role.BAL); // the BAL's share of Create, Fix comment…
-        String bal = m.rows().stream().map(PlanMatrix.PlanRow::memberId).filter(id -> team.get(id).role() == Role.BAL).findFirst().orElseThrow();
-        assertThat(effort.burndown(ALL, "PAY-1100", null, null, bal).matrix().rows()).isNotEmpty().allMatch(r -> r.memberId().equals(bal));
+    void burndownDayListsTheSubTasksWhoseSumsAreTheChartsPoint() {
+        EffortService.BurndownView all = effort.burndown(ALL, "PAY-1100", null, null, null);
+        org.assertj.core.data.Offset<Double> cent = org.assertj.core.data.Offset.offset(0.011);
+        for (Burndown.BurndownDay d : all.burndown().days()) {
+            EffortService.BurndownDayView v = effort.burndownDay(ALL, "PAY-1100", null, null, null, d.date());
+            assertThat(v.rows()).hasSize(all.subtasks());
+            assertThat(Math.max(0, v.rows().stream().mapToDouble(EffortService.BurndownTicket::planRemainingH).sum()))
+                    .isCloseTo(d.planRemainingH(), cent);
+            if (d.actualRemainingH() == null) {
+                assertThat(v.rows()).allMatch(r -> r.actualRemainingH() == null && r.loggedH() == null && r.source() == null);
+            } else {
+                assertThat(v.rows().stream().mapToDouble(EffortService.BurndownTicket::actualRemainingH).sum()).isCloseTo(d.actualRemainingH(), cent);
+            }
+        }
+        // a member: their own sub-tasks only, each named with its Task, function and step
+        String m = all.members().get(0);
+        EffortService.BurndownDayView one = effort.burndownDay(ALL, "PAY-1100", null, null, m, all.today());
+        assertThat(one.rows()).isNotEmpty().allMatch(r -> m.equals(r.picId()));
+        assertThat(one.rows()).allMatch(r -> !r.task().isBlank() && !r.function().isBlank());
+        assertThat(one.rows()).anyMatch(r -> r.step() != null);
+        assertThat(one.rows()).noneMatch(r -> "jmr".equals(r.step()));
     }
 
     @Test

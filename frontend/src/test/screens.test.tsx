@@ -239,9 +239,8 @@ describe('screens render API data at their URLs', () => {
         members: ['binh'], member: seen.get('member'), subtasks: 3, today: '2026-10-07',
         burndown: { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6,
           days: [day('2026-10-05', 12, 12), day('2026-10-06', 8, 9), day('2026-10-07', 4, 6), day('2026-10-08', 0, null)] },
-        matrix: { days: [], rows: [] },
       });
-    }));
+    }), http.get('*/api/v1/effort/burndown/day', () => HttpResponse.json({ date: '2026-10-07', today: '2026-10-07', rows: [] })));
     const { router } = renderApp('/effort/burndown?anken=PAY-1100');
     expect(await screen.findByText('Delay')).toBeTruthy();
     expect(screen.getByText('+2.00h')).toBeTruthy();
@@ -269,9 +268,9 @@ describe('screens render API data at their URLs', () => {
       tasks: [], task: null, members: [], member: null, subtasks: 3, today: '2026-10-07',
       burndown: { estimate_h: 12, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 4, actual_remaining_h: 6, baseline_h: baseline ? 10 : null,
         days: [day('2026-10-05', 12, 12, baseline ? 10 : null), day('2026-10-06', 8, 9, baseline ? 5 : null), day('2026-10-07', 4, 6, baseline ? 0 : null)] },
-      matrix: { days: [], rows: [] },
     });
-    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json(view(true))));
+    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json(view(true))),
+      http.get('*/api/v1/effort/burndown/day', () => HttpResponse.json({ date: '2026-10-07', today: '2026-10-07', rows: [] })));
     const { container, unmount } = renderApp('/effort/burndown?anken=PAY-1100');
     const toggle = (name: string) => screen.getByRole('button', { name });
     await screen.findByRole('button', { name: 'Baseline plan' });
@@ -289,29 +288,54 @@ describe('screens render API data at their URLs', () => {
     expect(screen.queryByRole('button', { name: 'Baseline plan' })).toBeNull();
   });
 
-  it('lists the planned hours per function, person and day under the burndown', async () => {
-    const row = (task: string, fn: string, member_id: string, hours: number[]) => ({
-      phase: 'ITA', task_key: task, task: task === 'PAY-1301' ? 'ITA Prepare' : 'ITA Execute', function_key: `fn:${fn}`, function: fn,
-      member_id, total_h: hours.reduce((a, b) => a + b, 0), hours,
+  it('shows the sub-tasks of the picked day under the burndown, today first, with a Total', async () => {
+    const day = (date: string, plan: number, act: number | null) => ({ date, off: false, planned_h: 4, logged_h: 3, plan_remaining_h: plan,
+      actual_remaining_h: act, baseline_remaining_h: null });
+    const ticket = (key: string, task: string, fn: string, step: string | null, pic: string, over: Record<string, unknown>) => ({
+      key, task_key: task === 'ITA Prepare' ? 'PAY-1301' : 'PAY-1302', task, function: fn, step, pic_id: pic, estimate_h: 8, planned_h: 4,
+      logged_h: 3, plan_remaining_h: 4, actual_remaining_h: 5, source: 'capture', ...over,
     });
-    server.use(http.get('*/api/v1/effort/burndown', () => HttpResponse.json({
-      epic_key: 'PAY-1100', title: 'Payment flow revision', ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }],
-      phases: ['ITA'], phase: null, tasks: [], task: null, members: ['an'], member: null, subtasks: 3, today: '2026-10-06',
-      burndown: { estimate_h: 0, start: null, end: null, plan_remaining_h: 0, actual_remaining_h: 0, days: [] },
-      matrix: {
-        days: ['2026-10-05', '2026-10-06', '2026-10-07'],
-        rows: [row('PAY-1301', 'Login', 'an', [2.7, 2.7, 0]), row('PAY-1301', 'Login', 'minh', [1.3, 1.3, 0]),
-          row('PAY-1302', 'Search', 'an', [0, 2, 2])],
-      },
-    })));
-    renderApp('/effort/burndown?anken=PAY-1100');
-    const table = await screen.findByRole('table', { name: 'Planned effort per function, person and day' });
-    const rows = within(table).getAllByRole('row').map((r) => [...r.querySelectorAll('th,td')].map((c) => c.textContent));
-    expect(rows[0]).toEqual(['Phase', 'Sub-phase', 'Function', 'PIC', 'Day 110/05', 'Day 210/06', 'Day 310/07', 'Total']);
-    expect(rows[1]).toEqual(['ITA', 'ITA Prepare', 'Login', 'An (BA)', '2.70', '2.70', '—', '5.40']);
-    expect(rows[2]).toEqual(['', '', '', 'Minh (BAL)', '1.30', '1.30', '—', '2.60']); // the BAL's share of the same function
-    expect(rows[3]).toEqual(['', 'ITA Execute', 'Search', 'An (BA)', '—', '2.00', '2.00', '4.00']);
-    expect(rows[4]).toEqual(['Total', '', '', '', '4.00', '6.00', '2.00', '12.00']);
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/effort/burndown', () => HttpResponse.json({
+        epic_key: 'PAY-1100', title: 'Payment flow revision', ankens: [{ key: 'PAY-1100', label: 'Payment flow revision' }],
+        phases: ['ITA'], phase: null, tasks: [], task: null, members: ['an'], member: null, subtasks: 3, today: '2026-10-07',
+        burndown: { estimate_h: 20, start: '2026-10-05', end: '2026-10-08', plan_remaining_h: 9, actual_remaining_h: 12,
+          days: [day('2026-10-05', 20, 20), day('2026-10-06', 14, 16), day('2026-10-07', 9, 12), day('2026-10-08', 0, null)] },
+      })),
+      http.get('*/api/v1/effort/burndown/day', ({ request }) => {
+        const date = new URL(request.url).searchParams.get('date') ?? '';
+        asked.push(date);
+        const future = date > '2026-10-07';
+        return HttpResponse.json({ date, today: '2026-10-07', rows: [
+          ticket('PAY-1311', 'ITA Prepare', 'Login', 'create', 'an', future ? { logged_h: null, actual_remaining_h: null, source: null } : { source: 'jira' }),
+          ticket('PAY-1312', 'ITA Prepare', 'Login', 'balr', 'minh', { estimate_h: 4, planned_h: 3, plan_remaining_h: 1,
+            ...(future ? { logged_h: null, actual_remaining_h: null, source: null } : { logged_h: 1, actual_remaining_h: 2 }) }),
+          ticket('PAY-1321', 'ITA Execute', 'Search', null, 'an', { estimate_h: 8, planned_h: 4, plan_remaining_h: 4,
+            ...(future ? { logged_h: null, actual_remaining_h: null, source: null } : { logged_h: 0, actual_remaining_h: 5, source: 'worklogs' }) }),
+        ] });
+      }),
+    );
+    const { container, router } = renderApp('/effort/burndown?anken=PAY-1100');
+    const table = await screen.findByRole('table', { name: 'Effort by ticket' });
+    expect(screen.getByText('Effort by ticket · Wed 10/07')).toBeTruthy();
+    expect(asked).toEqual(['2026-10-07']); // today before any click
+    const cells = () => within(table).getAllByRole('row').map((r) => [...r.querySelectorAll('th,td')].map((c) => c.textContent));
+    await waitFor(() => expect(cells()).toHaveLength(5));
+    expect(cells()[0]).toEqual(['Sub-Phase', 'Function', 'Step', 'Ticket', 'PIC', 'Estimate', 'Plan effort', 'Actual effort',
+      'Plan Remain effort', 'Actual Remain effort']);
+    expect(cells()[1]).toEqual(['ITA Prepare', 'Login', 'Create', 'PAY-1311', 'An (BA)', '8.00', '4.00', '3.00', '4.00', '5.00Jira now']);
+    expect(cells()[2]).toEqual(['', '', 'BAL Review', 'PAY-1312', 'Minh (BAL)', '4.00', '3.00', '1.00', '1.00', '2.00Capture']);
+    expect(cells()[3]).toEqual(['ITA Execute', 'Search', '–', 'PAY-1321', 'An (BA)', '8.00', '4.00', '0.00', '4.00', '5.00From worklogs']);
+    expect(cells()[4]).toEqual(['Total', '', '', '', '', '20.00', '11.00', '4.00', '9.00', '12.00']); // the chart's point of 10/07
+    expect(container.querySelector('[data-day="2026-10-07"]')?.getAttribute('data-picked')).toBe('true');
+    fireEvent.click(container.querySelector('[data-day="2026-10-08"]') as HTMLElement); // a day after today
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ day: '2026-10-08' }));
+    await waitFor(() => expect(screen.getByText('Effort by ticket · Thu 10/08')).toBeTruthy());
+    await waitFor(() => expect(cells()[4]).toEqual(['Total', '', '', '', '', '20.00', '11.00', '–', '9.00', '–']));
+    expect(cells()[1].slice(7)).toEqual(['–', '4.00', '–']);
+    expect(container.querySelector('[data-day="2026-10-08"]')?.getAttribute('data-picked')).toBe('true');
+    expect(container.querySelector('[data-day="2026-10-07"]')?.getAttribute('data-picked')).toBeNull();
   });
 
   it('shows API errors instead of a blank screen', async () => {

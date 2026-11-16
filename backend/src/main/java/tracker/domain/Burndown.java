@@ -131,23 +131,82 @@ public final class Burndown {
     private static double actualOn(List<Item> items, String day, String today) {
         double sum = 0;
         for (Item i : items) {
-            Double seen = i.remainingOn().get(day);
-            if (seen != null) {
-                // an Original Estimate change approved after the capture counts from the first day (docs/rules.md): what the
-                // estimate moved since the capture saw it, else (an older capture) the changes dated after its day
-                Double was = i.estimateOn().get(day);
-                double added = was != null ? i.estimateH() - was : i.estimateChanges().entrySet().stream()
-                        .filter(c -> c.getKey().compareTo(day) > 0).mapToDouble(Map.Entry::getValue).sum();
-                sum += Math.max(0, seen + added);
-                continue;
-            }
-            sum += i.remainingH();
-            for (Worklog w : i.worklogs()) {
-                if (w.date().compareTo(day) > 0 && w.date().compareTo(today) <= 0) {
-                    sum += w.hours();
-                }
-            }
+            sum += remainOn(i, day, today).hours();
         }
         return sum;
+    }
+
+    /** Where an item's actual remaining of a day comes from. */
+    public enum RemainSource {
+        /** today: Jira's remaining estimate now */
+        JIRA("jira"),
+        /** the Daily Overview capture of that day, plus the Original Estimate changes approved since */
+        CAPTURE("capture"),
+        /** no capture: what remains now plus the hours logged after that day up to today */
+        WORKLOGS("worklogs");
+
+        private final String value;
+
+        RemainSource(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
+    private record Remain(double hours, RemainSource source) {
+    }
+
+    /** An item's remaining hours at the end of {@code day}, today or before, as {@link #actualOn} counts them. */
+    private static Remain remainOn(Item i, String day, String today) {
+        if (day.equals(today)) {
+            return new Remain(i.remainingH(), RemainSource.JIRA);
+        }
+        Double seen = i.remainingOn().get(day);
+        if (seen != null) {
+            // an Original Estimate change approved after the capture counts from the first day (docs/rules.md): what the
+            // estimate moved since the capture saw it, else (an older capture) the changes dated after its day
+            Double was = i.estimateOn().get(day);
+            double added = was != null ? i.estimateH() - was : i.estimateChanges().entrySet().stream()
+                    .filter(c -> c.getKey().compareTo(day) > 0).mapToDouble(Map.Entry::getValue).sum();
+            return new Remain(Math.max(0, seen + added), RemainSource.CAPTURE);
+        }
+        double sum = i.remainingH();
+        for (Worklog w : i.worklogs()) {
+            if (w.date().compareTo(day) > 0 && w.date().compareTo(today) <= 0) {
+                sum += w.hours();
+            }
+        }
+        return new Remain(sum, RemainSource.WORKLOGS);
+    }
+
+    /**
+     * One item at the end of a day of the chart: the figures its point of that day sums.
+     *
+     * @param plannedH         planned up to the end of the day
+     * @param loggedH          logged up to the end of the day; null after today
+     * @param planRemainingH   the estimate less {@code plannedH}
+     * @param actualRemainingH null after today
+     * @param source           where {@code actualRemainingH} comes from; null after today
+     */
+    public record ItemOn(String key, double estimateH, double plannedH, @Nullable Double loggedH, double planRemainingH,
+                         @Nullable Double actualRemainingH, @Nullable RemainSource source) {
+    }
+
+    /** Each item at the end of {@code day}: their sums are the chart's plan and actual of that day (the plan never below 0). */
+    public static List<ItemOn> on(List<Item> items, String day, String today) {
+        boolean past = day.compareTo(today) <= 0;
+        List<ItemOn> out = new ArrayList<>();
+        for (Item i : items) {
+            double planned = i.planDays().entrySet().stream().filter(e -> e.getKey().compareTo(day) <= 0).mapToDouble(Map.Entry::getValue).sum();
+            Double logged = past ? Numbers.round(i.worklogs().stream().filter(w -> w.date().compareTo(day) <= 0).mapToDouble(Worklog::hours).sum(), 2) : null;
+            Remain r = past ? remainOn(i, day, today) : null;
+            out.add(new ItemOn(i.key(), Numbers.round(i.estimateH(), 2), Numbers.round(planned, 2), logged, Numbers.round(i.estimateH() - planned, 2),
+                    r == null ? null : Numbers.round(r.hours(), 2), r == null ? null : r.source()));
+        }
+        return out;
     }
 }

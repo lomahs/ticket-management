@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import tracker.adapters.web.auth.Requires;
+import tracker.application.service.EffortService.BurndownDayView;
 import tracker.application.service.EffortService.BurndownView;
 import tracker.application.service.EffortService.DayDetailView;
 import tracker.application.service.EffortService.EffortAnalysis;
@@ -61,5 +62,14 @@ public class EffortApi {
                                  @RequestParam(required = false) @Nullable String task, @RequestParam(required = false) @Nullable String member,
                                  Viewer viewer) {
         return effort.burndown(scopes.scope(viewer, null), anken, phase, task, member);
+    }
+
+    /** The sub-tasks of the burndown of the same filters at the end of {@code date}. */
+    @Requires(feature = Feature.EFFORT, level = Level.READ)
+    @GetMapping("/burndown/day")
+    public BurndownDayView burndownDay(@RequestParam(required = false) @Nullable String anken, @RequestParam(required = false) @Nullable String phase,
+                                       @RequestParam(required = false) @Nullable String task, @RequestParam(required = false) @Nullable String member,
+                                       @RequestParam @Pattern(regexp = Formats.DATE, message = Formats.DATE_MESSAGE) String date, Viewer viewer) {
+        return effort.burndownDay(scopes.scope(viewer, null), anken, phase, task, member, date);
     }
 }

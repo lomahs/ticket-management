@@ -25,3 +25,10 @@ export const burndownQuery = (q: { phase?: string; task?: string; member?: strin
   queryFn: () => unwrap(http.GET('/api/v1/effort/burndown', { params: { query: { ...q, anken } } })),
   placeholderData: keepPreviousData,
 });
+
+/** The sub-tasks of the burndown of the same filters at the end of `date`. */
+export const burndownDayQuery = (q: { phase?: string; task?: string; member?: string }, anken: string, date: string) => ({
+  queryKey: ['effort-burndown-day', q.phase ?? null, q.task ?? null, q.member ?? null, anken, date] as const,
+  queryFn: () => unwrap(http.GET('/api/v1/effort/burndown/day', { params: { query: { ...q, anken, date } } })),
+  placeholderData: keepPreviousData,
+});

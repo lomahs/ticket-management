@@ -29,13 +29,10 @@ import tracker.domain.Burndown;
 import tracker.domain.Capacity.PlanItem;
 import tracker.domain.Capacity;
 import tracker.domain.Dates;
-import tracker.domain.Effort;
 import tracker.domain.Function;
 import tracker.domain.Issue;
 import tracker.domain.Numbers;
 import tracker.domain.PhaseGroups;
-import tracker.domain.PlanMatrix;
-import tracker.domain.Role;
 import tracker.domain.Status;
 import tracker.domain.StepDef;
 import tracker.domain.StepKind;
@@ -226,7 +223,30 @@ public class EffortService {
      */
     public record BurndownView(@Nullable String epicKey, String title, List<BurndownOption> ankens, List<String> phases,
                                @Nullable String phase, List<BurndownOption> tasks, @Nullable String task, List<String> members,
-                               @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown, PlanMatrix.PlanGrid matrix) {
+                               @Nullable String member, int subtasks, String today, Burndown.BurndownChart burndown) {
+    }
+
+    /**
+     * A sub-task of the burndown at the end of a day: the figures the chart's point of that day sums ({@link Burndown#on}).
+     *
+     * @param task     its Task (sub-phase) by its name without the leading brackets
+     * @param function its function's name; a sub-task outside any function: its own name
+     * @param step     its step; null outside a function
+     * @param picId    its plan owner, as the chart's member filter
+     */
+    public record BurndownTicket(String key, String taskKey, String task, String function, @Nullable String step, @Nullable String picId,
+                                 double estimateH, double plannedH, @Nullable Double loggedH, double planRemainingH,
+                                 @Nullable Double actualRemainingH, Burndown.@Nullable RemainSource source) {
+    }
+
+    /** The sub-tasks of the burndown at the end of {@code date}, by phase, sub-phase (by its start) and function (by its first start). */
+    public record BurndownDayView(String date, String today, List<BurndownTicket> rows) {
+    }
+
+    /** The sub-tasks a burndown is drawn from, and what its filters offer. */
+    private record Scope(TrackerContext ctx, @Nullable String epic, List<BurndownOption> ankens, Map<String, String> groups, List<String> phases,
+                         @Nullable String phase, List<BurndownOption> tasks, @Nullable String task, Map<String, String> taskStart,
+                         List<Issue> chart, List<String> members, @Nullable String who, List<Issue> picked) {
     }
 
     /**
@@ -241,6 +261,51 @@ public class EffortService {
      */
     public BurndownView burndown(AnkenScope scope, @Nullable String requested, @Nullable String phase, @Nullable String task,
                                  @Nullable String member) {
+        Scope s = scope(scope, requested, phase, task, member);
+        TrackerContext ctx = s.ctx();
+        List<String> keys = s.picked().stream().map(Issue::key).toList();
+        List<Burndown.Item> items = items(ctx, s.picked());
+        String from = s.chart().stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
+        // the Baseline plan of the same scope: a Task deleted since the lock counts under Other
+        String ph = s.phase();
+        String tk = s.task();
+        String who = s.who();
+        List<Baseline.Item> baseline = Baselines.of(planVersions.baseline(s.epic())).map(b -> b.items().stream()
+                .filter(x -> ph == null || ph.equals(s.groups().getOrDefault(Text.orElse(x.parentKey(), ""), PhaseGroups.OTHER)))
+                .filter(x -> tk == null || tk.equals(x.parentKey()))
+                .filter(x -> who == null || who.equals(x.ownerId())).toList()).orElse(null);
+        return new BurndownView(s.epic(), titleOf(ctx, s.epic()), s.ankens(), s.phases(), ph, s.tasks(), tk, s.members(), who, keys.size(),
+                ctx.today, Burndown.compute(items, ctx.cal, ctx.today, from, baseline));
+    }
+
+    /**
+     * The sub-tasks of the burndown of the same filters at the end of {@code date}: their sums are the chart's point of that day.
+     */
+    public BurndownDayView burndownDay(AnkenScope scope, @Nullable String requested, @Nullable String phase, @Nullable String task,
+                                       @Nullable String member, String date) {
+        Scope s = scope(scope, requested, phase, task, member);
+        TrackerContext ctx = s.ctx();
+        Map<String, Burndown.ItemOn> on = new HashMap<>();
+        Burndown.on(items(ctx, s.picked()), date, ctx.today).forEach(x -> on.put(x.key(), x));
+        List<BurndownTicket> rows = new ArrayList<>();
+        for (Issue i : ordered(ctx, s.picked(), s.groups(), s.phases(), s.taskStart())) {
+            String taskKey = Text.orElse(i.parentKey(), "");
+            Function fn = ctx.function(i);
+            Burndown.ItemOn x = on.get(i.key());
+            rows.add(new BurndownTicket(i.key(), taskKey, ctx.issue(taskKey).map(t -> PhaseGroups.taskName(t.summary())).orElse(taskKey),
+                    fn != null ? fn.name() : Text.orElse(i.functionName(), i.summary()), i.step() == null ? null : i.step().value(),
+                    ctx.planOwner(i), x.estimateH(), x.plannedH(), x.loggedH(), x.planRemainingH(), x.actualRemainingH(), x.source()));
+        }
+        return new BurndownDayView(date, ctx.today, rows);
+    }
+
+    private List<Burndown.Item> items(TrackerContext ctx, List<Issue> picked) {
+        List<String> keys = picked.stream().map(Issue::key).toList();
+        TrackerContext.Seen seen = new TrackerContext.Seen(remainingDays.find(keys), remainingDays.findEstimates(keys));
+        return picked.stream().map(i -> ctx.burndownItem(i, seen)).toList();
+    }
+
+    private Scope scope(AnkenScope scope, @Nullable String requested, @Nullable String phase, @Nullable String task, @Nullable String member) {
         TrackerContext ctx = context.load(scope);
         if (Text.hasText(member) && !ctx.people.contains(member)) {
             throw new NotFound("Member " + member + " was not found", "member");
@@ -282,55 +347,24 @@ public class EffortService {
         chart.forEach(i -> workers.add(Objects.requireNonNullElse(ctx.planOwner(i), "")));
         List<String> members = ctx.people.stream().filter(workers::contains).toList();
         String who = Text.hasText(member) ? member : null;
-        List<String> keys = chart.stream().map(Issue::key).toList();
-        TrackerContext.Seen seen = new TrackerContext.Seen(remainingDays.find(keys), remainingDays.findEstimates(keys));
-        List<Burndown.Item> items = new ArrayList<>();
-        for (Issue i : chart) {
-            String w = Objects.requireNonNullElse(ctx.planOwner(i), "");
-            if (who == null || who.equals(w)) {
-                items.add(ctx.burndownItem(i, seen));
-            }
-        }
-        String from = chart.stream().map(Issue::plannedStart).min(String::compareTo).orElse(null);
-        // the Baseline plan of the same scope: a Task deleted since the lock counts under Other
-        List<Baseline.Item> baseline = Baselines.of(planVersions.baseline(epic)).map(b -> b.items().stream()
-                .filter(x -> ph == null || ph.equals(groups.getOrDefault(Text.orElse(x.parentKey(), ""), PhaseGroups.OTHER)))
-                .filter(x -> tk == null || tk.equals(x.parentKey()))
-                .filter(x -> who == null || who.equals(x.ownerId())).toList()).orElse(null);
-        return new BurndownView(epic, titleOf(ctx, epic), ankens, phases, ph, tasks, tk, members, who, items.size(), ctx.today,
-                Burndown.compute(items, ctx.cal, ctx.today, from, baseline), matrix(ctx, chart, groups, phases, start, who));
+        List<Issue> picked = chart.stream().filter(i -> who == null || who.equals(Objects.requireNonNullElse(ctx.planOwner(i), ""))).toList();
+        return new Scope(ctx, epic, ankens, groups, phases, ph, tasks, tk, start, chart, members, who, picked);
     }
 
-    /**
-     * The plan per function, person and day of the chart's sub-tasks: each step shared between the function's BA and BAL by the
-     * step weights, over its planned dates (a handover is not taken into account). Rows by phase, sub-phase (by its start),
-     * function (by its first start); {@code who} keeps that person's rows.
-     */
-    private static PlanMatrix.PlanGrid matrix(TrackerContext ctx, List<Issue> chart, Map<String, String> groups, List<String> phases,
-                                            Map<String, String> taskStart, @Nullable String who) {
+    /** Sub-tasks by phase, sub-phase (by its start), function (by its first start), then their own start. */
+    private static List<Issue> ordered(TrackerContext ctx, List<Issue> subtasks, Map<String, String> groups, List<String> phases,
+                                       Map<String, String> taskStart) {
         Map<String, String> fnStart = new HashMap<>();
-        chart.forEach(i -> fnStart.merge(functionKey(ctx, i), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b));
+        subtasks.forEach(i -> fnStart.merge(functionKey(ctx, i), i.plannedStart(), (a, b) -> a.compareTo(b) <= 0 ? a : b));
         java.util.function.Function<Issue, String> taskOf = i -> Text.orElse(i.parentKey(), "");
-        List<PlanMatrix.Item> items = new ArrayList<>();
-        for (Issue i : chart.stream().sorted(Comparator
+        return subtasks.stream().sorted(Comparator
                 .comparingInt((Issue i) -> phases.indexOf(groups.getOrDefault(taskOf.apply(i), PhaseGroups.OTHER)))
                 .thenComparing(i -> taskStart.getOrDefault(taskOf.apply(i), ""))
                 .thenComparing(taskOf)
                 .thenComparing(i -> fnStart.get(functionKey(ctx, i)))
                 .thenComparing(i -> functionKey(ctx, i))
-                .thenComparing(Issue::plannedStart)).toList()) {
-            String task = taskOf.apply(i);
-            Function fn = ctx.function(i);
-            String label = fn != null ? fn.name() : Text.orElse(i.functionName(), i.summary());
-            String taskName = ctx.issue(task).map(t -> PhaseGroups.taskName(t.summary())).orElse(task);
-            for (Effort.PlanShare s : ctx.planShares(i)) {
-                PlanItem p = Effort.planItem(i, s.memberId(), null, s.fraction());
-                if (p != null && (who == null || who.equals(s.memberId()))) {
-                    items.add(new PlanMatrix.Item(groups.getOrDefault(task, PhaseGroups.OTHER), task, taskName, functionKey(ctx, i), label, p));
-                }
-            }
-        }
-        return PlanMatrix.compute(items, ctx.cal);
+                .thenComparing(Issue::plannedStart)
+                .thenComparing(Issue::key)).toList();
     }
 
     /** The function a sub-task is a step of; a sub-task outside any function is its own. */

@@ -75,6 +75,31 @@ class BurndownTest {
     }
 
     @Test
+    void eachItemOfADaySumsToTheChartsPointAndNamesWhereItsActualComesFrom() {
+        List<Burndown.Item> items = List.of(
+                item("PAY-1", "2026-10-05", "2026-10-09", 10, Map.of("2026-10-05", 4.0, "2026-10-06", 4.0, "2026-10-07", 2.0),
+                        List.of(new Worklog("2026-10-05", "an", 3), new Worklog("2026-10-08", "an", 2)), 6, Map.of("2026-10-05", 7.0, "2026-10-06", 6.5)),
+                item("PAY-2", "2026-10-08", "2026-10-09", 4, Map.of("2026-10-08", 4.0), List.of(), 4, Map.of("2026-10-05", 4.0)));
+        Map<String, Burndown.BurndownDay> chart = Burndown.compute(items, CAL, "2026-10-07", null).days().stream()
+                .collect(Collectors.toMap(Burndown.BurndownDay::date, d -> d));
+        for (String day : List.of("2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07")) {
+            List<Burndown.ItemOn> on = Burndown.on(items, day, "2026-10-07");
+            assertThat(on.stream().mapToDouble(Burndown.ItemOn::planRemainingH).sum()).isEqualTo(chart.get(day).planRemainingH());
+            assertThat(on.stream().mapToDouble(Burndown.ItemOn::actualRemainingH).sum()).isEqualTo(chart.get(day).actualRemainingH());
+        }
+        // 10/06: PAY-1 planned 8 of 10, logged 3, captured 6.5; PAY-2 not captured that day: rebuilt (4 now, nothing logged since)
+        assertThat(Burndown.on(items, "2026-10-06", "2026-10-07")).containsExactly(
+                new Burndown.ItemOn("PAY-1", 10, 8, 3.0, 2, 6.5, Burndown.RemainSource.CAPTURE),
+                new Burndown.ItemOn("PAY-2", 4, 0, 0.0, 4, 4.0, Burndown.RemainSource.WORKLOGS));
+        assertThat(Burndown.on(items, "2026-10-07", "2026-10-07")).extracting(Burndown.ItemOn::source)
+                .containsOnly(Burndown.RemainSource.JIRA);
+        // after today: the plan only
+        assertThat(Burndown.on(items, "2026-10-08", "2026-10-07")).containsExactly(
+                new Burndown.ItemOn("PAY-1", 10, 10, null, 0, null, null),
+                new Burndown.ItemOn("PAY-2", 4, 4, null, 0, null, null));
+    }
+
+    @Test
     void logsBeforeTheStartOrAfterTheEndWidenTheChart() {
         Burndown.BurndownChart r = Burndown.compute(List.of(
                 item("PAY-3", "2026-10-11", "2026-10-12", 6, Map.of("2026-10-11", 1.0, "2026-10-12", 5.0),   // Sunday, then a working Monday

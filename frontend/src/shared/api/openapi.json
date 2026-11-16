@@ -802,6 +802,61 @@
         "tags" : [ "effort-api" ]
       }
     },
+    "/api/v1/effort/burndown/day" : {
+      "get" : {
+        "operationId" : "burndownDay",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "anken",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "phase",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "task",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "member",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "date",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BurndownDayView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "effort-api" ]
+      }
+    },
     "/api/v1/effort/timesheet" : {
       "get" : {
         "operationId" : "timesheet",
@@ -4702,6 +4757,24 @@
         },
         "required" : [ "actual_remaining_h", "baseline_remaining_h", "date", "logged_h", "off", "plan_remaining_h", "planned_h" ]
       },
+      "BurndownDayView" : {
+        "type" : "object",
+        "properties" : {
+          "date" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BurndownTicket"
+            }
+          },
+          "today" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "rows", "today" ]
+      },
       "BurndownOption" : {
         "type" : "object",
         "properties" : {
@@ -4713,6 +4786,54 @@
           }
         },
         "required" : [ "key", "label" ]
+      },
+      "BurndownTicket" : {
+        "type" : "object",
+        "properties" : {
+          "actual_remaining_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "estimate_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "function" : {
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "logged_h" : {
+            "type" : [ "number", "null" ],
+            "format" : "double"
+          },
+          "pic_id" : {
+            "type" : [ "string", "null" ]
+          },
+          "plan_remaining_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "planned_h" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "source" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "jira", "capture", "worklogs" ]
+          },
+          "step" : {
+            "type" : [ "string", "null" ]
+          },
+          "task" : {
+            "type" : "string"
+          },
+          "task_key" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "actual_remaining_h", "estimate_h", "function", "key", "logged_h", "pic_id", "plan_remaining_h", "planned_h", "source", "step", "task", "task_key" ]
       },
       "BurndownView" : {
         "type" : "object",
@@ -4728,9 +4849,6 @@
           },
           "epic_key" : {
             "type" : [ "string", "null" ]
-          },
-          "matrix" : {
-            "$ref" : "#/components/schemas/PlanGrid"
           },
           "member" : {
             "type" : [ "string", "null" ]
@@ -4770,7 +4888,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "ankens", "burndown", "epic_key", "matrix", "member", "members", "phase", "phases", "subtasks", "task", "tasks", "title", "today" ]
+        "required" : [ "ankens", "burndown", "epic_key", "member", "members", "phase", "phases", "subtasks", "task", "tasks", "title", "today" ]
       },
       "CalendarCell" : {
         "type" : "object",
@@ -8024,24 +8142,6 @@
         },
         "required" : [ "key", "member_id", "start" ]
       },
-      "PlanGrid" : {
-        "type" : "object",
-        "properties" : {
-          "days" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string"
-            }
-          },
-          "rows" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/PlanRow"
-            }
-          }
-        },
-        "required" : [ "days", "rows" ]
-      },
       "PlanIssue" : {
         "type" : "object",
         "properties" : {
@@ -8060,41 +8160,6 @@
           }
         },
         "required" : [ "field", "message", "ref", "row_id" ]
-      },
-      "PlanRow" : {
-        "type" : "object",
-        "properties" : {
-          "function" : {
-            "type" : "string"
-          },
-          "function_key" : {
-            "type" : "string"
-          },
-          "hours" : {
-            "type" : "array",
-            "items" : {
-              "type" : "number",
-              "format" : "double"
-            }
-          },
-          "member_id" : {
-            "type" : "string"
-          },
-          "phase" : {
-            "type" : "string"
-          },
-          "task" : {
-            "type" : "string"
-          },
-          "task_key" : {
-            "type" : "string"
-          },
-          "total_h" : {
-            "type" : "number",
-            "format" : "double"
-          }
-        },
-        "required" : [ "function", "function_key", "hours", "member_id", "phase", "task", "task_key", "total_h" ]
       },
       "PlanningPreview" : {
         "type" : "object",
