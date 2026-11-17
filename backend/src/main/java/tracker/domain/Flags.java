@@ -164,6 +164,28 @@ public final class Flags {
         return 1 + runs;
     }
 
+    /**
+     * JM rounds of a JM Review: the times it went to a JM, i.e. the runs of JMs in its assignee history (a JM Review handed back
+     * to the team while it fixes the comments, then to the JM again, starts the next round); 0 while it is NYS or not a JM
+     * Review. JM Review and Fix comment JM run side by side, so the round is the pair's.
+     */
+    public static int jmRounds(Issue i, Map<String, Member> members) {
+        if (!Steps.isJmReview(i) || i.status() == Status.NYS) {
+            return 0;
+        }
+        int runs = 0;
+        boolean inRun = false;
+        for (String id : i.assigneeHistory()) {
+            Member m = members.get(id);
+            boolean jm = m != null && m.role() == Role.JM;
+            if (jm && !inRun) {
+                runs++;
+            }
+            inRun = jm;
+        }
+        return Math.max(1, runs);
+    }
+
     /** Late is the schedule's {@code overdue} finish; {@code soon} applies only to an active step that is not late. */
     public static IssueFlags issueFlags(Issue issue, boolean isCurrent, Map<String, Member> members, String today, Thresholds thresholds,
                                         IssueSchedule schedule) {

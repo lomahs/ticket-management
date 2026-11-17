@@ -274,6 +274,18 @@ class FlagsTest {
     }
 
     @Test
+    void jmRoundsCountTheTimesTheJmReviewWentToAJm() {
+        // round 1 with tanaka (JM), back to binh while the comments are fixed, round 2 with tanaka
+        Issue i = issue().step(StepKind.JM_REVIEW).fid("F03").status(Status.WIP).assignee("tanaka")
+                .events(assigned("2026-10-01", "tanaka", "binh"), assigned("2026-10-03", "binh", "tanaka")).build();
+        assertThat(Flags.jmRounds(i, MEMBERS)).isEqualTo(2);
+        Issue first = issue().step(StepKind.JM_REVIEW).fid("F03").status(Status.WIP).assignee("tanaka").build();
+        assertThat(Flags.jmRounds(first, MEMBERS)).isEqualTo(1);
+        assertThat(Flags.jmRounds(issue().step(StepKind.JM_REVIEW).fid("F03").status(Status.NYS).assignee("tanaka").build(), MEMBERS)).isZero();
+        assertThat(Flags.jmRounds(issue().step(StepKind.FIX_JM).fid("F03").status(Status.WIP).build(), MEMBERS)).isZero();
+    }
+
+    @Test
     void roundsDefaultToOneOnceStarted() {
         assertThat(flags(issue().step(StepKind.FIX_BAL).fid("F1").status(Status.WIP).build(), true, "an").rounds()).isEqualTo(1);
         assertThat(flags(issue().step(StepKind.FIX_BAL).fid("F1").status(Status.NYS).build(), true, "an").rounds()).isZero();

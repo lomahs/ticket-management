@@ -38,6 +38,7 @@ import tracker.domain.Overview.PhaseRollup;
 import tracker.domain.PhaseGroups;
 import tracker.domain.Role;
 import tracker.domain.Status;
+import tracker.domain.StepKind;
 import tracker.domain.Steps;
 import tracker.domain.TaskTemplate;
 import tracker.domain.Text;
@@ -72,7 +73,7 @@ public class DailyService {
     /**
      * One step of a function.
      *
-     * @param rounds review rounds of a fix step (0 on other steps)
+     * @param rounds review rounds of a Fix comment BAL step, JM rounds of a JM Review ({@link Flags#jmRounds}), else 0
      * @param withJm whether the step's assignee is a JM: the ticket is with the client
      */
     public record DailyStep(String key, String step, String status, @Nullable String assigneeId, @Nullable String plannedStart,
@@ -313,9 +314,17 @@ public class DailyService {
             }
             IssueFlags fl = ctx.flags.get(c.key());
             steps.add(new DailyStep(c.key(), c.step().value(), c.status().value(), c.assigneeId(), c.plannedStart(), c.plannedEnd(),
-                    fl.late(), fl.lateDays(), fl.rounds(), withJm(ctx, c.assigneeId())));
+                    fl.late(), fl.lateDays(), rounds(ctx, c, fl), withJm(ctx, c.assigneeId())));
         }
         return new DailyFunction(f.id(), f.name(), f.baId(ctx.members), steps);
+    }
+
+    /** Fix comment JM runs beside the JM Review, so its round is the JM Review's: it has none of its own. */
+    private static int rounds(TrackerContext ctx, Issue c, IssueFlags fl) {
+        if (Steps.isJmReview(c)) {
+            return Flags.jmRounds(c, ctx.members);
+        }
+        return c.step() == StepKind.FIX_JM ? 0 : fl.rounds();
     }
 
     private static List<DailyTyped> typed(TrackerContext ctx, List<Issue> parents, Map<String, String> typeOf, Map<String, List<Issue>> subsOf) {

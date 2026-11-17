@@ -80,6 +80,9 @@ function Legend() {
       {item(fill(C.due), 'Due today')}
       {item(fill(C.late), 'Late')}
       {item(ring(C.jm), 'JM step')}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }} title="JM Review and Fix comment JM run side by side; the JM round and who holds it">
+        <span className="do-pair-r" style={{ background: C.jm, borderColor: C.jm, color: '#fff' }}>R2 · JM</span>JM round
+      </span>
     </span>
   );
 }
@@ -193,7 +196,8 @@ function Functions({ fns, today }: { fns: Fn[]; today: string }) {
 
 /**
  * Where a function's JM round is while its JM Review is under way (WIP or Resolved): the JM Review's assignee tells. A JM:
- * waiting for the JM review; a team member: the team is fixing JM's comments. The index of that step, or -1.
+ * waiting for the JM review; a team member: the team is fixing JM's comments on Fix comment JM. The index of that step, or -1.
+ * JM Review and Fix comment JM run side by side: each round the JM Review goes back to the JM, and both close together.
  */
 function jmRoundAt(steps: Fn['steps']): number {
   const at = steps.findIndex((c) => c?.step === 'jmr');
@@ -224,9 +228,17 @@ function FunctionLine({ f, today }: { f: Fn; today: string }) {
   const cur = f.steps.findIndex((s) => s != null && s.status !== 'C');
   const round = jmRoundAt(f.steps);
   const [sched, late] = schedOf(fnSteps(f));
-  const now = cur >= 0 ? f.steps[cur] : null;
+  const at = round >= 0 ? round : cur; // in a JM round, the side holding it is the step on now
+  const now = at >= 0 ? f.steps[at] : null;
+  const jmr = f.steps.find((s) => s?.step === 'jmr');
+  const fixj = f.steps.find((s) => s?.step === 'fixj');
+  const pair = jmr && fixj ? f.steps.indexOf(jmr) : -1;
   const segs: ReactNode[] = [];
   for (let i = 0; i < have - 1; i++) {
+    if (i === pair && jmr && fixj) {
+      segs.push(<JmPair key="pair" jmr={jmr} fixj={fixj} at={i} n={n} who={members[(jmr.with_jm ? jmr : fixj).assignee_id ?? '']?.name} />);
+      continue;
+    }
     const s = f.steps[i];
     const next = f.steps[i + 1];
     const bg = s?.status === 'C' && next?.status === 'C' ? C.done
@@ -240,13 +252,16 @@ function FunctionLine({ f, today }: { f: Fn; today: string }) {
   return (
     <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
       <NameCell who={f.ba_id} m={members[f.ba_id ?? '']} title={f.name}
-        sub={now ? <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{stepLabel(now.step)}</b> · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</> : 'All steps done'} />
+        sub={!now ? 'All steps done' : round >= 0 && jmr ? (
+          <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600, color: C.jm }}>JM round {jmr.rounds || 1}</b> · {jmr.with_jm ? 'with JM' : 'FPT fixing'} · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</>
+        ) : <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{stepLabel(now.step)}</b> · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</>} />
       <div className="do-track" style={{ gridTemplateColumns: `repeat(${n},1fr)` }}>
         {segs}
         {Array.from({ length: n }, (_, i) => {
           const s = f.steps[i];
           if (!s) return <span key={i} />;
-          return <StepStop key={i} s={s} today={today} now={i === cur} round={i === round} m={members[s.assignee_id ?? '']} open={() => open(s.key)} />;
+          return <StepStop key={i} s={s} today={today} now={i === at} round={i === round} m={members[s.assignee_id ?? '']} open={() => open(s.key)}
+            waits={s.step === 'fixj' && jmr != null && jmr.status !== 'C' && jmr.status !== 'N' ? s.status : null} />;
         })}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-start' }}>
@@ -261,7 +276,11 @@ function FunctionLine({ f, today }: { f: Fn; today: string }) {
  * A step's stop; it opens the sub-task. Only a started step shows its holder and the highlight (NYS stays a ring, red when
  * late); a step due today that is not that is a small yellow dot. Its tooltip says the step, status, holder, plan, rounds and where the JM round is.
  */
-function StepStop({ s, today, now, round, m, open }: { s: Step; today: string; now: boolean; round: boolean; m: Member | undefined; open: () => void }) {
+function StepStop({ s, today, now, round, m, open, waits }: {
+  s: Step; today: string; now: boolean; round: boolean; m: Member | undefined; open: () => void;
+  /** Fix comment JM while its JM Review is under way: its status, which says what it waits for */
+  waits?: string | null;
+}) {
   const jm = JM_STEPS.has(s.step);
   const late = s.late && s.status !== 'C' ? s.late_days : 0;
   const due = s.status !== 'C' && s.planned_end === today;
@@ -269,16 +288,17 @@ function StepStop({ s, today, now, round, m, open }: { s: Step; today: string; n
   const col = late ? C.late : due ? C.due : jm ? C.jm : C.wip;
   const kind: StopKind = s.status === 'C' ? 'done' : now && started ? 'now' : due ? 'due' : started ? 'open' : 'todo';
   const st = statusOf(s.status);
-  const where = s.with_jm ? 'JM' : 'Team';
+  const where = s.with_jm ? 'JM' : 'FPT';
   const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''}${due ? ' · due today' : ''} · ${m?.name ?? 'unassigned'}`
     + ` · plan ${dm(s.planned_start) || '?'} – ${dm(s.planned_end) || '?'}${s.rounds ? ` · round ${s.rounds}, with ${where}` : ''}`
-    + (round ? ` · now: ${s.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '');
+    + (round ? ` · now: ${s.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '')
+    + (waits === 'N' ? ' · starts when JM comments' : waits === 'R' || waits === 'W' ? ' · closes when the JM Review is OK' : '');
   return (
     <button type="button" className="do-st" title={tip} aria-label={`${stepLabel(s.step)} · ${s.status === 'C' ? 'Done' : st.label}${late ? ` · ${late}d late` : ''}${due ? ' · due today' : ''}`} onClick={open}>
       <span className="do-node"><StopDot kind={kind} col={kind === 'todo' ? (late ? C.late : jm ? C.jm : C.lineStrong) : col} initial={(m?.name ?? '?').slice(0, 1)} /></span>
       <span className="do-dl">{plan(s)}</span>
       {late > 0 && <span style={{ font: '800 10.5px/1 var(--font-text)', color: C.late }}>+{late}d</span>}
-      {!late && s.rounds > 1 && <span style={{ font: '700 10.5px/1 var(--font-text)', color: 'var(--text-muted)' }}>↻{s.rounds}</span>}
+      {!late && s.step !== 'jmr' && s.rounds > 1 && <span style={{ font: '700 10.5px/1 var(--font-text)', color: 'var(--text-muted)' }}>↻{s.rounds}</span>}
     </button>
   );
 }
@@ -325,5 +345,28 @@ function TicketLine({ x, today }: { x: Ticket; today: string }) {
         <span style={{ font: '500 12px/1.3 var(--font-mono)', color: 'var(--text-body)' }}>finish {dm(x.planned_end) || '–'}</span>
       </div>
     </div>
+  );
+}
+
+/**
+ * JM Review and Fix comment JM side by side: a double line between the two stops (they run in parallel and close together)
+ * with the JM round on it: R2 · JM while the JM reviews, R2 · FPT while FPT fixes the comments, R2 · OK once the JM
+ * Review is OK and Fix comment JM can close, R2 ✓ when both closed.
+ */
+function JmPair({ jmr, fixj, at, n, who }: { jmr: Step; fixj: Step; at: number; n: number; who: string | undefined }) {
+  const r = jmr.rounds || 1;
+  const ok = jmr.status === 'C'; // JM Review OK: Fix comment JM can close
+  const done = ok && fixj.status === 'C';
+  const on = jmr.status === 'W' || jmr.status === 'R';
+  const col = ok ? C.done : on ? C.jm : C.line;
+  const text = done ? `R${r} ✓` : ok ? `R${r} · OK` : `R${r} · ${jmr.with_jm ? 'JM' : 'FPT'}`;
+  const tip = done ? `JM rounds: ${r}, JM Review OK`
+    : ok ? `JM rounds: ${r}, JM Review OK: Fix comment JM can close`
+    : on ? `JM round ${r}: ${jmr.with_jm ? 'with JM, reviewing' : 'with FPT, fixing the comments'}${who ? ` · ${who}` : ''}. JM Review and Fix comment JM run side by side and close together`
+      : 'JM Review and Fix comment JM run side by side and close together';
+  return (
+    <span className="do-pair" style={{ left: `${((at + 0.5) / n) * 100}%`, width: `${100 / n}%`, color: col }} title={tip} aria-label={tip}>
+      {jmr.status !== 'N' && <span className="do-pair-r" style={on ? { background: col, borderColor: col, color: '#fff' } : undefined}>{text}</span>}
+    </span>
   );
 }

@@ -182,6 +182,9 @@ a:hover { color: var(--text-heading); text-decoration: underline; }
 .do-row.late:hover { box-shadow: inset 3px 0 0 var(--do-red), 0 6px 18px rgba(16, 18, 20, .09); }
 .do-track { position: relative; display: grid; align-items: start; height: 52px; }
 .do-seg { position: absolute; top: 12px; height: 2px; border-radius: 1px; }
+/* JM Review and Fix comment JM: two parallel lines between the stops, the JM round on them */
+.do-pair { position: absolute; top: 9px; height: 8px; border-top: 2px solid currentColor; border-bottom: 2px solid currentColor; display: grid; place-items: center; }
+.do-pair-r { padding: 2px 6px; border-radius: 999px; background: var(--surface-card); border: 1px solid currentColor; font: 700 10px/1 var(--font-text); white-space: nowrap; }
 .do-zone { position: absolute; right: 0; top: -12px; bottom: -12px; background: var(--do-zone); }
 .do-flag { position: absolute; top: -1px; z-index: 1; display: inline-flex; color: var(--text-muted); }
 .do-st { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }

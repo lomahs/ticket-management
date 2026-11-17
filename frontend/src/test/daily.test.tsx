@@ -37,7 +37,7 @@ function content(date: string, note: string, kept = true) {
           { id: 'F04', name: 'Refund', ba_id: 'an', steps: [
             ...done('PAY-122'), step('PAY-1224', 'jmr', 'W', { assignee_id: 'an' }), step('PAY-1225', 'fixj', 'W', { assignee_id: 'an', rounds: 1 })] },
           { id: 'F05', name: 'Installments', ba_id: 'an', steps: [
-            ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true }), step('PAY-1235', 'fixj', 'N', { planned_end: '2026-10-07' })] },
+            ...done('PAY-123'), step('PAY-1234', 'jmr', 'W', { assignee_id: 'tanaka', with_jm: true, rounds: 2 }), step('PAY-1235', 'fixj', 'N', { planned_end: '2026-10-07' })] },
           { id: 'F06', name: 'Execute test case', ba_id: 'an', steps: [
             step('PAY-1241', 'create', 'C'), step('PAY-1242', 'balr', 'W'), step('PAY-1243', 'fixb', 'N', { planned_end: '2026-10-07' })] }] }),
         task('PAY-1300', 'Receipt screens', { functions: [
@@ -101,7 +101,13 @@ describe('Daily Overview', () => {
     expect(within(fo).getAllByRole('button', { name: 'Create · Done' }).length).toBeGreaterThan(0);
     // the JM round: the JM Review's assignee tells whether JM is reviewing or the team is fixing their comments
     expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
-    expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments$/)).toBeTruthy();
+    expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments · closes when the JM Review is OK$/)).toBeTruthy();
+    // JM Review and Fix comment JM run side by side: the pair shows the JM round and who holds it
+    expect(within(fo).getByLabelText(/^JM round 2: with JM, reviewing · Tanaka\./).textContent).toBe('R2 · JM');
+    expect(within(fo).getByLabelText(/^JM round 1: with FPT, fixing the comments · An\./).textContent).toBe('R1 · FPT');
+    expect(within(fo).getByTitle(/^PAY-1235 .* starts when JM comments$/)).toBeTruthy();
+    expect(within(fo).getByText('JM round 2')).toBeTruthy(); // Installments' Now line
+    expect(within(fo).getByTitle(/^JM Review and Fix comment JM run side by side; the JM round/).textContent).toBe('R2 · JMJM round'); // legend
     expect(within(fo).getAllByTitle('Last step of this flow')).toHaveLength(1); // F06 runs the 3-step flow
     // a stop shows its plan; only a started step shows its holder and the highlight; a step due on the day shown that is not
     // that is a small yellow dot
