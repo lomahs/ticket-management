@@ -145,6 +145,13 @@ describe('Daily Overview', () => {
     fireEvent.change(within(dialog).getByLabelText('Note on PAY-1173'), { target: { value: 'Send today' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save note' }));
     await waitFor(() => expect(note).toEqual({ note: 'Send today' }));
+    // a total filters the rows; clicking it again shows them all
+    fireEvent.click(within(issues).getByRole('button', { name: /^JM/ }));
+    expect(within(issues).queryByTitle('With the team')).toBeNull();
+    expect(within(issues).getByTitle('With JM (the client)')).toBeTruthy();
+    fireEvent.click(within(issues).getByRole('button', { name: /^JM/ }));
+    expect(within(issues).getByTitle('With the team')).toBeTruthy();
+    expect(within(issues).queryByText('last 7 days')).toBeNull();
     fireEvent.click(within(issues).getByRole('tab', { name: /Bugs/ }));
     expect(within(issues).getByText('No open bugs right now')).toBeTruthy();
 

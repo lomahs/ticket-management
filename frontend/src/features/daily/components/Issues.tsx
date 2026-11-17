@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { errorMessage } from '../../../shared/api/errors';
 import { useCan, useMemberMap } from '../../../shared/api/queries';
@@ -22,17 +22,28 @@ const TYPES = [
 const TEAM = 'FPT';
 const COLS = '96px minmax(220px,1.5fr) 190px 64px minmax(220px,1.6fr)';
 const DOT: Record<string, string> = { N: 'var(--st-nys)', W: 'var(--st-wip)', R: 'var(--st-res)', C: 'var(--st-clo)' };
+/** Which of the tab's tickets show, picked by clicking a total. */
+type Filter = 'all' | 'open' | 'jm' | 'team' | 'closed';
+const KEEP: Record<Filter, (t: Typed) => boolean> = {
+  all: () => true,
+  open: (t) => !t.closed_on,
+  jm: (t) => !t.closed_on && t.with_jm,
+  team: (t) => !t.closed_on && !t.with_jm,
+  closed: (t) => !!t.closed_on,
+};
 
 /**
  * The QnA, WorkRequest and Bug tickets of the anken, one tab each: totals (open with JM or with the team, closed in the last 7
- * days), then one row per ticket with its status and holder, and its note. Notes are edited on the live day only; a past day
- * shows the notes it was captured with.
+ * days), then one row per ticket with its status and holder, and its note. Clicking a total shows only those tickets. Notes
+ * are edited on the live day only; a past day shows the notes it was captured with.
  */
 export function Issues({ typed, anken, editable }: { typed: Typed[]; anken: string; editable: boolean }) {
   const [tab, setTab] = useState<string>('qna');
+  const [filter, setFilter] = useState<Filter>('all');
   const ty = TYPES.find((t) => t.k === tab) ?? TYPES[0];
-  const rows = typed.filter((t) => t.type === ty.k)
+  const all = typed.filter((t) => t.type === ty.k)
     .sort((a, b) => Number(!!a.closed_on) - Number(!!b.closed_on) || Number(b.with_jm) - Number(a.with_jm) || b.held_days - a.held_days);
+  const rows = all.filter(KEEP[filter]);
   return (
     <section className="card" aria-label="Issues" style={{ overflow: 'hidden', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, padding: '6px 20px 0', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
@@ -47,8 +58,10 @@ export function Issues({ typed, anken, editable }: { typed: Typed[]; anken: stri
         <span style={{ fontSize: 12.5, color: 'var(--text-muted)', paddingBottom: 12 }}>QnA, WorkRequest and Bug tickets of the anken; closed ones stay 7 days</span>
       </div>
       <div role="tabpanel" aria-label={ty.label}>
-        <Totals rows={rows} />
-        {rows.length ? (
+        <Totals rows={all} filter={filter} pick={(f) => setFilter(f === filter ? 'all' : f)} />
+        {all.length && !rows.length ? (
+          <div style={{ margin: '4px 20px 18px', fontSize: 12.5, color: 'var(--text-muted)' }}>No {ty.what} match this filter.</div>
+        ) : rows.length ? (
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 1000 }}>
               <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 14, padding: '10px 35px 8px', borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', font: '700 11.5px/1 var(--font-text)', color: 'var(--text-body)' }}>
@@ -76,24 +89,30 @@ export function Issues({ typed, anken, editable }: { typed: Typed[]; anken: stri
   );
 }
 
-/** Total | Open (with JM · with the team) | Closed in the last 7 days. */
-function Totals({ rows }: { rows: Typed[] }) {
+/** Total | Open (with JM · with the team) | Closed; each one a filter on the rows. */
+function Totals({ rows, filter, pick }: { rows: Typed[]; filter: Filter; pick: (f: Filter) => void }) {
   const open = rows.filter((t) => !t.closed_on);
   const jm = open.filter((t) => t.with_jm).length;
   const label = (t: string) => <span style={{ font: '600 11.5px/1 var(--font-text)', color: 'var(--text-muted)', letterSpacing: '.02em', textTransform: 'uppercase' }}>{t}</span>;
   const big = (n: number) => <b style={{ font: '800 20px/1 var(--font-display)', color: 'var(--text-heading)' }}>{n}</b>;
   const sep = <span aria-hidden="true" style={{ width: 1, height: 28, background: 'var(--border-subtle)' }} />;
-  const cell = (inner: ReactNode) => <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>{inner}</span>;
-  const sub = (n: number, t: string, bg: string, fg: string) => (
-    <span className="do-pill" style={{ height: 22, background: bg, color: fg, fontSize: 12 }}>{t}<b style={{ fontWeight: 800 }}>{n}</b></span>
+  const cell = (f: Filter, t: string, n: number) => (
+    <button type="button" className="do-tot" aria-pressed={filter === f} onClick={() => pick(f)}>{label(t)}{big(n)}</button>
+  );
+  const sub = (f: Filter, n: number, t: string, bg: string, fg: string) => (
+    <button type="button" className="do-pill" aria-pressed={filter === f} onClick={() => pick(f)} style={{ height: 22, background: bg, color: fg, fontSize: 12 }}>
+      {t}<b style={{ fontWeight: 800 }}>{n}</b>
+    </button>
   );
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', padding: '14px 20px' }}>
-      {cell(<>{label('Total')}{big(rows.length)}</>)}{sep}
-      {cell(<>{label('Open')}{big(open.length)}{sub(jm, 'JM', 'color-mix(in oklch, var(--do-jm) 14%, var(--surface-card))', 'var(--do-jm)')}
-        {sub(open.length - jm, TEAM, 'var(--do-team-bg)', 'var(--do-team)')}</>)}{sep}
-      {cell(<>{label('Closed')}{big(rows.length - open.length)}
-        <span className="do-pill" style={{ height: 22, background: 'var(--surface-hover)', color: 'var(--text-body)', fontWeight: 600, fontSize: 12 }}>last 7 days</span></>)}
+      {cell('all', 'Total', rows.length)}{sep}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {cell('open', 'Open', open.length)}
+        {sub('jm', jm, 'JM', 'color-mix(in oklch, var(--do-jm) 14%, var(--surface-card))', 'var(--do-jm)')}
+        {sub('team', open.length - jm, TEAM, 'var(--do-team-bg)', 'var(--do-team)')}
+      </span>{sep}
+      {cell('closed', 'Closed', rows.length - open.length)}
     </div>
   );
 }
