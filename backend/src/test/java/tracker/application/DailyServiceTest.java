@@ -121,7 +121,7 @@ class DailyServiceTest {
                 .containsExactly("qna/PAY-1170/JM", "qna/PAY-1171/JM", "qna/PAY-1172/JM", "qna/PAY-1173/Team", "qna/PAY-1168/Team",
                         "work_request/PAY-1176/Team", "work_request/PAY-1177/JM");
         DailyTyped closed = typed.get(4);
-        assertThat(List.of(closed.status(), Objects.toString(closed.closedOn()))).containsExactly("C", "2026-10-05");
+        assertThat(List.of(closed.status(), Objects.toString(closed.closedOn()))).containsExactly("C", "2026-09-30"); // its actual end: the last worklog
         assertThat(typed.get(1).note()).isEqualTo(Dataset.NOTES.get("PAY-1171"));
         assertThat(typed.get(2).note()).isEmpty();
     }

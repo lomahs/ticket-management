@@ -60,7 +60,7 @@ class ScheduleRulesTest {
     @Test
     void finishedEarlyWithFewerHours() {
         IssueSchedule s = of(Fixtures.issue().status(Status.RESOLVED).est(10).ps("2026-09-28").pe("2026-10-02")
-                .logged(5).events(Fixtures.statusTo("2026-09-28", "W"), Fixtures.statusTo("2026-10-01", "R")).build());
+                .logged(5).logDate("2026-10-01").events(Fixtures.statusTo("2026-09-28", "W"), Fixtures.statusTo("2026-10-01", "R")).build());
         assertThat(s.finish()).isEqualTo(FinishState.EARLY_FINISH);
         assertThat(s.finishDays()).isEqualTo(1);
         assertThat(s.planRemainH()).isZero();

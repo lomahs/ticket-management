@@ -200,8 +200,8 @@ public final class Flags {
     }
 
     /**
-     * Actual start and end. Start: {@link #actualStart}. Only a Resolved/Closed issue has an end: the day it was last
-     * resolved (else closed), else its last worklog. null before work began; the end is null while the issue is not done.
+     * Actual start and end. Start: {@link #actualStart}. Only a Resolved/Closed issue has an end: its last worklog, else
+     * the day it was last resolved (else closed). null before work began; the end is null while the issue is not done.
      */
     public static String[] actualSpan(Issue issue) {
         String start = actualStart(issue);
@@ -211,10 +211,10 @@ public final class Flags {
         if (issue.status() != Status.RESOLVED && issue.status() != Status.CLOSED) {
             return new String[]{start, null};
         }
+        String lastLog = issue.worklogs().stream().map(Worklog::date).max(String::compareTo).orElse(null);
         String resolved = lastEvent(issue, EventField.STATUS, Status.RESOLVED.value());
         String closed = lastEvent(issue, EventField.STATUS, Status.CLOSED.value());
-        String lastLog = issue.worklogs().stream().map(Worklog::date).max(String::compareTo).orElse(null);
-        String end = resolved != null ? resolved : closed != null ? closed : lastLog != null ? lastLog : start;
+        String end = lastLog != null ? lastLog : resolved != null ? resolved : closed != null ? closed : start;
         return new String[]{start, end.compareTo(start) < 0 ? start : end};
     }
 }

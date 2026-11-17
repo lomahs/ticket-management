@@ -306,7 +306,7 @@ class FlagsTest {
     }
 
     @Test
-    void actualStartIsTheMoveToInProgressAndEndTheMoveToResolved() {
+    void actualStartIsTheMoveToInProgressAndEndTheLastWorklog() {
         // moved to In Progress in the morning, first worklog only at the end of the next day
         Issue wip = issue().logged(2).logDate("2026-10-06").events(new IssueEvent("2026-10-05", EventField.STATUS, "N", "W")).build();
         assertThat(Flags.actualSpan(wip)).containsExactly("2026-10-05", null);
@@ -315,12 +315,17 @@ class FlagsTest {
         // a worklog before the move counts as the start
         Issue early = issue().logged(1).logDate("2026-10-01").events(new IssueEvent("2026-10-02", EventField.STATUS, "N", "W")).build();
         assertThat(Flags.actualStart(early)).isEqualTo("2026-10-01");
-        // resolved, reopened and resolved again: the last resolve ends it, even with a later worklog
+        // done: the last worklog ends it, even after the last resolve
         Issue resolved = issue().status(Status.CLOSED).logged(3).logDate("2026-10-06").events(
                 new IssueEvent("2026-09-28", EventField.STATUS, "N", "W"), statusTo("2026-09-30", "R"),
                 new IssueEvent("2026-10-01", EventField.STATUS, "R", "W"), statusTo("2026-10-02", "R"),
                 new IssueEvent("2026-10-03", EventField.STATUS, "R", "C")).build();
-        assertThat(Flags.actualSpan(resolved)).containsExactly("2026-09-28", "2026-10-02");
+        assertThat(Flags.actualSpan(resolved)).containsExactly("2026-09-28", "2026-10-06");
+        // done without a worklog: the last resolve ends it
+        Issue resolvedNoLog = issue().status(Status.CLOSED).logged(0).events(
+                new IssueEvent("2026-09-28", EventField.STATUS, "N", "W"), statusTo("2026-10-02", "R"),
+                new IssueEvent("2026-10-03", EventField.STATUS, "R", "C")).build();
+        assertThat(Flags.actualSpan(resolvedNoLog)).containsExactly("2026-09-28", "2026-10-02");
         Issue closedOnly = issue().status(Status.CLOSED).logged(0).events(new IssueEvent("2026-10-03", EventField.STATUS, "N", "C")).build();
         assertThat(Flags.actualSpan(closedOnly)).containsExactly("2026-10-03", "2026-10-03");
     }
