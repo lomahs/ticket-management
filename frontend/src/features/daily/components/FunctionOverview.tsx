@@ -80,8 +80,8 @@ function Legend() {
       {item(fill(C.due), 'Due today')}
       {item(fill(C.late), 'Late')}
       {item(ring(C.jm), 'JM step')}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }} title="JM Review and Fix comment JM run side by side; the JM round and who holds it">
-        <span className="do-pair-r" style={{ background: C.jm, borderColor: C.jm, color: '#fff' }}>R2 · JM</span>JM round
+      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }} title="JM Review and Fix comment JM run side by side; who holds them: JM or FPT">
+        <span className="do-pair-r" style={{ background: C.jm, borderColor: C.jm, color: '#fff' }}>JM</span><span className="do-pair-r" style={{ background: C.jm, borderColor: C.jm, color: '#fff' }}>FPT</span>JM pair holder
       </span>
     </span>
   );
@@ -253,7 +253,7 @@ function FunctionLine({ f, today }: { f: Fn; today: string }) {
     <div className={'do-row' + (sched === 'late' ? ' late' : '')} style={{ gridTemplateColumns: COLS }}>
       <NameCell who={f.ba_id} m={members[f.ba_id ?? '']} title={f.name}
         sub={!now ? 'All steps done' : round >= 0 && jmr ? (
-          <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600, color: C.jm }}>JM round {jmr.rounds || 1}</b> · {jmr.with_jm ? 'with JM' : 'FPT fixing'} · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</>
+          <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600, color: C.jm }}>{jmr.with_jm ? 'With JM' : 'With FPT'}</b> · {jmr.with_jm ? 'reviewing' : 'fixing JM comments'} · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</>
         ) : <><span style={{ color: 'var(--text-muted)' }}>Now</span> <b style={{ fontWeight: 600 }}>{stepLabel(now.step)}</b> · {members[now.assignee_id ?? '']?.name ?? 'unassigned'}</>} />
       <div className="do-track" style={{ gridTemplateColumns: `repeat(${n},1fr)` }}>
         {segs}
@@ -290,7 +290,7 @@ function StepStop({ s, today, now, round, m, open, waits }: {
   const st = statusOf(s.status);
   const where = s.with_jm ? 'JM' : 'FPT';
   const tip = `${s.key} · ${STEPS.find((x) => x.k === s.step)?.label ?? s.step} · ${st.label}${late ? ` · ${late} working days late` : ''}${due ? ' · due today' : ''} · ${m?.name ?? 'unassigned'}`
-    + ` · plan ${dm(s.planned_start) || '?'} – ${dm(s.planned_end) || '?'}${s.rounds ? ` · round ${s.rounds}, with ${where}` : ''}`
+    + ` · plan ${dm(s.planned_start) || '?'} – ${dm(s.planned_end) || '?'}${s.step === 'jmr' && s.status !== 'N' && s.status !== 'C' ? ` · with ${where}` : ''}`
     + (round ? ` · now: ${s.step === 'jmr' ? 'waiting for the JM review' : 'fixing JM comments'}` : '')
     + (waits === 'N' ? ' · starts when JM comments' : waits === 'R' || waits === 'W' ? ' · closes when the JM Review is OK' : '');
   return (
@@ -350,19 +350,18 @@ function TicketLine({ x, today }: { x: Ticket; today: string }) {
 
 /**
  * JM Review and Fix comment JM side by side: a double line between the two stops (they run in parallel and close together)
- * with the JM round on it: R2 · JM while the JM reviews, R2 · FPT while FPT fixes the comments, R2 · OK once the JM
- * Review is OK and Fix comment JM can close, R2 ✓ when both closed.
+ * with who holds them: JM while the JM reviews, FPT while FPT fixes the comments, OK once the JM Review is OK and Fix
+ * comment JM can close, ✓ when both closed. The JM round count ({@code jmr.rounds}) is not shown for now.
  */
 function JmPair({ jmr, fixj, at, n, who }: { jmr: Step; fixj: Step; at: number; n: number; who: string | undefined }) {
-  const r = jmr.rounds || 1;
   const ok = jmr.status === 'C'; // JM Review OK: Fix comment JM can close
   const done = ok && fixj.status === 'C';
   const on = jmr.status === 'W' || jmr.status === 'R';
   const col = ok ? C.done : on ? C.jm : C.line;
-  const text = done ? `R${r} ✓` : ok ? `R${r} · OK` : `R${r} · ${jmr.with_jm ? 'JM' : 'FPT'}`;
-  const tip = done ? `JM rounds: ${r}, JM Review OK`
-    : ok ? `JM rounds: ${r}, JM Review OK: Fix comment JM can close`
-    : on ? `JM round ${r}: ${jmr.with_jm ? 'with JM, reviewing' : 'with FPT, fixing the comments'}${who ? ` · ${who}` : ''}. JM Review and Fix comment JM run side by side and close together`
+  const text = done ? '✓' : ok ? 'OK' : jmr.with_jm ? 'JM' : 'FPT';
+  const tip = done ? 'JM Review OK, both closed'
+    : ok ? 'JM Review OK: Fix comment JM can close'
+    : on ? `${jmr.with_jm ? 'With JM, reviewing' : 'With FPT, fixing the JM comments'}${who ? ` · ${who}` : ''}. JM Review and Fix comment JM run side by side and close together`
       : 'JM Review and Fix comment JM run side by side and close together';
   return (
     <span className="do-pair" style={{ left: `${((at + 0.5) / n) * 100}%`, width: `${100 / n}%`, color: col }} title={tip} aria-label={tip}>

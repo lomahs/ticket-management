@@ -103,11 +103,12 @@ describe('Daily Overview', () => {
     expect(within(fo).getByTitle(/^PAY-1234 .* now: waiting for the JM review$/)).toBeTruthy();
     expect(within(fo).getByTitle(/^PAY-1225 .* now: fixing JM comments · closes when the JM Review is OK$/)).toBeTruthy();
     // JM Review and Fix comment JM run side by side: the pair shows the JM round and who holds it
-    expect(within(fo).getByLabelText(/^JM round 2: with JM, reviewing · Tanaka\./).textContent).toBe('R2 · JM');
-    expect(within(fo).getByLabelText(/^JM round 1: with FPT, fixing the comments · An\./).textContent).toBe('R1 · FPT');
+    expect(within(fo).getByLabelText(/^With JM, reviewing · Tanaka\./).textContent).toBe('JM');
+    expect(within(fo).getByLabelText(/^With FPT, fixing the JM comments · An\./).textContent).toBe('FPT');
     expect(within(fo).getByTitle(/^PAY-1235 .* starts when JM comments$/)).toBeTruthy();
-    expect(within(fo).getByText('JM round 2')).toBeTruthy(); // Installments' Now line
-    expect(within(fo).getByTitle(/^JM Review and Fix comment JM run side by side; the JM round/).textContent).toBe('R2 · JMJM round'); // legend
+    expect(within(fo).getByText('With JM')).toBeTruthy(); // Installments' Now line
+    expect(within(fo).queryByText(/R\d/)).toBeNull(); // the JM round count is not shown for now
+    expect(within(fo).getByTitle(/^JM Review and Fix comment JM run side by side; who holds them/).textContent).toBe('JMFPTJM pair holder'); // legend
     expect(within(fo).getAllByTitle('Last step of this flow')).toHaveLength(1); // F06 runs the 3-step flow
     // a stop shows its plan; only a started step shows its holder and the highlight; a step due on the day shown that is not
     // that is a small yellow dot
