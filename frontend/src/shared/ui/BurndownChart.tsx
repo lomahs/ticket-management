@@ -100,6 +100,7 @@ export function BurndownChart({ b, today, todayLabel = 'Today', height = 320, em
 
 function Tip({ d, baseline, left, flip }: { d: Schemas['BurndownDay']; baseline: boolean; left: number; flip: boolean }) {
   const a = d.actual_remaining_h;
+  const gap = a == null ? 0 : a - d.plan_remaining_h;
   const row = { display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--text-muted)' };
   return (
     <div style={{
@@ -111,8 +112,11 @@ function Tip({ d, baseline, left, flip }: { d: Schemas['BurndownDay']; baseline:
       {d.baseline_remaining_h != null && <span style={row}>Baseline plan<b style={{ color: 'var(--text-link)' }}>{f2(d.baseline_remaining_h)}h</b></span>}
       <span style={row}>Plan<b style={{ color: 'var(--text-heading)' }}>{f2(d.plan_remaining_h)}h</b></span>
       <span style={row}>Actual<b style={{ color: 'var(--st-wip)' }}>{a == null ? '—' : f2(a) + 'h'}</b></span>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f2(d.planned_h)}h planned · {f2(d.logged_h)}h logged</span>
-      {a != null && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-heading)' }}>{(a - d.plan_remaining_h > 0 ? '+' : '') + f2(a - d.plan_remaining_h)}h vs plan</span>}
+      {a != null && (
+        <span style={{ fontSize: 11, fontWeight: 600, color: gap > 0.005 ? 'var(--hl-red-fg)' : gap < -0.005 ? 'var(--tn-res)' : 'var(--text-heading)' }}>
+          {(gap > 0 ? '+' : '') + f2(gap)}h vs plan
+        </span>
+      )}
     </div>
   );
 }
