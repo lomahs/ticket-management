@@ -87,19 +87,24 @@ export function EffortDays({ v, name }: { v: DetailPlanView; name: (id: string) 
   );
 }
 
-const TIP_W = 340;
+const TIP_W = 440;
 
 /**
- * A day's tasks on this anken (Jira key when it is in Jira) and the other anken by name, with their hours: on top of the page,
+ * A day's tasks on this anken (sub-phase › function, then the Jira key when it is in Jira and the Summary, never cut off) and the
+ * other anken by name, with their hours: on top of the page,
  * under the cell {@code at}, or above it near the bottom of the window; kept inside the window's width.
  */
 function DayTasks({ d, title, at }: { d: Day; title: string; at: DOMRect }) {
   const here = d.items.filter((i) => !i.other);
   const other = d.items.filter((i) => i.other);
+  // a sub-task in full: its sub-phase and function, then its key and Summary; nothing is cut off
   const line = (i: Day['items'][number], n: number) => (
-    <div key={n} style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-      <span className="ellipsis" style={{ maxWidth: TIP_W - 80 }}>{i.key && !i.other ? `${i.key} · ${i.title}` : i.title}</span>
-      <span style={{ fontWeight: 600 }}>{`${f2(i.hours)}h`}</span>
+    <div key={n} style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <span style={{ minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+        {!i.other && (i.subphase || i.function) && <span style={{ display: 'block', fontWeight: 600 }}>{[i.subphase, i.function].filter(Boolean).join(' › ')}</span>}
+        <span style={{ display: 'block', color: i.other ? undefined : 'var(--text-muted)' }}>{i.key && !i.other ? `${i.key} · ${i.title}` : i.title}</span>
+      </span>
+      <span style={{ fontWeight: 600, flex: 'none' }}>{`${f2(i.hours)}h`}</span>
     </div>
   );
   const below = at.bottom < window.innerHeight * 0.6;
@@ -109,7 +114,7 @@ function DayTasks({ d, title, at }: { d: Day; title: string; at: DOMRect }) {
       ...(below ? { top: at.bottom + 4 } : { bottom: window.innerHeight - at.top + 4 }),
       width: 'max-content', minWidth: 260, maxWidth: TIP_W, boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, textAlign: 'left', pointerEvents: 'none', fontSize: 12,
       background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-raised, 0 8px 24px rgba(16,18,20,.12))',
-      color: 'var(--text-body)', fontWeight: 400, display: 'flex', flexDirection: 'column', gap: 4,
+      color: 'var(--text-body)', fontWeight: 400, display: 'flex', flexDirection: 'column', gap: 6,
     }}>
       <span className="eyebrow">{title}</span>
       {here.length > 0 && <span style={{ fontWeight: 600 }}>This anken</span>}

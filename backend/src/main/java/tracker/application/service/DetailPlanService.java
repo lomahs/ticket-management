@@ -191,10 +191,13 @@ public class DetailPlanService {
      *
      * @param key   the Jira key of a sub-task already in Jira, the anken's epic key for work on another anken in the viewer's
      *              scope; null for a sub-task of this plan and for another anken outside the scope
-     * @param title the sub-task's Summary, or the other anken's title
-     * @param other work on another anken (its open sub-tasks there, shared by the step weights)
+     * @param title    the sub-task's Summary, or the other anken's title
+     * @param subphase the sub-task's sub-phase (its Task); null for another anken
+     * @param function the sub-task's function; null for another anken
+     * @param other    work on another anken (its open sub-tasks there, shared by the step weights)
      */
-    public record DayItem(@Nullable String key, String title, double hours, boolean other) {
+    public record DayItem(@Nullable String key, String title, @Nullable String subphase, @Nullable String function, double hours,
+                          boolean other) {
     }
 
     /**
@@ -834,7 +837,7 @@ public class DetailPlanService {
         for (DetailScheduler.Part p : parts) {
             MatrixLine l = lineOf.get(p.ref());
             mine.computeIfAbsent(p.memberId(), k -> new HashMap<>()).computeIfAbsent(p.date(), k -> new ArrayList<>())
-                    .add(new DayItem(l.issueKey(), l.summary(), Numbers.round(p.hours(), 2), false));
+                    .add(new DayItem(l.issueKey(), l.summary(), l.subphase(), l.function(), Numbers.round(p.hours(), 2), false));
         }
         // the other anken: every tracked one, whatever the viewer's scope (only their titles and hours are shown)
         TrackerContext all = context.load(new AnkenScope(Set.copyOf(ctx.settings.jira.epics)));
@@ -862,7 +865,7 @@ public class DetailPlanService {
                 }
                 // an anken outside the viewer's scope shows by its title only
                 byEpic.forEach((e, h) -> items.add(new DayItem(ctx.anken(e).isPresent() ? e : null, all.anken(e).map(Anken::title).orElse(e),
-                        Numbers.round(h, 2), true)));
+                        null, null, Numbers.round(h, 2), true)));
                 String off = ctx.cal.off(d, m);
                 out.add(new DayLoad(m, d, Numbers.round(day.getOrDefault(d, 0.0), 2), Objects.requireNonNullElse(a.hoursOn(m, epic, d), 0.0),
                         Text.hasText(off) ? off : null, Numbers.round(byEpic.values().stream().mapToDouble(Double::doubleValue).sum(), 2), items));

@@ -365,6 +365,9 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pm-cellm { display: inline-flex; align-items: center; gap: 4px; }
 .pm-table td.pm-bad { background: var(--hl-red); color: var(--hl-red-fg); box-shadow: inset 0 0 0 1px var(--hl-red-fg); }
 .pm-table td.pm-cell.warn { background: var(--hl-amber); color: var(--hl-amber-fg); }
+/* a day's warning sits in its corner, out of the flow: the row keeps the height of the others */
+.pm-table td.pm-cell.warn { position: relative; }
+.pm-cell.warn > .pm-mark { position: absolute; top: 1px; right: 1px; z-index: 1; background: var(--hl-amber); }
 .pm-mark { display: inline-flex; flex: none; cursor: help; border-radius: 50%; }
 .pm-mark.error { color: var(--hl-red-fg); }
 .pm-mark.warning { color: var(--hl-amber-fg); }
@@ -400,8 +403,8 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
   font: 600 12px/1 var(--font-text); cursor: pointer; }
 .pm-clear:hover { background: var(--pm-today-bg); }
 
-/* table: the first five columns stay while the days scroll */
-.pm-scroll { overflow-x: auto; border-radius: 0 0 14px 14px; }
+/* table: the first five columns stay while the days scroll, and the day header while the rows scroll */
+.pm-scroll { overflow: auto; max-height: calc(100vh - 140px); border-radius: 0 0 14px 14px; }
 .pm-table { border-collapse: separate; border-spacing: 0; min-width: 100%; color: var(--text-body); }
 .pm-table th, .pm-table td { padding: 4px 6px; border-bottom: 1px solid var(--pm-line); font-size: 12px; white-space: nowrap; text-align: right; background: var(--surface-card); }
 .pm-table .pm-c0, .pm-table .pm-c1, .pm-table .pm-c2, .pm-table .pm-c3, .pm-table .pm-c4, .pm-table .pm-meta { position: sticky; z-index: 2; box-sizing: border-box; }

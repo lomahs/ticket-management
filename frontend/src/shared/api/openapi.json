@@ -5569,6 +5569,9 @@
       "DayItem" : {
         "type" : "object",
         "properties" : {
+          "function" : {
+            "type" : [ "string", "null" ]
+          },
           "hours" : {
             "type" : "number",
             "format" : "double"
@@ -5579,11 +5582,14 @@
           "other" : {
             "type" : "boolean"
           },
+          "subphase" : {
+            "type" : [ "string", "null" ]
+          },
           "title" : {
             "type" : "string"
           }
         },
-        "required" : [ "hours", "key", "other", "title" ]
+        "required" : [ "function", "hours", "key", "other", "subphase", "title" ]
       },
       "DayLoad" : {
         "type" : "object",

@@ -2209,10 +2209,12 @@ export interface components {
             hours: number;
         };
         DayItem: {
+            function: string | null;
             /** Format: double */
             hours: number;
             key: string | null;
             other: boolean;
+            subphase: string | null;
             title: string;
         };
         DayLoad: {

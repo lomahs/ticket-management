@@ -94,9 +94,10 @@ describe('detail plan', () => {
       cells: [{ day: '2026-10-12', hours: 8, auto: true }, { day: '2026-10-14', hours: 8, auto: true }] })],
     checks: [{ phase: 'ITA', master_end: '2026-10-13', plan_end: '2026-10-14', days_late: 1 }],
     days: [{ member_id: 'an', date: '2026-10-11', planned_h: 0, allocated_h: 0, off: 'Weekend', other_h: 0, items: [] },
-      { member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false }] },
-      { member_id: 'an', date: '2026-10-13', planned_h: 9, allocated_h: 8, off: null, other_h: 3, items: [{ key: null, title: '[PAY] Run', hours: 8, other: false },
-        { key: 'PAY-1290', title: 'Refund – Create', hours: 1, other: false }, { key: 'PAY-1300', title: 'Refund', hours: 3, other: true }] }],
+      { member_id: 'an', date: '2026-10-12', planned_h: 8, allocated_h: 8, off: null, other_h: 0, items: [{ key: null, title: '[PAY] Run', subphase: 'ITA Execute', function: 'Run', hours: 8, other: false }] },
+      { member_id: 'an', date: '2026-10-13', planned_h: 9, allocated_h: 8, off: null, other_h: 3, items: [{ key: null, title: '[PAY] Run', subphase: 'ITA Execute', function: 'Run', hours: 8, other: false },
+        { key: 'PAY-1290', title: 'Refund – Create', subphase: 'ITA Prepare test environment and data', function: 'SCR-0042 Refund', hours: 1, other: false },
+        { key: 'PAY-1300', title: 'Refund', subphase: null, function: null, hours: 3, other: true }] }],
   };
 
   it('highlights the people picked by hand and clears the plan with or without them', async () => {
@@ -170,6 +171,7 @@ describe('detail plan', () => {
     const tip = screen.getByRole('tooltip');
     expect(days.contains(tip)).toBe(false); // above the page, not clipped by the section
     expect(tip.textContent).toContain('PAY-1290 · Refund – Create'); // a task of this anken
+    expect(within(tip).getByText('ITA Prepare test environment and data › SCR-0042 Refund')).toBeTruthy(); // its sub-phase and function in full
     expect(tip.textContent).toContain('Other anken');
     expect(tip.textContent).toContain('Refund3.00h'); // another anken: its name and hours
   });

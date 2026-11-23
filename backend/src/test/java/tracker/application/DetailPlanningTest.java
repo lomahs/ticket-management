@@ -2,6 +2,7 @@ package tracker.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 
 import java.time.Clock;
@@ -517,6 +518,9 @@ class DetailPlanningTest {
         assertThat(hoursOf(v, line(v, login + ":jmr").summary())).isEmpty(); // JM Review counts for nobody
         DayLoad first = v.days().stream().filter(d -> d.memberId().equals("an") && d.date().equals("2026-10-14")).findFirst().orElseThrow();
         assertThat(first.items()).filteredOn(i -> !i.other()).extracting(DetailPlanService.DayItem::title).contains("[PAY] Login – Create");
+        assertThat(first.items()).filteredOn(i -> i.title().equals("[PAY] Login – Create")) // with its sub-phase and function
+                .extracting(DetailPlanService.DayItem::subphase, DetailPlanService.DayItem::function)
+                .containsOnly(tuple(line(v, login + ":create").subphase(), line(v, login + ":create").function()));
         for (DayLoad d : v.days()) { // the day's hours are its items': this anken's, and the other anken's apart
             assertThat(d.items().stream().filter(i -> !i.other()).mapToDouble(DetailPlanService.DayItem::hours).sum()).isCloseTo(d.plannedH(), within(0.05));
             assertThat(d.items().stream().filter(DetailPlanService.DayItem::other).mapToDouble(DetailPlanService.DayItem::hours).sum())
