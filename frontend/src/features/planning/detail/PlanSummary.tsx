@@ -39,7 +39,7 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
   const open = v.rows.filter((r) => !r.pushed_at);
   const lines = v.lines.filter((l) => l.row_id != null && !l.removed).length;
   const inJira = v.lines.filter((l) => l.issue_key != null);
-  const pending = inJira.filter((l) => l.pending).length;
+  const pending = inJira.filter((l) => l.pending && !l.closed).length; // Done ones are not sent
   const unassigned = open.filter((r) => !r.ba_id || (r.steps && !r.bal_id)).length;
   // what stands before the push, as its table counts it: the lines to fix, and what is about no line
   const table = pushTable(v, null);

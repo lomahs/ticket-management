@@ -8,6 +8,26 @@ export const PUSH_REVIEW = 'Push review';
 export const GO_TO_LINE = 'detail-plan:go';
 export const goToLine = (ref: string) => window.dispatchEvent(new CustomEvent<string>(GO_TO_LINE, { detail: ref }));
 
+type Issue = DetailPlanView['issues'][number];
+
+/**
+ * The PIC problems of a row on one of its steps: those of the step's slot, and of a slot none of the row's steps has (a BAL with
+ * only a share of a step), which stand on every step. `slots`: the slots each row's steps have ({@link rowSlots}).
+ */
+export function picIssues(issues: Issue[], l: MatrixLine, slots: Map<number, Set<string>>): Issue[] {
+  if (l.issue_key != null || l.row_id == null) return [];
+  const has = slots.get(l.row_id);
+  return issues.filter((i) => i.row_id === l.row_id && i.ref == null && i.field.startsWith('pic_')
+    && (i.field === `pic_${l.pic_slot}` || !has?.has(i.field)));
+}
+
+/** The PIC slots ("pic_ba"…) the steps of each row have, of `lines`. */
+export function rowSlots(lines: MatrixLine[]): Map<number, Set<string>> {
+  const out = new Map<number, Set<string>>();
+  for (const l of lines) if (l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed) out.set(l.row_id, (out.get(l.row_id) ?? new Set()).add(`pic_${l.pic_slot}`));
+  return out;
+}
+
 /** What the push checks on each line, in the order of the table's columns. */
 export const CHECKS = [
   { k: 'task', label: 'Task' },
@@ -43,7 +63,6 @@ const label = (l: MatrixLine) => (l.step ? `${l.function} – ${stepLabel(l.step
 export function pushTable(v: DetailPlanView, refs: string[] | null): { general: string[]; rows: PushRow[]; failing: PushRow[] } {
   const general = [...new Set(v.issues.filter((i) => i.ref == null && i.row_id == null).map((i) => i.message))];
   const lines = sentLines(v, refs);
-  type Issue = DetailPlanView['issues'][number];
   const byRow = new Map<number, Issue[]>();
   const byRef = new Map<string, Issue[]>();
   const into = <K>(m: Map<K, Issue[]>, k: K, i: Issue) => { const is = m.get(k); if (is) is.push(i); else m.set(k, [i]); };
@@ -51,9 +70,7 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
     if (i.ref != null) into(byRef, i.ref, i);
     else if (i.row_id != null) into(byRow, i.row_id, i);
   }
-  // the PIC slots each row's lines have: a slot none has (a BAL with only a share of a step) stands on every line of its row
-  const slots = new Map<number, Set<string>>();
-  for (const l of lines) if (l.issue_key == null && l.row_id != null && l.pic_slot) slots.set(l.row_id, (slots.get(l.row_id) ?? new Set()).add(`pic_${l.pic_slot}`));
+  const slots = rowSlots(v.lines); // of every step, as the matrix marks them, also when only some are picked
   // a row with no line sent has its problems above the table
   const sentRows = new Set(lines.map((l) => l.row_id));
   if (refs == null) general.push(...new Set([...byRow].filter(([row]) => !sentRows.has(row)).flatMap(([, is]) => is.map((i) => i.message))));
@@ -63,7 +80,6 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
     // the row or line is the table's row: each problem without naming it
     const mine = (is: Issue[] | undefined, pick: (i: Issue) => boolean) => [...new Set((is ?? []).filter(pick).map((i) => i.detail))];
     const rowOnes = row == null ? undefined : byRow.get(row);
-    const rowSlots = row == null ? undefined : slots.get(row);
     const own = byRef.get(l.ref);
     return {
       ref: l.ref,
@@ -71,7 +87,7 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
       label: label(l),
       checks: {
         task: inRow ? mine(rowOnes, (i) => i.field === 'task') : null,
-        pic: inRow ? mine(rowOnes, (i) => i.field === `pic_${l.pic_slot}` || (i.field.startsWith('pic_') && !rowSlots?.has(i.field))) : null,
+        pic: inRow ? [...new Set(picIssues(rowOnes ?? [], l, slots).map((i) => i.detail))] : null,
         not_yet: mine(own, (i) => i.field === 'not_yet'),
         order: mine(own, (i) => i.field === 'order'),
       },

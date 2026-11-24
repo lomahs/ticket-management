@@ -343,7 +343,7 @@ public class DetailPlanService {
     private List<Baseline.Item> baselineItems(TrackerContext ctx, String epic, DetailPlanView v) {
         List<String> refused = new ArrayList<>();
         if (DraftAnken.isKey(epic)) {
-            refused.add("Link the anken's epic in Jira first");
+            refused.add(LINK_EPIC);
         }
         long open = v.rows().stream().filter(r -> !r.pushed()).count();
         if (open > 0) {
@@ -545,7 +545,7 @@ public class DetailPlanService {
             // a row of a phase the master schedule does not have got nobody: that is the cause to name
             for (PlanIssue p : problems) {
                 EstimationRow r = open.stream().filter(x -> Long.valueOf(x.id()).equals(p.rowId())).findFirst().orElse(null);
-                if (r != null && !phases.containsKey(r.phase()) && p.field().startsWith("pic_")) {
+                if (r != null && !phases.containsKey(r.phase()) && p.field().startsWith("pic_") && p.detail().startsWith("pick ")) {
                     throw new Invalid(r.phase() + " is not in the master schedule: Auto allocate cannot pick the people of " + r.functionName(),
                             "plan");
                 }

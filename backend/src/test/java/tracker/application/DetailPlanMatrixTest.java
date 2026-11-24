@@ -770,8 +770,9 @@ class DetailPlanMatrixTest {
         assertThat(an.picId()).isEqualTo("an");
         assertThat(an.planNotYetH()).isPositive();
         DetailPlanView v = detail.autoAllocate(ALL, EPIC);
-        assertThat(line(v, "PAY-1176").planNotYetH()).isEqualTo(chi.planNotYetH());
-        assertThat(line(v, "PAY-1176").cells()).isEqualTo(chi.cells());
+        // nothing ahead for Chi, who has no hours on it (the hours already logged go on their days, which needs none)
+        assertThat(line(v, "PAY-1176").cells()).noneMatch(c -> c.day().compareTo("2026-10-07") >= 0 && c.hours() > 0);
+        assertThat(line(v, "PAY-1176").planNotYetH()).isPositive();
         assertThat(line(v, "PAY-1180").planNotYetH()).isZero();
         assertThat(v.lines()).filteredOn(l -> l.rowId() != null).allMatch(l -> Math.abs(l.notYetH()) < 0.01);
     }
@@ -791,6 +792,18 @@ class DetailPlanMatrixTest {
         assertThat(l.pending()).isTrue();
         assertThat(cells.jiraCells(EPIC).get(key)).containsExactlyInAnyOrder(new Cell(key, "2026-10-07", 4, false),
                 new Cell(key, "2026-10-08", 0, false));
+    }
+
+    @Test
+    void autoAllocatePutsTheHoursLoggedOffPlanOnTheirDaysBeforePlanningAhead() {
+        staffed();
+        String key = jiraSubtask(); // Original Estimate 16h, planned 2026-10-06..08
+        rewrite(key, 16, 10, List.of(new Worklog("2026-10-06", "an", 6, ""))); // 6h logged on a day the plan has nothing on
+        planDays.save(key, Map.of("2026-10-07", 2.0, "2026-10-08", 2.0));
+        MatrixLine l = line(detail.autoAllocate(ALL, EPIC), key);
+        assertThat(l.cells()).filteredOn(c -> c.day().equals("2026-10-06")).singleElement().satisfies(c -> assertThat(c.hours()).isEqualTo(6));
+        assertThat(l.planNotYetH()).isZero(); // 6h on the past day, the other 6h ahead: not the work done again
+        assertThat(l.cells().stream().filter(c -> c.day().compareTo("2026-10-07") >= 0).mapToDouble(DayHours::hours).sum()).isEqualTo(10);
     }
 
     @Test

@@ -1,6 +1,6 @@
 import type { Schemas } from '../../../shared/api/types';
 import type { CellIn, DetailPlanView, MatrixLine } from './api';
-import { sends } from './pushTable';
+import { picIssues, rowSlots, sends } from './pushTable';
 
 type Slot = 'ba_id' | 'bal_id' | 'jm_id';
 const SLOT: Record<string, Slot> = { ba: 'ba_id', bal: 'bal_id', jm: 'jm_id' };
@@ -61,9 +61,7 @@ const JIRAS = " · Jira's plan: it does not stop the push, changing it here does
  */
 export function lineMarks(v: DetailPlanView): Record<string, LineMarks> {
   const open = new Map(v.rows.filter((r) => !r.pushed_at).map((r) => [r.id, r]));
-  // the PIC slots each row's steps have
-  const slots = new Map<number, Set<string>>();
-  for (const l of v.lines) if (l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed) slots.set(l.row_id, (slots.get(l.row_id) ?? new Set()).add(`pic_${l.pic_slot}`));
+  const slots = rowSlots(v.lines);
   const out: Record<string, LineMarks> = {};
   for (const l of v.lines) {
     const slot = l.issue_key == null && l.pic_slot ? SLOT[l.pic_slot] ?? null : null;
@@ -71,9 +69,7 @@ export function lineMarks(v: DetailPlanView): Record<string, LineMarks> {
     const pic = (slot && row ? row[slot] : l.pic_id) ?? '';
     const on = (field: string) => v.issues.filter((i) => i.ref === l.ref && i.field === field).map((i) => i.message);
     out[l.ref] = {
-      pic: l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed
-        ? v.issues.filter((i) => i.row_id === l.row_id && i.ref == null && (i.field === `pic_${l.pic_slot}`
-          || (i.field.startsWith('pic_') && !slots.get(l.row_id ?? -1)?.has(i.field)))).map((i) => i.message) : [],
+      pic: l.pic_slot && !l.removed ? picIssues(v.issues, l, slots).map((i) => i.message) : [],
       notYet: sends(l) ? on('not_yet') : [],
       notYetJira: sends(l) ? [] : on('not_yet').map((m) => m + JIRAS),
       order: sends(l) ? on('order') : [],

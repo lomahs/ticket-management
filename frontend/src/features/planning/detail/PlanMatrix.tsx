@@ -14,7 +14,7 @@ import { lineMarks, withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
-import { GO_TO_LINE, sends } from './pushTable';
+import { GO_TO_LINE, pushTable } from './pushTable';
 import { FootRow, GroupRow, LevelRow } from './MatrixRows';
 import { left, LineActionsContext, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
@@ -178,11 +178,13 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const hiding = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0;
   const filtering = hiding || !!from || !!to;
   const needle = q.trim().toLowerCase();
+  // what the push refuses, as its table has it: one source for the Blocks the push filter
+  const blocking = new Set(pushTable(v, null).failing.map((r) => r.ref));
   const passes = (l: MatrixLine, g: Group, sub: Sub) => {
     if (needle && ![l.summary, step(l.step)?.short ?? '', g.name, sub.name, l.issue_key ?? ''].some((t) => t.toLowerCase().includes(needle))) return false;
     if (pics.size && !pics.has(picOf(l))) return false;
     if (statuses.size) {
-      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: (left(l) || l.out_of_order) && sends(l) };
+      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: blocking.has(l.ref) };
       if (![...statuses].some((s) => st[s as Status])) return false;
     }
     return !stories.size || stories.has(g.key);
@@ -322,7 +324,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
       const sClosed = folded.has(s.key);
       body.push(
         <LevelRow key={s.key} level="sub" k={s.key} name={s.name} count={plural(gs.length, 'function')}
-          meta={`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
+          meta={`${f2(s.groups.flatMap((g) => g.lines).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
           warnings={[]} lines={linesOf(s.groups)} closed={sClosed} days={days} today={today} />,
       );
       if (sClosed) continue;

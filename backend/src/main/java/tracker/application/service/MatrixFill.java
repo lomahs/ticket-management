@@ -106,7 +106,19 @@ final class MatrixFill {
                         end = latest(end, d.day());
                     }
                 }
-                DetailScheduler.Step step = l.planNotYetH() > EPS ? jiraStep(l, jiraShares) : null;
+                // the hours logged on past days its plan left short go on those days first: work done is not planned again
+                double left = l.planNotYetH();
+                Map<String, Double> planned = new HashMap<>();
+                l.cells().forEach(d -> planned.merge(d.day(), d.hours(), Numbers::sum));
+                for (DayHours g : l.logged()) {
+                    double extra = g.hours() - planned.getOrDefault(g.day(), 0.0);
+                    if (left > EPS && extra > EPS && g.day().compareTo(today) < 0) {
+                        double h = Numbers.hours(Math.min(extra, left));
+                        run.out.computeIfAbsent(l.ref(), k -> new TreeMap<>()).merge(g.day(), h, Numbers::sum);
+                        left = Numbers.hours(left - h);
+                    }
+                }
+                DetailScheduler.Step step = left > EPS ? jiraStep(l, left, jiraShares) : null;
                 if (step != null) {
                     String earliest = from(today, l.end(), before);
                     try {
@@ -120,10 +132,9 @@ final class MatrixFill {
         return run.out;
     }
 
-    /** A sub-task's Not yet plan (its Original Estimate less the hours of every day) as a step; null when nobody can carry it. */
-    private static DetailScheduler.@Nullable Step jiraStep(MatrixLine l, Map<String, List<Effort.PlanShare>> jiraShares) {
+    /** {@code h} hours of a sub-task's Not yet plan as a step from today on; null when nobody can carry it. */
+    private static DetailScheduler.@Nullable Step jiraStep(MatrixLine l, double h, Map<String, List<Effort.PlanShare>> jiraShares) {
         StepKind kind = l.step() == null ? null : StepKind.of(l.step());
-        double h = l.planNotYetH();
         String pic = Text.hasText(l.picId()) ? l.picId() : null;
         List<DetailScheduler.Share> shares;
         if (kind == StepKind.JM_REVIEW) { // counts for nobody: over its PIC's working days
