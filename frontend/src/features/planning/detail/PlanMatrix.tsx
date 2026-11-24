@@ -161,7 +161,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const picOf = (l: MatrixLine) => { const s = slotOf(l); const r = rowOf(l); return (s && r ? r[s] : l.pic_id) ?? ''; };
 
   // what is wrong where: the problems on their row (the lines' own come with each line), the warnings on the phase
-  const rowIssues = (r: Row) => [...new Set(v.issues.filter((i) => i.row_id === r.id && (i.field === 'task' || i.field === 'phase')).map((i) => i.message))];
+  const rowIssues = (r: Row) => [...new Set(v.issues.filter((i) => i.row_id === r.id && i.field === 'task').map((i) => i.message))];
   const phaseWarnings = (p: string) => v.over_budget.filter((o) => o.phase === p)
     .map((o) => `${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`);
 

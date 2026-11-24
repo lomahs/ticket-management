@@ -1024,9 +1024,9 @@ class DetailPlanMatrixTest {
         String key = smallSubtask("Export");
         planDays.save(key, Map.of("2026-10-07", 1.0));
         cells.saveJiraEdit(EPIC, new JiraEdit(key, null, "binh"));
-        assertThat(line(detail.view(ALL, EPIC), key).notYetH()).isEqualTo(1);
+        assertThat(line(detail.view(ALL, EPIC), key).planNotYetH()).isEqualTo(2); // Original Estimate 3h, 1h on its days
         assertThatThrownBy(() -> detail.push(ADMIN, ALL, EPIC)).isInstanceOf(AppError.Invalid.class)
-                .hasMessage("[PAY] Export: 1h not planned yet");
+                .hasMessage("[PAY] Export: 2h not planned yet");
     }
 
     @Test
@@ -1037,9 +1037,9 @@ class DetailPlanMatrixTest {
         String key = smallSubtask("Export");
         planDays.save(key, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0));
         detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, "binh"));
-        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2), new CellIn(key, "2026-10-07", 0)));
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 1), new CellIn(key, "2026-10-09", 1), new CellIn(key, "2026-10-07", 0)));
         MatrixLine l = line(detail.view(ALL, EPIC), key);
-        assertThat(l.notYetH()).isZero();
+        assertThat(l.planNotYetH()).isZero(); // its days add up to the Original Estimate (3h)
         assertThat(l.pending()).isTrue();
         assertThat(detail.pushPreview(ALL, EPIC).updates()).singleElement().satisfies(u -> {
             assertThat(u.key()).isEqualTo(key);
@@ -1054,7 +1054,7 @@ class DetailPlanMatrixTest {
         assertThat(i.estimateH()).isEqualTo(3);
         Map<String, Double> days = new TreeMap<>();
         planDays.find(List.of(key)).getOrDefault(key, Map.of()).forEach(days::put);
-        assertThat(days).containsExactly(Map.entry("2026-10-06", 1.0), Map.entry("2026-10-08", 2.0), Map.entry("2026-10-09", 2.0));
+        assertThat(days).containsExactly(Map.entry("2026-10-06", 1.0), Map.entry("2026-10-08", 1.0), Map.entry("2026-10-09", 1.0));
         assertThat(cells.jiraEdits(EPIC)).isEmpty();
         assertThat(cells.jiraCells(EPIC)).isEmpty();
         assertThat(line(detail.view(ALL, EPIC), key).pending()).isFalse();
@@ -1074,9 +1074,9 @@ class DetailPlanMatrixTest {
         rewrite(export, 3, 2, List.of(new Worklog("2026-10-06", "an", 1, "")));
         rewrite(imports, 3, 2, List.of(new Worklog("2026-10-06", "an", 1, "")));
         planDays.save(export, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0, "2026-10-08", 1.0));
-        planDays.save(imports, Map.of("2026-10-06", 1.0, "2026-10-07", 2.0, "2026-10-08", 2.0));
+        planDays.save(imports, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0, "2026-10-08", 1.0));
         detail.editJiraLine(ALL, EPIC, export, new JiraLineIn(null, "binh"));
-        detail.editJiraLine(ALL, EPIC, imports, new JiraLineIn(5.0, null)); // Remaining 4h: the 4h planned from today on
+        detail.editJiraLine(ALL, EPIC, imports, new JiraLineIn(5.0, null)); // Remaining 4h
         DetailPlanView v = detail.view(ALL, EPIC);
         assertThat(line(v, export).end()).isEqualTo("2026-10-08");
         assertThat(v.pushBlockers()).isEmpty();
@@ -1123,7 +1123,7 @@ class DetailPlanMatrixTest {
         for (String key : List.of(first, second)) {
             planDays.save(key, Map.of("2026-10-06", 1.0));
             detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null)); // Remaining 4h
-            detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2)));
+            detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 1), new CellIn(key, "2026-10-09", 1)));
         }
         AtomicInteger sent = new AtomicInteger();
         JiraWriter failing = req -> {
@@ -1137,7 +1137,7 @@ class DetailPlanMatrixTest {
                 planDays, cells, planVersions, (JiraReader) jira, clock, txTemplate);
         assertThatThrownBy(() -> flaky.push(ADMIN, ALL, EPIC)).isInstanceOf(JiraRejected.class);
         assertThat(cells.jiraCells(EPIC)).containsOnlyKeys(second);
-        assertThat(planDays.find(List.of(first)).get(first)).containsEntry("2026-10-09", 2.0);
+        assertThat(planDays.find(List.of(first)).get(first)).containsEntry("2026-10-09", 1.0);
         assertThat(line(detail.view(ALL, EPIC), first).pending()).isFalse();
         assertThat(line(detail.view(ALL, EPIC), second).pending()).isTrue();
     }
@@ -1157,6 +1157,31 @@ class DetailPlanMatrixTest {
                 });
     }
 
+    @Test
+    void theMasterScheduleDoesNotStopThePush(@Autowired MasterScheduleRepository versions) {
+        pushableRowsAndJiraLine();
+        versions.deleteByEpic(EPIC);
+        DetailPlanView v = detail.view(ALL, EPIC);
+        assertThat(v.problems()).isEmpty();
+        assertThat(v.pushBlockers()).isEmpty();
+        assertThat(detail.pushPreview(ALL, EPIC).creates()).isNotEmpty();
+    }
+
+    @Test
+    void notYetPlanOfAJiraLineIsAgainstItsOriginalEstimate() {
+        scheduled();
+        closeDemoSubtasks();
+        estimationRows.save(EPIC, List.of());
+        String key = smallSubtask("Export"); // Original Estimate 3h, 1h logged, Remaining 2h
+        planDays.save(key, Map.of("2026-10-06", 1.0, "2026-10-07", 1.0, "2026-10-08", 1.0));
+        assertThat(detail.view(ALL, EPIC).pushBlockers()).noneMatch(b -> b.startsWith("[PAY] Export"));
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-09", 2)));
+        MatrixLine l = line(detail.view(ALL, EPIC), key);
+        assertThat(l.planNotYetH()).isEqualTo(-2);
+        assertThat(detail.view(ALL, EPIC).pushBlockers()).contains("[PAY] Export: 2h planned over the Plan Estimation");
+        assertThat(detail.push(ADMIN, ALL, EPIC, new DetailPlanService.PushIn(null, true)).updated()).containsExactly(key); // forced
+    }
+
     /** Run and Walk (tickets of 8h, An, fully planned) and the sub-task Export in Jira with a pending Remaining and cells. */
     String pushableRowsAndJiraLine() {
         scheduled();
@@ -1169,7 +1194,7 @@ class DetailPlanMatrixTest {
         String key = smallSubtask("Export");
         planDays.save(key, Map.of("2026-10-06", 1.0));
         detail.editJiraLine(ALL, EPIC, key, new JiraLineIn(5.0, null)); // Remaining 4h
-        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 2), new CellIn(key, "2026-10-09", 2)));
+        detail.saveCells(ALL, EPIC, List.of(new CellIn(key, "2026-10-08", 1), new CellIn(key, "2026-10-09", 1)));
         assertThat(detail.view(ALL, EPIC).pushBlockers()).isEmpty();
         return key;
     }

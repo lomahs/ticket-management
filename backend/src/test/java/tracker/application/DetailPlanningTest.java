@@ -379,14 +379,14 @@ class DetailPlanningTest {
     }
 
     @Test
-    void detailPlanListsProblemsInsteadOfAPlan() {
+    void detailPlanListsProblemsWithoutTheMasterSchedule() {
         estimate();
         DetailPlanView v = detail.view(ALL, EPIC);
-        assertThat(v.problems()).contains("Save a master schedule first");
+        assertThat(v.problems()).contains("Row 1 (Login): pick a BA").noneMatch(x -> x.contains("master schedule"));
         assertThat(v.lines().stream().filter(l -> l.rowId() != null)).allMatch(l -> l.cells().isEmpty());
         schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an"))), "Kick-off");
         List<String> p = detail.view(ALL, EPIC).problems();
-        assertThat(p).contains("ITB is not in the master schedule", "Row 1 (Login): pick a BA", "Row 2 (Run): pick a member");
+        assertThat(p).contains("Row 1 (Login): pick a BA", "Row 2 (Run): pick a member").noneMatch(x -> x.contains("master schedule"));
         assertThat(p).noneMatch(x -> x.contains("choose a Task"));
     }
 

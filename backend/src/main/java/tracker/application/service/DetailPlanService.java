@@ -638,7 +638,7 @@ public class DetailPlanService {
         List<ScheduleVersion> saved = versions.findByEpic(epic);
         ScheduleVersion schedule = saved.isEmpty() ? null : saved.getLast();
         List<EstimationService.TaskOption> tasks = EstimationService.tasks(ctx, epic);
-        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, schedule, rows, stepsOf, w, tasks, null, false), links);
+        return new Basis(ctx, all, rows, edits, w, stepsOf, schedule, tasks, problems(ctx, epic, rows, stepsOf, w, tasks, null), links);
     }
 
     /**
@@ -766,8 +766,8 @@ public class DetailPlanService {
     }
 
     /**
-     * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), hours not
-     * planned yet, planned over the total, step order.
+     * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), the hours of
+     * its days against its Plan Estimation (Not yet plan), step order.
      */
     private static List<PlanIssue> pushBlockers(String epic, List<MatrixLine> lines) {
         List<PlanIssue> out = new ArrayList<>();
@@ -778,10 +778,11 @@ public class DetailPlanService {
             if (l.removed() || l.closed()) {
                 continue;
             }
-            if (l.notYetH() > 0.01) {
-                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(l.notYetH()) + "h not planned yet"));
-            } else if (l.notYetH() < -0.01) {
-                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(-l.notYetH()) + "h planned over the total"));
+            if (l.planNotYetH() > 0.01) {
+                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(l.planNotYetH()) + "h not planned yet"));
+            } else if (l.planNotYetH() < -0.01) {
+                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(-l.planNotYetH())
+                        + "h planned over the Plan Estimation"));
             }
             if (l.outOfOrder()) {
                 out.add(new PlanIssue(null, l.ref(), "order", l.summary() + ": starts before the step before it ends"));
@@ -927,30 +928,19 @@ public class DetailPlanService {
     }
 
     /**
-     * @param only      the rows to check (all when null); the others keep their numbers
-     * @param forcePush only what makes a sub-task impossible to create (its Task, its people), not the master schedule
+     * What makes a sub-task of a row impossible to create: its Task, its people. The master schedule is not one of them.
+     *
+     * @param only the rows to check (all when null); the others keep their numbers
      */
-    private static List<PlanIssue> problems(TrackerContext ctx, String epic, @Nullable ScheduleVersion schedule, List<EstimationRow> rows,
-                                            Map<Long, List<PlanRows.RowStep>> stepsOf, StepWeights w, List<EstimationService.TaskOption> tasks,
-                                            @Nullable Set<Long> only, boolean forcePush) {
+    private static List<PlanIssue> problems(TrackerContext ctx, String epic, List<EstimationRow> rows, Map<Long, List<PlanRows.RowStep>> stepsOf,
+                                            StepWeights w, List<EstimationService.TaskOption> tasks, @Nullable Set<Long> only) {
         List<PlanIssue> out = new ArrayList<>();
-        if (rows.isEmpty() || only != null && rows.stream().noneMatch(r -> only.contains(r.id()))) {
-            return out;
-        }
-        if (schedule == null && !forcePush) {
-            out.add(new PlanIssue(null, null, "schedule", "Save a master schedule first"));
-        }
-        Map<String, PhaseRow> phases = phases(schedule);
-        List<PlanIssue> missing = new ArrayList<>();
         for (int n = 0; n < rows.size(); n++) {
             EstimationRow r = rows.get(n);
             if (only != null && !only.contains(r.id())) {
                 continue;
             }
             String row = "Row " + (n + 1) + " (" + r.functionName() + ")";
-            if (schedule != null && !forcePush && !phases.containsKey(r.phase())) {
-                missing.add(new PlanIssue(r.id(), null, "phase", r.phase() + " is not in the master schedule"));
-            }
             if (!Text.hasText(r.taskKey())) {
                 out.add(new PlanIssue(r.id(), null, "task", row + ": choose a Task"));
             } else if (tasks.stream().noneMatch(t -> t.key().equals(r.taskKey()))) {
@@ -968,7 +958,6 @@ public class DetailPlanService {
                 person(ctx, epic, out, row, r.id(), r.jmId(), "a JM", "pic_jm");
             }
         }
-        out.addAll(missing);
         return out;
     }
 
@@ -1162,7 +1151,7 @@ public class DetailPlanService {
 
     /**
      * The plan, refused while the lines to send have problems: the picked ones only. Forced, only what makes a sub-task
-     * impossible to create stops it (no Task, no PIC, no epic); Not yet plan, steps out of order and the master schedule do not.
+     * impossible to create stops it (no Task, no PIC, no epic); Not yet plan and steps out of order do not.
      */
     private Pushable pushable(AnkenScope scope, String epic, PushIn in) {
         Computed c = compute(scope, epic);
@@ -1175,8 +1164,8 @@ public class DetailPlanService {
         }
         Set<Long> rowIds = new HashSet<>();
         sendable.stream().filter(l -> refs.contains(l.ref()) && l.rowId() != null).forEach(l -> rowIds.add(l.rowId()));
-        List<String> problems = new ArrayList<>(messages(problems(c.ctx(), epic, c.schedule(), c.rows(), c.stepsOf(), c.weights(),
-                c.view().tasks(), in.refs() == null ? null : rowIds, in.force())));
+        List<String> problems = new ArrayList<>(messages(problems(c.ctx(), epic, c.rows(), c.stepsOf(), c.weights(), c.view().tasks(),
+                in.refs() == null ? null : rowIds)));
         if (DraftAnken.isKey(epic)) {
             problems.addFirst("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
         }
