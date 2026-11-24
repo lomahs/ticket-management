@@ -348,6 +348,9 @@ describe('detail plan', () => {
     members();
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, closed: true }] }))));
     renderApp('/planning/detail?anken=PAY-1100');
+    await screen.findByRole('row', { name: '[PAY] Login – Create' });
+    expect(screen.queryByRole('row', { name: '[PAY] Refund – Create' })).toBeNull(); // Done: hidden until asked for
+    fireEvent.click(screen.getByRole('button', { name: 'Show done (1)' }));
     const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
     expect(within(row).getByText('Done')).toBeTruthy();
     expect(within(row).queryByRole('textbox')).toBeNull(); // no day can be typed
@@ -518,6 +521,7 @@ describe('detail plan', () => {
       { ...REFUND, pic_id: 'binh', closed: true, not_yet_h: -2 },
       { ...REFUND, ref: 'PAY-1202', issue_key: 'PAY-1202', summary: '[PAY] Refund – BAL Review', step: 'balr', pic_id: 'dung' }] }))));
     renderApp('/planning/detail?anken=PAY-1100');
+    fireEvent.click(await screen.findByRole('button', { name: 'Show done (1)' }));
     const closed = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
     expect(within(closed).getByLabelText('PIC, [PAY] Refund – Create').textContent).toBe('Bình'); // by name, though not in the anken
     const pic = screen.getByLabelText('PIC, [PAY] Refund – BAL Review') as HTMLSelectElement;

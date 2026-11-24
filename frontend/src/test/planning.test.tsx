@@ -151,6 +151,7 @@ describe('planning tabs', () => {
     renderApp('/planning/detail?anken=PAY-1100');
     const pick = await screen.findByLabelText('PIC, [PAY] Run');
     expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show done (1)' }));
     expect(screen.getByLabelText('PIC, [PAY] Refund').textContent).toBe('Outsider'); // named all the same
   });
 

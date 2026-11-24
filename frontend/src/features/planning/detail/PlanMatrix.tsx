@@ -106,6 +106,8 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [legend, setLegend] = useState(false);
+  // Done lines (Resolved or Closed in Jira) cannot change here: hidden until asked for
+  const [showDone, setShowDone] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const personName = usePersonName(people);
@@ -178,8 +180,9 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   };
   // kept as it is while the window and the days asked do not change: every line gets it
   const days = useMemo(() => plan.window.filter((d) => (!from || d >= from) && (!to || d <= to)), [plan.window, from, to]);
-  const shownLines = (g: Group, sub: Sub) => (filtering ? g.lines.filter((l) => passes(l, g, sub)) : g.lines);
-  const total = v.lines.length;
+  const shownLines = (g: Group, sub: Sub) => g.lines.filter((l) => (showDone || !l.closed) && (!filtering || passes(l, g, sub)));
+  const doneCount = v.lines.filter((l) => l.closed).length;
+  const total = v.lines.filter((l) => showDone || !l.closed).length;
   const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g, s).length, 0), 0), 0);
   const toggleIn = (set: (f: (s: Set<string>) => Set<string>) => void) => (x: string) =>
     set((s) => { const n = new Set(s); if (n.has(x)) n.delete(x); else n.add(x); return n; });
@@ -277,17 +280,18 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     );
   };
 
-  const line = (l: MatrixLine) => (
+  const line = (l: MatrixLine, alone = false) => (
     <StepLine key={l.ref} l={l} row={rowOf(l)} hand={v.by_hand.find((y) => y.row_id === l.row_id)} marks={marks?.[l.ref]} days={days} today={today}
-      admin={admin} picked={picked.has(l.ref)} people={people} deleting={del.isPending} />
+      admin={admin} picked={picked.has(l.ref)} people={people} deleting={del.isPending} alone={alone} />
   );
 
   const body: ReactNode[] = [];
   for (const { phase: p, subs } of tree) {
     const c = v.checks.find((x) => x.phase === p);
-    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g, s) })).filter((x) => !filtering || x.ls.length) }))
-      .filter((x) => !filtering || x.gs.length);
-    if (filtering && !vis.length) continue;
+    // a function, a Task or a phase with no line shown (filtered, or all Done) is left out, unless it has no line at all
+    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g, s) })).filter((x) => x.ls.length || !x.g.lines.length) }))
+      .filter((x) => x.gs.length);
+    if (!vis.length) continue;
     const pClosed = folded.has(`phase:${p}`);
     const fns = subs.reduce((a, s) => a + s.groups.length, 0);
     body.push(
@@ -305,8 +309,13 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
       );
       if (sClosed) continue;
       gs.forEach(({ g, ls }) => {
+        // a function in Jira without steps is its one sub-task: one line, no function row above it
+        if (!g.row && g.lines.length === 1 && g.lines[0].step == null) {
+          body.push(line(g.lines[0], true));
+          return;
+        }
         body.push(groupRow(g, s.groups));
-        if (!folded.has(g.key)) body.push(...ls.map(line));
+        if (!folded.has(g.key)) body.push(...ls.map((l) => line(l)));
       });
     }
   }
@@ -357,6 +366,12 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
             <DateField size="sm" label="From" value={from} onChange={setFrom} min={v.window[0]} max={to || v.window.at(-1)} />
             <DateField size="sm" label="To" value={to} onChange={setTo} min={from || v.window[0]} max={v.window.at(-1)} />
           </FilterMenu>
+          {doneCount > 0 && (
+            <button type="button" className={`pm-pill${showDone ? ' on' : ''}`} aria-pressed={showDone} onClick={() => setShowDone((x) => !x)}
+              title="Done: Resolved or Closed in Jira, they cannot change here">
+              <Icon name={showDone ? 'eye' : 'eye-off'} size={13} />{`${showDone ? 'Hide' : 'Show'} done (${doneCount})`}
+            </button>
+          )}
           {filtering && <span className="pm-count" aria-live="polite">{`${matched} of ${total} steps`}</span>}
           <span className="spacer" />
           {filtering && <button type="button" className="pm-clear" onClick={clearAll}><Icon name="rotate-ccw" size={13} />Clear all</button>}
@@ -402,8 +417,10 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
               {phases.length === 0 && (
                 <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>Nothing to plan yet: add a function or a task.</td></tr>
               )}
-              {phases.length > 0 && filtering && matched === 0 && (
-                <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>No step matches the filters.</td></tr>
+              {phases.length > 0 && matched === 0 && (
+                <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>
+                  {filtering ? 'No step matches the filters.' : 'Every step is done: Show done to see them.'}
+                </td></tr>
               )}
               {body}
             </tbody>

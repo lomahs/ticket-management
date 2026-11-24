@@ -119,10 +119,11 @@ const NO_MARKS: LineMarks = { pic: [], notYet: [], order: [], overDay: [] };
  * @param marks    what is wrong on the line ({@link LineMarks})
  * @param picked   picked to shift or push
  * @param deleting a removed step is being deleted for good
+ * @param alone    the only line of a function in Jira without steps: it stands for the function, with no function row above it
  */
-export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MARKS, days, today, admin, picked, people, deleting }: {
+export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MARKS, days, today, admin, picked, people, deleting, alone = false }: {
   l: MatrixLine; row?: Row; hand?: Schemas['HandPicks']; marks?: LineMarks; days: string[]; today: string; admin: boolean;
-  picked: boolean; people: Person[]; deleting: boolean;
+  picked: boolean; people: Person[]; deleting: boolean; alone?: boolean;
 }) {
   const act = use(LineActionsContext);
   const personName = usePersonName(people);
@@ -167,7 +168,7 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
     ? <HoursInput label={`Plan Estimation, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => act.sendStep(l, { effort_h: n })} className={`pm-in-est${l.edited ? ' hand' : ''}`} />
     : <span aria-label={`Plan Estimation, ${l.summary}`}>{f2(l.plan_estimate_h)}</span>;
   return (
-    <tr className="pm-step" aria-label={l.summary} data-ref={l.ref} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
+    <tr className={`pm-step${alone ? ' pm-alone' : ''}`} aria-label={l.summary} data-ref={l.ref} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
       title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
       <th scope="row" className="pm-c0">
         <span className="pm-stp">

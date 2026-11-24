@@ -56,8 +56,9 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 13 }}>
         <span className="heading" style={{ fontWeight: 600 }}>
-          {`${plural(open.length, 'function')} · ${plural(lines, 'sub-task')}`}
-          {inJira.length > 0 && ` · ${plural(inJira.length, 'sub-task')} in Jira${pending ? `, ${pending} changed here` : ''}`}
+          {[open.length > 0 && `${plural(open.length, 'new function')} (${plural(lines, 'sub-task')} to create)`,
+            inJira.length > 0 && `${plural(inJira.length, 'sub-task')} in Jira`, pending > 0 && `${pending} changed here`]
+            .filter(Boolean).join(' · ') || 'Nothing planned yet'}
         </span>
         {unassigned > 0 && <span className="status-pill" style={{ background: 'var(--hl-amber)', color: 'var(--hl-amber-fg)', lineHeight: '24px', padding: '0 10px' }}>
           {`${plural(unassigned, 'function')} without a BA or BAL`}</span>}

@@ -325,7 +325,7 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pm {
   --pm-today: #2563eb; --pm-today-line: #1d4ed8; --pm-today-bg: rgba(37, 99, 235, .08); --pm-line: #eceef1; --pm-group: #f6f7f9;
   --pm-story: #f9fafb; --pm-phase: #f1f4f9; --pm-phase-line: #d5dbe5; --pm-red: #fee2e2; --pm-red-fg: #b91c1c; --pm-accent: #c7ccd4;
-  --pm-w0: 320px; --pm-w1: 110px; --pm-w2: 76px; --pm-w3: 68px; --pm-w4: 76px;
+  --pm-w0: 280px; --pm-w1: 100px; --pm-w2: 76px; --pm-w3: 68px; --pm-w4: 76px;
   position: relative;
 }
 [data-theme="dark"] .pm {
@@ -538,3 +538,5 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pp-go .key { white-space: nowrap; }
 /* the one day cell being typed in paints on its own layer, not with the whole matrix */
 .pm-cell input.pm-in { will-change: transform; }
+/* the one sub-task of a function in Jira without steps stands at the function's level */
+.pm-step.pm-alone > .pm-c0 { padding-left: 38px; }
