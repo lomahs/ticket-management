@@ -68,7 +68,7 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
         {issues > 0 && (
           <button type="button" className="status-pill" aria-haspopup="dialog" onClick={() => setShowIssues(true)}
             style={pill({ background: 'var(--hl-red)', color: 'var(--hl-red-fg)' })}>
-            <Icon name="circle-alert" size={14} />{`${plural(issues, table.failing.length ? 'line' : 'problem')} to fix before the push`}<Icon name="chevron-right" size={14} />
+            <Icon name="circle-alert" size={14} />{table.failing.length ? `${plural(table.failing.length, 'line')} to fix before the push` : `${plural(issues, 'problem')} before the push`}<Icon name="chevron-right" size={14} />
           </button>
         )}
         {v.over_budget.length > 0 && (

@@ -794,6 +794,18 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void autoAllocateKeepsThePlanOfASubTaskWithoutAnOriginalEstimate() {
+        staffed();
+        String key = jiraSubtask(); // planned 2026-10-06..08
+        rewrite(key, 0, 6, List.of()); // no Original Estimate: nothing to trim against
+        planDays.save(key, Map.of("2026-10-07", 3.0, "2026-10-08", 3.0));
+        List<DayHours> before = line(detail.view(ALL, EPIC), key).cells();
+        DetailPlanView v = detail.autoAllocate(ALL, EPIC);
+        assertThat(line(v, key).cells()).isEqualTo(before);
+        assertThat(cells.jiraCells(EPIC)).doesNotContainKey(key);
+    }
+
+    @Test
     void autoAllocateTrimsOnlyItsOwnCellsOfAPendingLine() {
         staffed();
         String key = jiraSubtask();

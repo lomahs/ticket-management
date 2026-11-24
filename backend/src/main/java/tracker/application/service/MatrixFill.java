@@ -152,20 +152,19 @@ final class MatrixFill {
 
     /**
      * Ref → day → the hours left on the days Auto allocate trims of a sub-task in Jira planned over its Original Estimate (Not yet
-     * plan below 0):
-     * hours come off its latest days from {@code today} on until Not yet is 0, today's down to the hours logged today at most.
-     * Only Jira's own plan (a sub-task without pending cells) or Auto allocate's cells are trimmed, never cells typed by hand.
+     * plan below 0): hours come off its latest days from {@code today} on until Not yet plan is 0. Only Jira's own plan (a sub-task
+     * without pending cells) or Auto allocate's cells are trimmed, never cells typed by hand; a sub-task with no Original Estimate
+     * has nothing to trim against and keeps its plan.
      *
      * @param withCells the sub-tasks that have pending cells
      */
     static Map<String, Map<String, Double>> trims(List<MatrixLine> lines, Set<String> withCells, String today) {
         Map<String, Map<String, Double>> out = new TreeMap<>();
         for (MatrixLine l : lines) {
-            if (l.issueKey() == null || l.closed() || l.removed() || l.planNotYetH() >= -EPS) {
+            if (l.issueKey() == null || l.closed() || l.removed() || l.planEstimateH() <= EPS || l.planNotYetH() >= -EPS) {
                 continue;
             }
             boolean jirasOwn = !withCells.contains(l.issueKey());
-            double loggedToday = l.logged().stream().filter(d -> d.day().equals(today)).mapToDouble(DayHours::hours).sum();
             double over = -l.planNotYetH();
             List<DayHours> latestFirst = new ArrayList<>(l.cells().stream().filter(d -> d.day().compareTo(today) >= 0 && (jirasOwn || d.auto())).toList());
             latestFirst.sort(Comparator.comparing(DayHours::day).reversed());
@@ -173,8 +172,7 @@ final class MatrixFill {
                 if (over < 0.005) {
                     break;
                 }
-                double counts = d.day().equals(today) ? Math.max(0, d.hours() - loggedToday) : d.hours();
-                double take = Numbers.hours(Math.min(counts, over));
+                double take = Numbers.hours(Math.min(d.hours(), over)); // Not yet plan counts every day's hours in full
                 if (take > 0) {
                     out.computeIfAbsent(l.ref(), k -> new TreeMap<>()).put(d.day(), Numbers.hours(d.hours() - take));
                     over = Numbers.hours(over - take);

@@ -1328,13 +1328,13 @@ public class DetailPlanService {
         if (in.days() == 0) {
             throw new Invalid("Shift by 1 day or more", "days");
         }
+        // the lines only, before; the whole plan once, after the cells moved
         Basis basis = basis(scope, epic);
-        DetailPlanView v = compute(scope, epic, basis).view();
         TrackerContext ctx = basis.ctx();
         String today = ctx.today;
         String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
         Map<String, MatrixLine> lineOf = new HashMap<>();
-        v.lines().forEach(l -> lineOf.put(l.ref(), l));
+        drawn(basis, epic).built().lines().forEach(l -> lineOf.put(l.ref(), l));
         List<Cell> rowCells = new ArrayList<>();
         Map<String, List<Cell>> jira = new LinkedHashMap<>();
         for (String ref : new LinkedHashSet<>(in.refs())) {
@@ -1342,7 +1342,7 @@ public class DetailPlanService {
             if (l == null || l.removed() || l.closed()) {
                 throw new Invalid(ref + " is not in the plan", "ref");
             }
-            String pic = picOf(l, v.rows());
+            String pic = picOf(l, basis.all());
             Map<String, Double> moved = new TreeMap<>();
             for (DayHours c : l.cells()) {
                 if (c.day().compareTo(today) < 0 || c.hours() <= 0) {

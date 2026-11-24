@@ -193,6 +193,8 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g, s).length, 0), 0), 0);
   const toggleIn = (set: (f: (s: Set<string>) => Set<string>) => void) => (x: string) =>
     set((s) => { const n = new Set(s); if (n.has(x)) n.delete(x); else n.add(x); return n; });
+  const hiding = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0;
+  const clearHiding = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); };
   const clearAll = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); setFrom(''); setTo(''); };
 
   const togglePick = toggleIn(setPicked);
@@ -244,7 +246,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     if (!goal) return;
     const tr = scroller.current?.querySelector<HTMLElement>(`tr[data-ref="${CSS.escape(goal)}"]`);
     if (!tr) {
-      if (filtering) clearAll(); // hidden by the filters: shown once they are cleared
+      if (hiding) clearHiding(); // hidden by a filter: shown once they are cleared (the days shown hide no line)
       else setGoal(null);
       return;
     }
@@ -252,7 +254,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     tr.scrollIntoView({ block: 'center' });
     tr.classList.add('pm-flash');
     window.setTimeout(() => tr.classList.remove('pm-flash'), 1600);
-  }, [goal, filtering]);
+  }, [goal, hiding]);
 
   const deleteStep = (l: MatrixLine) => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); };
 
@@ -297,12 +299,13 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const body: ReactNode[] = [];
   for (const { phase: p, subs } of tree) {
     const c = v.checks.find((x) => x.phase === p);
-    // a function, a Task or a phase with no line shown (filtered, or all Done) is left out, unless it has no line at all
-    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g, s) })).filter((x) => x.ls.length || !x.g.lines.length) }))
+    // a function, a Task or a phase with no line shown (filtered, or all Done) is left out; one with no line at all shows unless
+    // a filter is on. The counts are of what shows.
+    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g, s) })).filter((x) => x.ls.length || (!filtering && !x.g.lines.length)) }))
       .filter((x) => x.gs.length);
     if (!vis.length) continue;
     const pClosed = folded.has(`phase:${p}`);
-    const fns = subs.reduce((a, s) => a + s.groups.length, 0);
+    const fns = vis.reduce((a, x) => a + x.gs.length, 0);
     body.push(
       <LevelRow key={`phase:${p}`} level="phase" k={`phase:${p}`} name={p} count={plural(fns, 'function')}
         meta={c ? checkText(c).replace(`${p} `, '').replace(`${p}: `, '') : ''} late={!!c && !!c.plan_end && c.days_late > 0}
@@ -312,8 +315,8 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     for (const { s, gs } of vis) {
       const sClosed = folded.has(s.key);
       body.push(
-        <LevelRow key={s.key} level="sub" k={s.key} name={s.name} count={plural(s.groups.length, 'function')}
-          meta={`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
+        <LevelRow key={s.key} level="sub" k={s.key} name={s.name} count={plural(gs.length, 'function')}
+          meta={`${f2(s.groups.flatMap((g) => g.lines).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
           warnings={[]} lines={linesOf(s.groups)} closed={sClosed} days={days} today={today} />,
       );
       if (sClosed) continue;

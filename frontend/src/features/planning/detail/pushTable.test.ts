@@ -47,6 +47,12 @@ describe('pushTable', () => {
     expect(t.general).toEqual(['Row 2 (Run): choose a Task']);
   });
 
+  it('takes off the row of its own function, whatever its name holds', () => {
+    const odd = line({ function: 'Pay (card): refund', summary: '[PAY] Pay (card): refund – Create' });
+    const t = pushTable(view([odd], [issue({ row_id: 1, field: 'task', message: 'Row 1 (Pay (card): refund): choose a Task' })]), null);
+    expect(t.rows[0].checks.task).toEqual(['choose a Task']);
+  });
+
   it('keeps to the picked lines and lists the problems about no line apart', () => {
     const t = pushTable(view(lines, [
       issue({ field: 'epic', message: 'Link the anken\'s epic in Jira first' }),
