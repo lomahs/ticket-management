@@ -8151,6 +8151,9 @@
       "PlanIssue" : {
         "type" : "object",
         "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
           "field" : {
             "type" : "string"
           },
@@ -8165,7 +8168,7 @@
             "format" : "int64"
           }
         },
-        "required" : [ "field", "message", "ref", "row_id" ]
+        "required" : [ "detail", "field", "message", "ref", "row_id" ]
       },
       "PlanningPreview" : {
         "type" : "object",

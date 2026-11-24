@@ -51,10 +51,10 @@ describe('matrix model', () => {
     const v = view([create, review, jira, removed], {
       rows: [row] as unknown as DetailPlanView['rows'],
       issues: [
-        { row_id: null, ref: '1:create', field: 'not_yet', message: '8h not planned yet' },
-        { row_id: null, ref: 'PAY-9', field: 'order', message: 'out of order' },
-        { row_id: 1, ref: null, field: 'pic_bal', message: 'pick a BAL' },
-        { row_id: 1, ref: null, field: 'task', message: 'choose a Task' },
+        { row_id: null, ref: '1:create', field: 'not_yet', message: '8h not planned yet', detail: '8h not planned yet' },
+        { row_id: null, ref: 'PAY-9', field: 'order', message: 'out of order', detail: 'out of order' },
+        { row_id: 1, ref: null, field: 'pic_bal', message: 'pick a BAL', detail: 'pick a BAL' },
+        { row_id: 1, ref: null, field: 'task', message: 'choose a Task', detail: 'choose a Task' },
       ],
       over_day: [{ member_id: 'an', date: 'd1', planned_h: 9, allocation_h: 8 }, { member_id: 'binh', date: 'd2', planned_h: 9, allocation_h: 8 }],
     });

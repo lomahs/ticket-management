@@ -238,10 +238,16 @@ public class DetailPlanService {
     /**
      * A problem of the plan where it shows: on a row ({@code rowId}) or a line ({@code ref}), or on the plan as a whole (both null).
      *
-     * @param field what is wrong: task, pic_ba, pic_bal, pic_jm (the person of that slot), not_yet (Not yet plan left or planned
-     *              over the Plan Estimation), order (out of step order), epic (no epic yet)
+     * @param field   what is wrong: task, pic_ba, pic_bal, pic_jm (the person of that slot), not_yet (Not yet plan left or planned
+     *                over the Plan Estimation), order (out of step order), epic (no epic yet)
+     * @param message what is wrong, naming the row or the line it is on
+     * @param detail  what is wrong, without naming them: for a place that already shows which row or line it is
      */
-    public record PlanIssue(@Nullable Long rowId, @Nullable String ref, String field, String message) {
+    public record PlanIssue(@Nullable Long rowId, @Nullable String ref, String field, String message, String detail) {
+        /** A problem of {@code subject} (a row or a line, as it is named): "{subject}: {detail}". */
+        static PlanIssue of(@Nullable Long rowId, @Nullable String ref, String field, String subject, String detail) {
+            return new PlanIssue(rowId, ref, field, subject + ": " + detail, detail);
+        }
     }
 
     /** Which slots of a row hold someone picked by hand. */
@@ -777,20 +783,22 @@ public class DetailPlanService {
     private static List<PlanIssue> pushBlockers(String epic, List<MatrixLine> lines) {
         List<PlanIssue> out = new ArrayList<>();
         if (DraftAnken.isKey(epic)) {
-            out.add(new PlanIssue(null, null, "epic", "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it"));
+            String link = "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it";
+            out.add(new PlanIssue(null, null, "epic", link, link));
         }
         for (MatrixLine l : lines) {
             if (l.removed() || l.closed()) {
                 continue;
             }
-            if (l.planNotYetH() > 0.01) {
-                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(l.planNotYetH()) + "h not planned yet"));
+            if (l.issueKey() != null && l.planEstimateH() <= 0.01 && l.planH() > 0.01) {
+                out.add(PlanIssue.of(null, l.ref(), "not_yet", l.summary(), "no Original Estimate in Jira to plan against: set it there"));
+            } else if (l.planNotYetH() > 0.01) {
+                out.add(PlanIssue.of(null, l.ref(), "not_yet", l.summary(), Numbers.format(l.planNotYetH()) + "h not planned yet"));
             } else if (l.planNotYetH() < -0.01) {
-                out.add(new PlanIssue(null, l.ref(), "not_yet", l.summary() + ": " + Numbers.format(-l.planNotYetH())
-                        + "h planned over the Plan Estimation"));
+                out.add(PlanIssue.of(null, l.ref(), "not_yet", l.summary(), Numbers.format(-l.planNotYetH()) + "h planned over the Plan Estimation"));
             }
             if (l.outOfOrder()) {
-                out.add(new PlanIssue(null, l.ref(), "order", l.summary() + ": starts before the step before it ends"));
+                out.add(PlanIssue.of(null, l.ref(), "order", l.summary(), "starts before the step before it ends"));
             }
         }
         return out;
@@ -947,9 +955,9 @@ public class DetailPlanService {
             }
             String row = "Row " + (n + 1) + " (" + r.functionName() + ")";
             if (!Text.hasText(r.taskKey())) {
-                out.add(new PlanIssue(r.id(), null, "task", row + ": choose a Task"));
+                out.add(PlanIssue.of(r.id(), null, "task", row, "choose a Task"));
             } else if (tasks.stream().noneMatch(t -> t.key().equals(r.taskKey()))) {
-                out.add(new PlanIssue(r.id(), null, "task", row + ": " + r.taskKey() + " is not a Task of " + epic));
+                out.add(PlanIssue.of(r.id(), null, "task", row, r.taskKey() + " is not a Task of " + epic));
             }
             if (r.steps() == null) {
                 person(ctx, epic, out, row, r.id(), r.baId(), "a member", "pic_ba");
@@ -969,9 +977,9 @@ public class DetailPlanService {
     private static void person(TrackerContext ctx, String epic, List<PlanIssue> out, String row, long rowId, @Nullable String id, String what,
                                String field) {
         if (!Text.hasText(id)) {
-            out.add(new PlanIssue(rowId, null, field, row + ": pick " + what));
+            out.add(PlanIssue.of(rowId, null, field, row, "pick " + what));
         } else if (!ctx.isMember(epic, id)) {
-            out.add(new PlanIssue(rowId, null, field, row + ": " + ctx.notAMember(epic, id)));
+            out.add(PlanIssue.of(rowId, null, field, row, ctx.notAMember(epic, id)));
         }
     }
 

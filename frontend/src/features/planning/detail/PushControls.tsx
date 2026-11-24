@@ -64,6 +64,9 @@ export function PushFlow({ epic, v, name, body, label, icon, appearance, size, d
   );
 }
 
+/** The name of the review of a push, its dialog's label. */
+export const PUSH_REVIEW = 'Push review';
+
 /** What a push did, in words; nothing sent to Jira when only the hours per day changed. */
 const pushed = (created: number, updated: number) => (created + updated === 0 ? 'Pushed · the hours per day are kept here'
   : `${[created > 0 || updated === 0 ? `Created ${created} sub-tasks` : null, updated > 0 ? `${created > 0 ? 'updated' : 'Updated'} ${updated}` : null]
@@ -99,7 +102,7 @@ function PushDialog({ epic, v, name, creates, updates, pushing, forced, push, cl
   }, [close, pushing]);
   return (
     <div className="scrim" onClick={() => { if (!pushing) close(); }}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label="Push review" onClick={(e) => e.stopPropagation()}
+      <div className="dialog" role="dialog" aria-modal="true" aria-label={PUSH_REVIEW} onClick={(e) => e.stopPropagation()}
         style={{ width: 'min(720px,100%)', maxHeight: 'calc(100vh - 48px)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span className="dialog-title">{creates.length + updates.length === 0 ? 'Nothing changes in Jira'

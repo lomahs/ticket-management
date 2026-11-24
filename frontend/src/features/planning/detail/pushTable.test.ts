@@ -11,7 +11,9 @@ const line = (over: Partial<Line>): Line => ({
   closed: false, pending: false, out_of_order: false, removed: false, edited: false, plan_estimate_h: 8, plan_h: 8, plan_not_yet_h: 0,
   subphase: 'Create test case', pic_slot: 'ba', linked_row_id: null, actual_remaining_h: null, ...over,
 });
-const issue = (over: Partial<Issue>): Issue => ({ row_id: null, ref: null, field: 'task', message: '', ...over });
+/** A problem: `message` names its row or line ("{subject}: {detail}"), `detail` does not. */
+const issue = (over: Partial<Issue> & { message: string }): Issue => ({ row_id: null, ref: null, field: 'task',
+  detail: over.message.slice(over.message.lastIndexOf(': ') + 2), ...over });
 const view = (lines: Line[], issues: Issue[]) => ({ lines, issues } as unknown as DetailPlanView);
 
 const create = line({});
@@ -47,9 +49,9 @@ describe('pushTable', () => {
     expect(t.general).toEqual(['Row 2 (Run): choose a Task']);
   });
 
-  it('takes off the row of its own function, whatever its name holds', () => {
+  it('shows each problem without naming its row, whatever the function is called', () => {
     const odd = line({ function: 'Pay (card): refund', summary: '[PAY] Pay (card): refund – Create' });
-    const t = pushTable(view([odd], [issue({ row_id: 1, field: 'task', message: 'Row 1 (Pay (card): refund): choose a Task' })]), null);
+    const t = pushTable(view([odd], [issue({ row_id: 1, field: 'task', message: 'Row 1 (Pay (card): refund): choose a Task', detail: 'choose a Task' })]), null);
     expect(t.rows[0].checks.task).toEqual(['choose a Task']);
   });
 

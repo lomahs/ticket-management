@@ -4,10 +4,18 @@ import type { CellIn, DetailPlanView, MatrixLine } from './api';
 type Slot = 'ba_id' | 'bal_id' | 'jm_id';
 const SLOT: Record<string, Slot> = { ba: 'ba_id', bal: 'bal_id', jm: 'jm_id' };
 
-/** The hours of each day of a line's cells (or its hours logged). */
-export function hoursByDay(cells: MatrixLine['cells']): Map<string, number> {
+const byDayOf = new WeakMap<MatrixLine['cells'], ReadonlyMap<string, number>>();
+
+/**
+ * The hours of each day of a line's cells (or its hours logged), once per cells array: the plan keeps a line's cells while they do
+ * not change, so each folded level, the total per day and the line itself share one map.
+ */
+export function hoursByDay(cells: MatrixLine['cells']): ReadonlyMap<string, number> {
+  const hit = byDayOf.get(cells);
+  if (hit) return hit;
   const out = new Map<string, number>();
   for (const c of cells) out.set(c.day, (out.get(c.day) ?? 0) + c.hours);
+  byDayOf.set(cells, out);
   return out;
 }
 

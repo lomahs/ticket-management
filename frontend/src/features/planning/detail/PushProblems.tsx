@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useCan } from '../../../shared/api/queries';
 import { Button, Icon } from '../../../shared/ds';
 import type { DetailPlanView } from './api';
-import { PushFlow } from './PushControls';
+import { PUSH_REVIEW, PushFlow } from './PushControls';
 import { CHECKS, FORCEABLE, pushTable, type PushRow } from './pushTable';
 
 /** Asks the plan matrix to show a line: its levels unfolded and the filters cleared when they hide it, then scrolled to. */
@@ -36,7 +36,7 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
   const go = (r: PushRow) => { close(); goToLine(r.ref); };
   useEffect(() => {
     // the review of a Force push opens above the table: Escape is its own then
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-label="Push review"]')) close(); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector(`[role="dialog"][aria-label="${PUSH_REVIEW}"]`)) close(); };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
   }, [close]);

@@ -280,8 +280,8 @@ class DetailPlanMatrixTest {
         List<EstimationRow> rows = scheduled();
         long login = rows.get(0).id();
         DetailPlanView v = detail.view(ALL, EPIC);
-        assertThat(v.issues()).contains(new PlanIssue(login, null, "pic_ba", "Row 1 (Login): pick a BA"),
-                new PlanIssue(null, login + ":create", "not_yet", "[PAY] Login – Create: 8h not planned yet"));
+        assertThat(v.issues()).contains(new PlanIssue(login, null, "pic_ba", "Row 1 (Login): pick a BA", "pick a BA"),
+                new PlanIssue(null, login + ":create", "not_yet", "[PAY] Login – Create: 8h not planned yet", "8h not planned yet"));
         assertThat(v.problems()).contains("Row 1 (Login): pick a BA"); // the list above the plan says the same
     }
 
@@ -803,6 +803,8 @@ class DetailPlanMatrixTest {
         DetailPlanView v = detail.autoAllocate(ALL, EPIC);
         assertThat(line(v, key).cells()).isEqualTo(before);
         assertThat(cells.jiraCells(EPIC)).doesNotContainKey(key);
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-08", 2, false)));
+        assertThat(detail.view(ALL, EPIC).pushBlockers()).contains("[PAY] Export: no Original Estimate in Jira to plan against: set it there");
     }
 
     @Test

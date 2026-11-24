@@ -174,7 +174,9 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     .map((o) => `${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`);
 
   // the filters
-  const filtering = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0 || !!from || !!to;
+  // the filters that hide lines, then the days shown, which hide none
+  const hiding = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0;
+  const filtering = hiding || !!from || !!to;
   const needle = q.trim().toLowerCase();
   const passes = (l: MatrixLine, g: Group, sub: Sub) => {
     if (needle && ![l.summary, step(l.step)?.short ?? '', g.name, sub.name, l.issue_key ?? ''].some((t) => t.toLowerCase().includes(needle))) return false;
@@ -193,9 +195,8 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g, s).length, 0), 0), 0);
   const toggleIn = (set: (f: (s: Set<string>) => Set<string>) => void) => (x: string) =>
     set((s) => { const n = new Set(s); if (n.has(x)) n.delete(x); else n.add(x); return n; });
-  const hiding = !!q.trim() || pics.size > 0 || statuses.size > 0 || stories.size > 0;
   const clearHiding = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); };
-  const clearAll = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); setFrom(''); setTo(''); };
+  const clearAll = () => { clearHiding(); setFrom(''); setTo(''); };
 
   const togglePick = toggleIn(setPicked);
   // picks are functions (group keys) and steps (line refs); one no longer in the plan (pushed, removed) is forgotten
@@ -431,7 +432,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
               )}
               {phases.length > 0 && matched === 0 && (
                 <tr><td colSpan={8 + days.length} className="empty-row" style={{ fontSize: 13 }}>
-                  {filtering ? 'No step matches the filters.' : 'Every step is done: Show done to see them.'}
+                  {filtering ? 'No step matches the filters.' : doneCount > 0 ? 'Every step is done: Show done to see them.' : 'No step to show.'}
                 </td></tr>
               )}
               {body}

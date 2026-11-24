@@ -136,7 +136,7 @@ describe('detail plan', () => {
     members();
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'],
-        issues: [{ row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA' }] }))),
+        issues: [{ row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA', detail: 'pick a BA' }] }))),
       http.put('*/api/v1/planning/PAY-1100/detail', async ({ request }) => {
         saved = await request.json() as typeof saved;
         return HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'an' }, RUN], ...planned }));
@@ -299,7 +299,7 @@ describe('detail plan', () => {
     members();
     server.use(
       http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ push_blockers: ['[PAY] Run: 16h not planned yet'],
-        issues: [{ row_id: null, ref: '2', field: 'not_yet', message: '[PAY] Run: 16h not planned yet' }] }))),
+        issues: [{ row_id: null, ref: '2', field: 'not_yet', message: '[PAY] Run: 16h not planned yet', detail: '16h not planned yet' }] }))),
       http.post('*/api/v1/planning/PAY-1100/detail/push/preview', async ({ request }) => { sent.push(['preview', await request.json()]); return HttpResponse.json({ updates: [], creates: [] }); }),
       http.post('*/api/v1/planning/PAY-1100/detail/push', async ({ request }) => { sent.push(['push', await request.json()]); return HttpResponse.json({ updated: [], created: {} }); }),
     );
@@ -384,9 +384,9 @@ describe('detail plan', () => {
     members();
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ ...planned,
       issues: [
-        { row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA' },
-        { row_id: 1, ref: null, field: 'task', message: 'Row 1 (Login): choose a Task' },
-        { row_id: null, ref: '1:create', field: 'not_yet', message: '[PAY] Login – Create: 8h not planned yet' },
+        { row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA', detail: 'pick a BA' },
+        { row_id: 1, ref: null, field: 'task', message: 'Row 1 (Login): choose a Task', detail: 'choose a Task' },
+        { row_id: null, ref: '1:create', field: 'not_yet', message: '[PAY] Login – Create: 8h not planned yet', detail: '8h not planned yet' },
       ],
       over_day: [{ member_id: 'an', date: '2026-10-12', planned_h: 9, allocation_h: 8 }] }))));
     renderApp('/planning/detail?anken=PAY-1100');
@@ -562,7 +562,7 @@ describe('detail plan', () => {
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
       lines: [LINES[0], { ...LINES[1], out_of_order: true, cells: [{ day: '2026-10-08', hours: 2, auto: false }] }, LINES[2]],
       push_blockers: ['[PAY] Login – BAL Review: starts before the step before it ends'],
-      issues: [{ row_id: null, ref: '1:balr', field: 'order', message: '[PAY] Login – BAL Review: starts before the step before it ends' }],
+      issues: [{ row_id: null, ref: '1:balr', field: 'order', message: '[PAY] Login – BAL Review: starts before the step before it ends', detail: 'starts before the step before it ends' }],
     }))));
     renderApp('/planning/detail?anken=PAY-1100');
     const row = await screen.findByRole('row', { name: '[PAY] Login – BAL Review' });

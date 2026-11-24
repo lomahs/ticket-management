@@ -24,15 +24,6 @@ export interface PushRow { ref: string; key: string | null; label: string; check
 export const sentLines = (v: DetailPlanView, refs: string[] | null) => v.lines.filter((l) => !l.removed && !l.closed
   && (l.row_id != null || (l.issue_key != null && l.pending)) && (refs == null || refs.includes(l.ref)));
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/** A problem's message without the line or row it names ("{summary}: ", "Row n ({function}): "), which its table row shows. */
-function bare(msg: string, l: MatrixLine): string {
-  if (msg.startsWith(`${l.summary}: `)) return msg.slice(l.summary.length + 2);
-  const row = new RegExp(`^Row \\d+ \\(${escape(l.function)}\\): `).exec(msg);
-  return row ? msg.slice(row[0].length) : msg;
-}
-
 const label = (l: MatrixLine) => (l.step ? `${l.function} – ${stepLabel(l.step)}` : l.function);
 
 /**
@@ -46,9 +37,10 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
   type Issue = DetailPlanView['issues'][number];
   const byRow = new Map<number, Issue[]>();
   const byRef = new Map<string, Issue[]>();
+  const into = <K>(m: Map<K, Issue[]>, k: K, i: Issue) => { const is = m.get(k); if (is) is.push(i); else m.set(k, [i]); };
   for (const i of v.issues) {
-    if (i.ref != null) byRef.set(i.ref, [...(byRef.get(i.ref) ?? []), i]);
-    else if (i.row_id != null) byRow.set(i.row_id, [...(byRow.get(i.row_id) ?? []), i]);
+    if (i.ref != null) into(byRef, i.ref, i);
+    else if (i.row_id != null) into(byRow, i.row_id, i);
   }
   // the PIC slots each row's lines have: a slot none has (a BAL with only a share of a step) stands on every line of its row
   const slots = new Map<number, Set<string>>();
@@ -59,7 +51,8 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
   const rows = lines.map((l): PushRow => {
     const row = l.issue_key == null ? l.row_id : null;
     const inRow = row != null;
-    const mine = (is: Issue[] | undefined, pick: (i: Issue) => boolean) => [...new Set((is ?? []).filter(pick).map((i) => bare(i.message, l)))];
+    // the row or line is the table's row: each problem without naming it
+    const mine = (is: Issue[] | undefined, pick: (i: Issue) => boolean) => [...new Set((is ?? []).filter(pick).map((i) => i.detail))];
     const rowOnes = row == null ? undefined : byRow.get(row);
     const rowSlots = row == null ? undefined : slots.get(row);
     const own = byRef.get(l.ref);

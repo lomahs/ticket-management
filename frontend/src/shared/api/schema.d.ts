@@ -3059,6 +3059,7 @@ export interface components {
             start: string;
         };
         PlanIssue: {
+            detail: string;
             field: string;
             message: string;
             ref: string | null;
