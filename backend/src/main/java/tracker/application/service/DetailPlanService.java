@@ -226,7 +226,8 @@ public class DetailPlanService {
      * @param allocated    one per entry of {@code overBudget}, in the same order
      * @param byHand       the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
      * @param lastVersionAt when the last version of the plan was saved; null when none was
-     * @param issues       {@code problems} and {@code pushBlockers} each on the row or line it is about
+     * @param issues       {@code problems}, and the Not yet plan and step order of every line, each on the row or line it is about
+     *                     (those of a line the push does not send, a sub-task in Jira not changed here, do not refuse it)
      */
     public record DetailPlanView(List<EstimationRow> rows, List<EstimationService.TaskOption> tasks, List<String> window,
                                  List<MatrixLine> lines, List<Overrun> overBudget, List<OverrunAllocation> allocated,
@@ -538,9 +539,17 @@ public class DetailPlanService {
             throw new Invalid(e.getMessage(), "plan");
         }
         saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
-        List<String> problems = messages(basis(scope, epic).problems());
+        List<PlanIssue> problems = basis(scope, epic).problems();
         if (!problems.isEmpty()) {
-            throw new Invalid(problems.getFirst(), "plan");
+            // a row of a phase the master schedule does not have got nobody: that is the cause to name
+            for (PlanIssue p : problems) {
+                EstimationRow r = open.stream().filter(x -> Long.valueOf(x.id()).equals(p.rowId())).findFirst().orElse(null);
+                if (r != null && !phases.containsKey(r.phase()) && p.field().startsWith("pic_")) {
+                    throw new Invalid(r.phase() + " is not in the master schedule: Auto allocate cannot pick the people of " + r.functionName(),
+                            "plan");
+                }
+            }
+            throw new Invalid(problems.getFirst().message(), "plan");
         }
         fill(scope, epic, a);
         return view(scope, epic);
@@ -729,11 +738,11 @@ public class DetailPlanService {
                 byHand.add(h);
             }
         }
-        List<PlanIssue> blockers = pushBlockers(epic, lines);
+        // every line's issues show where they are; only those of the lines a push sends refuse it
         List<PlanIssue> issues = new ArrayList<>(b.problems());
-        issues.addAll(blockers);
+        issues.addAll(pushBlockers(epic, lines));
         DetailPlanView view = new DetailPlanView(b.all(), b.tasks(), window, lines, over, allocated, overDay, checks, days, stale,
-                messages(b.problems()), messages(blockers), byHand, planVersions.lastSavedAt(epic), issues);
+                messages(b.problems()), messages(pushBlockers(epic, sendable(lines))), byHand, planVersions.lastSavedAt(epic), issues);
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
@@ -774,6 +783,11 @@ public class DetailPlanService {
 
     private static @Nullable String max(@Nullable String a, String b) {
         return a == null || b.compareTo(a) > 0 ? b : a;
+    }
+
+    /** The lines a push sends: not removed, not done, and not in Jira yet or changed here. */
+    private static List<MatrixLine> sendable(List<MatrixLine> lines) {
+        return lines.stream().filter(l -> !l.removed() && !l.closed() && (l.issueKey() == null || l.pending())).toList();
     }
 
     /** Why a draft anken cannot be pushed. */
@@ -1170,8 +1184,7 @@ public class DetailPlanService {
      */
     private Pushable pushable(AnkenScope scope, String epic, PushIn in) {
         Computed c = compute(scope, epic);
-        List<MatrixLine> sendable = c.view().lines().stream().filter(l -> !l.removed() && !l.closed()
-                && (l.issueKey() == null || l.pending())).toList();
+        List<MatrixLine> sendable = sendable(c.view().lines());
         Set<String> refs = new LinkedHashSet<>();
         sendable.stream().map(MatrixLine::ref).filter(r -> in.refs() == null || in.refs().contains(r)).forEach(refs::add);
         if (in.refs() == null ? c.rows().isEmpty() && refs.isEmpty() : refs.isEmpty()) {

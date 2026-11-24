@@ -379,6 +379,14 @@ class DetailPlanningTest {
     }
 
     @Test
+    void autoAllocateNamesAPhaseTheMasterScheduleLacks() {
+        estimate();
+        schedule.save(ADMIN, ALL, EPIC, List.of(new PhaseRowIn("ITA", "2026-10-12", List.of("an"))), "Kick-off");
+        assertThatThrownBy(() -> detail.autoAllocate(ALL, EPIC)).isInstanceOf(Invalid.class)
+                .hasMessageStartingWith("ITB is not in the master schedule: Auto allocate cannot pick the people of");
+    }
+
+    @Test
     void detailPlanListsProblemsWithoutTheMasterSchedule() {
         estimate();
         DetailPlanView v = detail.view(ALL, EPIC);
