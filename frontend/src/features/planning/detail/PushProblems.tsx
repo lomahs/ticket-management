@@ -30,6 +30,7 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
   const admin = useCan('planning', 'write');
   const [all, setAll] = useState(false);
   const t = pushTable(v, refs);
+  const clear = t.failing.length === 0 && t.general.length === 0; // fixed meanwhile: nothing to force
   const shown = all ? t.rows : t.failing;
   const hard = t.general.length > 0 || t.failing.some((r) => CHECKS.some((c) => !FORCEABLE.has(c.k) && (r.checks[c.k]?.length ?? 0) > 0));
   const forced = [...t.general, ...t.failing.flatMap((r) => CHECKS.flatMap((c) => (r.checks[c.k] ?? []).map((m) => `${r.label}: ${m}`)))];
@@ -45,7 +46,7 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
       <div className="dialog pp" role="dialog" aria-modal="true" aria-label="Before the push" onClick={(e) => e.stopPropagation()}>
         <div className="pp-head">
           <span className="dialog-title">
-            {t.failing.length ? `${t.failing.length} line${t.failing.length === 1 ? '' : 's'} to fix before the push` : 'Fix before the push'}
+            {clear ? 'Nothing stands before the push' : t.failing.length ? `${t.failing.length} line${t.failing.length === 1 ? '' : 's'} to fix before the push` : 'Fix before the push'}
           </span>
           <span className="spacer" />
           <label className="pp-all"><input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />Show all lines</label>
@@ -78,10 +79,10 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
           </div>
         )}
         <div className="pp-foot">
-          <span className="eyebrow">{hard ? 'A Task, a PIC and the epic are needed to create a sub-task.' : 'Force push goes past Not yet plan and Step order.'}</span>
+          <span className="eyebrow">{clear ? 'Review push sends the plan as it is.' : hard ? 'A Task, a PIC and the epic are needed to create a sub-task.' : 'Force push goes past Not yet plan and Step order.'}</span>
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Close</Button>
-          {!hard && admin && (
+          {!hard && !clear && admin && (
             <PushFlow epic={epic} v={v} name={name} body={{ refs, force: true }} label="Force push" icon="upload" appearance="secondary"
               title="Push anyway: Not yet plan and steps out of order are ignored" forced={forced} onDone={() => { close(); onDone?.(); }} />
           )}

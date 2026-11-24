@@ -780,11 +780,13 @@ public class DetailPlanService {
      * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), the hours of
      * its days against its Plan Estimation (Not yet plan), step order.
      */
+    /** Why a draft anken cannot be pushed. */
+    static final String LINK_EPIC = "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it";
+
     private static List<PlanIssue> pushBlockers(String epic, List<MatrixLine> lines) {
         List<PlanIssue> out = new ArrayList<>();
         if (DraftAnken.isKey(epic)) {
-            String link = "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it";
-            out.add(new PlanIssue(null, null, "epic", link, link));
+            out.add(new PlanIssue(null, null, "epic", LINK_EPIC, LINK_EPIC));
         }
         for (MatrixLine l : lines) {
             if (l.removed() || l.closed()) {
@@ -1180,7 +1182,7 @@ public class DetailPlanService {
         List<String> problems = new ArrayList<>(messages(problems(c.ctx(), epic, c.rows(), c.stepsOf(), c.weights(), c.view().tasks(),
                 in.refs() == null ? null : rowIds)));
         if (DraftAnken.isKey(epic)) {
-            problems.addFirst("Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it");
+            problems.addFirst(LINK_EPIC);
         }
         if (!problems.isEmpty()) {
             throw new Invalid(problems.getFirst(), "plan");

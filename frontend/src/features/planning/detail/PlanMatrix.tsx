@@ -189,10 +189,13 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   };
   // kept as it is while the window and the days asked do not change: every line gets it
   const days = useMemo(() => plan.window.filter((d) => (!from || d >= from) && (!to || d <= to)), [plan.window, from, to]);
-  const shownLines = (g: Group, sub: Sub) => g.lines.filter((l) => (showDone || !l.closed) && (!filtering || passes(l, g, sub)));
+  const linesShown = (g: Group, sub: Sub) => g.lines.filter((l) => (showDone || !l.closed) && (!filtering || passes(l, g, sub)));
+  // each function's lines that show, once per render: the counts, the rows and the total per day all read them
+  const shown = new Map(tree.flatMap((t) => t.subs.flatMap((s) => s.groups.map((g) => [g, linesShown(g, s)] as const))));
+  const shownLines = (g: Group) => shown.get(g) ?? [];
   const doneCount = v.lines.filter((l) => l.closed).length;
   const total = v.lines.filter((l) => showDone || !l.closed).length;
-  const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g, s).length, 0), 0), 0);
+  const matched = tree.reduce((a, t) => a + t.subs.reduce((b, s) => b + s.groups.reduce((c, g) => c + shownLines(g).length, 0), 0), 0);
   const toggleIn = (set: (f: (s: Set<string>) => Set<string>) => void) => (x: string) =>
     set((s) => { const n = new Set(s); if (n.has(x)) n.delete(x); else n.add(x); return n; });
   const clearHiding = () => { setQ(''); setPics(new Set()); setStatuses(new Set()); setStories(new Set()); };
@@ -302,7 +305,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     const c = v.checks.find((x) => x.phase === p);
     // a function, a Task or a phase with no line shown (filtered, or all Done) is left out; one with no line at all shows unless
     // a filter is on. The counts are of what shows.
-    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g, s) })).filter((x) => x.ls.length || (!filtering && !x.g.lines.length)) }))
+    const vis = subs.map((s) => ({ s, gs: s.groups.map((g) => ({ g, ls: shownLines(g) })).filter((x) => x.ls.length || (!filtering && !x.g.lines.length)) }))
       .filter((x) => x.gs.length);
     if (!vis.length) continue;
     const pClosed = folded.has(`phase:${p}`);
@@ -332,7 +335,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
       });
     }
   }
-  const footLines = tree.flatMap((t) => t.subs.flatMap((s) => s.groups.flatMap((g) => shownLines(g, s)))).filter((l) => !l.removed);
+  const footLines = tree.flatMap((t) => t.subs.flatMap((s) => s.groups.flatMap((g) => shownLines(g)))).filter((l) => !l.removed);
   const storyOptions = tree.flatMap((t) => t.subs.flatMap((s) => s.groups.map((g): [string, string, string] => [g.key, `${s.name} · ${g.name}`, stories.has(g.key) ? 'on' : ''])));
   const picOptions: [string, string, string][] = [['', 'Unassigned', pics.has('') ? 'on' : ''],
     ...people.map((m): [string, string, string] => [m.id, m.name, pics.has(m.id) ? 'on' : ''])];
