@@ -109,7 +109,7 @@ export function Mark({ level, msgs }: { level: 'error' | 'warning'; msgs: string
   );
 }
 
-const NO_MARKS: LineMarks = { pic: [], notYet: [], order: [], overDay: [] };
+const NO_MARKS: LineMarks = { pic: [], notYet: [], notYetJira: [], order: [], overDay: [] };
 
 /**
  * One step of the matrix (a sub-task): its PIC, Plan Estimation, Planned, Not yet plan, dates, then its hours on each day.
@@ -202,8 +202,9 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
       <td className={`pm-c1${marks.pic.length ? ' pm-bad' : ''}`}><span className="pm-cellm">{pic}<Mark level="error" msgs={marks.pic} /></span></td>
       <td className="pm-c2">{estimate}</td>
       <td className="pm-c3" aria-label={`Planned, ${l.summary}`}>{f2(l.plan_h)}</td>
-      <td className={`pm-c4${marks.notYet.length ? ' pm-bad' : ''}`} aria-label={`Not yet plan, ${l.summary}`} data-left={left(l) || undefined}>
-        <span className="pm-cellm"><Mark level="error" msgs={marks.notYet} />{f2(l.plan_not_yet_h)}</span>
+      <td className={`pm-c4${marks.notYet.length ? ' pm-bad' : marks.notYetJira.length ? ' pm-warnc' : ''}`} aria-label={`Not yet plan, ${l.summary}`}
+        data-left={left(l) || undefined}>
+        <span className="pm-cellm"><Mark level="error" msgs={marks.notYet} /><Mark level="warning" msgs={marks.notYetJira} />{f2(l.plan_not_yet_h)}</span>
       </td>
       <td className="pm-c5" aria-label={`Start, ${l.summary}`}><span className="pm-cellm">{l.start ? dm(l.start) : '–'}<Mark level="error" msgs={marks.order} /></span></td>
       <td className="pm-c6" aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>

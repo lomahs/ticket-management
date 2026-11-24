@@ -15,6 +15,7 @@ import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
 import { GO_TO_LINE } from './PushProblems';
+import { sends } from './pushTable';
 import { FootRow, GroupRow, LevelRow } from './MatrixRows';
 import { left, LineActionsContext, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
@@ -182,7 +183,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     if (needle && ![l.summary, step(l.step)?.short ?? '', g.name, sub.name, l.issue_key ?? ''].some((t) => t.toLowerCase().includes(needle))) return false;
     if (pics.size && !pics.has(picOf(l))) return false;
     if (statuses.size) {
-      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: left(l) || (l.out_of_order && !l.removed) };
+      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: (left(l) && sends(l)) || (l.out_of_order && !l.removed) };
       if (![...statuses].some((s) => st[s as Status])) return false;
     }
     return !stories.size || stories.has(g.key);
@@ -230,9 +231,10 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const foldsOf = (ref: string) => {
     const l = v.lines.find((x) => x.ref === ref);
     if (!l) return [];
+    // a line of a row shows under the row's phase and Task, a sub-task linked to it too
     const r = open.find((x) => x.id === l.row_id || x.id === l.linked_row_id);
-    const sub = r ? r.subphase : l.subphase;
-    return [`phase:${l.phase}`, `sub:${l.phase}:${sub}`, r ? `row:${r.id}` : `jira:${l.phase}:${l.subphase}:${l.function}`];
+    const phase = r ? r.phase : l.phase;
+    return [`phase:${phase}`, `sub:${phase}:${r ? r.subphase : l.subphase}`, r ? `row:${r.id}` : `jira:${l.phase}:${l.subphase}:${l.function}`];
   };
   const goTo = useRef(foldsOf);
   useLayoutEffect(() => { goTo.current = foldsOf; });
@@ -320,7 +322,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
       const sClosed = folded.has(s.key);
       body.push(
         <LevelRow key={s.key} level="sub" k={s.key} name={s.name} count={plural(gs.length, 'function')}
-          meta={`${f2(s.groups.flatMap((g) => g.lines).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
+          meta={`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
           warnings={[]} lines={linesOf(s.groups)} closed={sClosed} days={days} today={today} />,
       );
       if (sClosed) continue;

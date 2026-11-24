@@ -1,5 +1,6 @@
 import type { Schemas } from '../../../shared/api/types';
 import type { CellIn, DetailPlanView, MatrixLine } from './api';
+import { sends } from './pushTable';
 
 type Slot = 'ba_id' | 'bal_id' | 'jm_id';
 const SLOT: Record<string, Slot> = { ba: 'ba_id', bal: 'bal_id', jm: 'jm_id' };
@@ -43,8 +44,11 @@ export function withTyped(v: DetailPlanView, typed: CellIn[]): DetailPlanView {
   return changed ? { ...v, lines } : v;
 }
 
-/** What is wrong on a line: its PIC, its Not yet plan, its step order, and the days its PIC is planned over the allocation. */
-export interface LineMarks { pic: string[]; notYet: string[]; order: string[]; overDay: Schemas['DayOverrun'][] }
+/**
+ * What is wrong on a line: its PIC, its Not yet plan, its step order, and the days its PIC is planned over the allocation.
+ * `notYetJira`: the Not yet plan of a sub-task in Jira the push does not send (nothing changed here), which does not stop it.
+ */
+export interface LineMarks { pic: string[]; notYet: string[]; notYetJira: string[]; order: string[]; overDay: Schemas['DayOverrun'][] }
 
 /**
  * The marks of each line, by its ref: the problems on the line (or, for its PIC, on its row's slot) and the days its PIC is over
@@ -61,7 +65,8 @@ export function lineMarks(v: DetailPlanView): Record<string, LineMarks> {
     out[l.ref] = {
       pic: l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed
         ? v.issues.filter((i) => i.row_id === l.row_id && i.field === `pic_${l.pic_slot}`).map((i) => i.message) : [],
-      notYet: on('not_yet'),
+      notYet: sends(l) ? on('not_yet') : [],
+      notYetJira: sends(l) ? [] : on('not_yet').map((m) => `${m} · Jira's plan: it does not stop the push, changing it here does`),
       order: on('order'),
       overDay: l.removed || l.closed ? [] : v.over_day.filter((o) => o.member_id === pic),
     };

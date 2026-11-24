@@ -20,9 +20,11 @@ export const FORCEABLE: ReadonlySet<Check> = new Set<Check>(['not_yet', 'order']
  */
 export interface PushRow { ref: string; key: string | null; label: string; checks: Record<Check, string[] | null> }
 
-/** The lines a push of `refs` sends (all when null): not removed, not done, and not in Jira yet or changed here. */
-export const sentLines = (v: DetailPlanView, refs: string[] | null) => v.lines.filter((l) => !l.removed && !l.closed
-  && (l.row_id != null || (l.issue_key != null && l.pending)) && (refs == null || refs.includes(l.ref)));
+/** Whether a push sends the line: not removed, not done, and not in Jira yet or changed here. */
+export const sends = (l: MatrixLine) => !l.removed && !l.closed && (l.row_id != null || (l.issue_key != null && l.pending));
+
+/** The lines a push of `refs` sends (all when null). */
+export const sentLines = (v: DetailPlanView, refs: string[] | null) => v.lines.filter((l) => sends(l) && (refs == null || refs.includes(l.ref)));
 
 const label = (l: MatrixLine) => (l.step ? `${l.function} – ${stepLabel(l.step)}` : l.function);
 

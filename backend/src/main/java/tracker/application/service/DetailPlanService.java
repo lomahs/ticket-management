@@ -776,13 +776,13 @@ public class DetailPlanService {
         return a == null || b.compareTo(a) > 0 ? b : a;
     }
 
+    /** Why a draft anken cannot be pushed. */
+    static final String LINK_EPIC = "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it";
+
     /**
      * Why Push is refused: a draft anken has no epic to push under; then line by line (removed and Closed lines aside), the hours of
      * its days against its Plan Estimation (Not yet plan), step order.
      */
-    /** Why a draft anken cannot be pushed. */
-    static final String LINK_EPIC = "Link the anken's epic in Jira first: its Tasks and sub-tasks are created under it";
-
     private static List<PlanIssue> pushBlockers(String epic, List<MatrixLine> lines) {
         List<PlanIssue> out = new ArrayList<>();
         if (DraftAnken.isKey(epic)) {

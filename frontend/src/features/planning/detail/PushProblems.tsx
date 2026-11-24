@@ -82,6 +82,10 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
           <span className="eyebrow">{clear ? 'Review push sends the plan as it is.' : hard ? 'A Task, a PIC and the epic are needed to create a sub-task.' : 'Force push goes past Not yet plan and Step order.'}</span>
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Close</Button>
+          {clear && admin && (
+            <PushFlow epic={epic} v={v} name={name} body={{ refs, force: false }} label="Review push" icon="eye"
+              title="What the push creates and changes in Jira" onDone={() => { close(); onDone?.(); }} />
+          )}
           {!hard && !clear && admin && (
             <PushFlow epic={epic} v={v} name={name} body={{ refs, force: true }} label="Force push" icon="upload" appearance="secondary"
               title="Push anyway: Not yet plan and steps out of order are ignored" forced={forced} onDone={() => { close(); onDone?.(); }} />

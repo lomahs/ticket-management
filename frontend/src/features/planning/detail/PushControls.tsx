@@ -10,7 +10,7 @@ import { onboardingQuery } from '../../onboarding';
 import { PUSH_ALL, usePushPlan, usePushPreview, type DetailPlanView, type PushBody } from './api';
 import { overDayText } from './PlanSummary';
 import { PushProblems } from './PushProblems';
-import { pushTable } from './pushTable';
+import { pushTable, sentLines } from './pushTable';
 
 /**
  * The push of the plan, for the step's action bar: Review push opens what stands before it when something does (the problems as
@@ -19,7 +19,7 @@ import { pushTable } from './pushTable';
 export function PushControls({ epic, v, name, onCheck }: { epic: string; v: DetailPlanView; name: (id: string) => string; onCheck: () => void }) {
   const admin = useCan('planning', 'write');
   // the sub-tasks to create, and the sub-tasks in Jira changed here
-  const lines = v.lines.filter((l) => (l.row_id != null && !l.removed) || (l.issue_key != null && l.pending)).length;
+  const lines = sentLines(v, null).length;
   if (!admin || (!v.rows.some((r) => !r.pushed_at) && lines === 0)) return null;
   return (
     <PushFlow epic={epic} v={v} name={name} body={PUSH_ALL} label="Review push" icon="eye" disabled={lines === 0} check
