@@ -221,8 +221,8 @@ public class DetailPlanService {
      * @param days         the members with hours in the plan, day by day over {@code window}
      * @param stalePhases  phases whose BA effort changed since the master schedule was saved (its End is out of date)
      * @param problems     what keeps the plan from being computed by Auto allocate, and from being pushed
-     * @param pushBlockers why Push is refused, besides {@code problems}: a line not fully planned, planned over its total, or out of
-     *                     step order
+     * @param pushBlockers why Push is refused, besides {@code problems}: a line whose days do not add up to its Plan Estimation
+     *                     (Not yet plan), or out of step order
      * @param allocated    one per entry of {@code overBudget}, in the same order
      * @param byHand       the slots of the unpushed rows picked by hand (not by Auto allocate), for the rows with any
      * @param lastVersionAt when the last version of the plan was saved; null when none was
@@ -238,8 +238,8 @@ public class DetailPlanService {
     /**
      * A problem of the plan where it shows: on a row ({@code rowId}) or a line ({@code ref}), or on the plan as a whole (both null).
      *
-     * @param field what is wrong: task, phase, pic_ba, pic_bal, pic_jm (the person of that slot), not_yet (Not yet plan left or
-     *              planned over the total), order (out of step order), schedule (no master schedule), epic (no epic yet)
+     * @param field what is wrong: task, pic_ba, pic_bal, pic_jm (the person of that slot), not_yet (Not yet plan left or planned
+     *              over the Plan Estimation), order (out of step order), epic (no epic yet)
      */
     public record PlanIssue(@Nullable Long rowId, @Nullable String ref, String field, String message) {
     }
@@ -660,11 +660,7 @@ public class DetailPlanService {
     private record Drawn(Basis basis, Map<String, String> names, PlanLines.Built built, List<String> window) {
     }
 
-    private Drawn drawn(AnkenScope scope, String epic) {
-        return drawn(basis(scope, epic), epic);
-    }
-
-    /** As {@link #drawn(AnkenScope, String)} on a basis already loaded: the cells are read again, the rest is {@code b}'s. */
+    /** The lines on a basis loaded once per request: the cells are read again, the rest is {@code b}'s. */
     private Drawn drawn(Basis b, String epic) {
         TrackerContext ctx = b.ctx();
         Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), b.rows(), b.stepsOf());

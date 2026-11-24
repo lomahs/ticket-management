@@ -65,13 +65,14 @@ export const LevelRow = memo(function LevelRow({ level, k, name, count, meta, la
 }, sameProps);
 
 /**
- * A function: a row not in Jira yet (its order, its Task problems) or a function in Jira; folded, the sums of its steps.
+ * A function: a row not in Jira yet (its order, its Task problems, its warnings) or a function in Jira; folded, the sums of its
+ * steps.
  *
  * @param prev the row above it, which Move up swaps it with
  */
-export const GroupRow = memo(function GroupRow({ k, name, row: r, lines, closed, picked, admin, issues, prev, next, days, today }: {
+export const GroupRow = memo(function GroupRow({ k, name, row: r, lines, closed, picked, admin, issues, warnings, prev, next, days, today }: {
   k: string; name: string; row?: Row; lines: MatrixLine[]; closed: boolean; picked: boolean; admin: boolean; issues: string[];
-  prev?: number; next?: number; days: string[]; today: string;
+  warnings: string[]; prev?: number; next?: number; days: string[]; today: string;
 }) {
   const act = use(LineActionsContext);
   const live = lines.filter((l) => !l.removed);
@@ -84,6 +85,7 @@ export const GroupRow = memo(function GroupRow({ k, name, row: r, lines, closed,
           <FoldButton k={k} closed={closed} what={`the steps of ${name}`} />
           <span className="pm-fn-name ellipsis" title={name}>{name}</span>
           {r && <Mark level="error" msgs={issues} />}
+          {r && <Mark level="warning" msgs={warnings} />}
           {!r && <span className="pm-badge">In Jira</span>}
           <span className="spacer" />
           {r && (

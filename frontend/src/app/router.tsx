@@ -12,7 +12,7 @@ import { matrixSearch } from '../features/matrix/search';
 import { ticketsSearch } from '../features/tickets/search';
 import { myWorkSearch } from '../features/my-work/search';
 import { UsersPage } from '../features/users';
-import { planningSearch } from '../features/planning/search';
+import { detailSearch, planningSearch } from '../features/planning/search';
 import { isSettingsTab, settingsSearch } from '../features/settings/search';
 import { ApiError } from '../shared/api/errors';
 import { can, meQuery, visibleAnkenQuery } from '../shared/api/queries';
@@ -167,7 +167,7 @@ const ticketCheck = createRoute({
 const planning = createRoute({ getParentRoute: () => app, path: 'planning', ...needsAnken('planning'), validateSearch: planningSearch, component: lazyRouteComponent(() => import('../features/planning'), 'PlanningPage') });
 const planningSchedule = createRoute({ getParentRoute: () => app, path: 'planning/schedule', ...needs('planning'), component: lazyRouteComponent(() => import('../features/planning'), 'MasterSchedulePage') });
 
-const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), validateSearch: z.object({ anken: z.string().optional().catch(undefined) }), component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
+const planningDetail = createRoute({ getParentRoute: () => app, path: 'planning/detail', ...needs('planning'), validateSearch: detailSearch, component: lazyRouteComponent(() => import('../features/planning'), 'DetailPlanPage') });
 
 const onboardingPages = () => import('../features/onboarding');
 const onboarding = createRoute({ getParentRoute: () => app, path: 'onboarding', beforeLoad: ({ context }) => adminOnly(context.queryClient), component: lazyRouteComponent(onboardingPages, 'OnboardingPage') });

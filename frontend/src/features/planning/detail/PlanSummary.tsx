@@ -5,6 +5,7 @@ import { dm, hrs } from '../../../shared/format/dates';
 import { AllocationMatrix } from './AllocationMatrix';
 import type { DetailPlanView } from './api';
 import { PushProblems } from './PushProblems';
+import { pushTable } from './pushTable';
 
 const days = (n: number) => `${n} day${Math.abs(n) === 1 ? '' : 's'}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -40,8 +41,9 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
   const inJira = v.lines.filter((l) => l.issue_key != null);
   const pending = inJira.filter((l) => l.pending).length;
   const unassigned = open.filter((r) => !r.ba_id || (r.steps && !r.bal_id)).length;
-  // the problems, then what blocks the push (Not yet plan left, steps out of order)
-  const issues = v.problems.length + v.push_blockers.length;
+  // what stands before the push, as its table counts it: the lines to fix, and what is about no line
+  const table = pushTable(v, null);
+  const issues = table.failing.length + table.general.length;
   const warnings = v.over_day.length + v.over_budget.length;
   const warnOpen = warnings > 0 && (checked || showWarn);
   return (
@@ -66,7 +68,7 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
         {issues > 0 && (
           <button type="button" className="status-pill" aria-haspopup="dialog" onClick={() => setShowIssues(true)}
             style={pill({ background: 'var(--hl-red)', color: 'var(--hl-red-fg)' })}>
-            <Icon name="circle-alert" size={14} />{`${plural(issues, 'problem')} before the push`}<Icon name="chevron-right" size={14} />
+            <Icon name="circle-alert" size={14} />{`${plural(issues, table.failing.length ? 'line' : 'problem')} to fix before the push`}<Icon name="chevron-right" size={14} />
           </button>
         )}
         {v.over_budget.length > 0 && (

@@ -146,7 +146,7 @@ describe('detail plan', () => {
     const ba = await screen.findByLabelText('PIC, [PAY] Login – Create');
     expect(screen.queryByLabelText('BA, Login')).toBeNull(); // picked on the steps' PIC cells, not on the function
     expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit, only counted
-    expect(screen.getByRole('button', { name: '1 problem before the push' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '1 line to fix before the push' })).toBeTruthy();
     expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An', 'Minh']); // anyone but a JM
     expect((screen.getByLabelText('PIC, [PAY] Run') as HTMLSelectElement).value).toBe('an'); // a ticket: its member
     expect(screen.queryByRole('button', { name: 'Check' })).toBeNull();
@@ -347,11 +347,12 @@ describe('detail plan', () => {
     onboarding({ step: 5 });
     members();
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ lines: [...LINES, { ...REFUND, closed: true }] }))));
-    renderApp('/planning/detail?anken=PAY-1100');
+    const { router } = renderApp('/planning/detail?anken=PAY-1100');
     await screen.findByRole('row', { name: '[PAY] Login – Create' });
     expect(screen.queryByRole('row', { name: '[PAY] Refund – Create' })).toBeNull(); // Done: hidden until asked for
     fireEvent.click(screen.getByRole('button', { name: 'Show done (1)' }));
     const row = await screen.findByRole('row', { name: '[PAY] Refund – Create' });
+    expect((router.state.location.search as { done?: boolean }).done).toBe(true); // kept in the URL
     expect(within(row).getByText('Done')).toBeTruthy();
     expect(within(row).queryByRole('textbox')).toBeNull(); // no day can be typed
     expect(within(row).queryByRole('combobox')).toBeNull(); // nor its PIC picked
@@ -569,7 +570,7 @@ describe('detail plan', () => {
     const cell = within(row).getByLabelText('[PAY] Login – BAL Review 2026-10-08').closest('td');
     expect(cell?.getAttribute('data-out-of-order')).toBe('true');
     expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-out-of-order')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '1 problem before the push' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 line to fix before the push' }));
     const table = await screen.findByRole('dialog', { name: 'Before the push' });
     expect(within(table).getByLabelText('X: starts before the step before it ends')).toBeTruthy();
     fireEvent.click(within(table).getByRole('button', { name: /Login – BAL Review/ })); // goes to the line on the plan

@@ -377,7 +377,6 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
   font: 500 12px/1.4 var(--font-text); text-align: left; white-space: normal; box-shadow: 0 6px 18px rgba(16, 18, 24, .18); }
 .pm-mark-tip.error { background: var(--hl-red); color: var(--hl-red-fg); border: 1px solid var(--hl-red-fg); }
 .pm-mark-tip.warning { background: var(--hl-amber); color: var(--hl-amber-fg); border: 1px solid var(--hl-amber-fg); }
-.pm-force { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .pm-search { display: inline-flex; align-items: center; gap: 6px; height: 32px; width: 260px; padding: 0 6px 0 10px; box-sizing: border-box; border: 1px solid var(--border-subtle);
   border-radius: 999px; background: var(--surface-card); color: var(--text-muted); }
 .pm-search:focus-within { border-color: var(--pm-today); box-shadow: 0 0 0 3px var(--pm-today-bg); }

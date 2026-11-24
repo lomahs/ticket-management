@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getRouteApi } from '@tanstack/react-router';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { errorMessage } from '../../../shared/api/errors';
 import { useMeta } from '../../../shared/api/queries';
@@ -18,6 +19,7 @@ import { FootRow, GroupRow, LevelRow } from './MatrixRows';
 import { left, LineActionsContext, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
 type Row = Schemas['EstimationRow'];
+const route = getRouteApi('/app/planning/detail');
 export type { Slot };
 
 const weekday = (d: string) => WDN[new Date(`${d}T00:00:00Z`).getUTCDay()];
@@ -106,8 +108,10 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [legend, setLegend] = useState(false);
-  // Done lines (Resolved or Closed in Jira) cannot change here: hidden until asked for
-  const [showDone, setShowDone] = useState(false);
+  // Done lines (Resolved or Closed in Jira) cannot change here: hidden until asked for, in the URL
+  const showDone = route.useSearch({ select: (s) => !!s.done });
+  const navigate = route.useNavigate();
+  const setShowDone = (on: boolean) => navigate({ search: (s) => ({ ...s, done: on || undefined }), replace: true });
   const scroller = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const personName = usePersonName(people);
@@ -163,6 +167,9 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
 
   // what is wrong where: the problems on their row (the lines' own come with each line), the warnings on the phase
   const rowIssues = (r: Row) => [...new Set(v.issues.filter((i) => i.row_id === r.id && i.field === 'task').map((i) => i.message))];
+  // a phase missing from the saved master schedule has no team: Auto allocate picks nobody for its rows
+  const rowWarnings = (r: Row) => (v.checks.length && !v.checks.some((c) => c.phase === r.phase)
+    ? [`${r.phase} is not in the master schedule: Auto allocate cannot pick its people`] : []);
   const phaseWarnings = (p: string) => v.over_budget.filter((o) => o.phase === p)
     .map((o) => `${name(o.member_id)} is over budget in ${o.phase}: ${hrs(o.planned_h)} of ${hrs(o.budget_h)}`);
 
@@ -270,13 +277,15 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const marks = useQuery({ ...detailPlanQuery(epic), select: lineMarks }).data;
 
 
-  const linesOf = (gs: Group[]) => gs.flatMap((g) => g.lines);
+  // what a folded level sums: its lines, the Done ones only while they show
+  const linesOf = (gs: Group[]) => gs.flatMap((g) => g.lines).filter((l) => showDone || !l.closed);
   const groupRow = (g: Group, gs: Group[]) => {
     const rows = gs.filter((x) => x.row);
     const i = rows.indexOf(g);
     return (
-      <GroupRow key={g.key} k={g.key} name={g.name} row={g.row} lines={g.lines} closed={folded.has(g.key)} picked={picked.has(g.key)} admin={admin}
-        issues={g.row ? rowIssues(g.row) : []} prev={rows[i - 1]?.row?.id} next={rows[i + 1]?.row?.id} days={days} today={today} />
+      <GroupRow key={g.key} k={g.key} name={g.name} row={g.row} lines={linesOf([g])} closed={folded.has(g.key)} picked={picked.has(g.key)} admin={admin}
+        issues={g.row ? rowIssues(g.row) : []} warnings={g.row ? rowWarnings(g.row) : []} prev={rows[i - 1]?.row?.id} next={rows[i + 1]?.row?.id}
+        days={days} today={today} />
     );
   };
 
@@ -367,7 +376,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
             <DateField size="sm" label="To" value={to} onChange={setTo} min={from || v.window[0]} max={v.window.at(-1)} />
           </FilterMenu>
           {doneCount > 0 && (
-            <button type="button" className={`pm-pill${showDone ? ' on' : ''}`} aria-pressed={showDone} onClick={() => setShowDone((x) => !x)}
+            <button type="button" className={`pm-pill${showDone ? ' on' : ''}`} aria-pressed={showDone} onClick={() => setShowDone(!showDone)}
               title="Done: Resolved or Closed in Jira, they cannot change here">
               <Icon name={showDone ? 'eye' : 'eye-off'} size={13} />{`${showDone ? 'Hide' : 'Show'} done (${doneCount})`}
             </button>

@@ -152,7 +152,7 @@ describe('planning tabs', () => {
     const pick = await screen.findByLabelText('PIC, [PAY] Run');
     expect([...pick.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An']);
     fireEvent.click(screen.getByRole('button', { name: 'Show done (1)' }));
-    expect(screen.getByLabelText('PIC, [PAY] Refund').textContent).toBe('Outsider'); // named all the same
+    expect((await screen.findByLabelText('PIC, [PAY] Refund')).textContent).toBe('Outsider'); // named all the same
   });
 
   it('shows the matrix without write controls to a viewer with read only', async () => {

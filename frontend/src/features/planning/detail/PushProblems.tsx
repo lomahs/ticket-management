@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useCan } from '../../../shared/api/queries';
 import { Button, Icon } from '../../../shared/ds';
 import type { DetailPlanView } from './api';
 import { PushFlow } from './PushControls';
@@ -26,6 +27,7 @@ function Cell({ msgs }: { msgs: string[] | null }) {
 export function PushProblems({ epic, v, name, refs, close, onDone }: {
   epic: string; v: DetailPlanView; name: (id: string) => string; refs: string[] | null; close: () => void; onDone?: () => void;
 }) {
+  const admin = useCan('planning', 'write');
   const [all, setAll] = useState(false);
   const t = pushTable(v, refs);
   const shown = all ? t.rows : t.failing;
@@ -33,7 +35,8 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
   const forced = [...t.general, ...t.failing.flatMap((r) => CHECKS.flatMap((c) => (r.checks[c.k] ?? []).map((m) => `${r.label}: ${m}`)))];
   const go = (r: PushRow) => { close(); goToLine(r.ref); };
   useEffect(() => {
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    // the review of a Force push opens above the table: Escape is its own then
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"][aria-label="Push review"]')) close(); };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
   }, [close]);
@@ -78,7 +81,7 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
           <span className="eyebrow">{hard ? 'A Task, a PIC and the epic are needed to create a sub-task.' : 'Force push goes past Not yet plan and Step order.'}</span>
           <span className="spacer" />
           <Button appearance="subtle" onClick={close}>Close</Button>
-          {!hard && (
+          {!hard && admin && (
             <PushFlow epic={epic} v={v} name={name} body={{ refs, force: true }} label="Force push" icon="upload" appearance="secondary"
               title="Push anyway: Not yet plan and steps out of order are ignored" forced={forced} onDone={() => { close(); onDone?.(); }} />
           )}

@@ -38,6 +38,15 @@ describe('pushTable', () => {
     expect(t.general).toEqual([]);
   });
 
+  it('puts a slot no line has as its PIC on every line of its row, and a row with no line sent above the table', () => {
+    const t = pushTable(view([create, line({ ref: '2', row_id: 2, step: null, function: 'Run', removed: true })], [
+      issue({ row_id: 1, field: 'pic_bal', message: 'Row 1 (Login): pick a BAL' }), // the BAL has a share of Create only
+      issue({ row_id: 2, field: 'task', message: 'Row 2 (Run): choose a Task' }),
+    ]), null);
+    expect(t.rows[0].checks.pic).toEqual(['pick a BAL']);
+    expect(t.general).toEqual(['Row 2 (Run): choose a Task']);
+  });
+
   it('keeps to the picked lines and lists the problems about no line apart', () => {
     const t = pushTable(view(lines, [
       issue({ field: 'epic', message: 'Link the anken\'s epic in Jira first' }),

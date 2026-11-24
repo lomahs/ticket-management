@@ -106,7 +106,7 @@ final class MatrixFill {
                         end = latest(end, d.day());
                     }
                 }
-                DetailScheduler.Step step = l.notYetH() > EPS ? jiraStep(l, jiraShares) : null;
+                DetailScheduler.Step step = l.planNotYetH() > EPS ? jiraStep(l, jiraShares) : null;
                 if (step != null) {
                     String earliest = from(today, l.end(), before);
                     try {
@@ -120,10 +120,10 @@ final class MatrixFill {
         return run.out;
     }
 
-    /** A sub-task's Not yet as a step; null when nobody can carry it. */
+    /** A sub-task's Not yet plan (its Original Estimate less the hours of every day) as a step; null when nobody can carry it. */
     private static DetailScheduler.@Nullable Step jiraStep(MatrixLine l, Map<String, List<Effort.PlanShare>> jiraShares) {
         StepKind kind = l.step() == null ? null : StepKind.of(l.step());
-        double h = l.notYetH();
+        double h = l.planNotYetH();
         String pic = Text.hasText(l.picId()) ? l.picId() : null;
         List<DetailScheduler.Share> shares;
         if (kind == StepKind.JM_REVIEW) { // counts for nobody: over its PIC's working days
@@ -151,7 +151,8 @@ final class MatrixFill {
     }
 
     /**
-     * Ref → day → the hours left on the days Auto allocate trims of a sub-task in Jira planned over its total (Not yet below 0):
+     * Ref → day → the hours left on the days Auto allocate trims of a sub-task in Jira planned over its Original Estimate (Not yet
+     * plan below 0):
      * hours come off its latest days from {@code today} on until Not yet is 0, today's down to the hours logged today at most.
      * Only Jira's own plan (a sub-task without pending cells) or Auto allocate's cells are trimmed, never cells typed by hand.
      *
@@ -160,12 +161,12 @@ final class MatrixFill {
     static Map<String, Map<String, Double>> trims(List<MatrixLine> lines, Set<String> withCells, String today) {
         Map<String, Map<String, Double>> out = new TreeMap<>();
         for (MatrixLine l : lines) {
-            if (l.issueKey() == null || l.closed() || l.removed() || l.notYetH() >= -EPS) {
+            if (l.issueKey() == null || l.closed() || l.removed() || l.planNotYetH() >= -EPS) {
                 continue;
             }
             boolean jirasOwn = !withCells.contains(l.issueKey());
             double loggedToday = l.logged().stream().filter(d -> d.day().equals(today)).mapToDouble(DayHours::hours).sum();
-            double over = -l.notYetH();
+            double over = -l.planNotYetH();
             List<DayHours> latestFirst = new ArrayList<>(l.cells().stream().filter(d -> d.day().compareTo(today) >= 0 && (jirasOwn || d.auto())).toList());
             latestFirst.sort(Comparator.comparing(DayHours::day).reversed());
             for (DayHours d : latestFirst) {

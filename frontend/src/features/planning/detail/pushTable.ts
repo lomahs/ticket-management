@@ -36,11 +36,20 @@ const label = (l: MatrixLine) => (l.step ? `${l.function} – ${stepLabel(l.step
 /**
  * What stands before a push of `refs`, as a table: `general` the problems about no line (a draft anken without its epic), `rows`
  * every line sent, `failing` those with an X. A row's Task problem is on each of its lines, its PIC problem on the lines of the
- * slot it is about.
+ * slot it is about (on all of them when none has that slot as its PIC); the problems of a row with no line sent are `general`.
  */
 export function pushTable(v: DetailPlanView, refs: string[] | null): { general: string[]; rows: PushRow[]; failing: PushRow[] } {
   const general = [...new Set(v.issues.filter((i) => i.ref == null && i.row_id == null).map((i) => i.message))];
-  const rows = sentLines(v, refs).map((l): PushRow => {
+  const lines = sentLines(v, refs);
+  // a slot no line has as its PIC (a BAL with only a share of a step) stands on every line of its row; a row with no line sent
+  // has its problems above the table
+  const slotOf = (field: string) => field.slice(4);
+  const homeless = (i: DetailPlanView['issues'][number]) => i.field.startsWith('pic_')
+    && !lines.some((l) => l.row_id === i.row_id && l.issue_key == null && l.pic_slot === slotOf(i.field));
+  const rowIssues = v.issues.filter((i) => i.ref == null && i.row_id != null);
+  const sentRows = new Set(lines.map((l) => l.row_id));
+  if (refs == null) general.push(...new Set(rowIssues.filter((i) => !sentRows.has(i.row_id)).map((i) => i.message)));
+  const rows = lines.map((l): PushRow => {
     const inRow = l.issue_key == null && l.row_id != null;
     const of = (pick: (i: DetailPlanView['issues'][number]) => boolean) => [...new Set(v.issues.filter(pick).map((i) => bare(i.message, l)))];
     return {
@@ -49,7 +58,7 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
       label: label(l),
       checks: {
         task: inRow ? of((i) => i.row_id === l.row_id && i.ref == null && i.field === 'task') : null,
-        pic: inRow ? of((i) => i.row_id === l.row_id && i.ref == null && i.field === `pic_${l.pic_slot}`) : null,
+        pic: inRow ? of((i) => i.row_id === l.row_id && i.ref == null && (i.field === `pic_${l.pic_slot}` || homeless(i))) : null,
         not_yet: of((i) => i.ref === l.ref && i.field === 'not_yet'),
         order: of((i) => i.ref === l.ref && i.field === 'order'),
       },

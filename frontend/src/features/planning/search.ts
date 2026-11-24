@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/** Planning › Detail plan: the anken, and whether the Done lines show. */
+export const detailSearch = z.object({
+  anken: z.string().optional().catch(undefined),
+  done: z.boolean().optional().catch(undefined),
+});
+
 export const planningSearch = z.object({
   start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
   weeks: z.coerce.number().pipe(z.union([z.literal(1), z.literal(2)])).optional().catch(undefined),
