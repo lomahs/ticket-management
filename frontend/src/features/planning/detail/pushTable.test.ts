@@ -55,6 +55,11 @@ describe('pushTable', () => {
     expect(t.rows[0].checks.task).toEqual(['choose a Task']);
   });
 
+  it('puts the problem of a slot whose step is not picked on the picked steps of its row', () => {
+    const t = pushTable(view(lines, [issue({ row_id: 1, field: 'pic_bal', message: 'Row 1 (Login): pick a BAL' })]), ['1:create']);
+    expect(t.rows[0].checks.pic).toEqual(['pick a BAL']); // the push of Create alone is refused for it
+  });
+
   it('keeps to the picked lines and lists the problems about no line apart', () => {
     const t = pushTable(view(lines, [
       issue({ field: 'epic', message: 'Link the anken\'s epic in Jira first' }),

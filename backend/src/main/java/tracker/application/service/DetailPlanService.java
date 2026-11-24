@@ -269,8 +269,7 @@ public class DetailPlanService {
     }
 
     /**
-     * What to push: {@code refs} the lines picked (all when null), {@code force} past Not yet plan, steps out of order and the
-     * master schedule.
+     * What to push: {@code refs} the lines picked (all when null), {@code force} past Not yet plan and steps out of order.
      */
     public record PushIn(@Nullable List<String> refs, boolean force) {
         public static final PushIn ALL = new PushIn(null, false);
@@ -349,7 +348,7 @@ public class DetailPlanService {
         if (open > 0) {
             refused.add(open + (open == 1 ? " row is" : " rows are") + " not in Jira yet: push first");
         }
-        long pending = v.lines().stream().filter(l -> l.issueKey() != null && l.pending()).count();
+        long pending = v.lines().stream().filter(l -> l.issueKey() != null && l.pending() && !l.closed()).count(); // a Done one is not sent
         if (pending > 0) {
             refused.add(pending + (pending == 1 ? " sub-task has" : " sub-tasks have") + " changes not pushed: push or clear them first");
         }
@@ -598,10 +597,13 @@ public class DetailPlanService {
                 jiraChains.put(i.key(), PlanLines.chain(i));
             }
         }
+        // the days of sub-tasks in Jira typed by hand, 0 too: Auto allocate leaves them as they are
+        Map<String, Set<String>> typed = new HashMap<>();
+        cells.jiraCells(epic).forEach((key, cs) -> cs.stream().filter(x -> !x.auto()).forEach(x -> typed.computeIfAbsent(key, k -> new HashSet<>()).add(x.day())));
         Map<String, Map<String, Double>> added;
         try {
-            added = MatrixFill.fill(epic, lines, c.rows(), c.stepsOf(), phases(c.schedule()), jiraShares, jiraChains, c.parts(), a, ctx.cal,
-                    ctx.today, ctx.settings.workingHours.hoursPerDay(), c.weights());
+            added = MatrixFill.fill(epic, lines, c.rows(), c.stepsOf(), phases(c.schedule()), jiraShares, jiraChains, typed, c.parts(), a,
+                    ctx.cal, ctx.today, ctx.settings.workingHours.hoursPerDay(), c.weights());
         } catch (RuleError e) {
             throw new Invalid(e.getMessage(), "plan");
         }

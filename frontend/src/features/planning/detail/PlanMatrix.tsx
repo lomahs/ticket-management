@@ -179,12 +179,12 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const filtering = hiding || !!from || !!to;
   const needle = q.trim().toLowerCase();
   // what the push refuses, as its table has it: one source for the Blocks the push filter
-  const blocking = new Set(pushTable(v, null).failing.map((r) => r.ref));
+  const blocking = statuses.has('blocked') ? new Set(pushTable(v, null).failing.map((r) => r.ref)) : null;
   const passes = (l: MatrixLine, g: Group, sub: Sub) => {
     if (needle && ![l.summary, step(l.step)?.short ?? '', g.name, sub.name, l.issue_key ?? ''].some((t) => t.toLowerCase().includes(needle))) return false;
     if (pics.size && !pics.has(picOf(l))) return false;
     if (statuses.size) {
-      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: blocking.has(l.ref) };
+      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: !!blocking?.has(l.ref) };
       if (![...statuses].some((s) => st[s as Status])) return false;
     }
     return !stories.size || stories.has(g.key);

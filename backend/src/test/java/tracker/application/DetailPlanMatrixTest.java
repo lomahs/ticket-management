@@ -807,6 +807,18 @@ class DetailPlanMatrixTest {
     }
 
     @Test
+    void autoAllocateLeavesAPastDayTypedByHand() {
+        staffed();
+        String key = jiraSubtask();
+        rewrite(key, 16, 10, List.of(new Worklog("2026-10-06", "an", 6, "")));
+        planDays.save(key, Map.of("2026-10-07", 2.0, "2026-10-08", 2.0));
+        cells.saveJiraCells(EPIC, List.of(new Cell(key, "2026-10-06", 0, false))); // nothing planned that day, on purpose
+        MatrixLine l = line(detail.autoAllocate(ALL, EPIC), key);
+        assertThat(l.cells()).noneMatch(c -> c.day().equals("2026-10-06"));
+        assertThat(cells.jiraCells(EPIC).get(key)).contains(new Cell(key, "2026-10-06", 0, false));
+    }
+
+    @Test
     void autoAllocateKeepsThePlanOfASubTaskWithoutAnOriginalEstimate() {
         staffed();
         String key = jiraSubtask(); // planned 2026-10-06..08

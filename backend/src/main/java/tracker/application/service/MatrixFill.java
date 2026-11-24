@@ -53,13 +53,14 @@ final class MatrixFill {
      *
      * @param jiraShares issue key → who carries a sub-task's hours from today on (a pending PIC included)
      * @param jiraChains issue key → the function it is a step of ("fn:&lt;id&gt;"), else its own key
+     * @param typed      issue key → the days typed by hand here (0 too), which the hours logged off plan do not go on
      * @param parts      everything already in the matrix, typed or not, which the fill does not use again
      * @throws RuleError when the people of an unpushed row's step cannot take it, as {@link DetailScheduler#schedule}
      */
     static Map<String, Map<String, Double>> fill(String epic, List<MatrixLine> lines, List<EstimationRow> rows,
                                                  Map<Long, List<PlanRows.RowStep>> stepsOf, Map<String, PhaseRow> phases,
                                                  Map<String, List<Effort.PlanShare>> jiraShares, Map<String, String> jiraChains,
-                                                 List<DetailScheduler.Part> parts, Allocations a, WorkCalendar cal, String today,
+                                                 Map<String, Set<String>> typed, List<DetailScheduler.Part> parts, Allocations a, WorkCalendar cal, String today,
                                                  double jmHoursPerDay, StepWeights w) {
         Map<String, MatrixLine> lineOf = new HashMap<>();
         lines.forEach(l -> lineOf.put(l.ref(), l));
@@ -112,7 +113,7 @@ final class MatrixFill {
                 l.cells().forEach(d -> planned.merge(d.day(), d.hours(), Numbers::sum));
                 for (DayHours g : l.logged()) {
                     double extra = g.hours() - planned.getOrDefault(g.day(), 0.0);
-                    if (left > EPS && extra > EPS && g.day().compareTo(today) < 0) {
+                    if (left > EPS && extra > EPS && g.day().compareTo(today) < 0 && !typed.getOrDefault(l.issueKey(), Set.of()).contains(g.day())) {
                         double h = Numbers.hours(Math.min(extra, left));
                         run.out.computeIfAbsent(l.ref(), k -> new TreeMap<>()).merge(g.day(), h, Numbers::sum);
                         left = Numbers.hours(left - h);

@@ -74,6 +74,14 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
   // a row with no line sent has its problems above the table
   const sentRows = new Set(lines.map((l) => l.row_id));
   if (refs == null) general.push(...new Set([...byRow].filter(([row]) => !sentRows.has(row)).flatMap(([, is]) => is.map((i) => i.message))));
+  // a PIC problem whose step is not sent (a push of some steps) still refuses the push: on each line of its row that is sent
+  const placed = new Set<Issue>();
+  const picsOf = new Map(lines.map((l) => {
+    const is = l.issue_key == null && l.row_id != null ? picIssues(byRow.get(l.row_id) ?? [], l, slots) : [];
+    is.forEach((i) => placed.add(i));
+    return [l.ref, is] as const;
+  }));
+  const strays = (row: number) => (byRow.get(row) ?? []).filter((i) => i.field.startsWith('pic_') && !placed.has(i));
   const rows = lines.map((l): PushRow => {
     const row = l.issue_key == null ? l.row_id : null;
     const inRow = row != null;
@@ -87,7 +95,7 @@ export function pushTable(v: DetailPlanView, refs: string[] | null): { general: 
       label: label(l),
       checks: {
         task: inRow ? mine(rowOnes, (i) => i.field === 'task') : null,
-        pic: inRow ? [...new Set(picIssues(rowOnes ?? [], l, slots).map((i) => i.detail))] : null,
+        pic: row == null ? null : [...new Set([...(picsOf.get(l.ref) ?? []), ...strays(row)].map((i) => i.detail))],
         not_yet: mine(own, (i) => i.field === 'not_yet'),
         order: mine(own, (i) => i.field === 'order'),
       },
