@@ -34,10 +34,15 @@ export interface LineActions {
   assign: (r: Row, slot: Slot, id: string | null) => void;
   togglePick: (key: string) => void;
   openTicket: (key: string) => void;
+  /** Folds or unfolds a level of the matrix. */
+  fold: (key: string) => void;
+  /** Swaps two rows not in Jira yet in the order Auto allocate plans them. */
+  swap: (a: number, b: number) => void;
 }
 const noop = () => Promise.resolve();
 export const LineActionsContext = createContext<LineActions>({
-  sendCell: noop, sendStep: noop, sendJira: noop, deleteStep: () => {}, assign: () => {}, togglePick: () => {}, openTicket: () => {},
+  sendCell: noop, sendStep: noop, sendJira: noop, deleteStep: () => {}, assign: () => {}, togglePick: () => {}, openTicket: () => {}, fold: () => {},
+  swap: () => {},
 });
 
 /**

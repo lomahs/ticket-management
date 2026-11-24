@@ -9,18 +9,17 @@ import { STEPS } from '../../../shared/format/labels';
 import { useOpenTicket } from '../../../shared/state/ticket';
 import { useToast } from '../../../shared/state/toast';
 import { detailPlanQuery, useCellWriter, useEditJiraLine, useEditStep, useDeleteStep, useShiftPlan, type DetailPlanView, type MatrixLine } from './api';
-import { hoursByDay, lineMarks, withTyped } from './matrixModel';
+import { lineMarks, withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
 import { GO_TO_LINE } from './PushProblems';
-import { left, LineActionsContext, Mark, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
+import { FootRow, GroupRow, LevelRow } from './MatrixRows';
+import { left, LineActionsContext, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
 type Row = Schemas['EstimationRow'];
 export type { Slot };
 
-/** A sum on a folded row: "–" for none. */
-const sumText = (n: number) => (Math.abs(n) < 0.005 ? '–' : f2(n));
 const weekday = (d: string) => WDN[new Date(`${d}T00:00:00Z`).getUTCDay()];
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -251,7 +250,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   // renders again only when its own data changes
   const latest = useRef<LineActions | null>(null);
   useLayoutEffect(() => {
-    latest.current = { sendCell, sendStep, sendJira, deleteStep, assign, togglePick, openTicket };
+    latest.current = { sendCell, sendStep, sendJira, deleteStep, assign, togglePick, openTicket, fold, swap };
   });
   const [actions] = useState<LineActions>(() => ({
     sendCell: (l, day, hours) => latest.current?.sendCell(l, day, hours) ?? Promise.resolve(),
@@ -261,68 +260,20 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     assign: (r, slot, id) => latest.current?.assign(r, slot, id),
     togglePick: (key) => latest.current?.togglePick(key),
     openTicket: (key) => latest.current?.openTicket(key),
+    fold: (key) => latest.current?.fold(key),
+    swap: (a, b) => latest.current?.swap(a, b),
   }));
   // the marks of each line, kept as they were while they do not change (a select is shared structurally)
   const marks = useQuery({ ...detailPlanQuery(epic), select: lineMarks }).data;
 
 
-  // each line's hours per day, once per render, for the folded levels and the total per day
-  const perDay = new Map(v.lines.map((l) => [l.ref, hoursByDay(l.cells)]));
-  const byDay = (l: MatrixLine) => perDay.get(l.ref) ?? new Map<string, number>();
-
-  /** The day cells of a folded level: its steps' hours per day; empty while it is open. */
-  const sums = (lines: MatrixLine[], closed: boolean) => days.map((d) => {
-    const t = closed ? lines.filter((l) => !l.removed).reduce((a, l) => a + (byDay(l).get(d) ?? 0), 0) : 0;
-    return <td key={d} className={`pm-cell pm-sum${d === today ? ' pm-today' : ''}${closed && t < 0.005 ? ' zero' : ''}`}>{closed ? sumText(t) : ''}</td>;
-  });
   const linesOf = (gs: Group[]) => gs.flatMap((g) => g.lines);
-  const foldButton = (k: string, what: string) => {
-    const closed = folded.has(k);
-    return (
-      <button type="button" className={`pm-fold${closed ? ' closed' : ''}`} aria-expanded={!closed}
-        aria-label={`${closed ? 'Show' : 'Hide'} ${what}`} title={`${closed ? 'Show' : 'Hide'} ${what}`} onClick={() => fold(k)}>
-        <Icon name="chevron-down" size={14} />
-      </button>
-    );
-  };
-
   const groupRow = (g: Group, gs: Group[]) => {
-    const r = g.row;
-    const closed = folded.has(g.key);
     const rows = gs.filter((x) => x.row);
     const i = rows.indexOf(g);
-    const prev = rows[i - 1]?.row;
-    const next = rows[i + 1]?.row;
-    const live = g.lines.filter((l) => !l.removed);
     return (
-      <tr key={g.key} className="pm-fn" aria-label={`Function ${g.name}`}>
-        <th scope="row" className="pm-c0">
-          <span className="pm-fnh">
-            {admin && <input type="checkbox" className="pm-pick" aria-label={`Pick ${g.name}`} title="Pick to shift its plan"
-              checked={picked.has(g.key)} onChange={() => togglePick(g.key)} />}
-            {foldButton(g.key, `the steps of ${g.name}`)}
-            <span className="pm-fn-name ellipsis" title={g.name}>{g.name}</span>
-            {r && <Mark level="error" msgs={rowIssues(r)} />}
-            {!r && <span className="pm-badge">In Jira</span>}
-            <span className="spacer" />
-            {r && (
-              <span className="pm-order" role="group" aria-label={`Order of ${g.name}`} title="Auto allocate plans the functions top to bottom">
-                <Icon name="grip-vertical" size={13} />
-                <button type="button" className="pm-ob" aria-label={`Move ${r.function_name} up`} title="Move up: Auto allocate plans it earlier"
-                  disabled={!admin || !prev} onClick={() => { if (prev) swap(r.id, prev.id); }}><Icon name="arrow-up" size={13} /></button>
-                <button type="button" className="pm-ob" aria-label={`Move ${r.function_name} down`} title="Move down: Auto allocate plans it later"
-                  disabled={!admin || !next} onClick={() => { if (next) swap(r.id, next.id); }}><Icon name="arrow-down" size={13} /></button>
-              </span>
-            )}
-          </span>
-        </th>
-        <td className="pm-c1" />
-        <td className="pm-c2">{closed ? sumText(live.reduce((a, l) => a + l.plan_estimate_h, 0)) : ''}</td>
-        <td className="pm-c3">{closed ? sumText(live.reduce((a, l) => a + l.plan_h, 0)) : ''}</td>
-        <td className="pm-c4">{closed ? sumText(live.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0)) : ''}</td>
-        <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
-        {sums(g.lines, closed)}
-      </tr>
+      <GroupRow key={g.key} k={g.key} name={g.name} row={g.row} lines={g.lines} closed={folded.has(g.key)} picked={picked.has(g.key)} admin={admin}
+        issues={g.row ? rowIssues(g.row) : []} prev={rows[i - 1]?.row?.id} next={rows[i + 1]?.row?.id} days={days} today={today} />
     );
   };
 
@@ -340,30 +291,17 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     const pClosed = folded.has(`phase:${p}`);
     const fns = subs.reduce((a, s) => a + s.groups.length, 0);
     body.push(
-      <tr key={`phase:${p}`} className="pm-phase" aria-label={`Phase ${p}`}>
-        <th scope="row" className="pm-c0">
-          <span className="pm-ph">{foldButton(`phase:${p}`, `the functions of ${p}`)}<span className="pm-ph-name">{p}</span><span className="pm-badge">{plural(fns, 'function')}</span><Mark level="warning" msgs={phaseWarnings(p)} /></span>
-        </th>
-        <td colSpan={4} className={`pm-meta${c && c.plan_end && c.days_late > 0 ? ' late' : ''}`}>
-          {c ? checkText(c).replace(`${p} `, '').replace(`${p}: `, '') : ''}
-        </td>
-        <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
-        {sums(linesOf(subs.flatMap((s) => s.groups)), pClosed)}
-      </tr>,
+      <LevelRow key={`phase:${p}`} level="phase" k={`phase:${p}`} name={p} count={plural(fns, 'function')}
+        meta={c ? checkText(c).replace(`${p} `, '').replace(`${p}: `, '') : ''} late={!!c && !!c.plan_end && c.days_late > 0}
+        warnings={phaseWarnings(p)} lines={linesOf(subs.flatMap((s) => s.groups))} closed={pClosed} days={days} today={today} />,
     );
     if (pClosed) continue;
     for (const { s, gs } of vis) {
       const sClosed = folded.has(s.key);
       body.push(
-        <tr key={s.key} className="pm-sub" aria-label={`Sub-phase ${s.name}`}>
-          <th scope="row" className="pm-c0">
-            <span className="pm-sb">{foldButton(s.key, `the functions of ${s.name}`)}<Icon name="layers" size={13} color="var(--pm-today)" />
-              <span className="pm-sb-name ellipsis" title={s.name}>{s.name}</span><span className="pm-badge">{plural(s.groups.length, 'function')}</span></span>
-          </th>
-          <td colSpan={4} className="pm-meta">{`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`}</td>
-          <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
-          {sums(linesOf(s.groups), sClosed)}
-        </tr>,
+        <LevelRow key={s.key} level="sub" k={s.key} name={s.name} count={plural(s.groups.length, 'function')}
+          meta={`${f2(linesOf(s.groups).filter((l) => !l.removed).reduce((a, l) => a + l.plan_estimate_h, 0))}h estimated`} late={false}
+          warnings={[]} lines={linesOf(s.groups)} closed={sClosed} days={days} today={today} />,
       );
       if (sClosed) continue;
       gs.forEach(({ g, ls }) => {
@@ -471,18 +409,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
             </tbody>
             {footLines.length > 0 && (
               <tfoot>
-                <tr className="pm-foot">
-                  <th scope="row" className="pm-c0">Total per day</th>
-                  <td className="pm-c1" />
-                  <td className="pm-c2">{sumText(footLines.reduce((a, l) => a + l.plan_estimate_h, 0))}</td>
-                  <td className="pm-c3">{sumText(footLines.reduce((a, l) => a + l.plan_h, 0))}</td>
-                  <td className="pm-c4">{sumText(footLines.filter((l) => !l.closed).reduce((a, l) => a + l.plan_not_yet_h, 0))}</td>
-                  <td className="pm-c5" /><td className="pm-c6" /><td className="pm-c7" />
-                  {days.map((d) => {
-                    const t = footLines.reduce((a, l) => a + (byDay(l).get(d) ?? 0), 0);
-                    return <td key={d} className={`pm-cell${d === today ? ' pm-today' : ''}${t < 0.005 ? ' zero' : ''}`}>{sumText(t)}</td>;
-                  })}
-                </tr>
+                <FootRow lines={footLines} days={days} today={today} />
               </tfoot>
             )}
           </table>

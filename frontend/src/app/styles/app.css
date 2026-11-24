@@ -488,14 +488,15 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pm-step > .pm-c4 { color: var(--text-heading); }
 .pm-step > .pm-c4[data-left] { font-weight: 600; }
 
-/* day cells: a flat box with a thin border, stronger on hover or once it has hours */
+/* day cells: a flat box with a thin border, stronger on hover or once it has hours; no transition: a matrix of them repaints whole
+   frames while one runs */
 .pm-table .pm-cell { width: 52px; min-width: 52px; text-align: center; padding: 3px 4px; }
 .pm-cell.red { background: var(--pm-red) !important; }
 .pm-cell.locked { color: var(--text-muted); }
 .pm-lk { display: block; padding: 0 4px; }
 .pm-logged { display: block; font-size: 10px; padding: 0 4px; }
 .pm-in { width: 100%; height: 26px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--pm-line); border-radius: 6px; background: var(--surface-card);
-  color: var(--text-heading); font: 600 12px/1 var(--font-text); text-align: center; -moz-appearance: textfield; transition: border-color .12s; }
+  color: var(--text-heading); font: 600 12px/1 var(--font-text); text-align: center; -moz-appearance: textfield; }
 .pm-in::-webkit-outer-spin-button, .pm-in::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .pm-in:not(.empty) { border-color: var(--border-strong); font-weight: 700; }
 .pm-cell:hover .pm-in, .pm-in:hover { border-color: var(--border-strong); }
@@ -535,3 +536,5 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pm-step.pm-flash > * { animation: pm-flash 1.6s ease-out; }
 @keyframes pm-flash { 0%, 40% { background-color: var(--hl-amber); } 100% { background-color: inherit; } }
 .pp-go .key { white-space: nowrap; }
+/* the one day cell being typed in paints on its own layer, not with the whole matrix */
+.pm-cell input.pm-in { will-change: transform; }

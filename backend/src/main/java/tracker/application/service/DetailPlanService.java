@@ -661,7 +661,11 @@ public class DetailPlanService {
     }
 
     private Drawn drawn(AnkenScope scope, String epic) {
-        Basis b = basis(scope, epic);
+        return drawn(basis(scope, epic), epic);
+    }
+
+    /** As {@link #drawn(AnkenScope, String)} on a basis already loaded: the cells are read again, the rest is {@code b}'s. */
+    private Drawn drawn(Basis b, String epic) {
         TrackerContext ctx = b.ctx();
         Map<String, String> names = summaries(ctx, epic, onboarding.find(epic).map(Onboarding::ankenPrefix).orElse(null), b.rows(), b.stepsOf());
         PlanLines.Built built = PlanLines.build(ctx, epic, b.rows(), b.stepsOf(), names, b.w(), cells.rowCells(epic), cells.jiraCells(epic),
@@ -674,7 +678,12 @@ public class DetailPlanService {
      * per day, overruns and the phase checks follow from the cells, with the allocations as they are now.
      */
     Computed compute(AnkenScope scope, String epic) {
-        Drawn dr = drawn(scope, epic);
+        return compute(scope, epic, basis(scope, epic));
+    }
+
+    /** As {@link #compute(AnkenScope, String)} on a basis already loaded, after only cells changed: the context is not loaded again. */
+    private Computed compute(AnkenScope scope, String epic, Basis basis) {
+        Drawn dr = drawn(basis, epic);
         Basis b = dr.basis();
         TrackerContext ctx = b.ctx();
         List<EstimationRow> rows = b.rows();
@@ -1274,8 +1283,9 @@ public class DetailPlanService {
      */
     @Transactional
     public DetailPlanView saveCells(AnkenScope scope, String epic, List<CellIn> in) {
-        // the cells are checked against the lines only: the whole plan is computed once, after they are saved
-        Drawn dr = drawn(scope, epic);
+        // the cells are checked against the lines only: the whole plan is computed once, after they are saved, on the same basis
+        Basis b = basis(scope, epic);
+        Drawn dr = drawn(b, epic);
         String today = dr.basis().ctx().today;
         String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
         Set<String> window = new HashSet<>(dr.window());
@@ -1310,7 +1320,7 @@ public class DetailPlanService {
             cells.saveJiraCells(epic, typed);
         });
         cells.saveRowCells(rowCells);
-        return view(scope, epic);
+        return compute(scope, epic, b).view();
     }
 
     /**
@@ -1322,8 +1332,9 @@ public class DetailPlanService {
         if (in.days() == 0) {
             throw new Invalid("Shift by 1 day or more", "days");
         }
-        DetailPlanView v = view(scope, epic);
-        TrackerContext ctx = EstimationService.load(context, scope, epic);
+        Basis basis = basis(scope, epic);
+        DetailPlanView v = compute(scope, epic, basis).view();
+        TrackerContext ctx = basis.ctx();
         String today = ctx.today;
         String lastDay = Dates.addDays(today, MAX_DAYS_AHEAD);
         Map<String, MatrixLine> lineOf = new HashMap<>();
@@ -1367,7 +1378,7 @@ public class DetailPlanService {
             cells.saveJiraCells(epic, out);
         });
         cells.saveRowCells(rowCells);
-        return view(scope, epic);
+        return compute(scope, epic, basis).view();
     }
 
     /** The PIC whose calendar a line follows: for a row's step, the person in its slot (JM Review: the JM), as the matrix shows it. */
