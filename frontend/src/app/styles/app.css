@@ -360,6 +360,8 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pm-shift-n { width: 56px; height: 28px; padding: 0 6px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-card); color: inherit; }
 .pm-shift-way { height: 28px; padding: 0 6px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-card); color: inherit; }
 .pm-pick { margin: 0 2px 0 0; cursor: pointer; }
+/* where a line that cannot be picked has no box: its key lines up with the others */
+.pm-pick-sp { visibility: hidden; }
 .pm-key-open { border: 0; padding: 0; background: none; text-align: left; cursor: pointer; }
 .pm-key-open:hover { text-decoration: underline; }
 .pm-cellm { display: inline-flex; align-items: center; gap: 4px; }

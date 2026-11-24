@@ -172,8 +172,10 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
       title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
       <th scope="row" className="pm-c0">
         <span className="pm-stp">
-          {admin && !l.removed && !l.closed && <input type="checkbox" className="pm-pick" aria-label={`Pick ${l.summary}`}
-            title="Pick to shift or push this step" checked={picked} onChange={() => act.togglePick(l.ref)} />}
+          {admin && (!l.removed && !l.closed
+            ? <input type="checkbox" className="pm-pick" aria-label={`Pick ${l.summary}`}
+              title="Pick to shift or push this step" checked={picked} onChange={() => act.togglePick(l.ref)} />
+            : <input type="checkbox" className="pm-pick pm-pick-sp" aria-hidden="true" tabIndex={-1} disabled />)}
           {inJira
             ? <button type="button" className="pm-key pm-key-open" aria-label={`Open ${key}`} title={`Sub-task ${key} in Jira: open its details`}
               onClick={() => act.openTicket(key)}>{key}</button>
