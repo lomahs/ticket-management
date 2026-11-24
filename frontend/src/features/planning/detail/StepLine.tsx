@@ -162,7 +162,7 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
     ? <HoursInput label={`Plan Estimation, ${l.summary}`} value={l.total_h} blank="keep" send={(n) => act.sendStep(l, { effort_h: n })} className={`pm-in-est${l.edited ? ' hand' : ''}`} />
     : <span aria-label={`Plan Estimation, ${l.summary}`}>{f2(l.plan_estimate_h)}</span>;
   return (
-    <tr className="pm-step" aria-label={l.summary} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
+    <tr className="pm-step" aria-label={l.summary} data-ref={l.ref} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
       title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
       <th scope="row" className="pm-c0">
         <span className="pm-stp">

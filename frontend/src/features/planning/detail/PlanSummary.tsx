@@ -4,6 +4,7 @@ import { Icon } from '../../../shared/ds';
 import { dm, hrs } from '../../../shared/format/dates';
 import { AllocationMatrix } from './AllocationMatrix';
 import type { DetailPlanView } from './api';
+import { PushProblems } from './PushProblems';
 
 const days = (n: number) => `${n} day${Math.abs(n) === 1 ? '' : 's'}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -26,23 +27,22 @@ const pill = (tone: CSSProperties): CSSProperties => ({ ...tone, border: 0, curs
 
 /**
  * Where the plan stands, always in view: each phase against the master schedule, how much is left to assign, how many
- * problems stand before the push and the warnings (over budget, over the day's allocation) that do not stop it. The problems themselves open from their count, and on their own once {@code checked}
- * (the PIM saved, tried to finish or reviewed the push).
+ * problems stand before the push and the warnings (over budget, over the day's allocation) that do not stop it. The problems
+ * open from their count as a table ({@link PushProblems}); the warnings from theirs, and on their own once {@code checked} (the
+ * PIM reviewed the push).
  */
 export function PlanSummary({ epic, v, name, checked }: { epic: string; v: DetailPlanView; name: (id: string) => string; checked: boolean }) {
   const saving = useIsMutating() > 0;
-  const [showIssues, setShowIssues] = useState(false);
+  const [showIssues, setShowIssues] = useState(false); // the table of what stands before the push
   const [showWarn, setShowWarn] = useState(false);
   const open = v.rows.filter((r) => !r.pushed_at);
   const lines = v.lines.filter((l) => l.row_id != null && !l.removed).length;
   const inJira = v.lines.filter((l) => l.issue_key != null);
   const pending = inJira.filter((l) => l.pending).length;
   const unassigned = open.filter((r) => !r.ba_id || (r.steps && !r.bal_id)).length;
-  // the problems, then what blocks the push (Not yet left, steps out of order)
-  const before = [...v.problems, ...v.push_blockers];
-  const issues = before.length;
+  // the problems, then what blocks the push (Not yet plan left, steps out of order)
+  const issues = v.problems.length + v.push_blockers.length;
   const warnings = v.over_day.length + v.over_budget.length;
-  const issuesOpen = issues > 0 && (checked || showIssues);
   const warnOpen = warnings > 0 && (checked || showWarn);
   return (
     <section className="card" aria-label="Plan status" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -63,9 +63,9 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
           {`${plural(unassigned, 'function')} without a BA or BAL`}</span>}
         <span className="spacer" />
         {issues > 0 && (
-          <button type="button" className="status-pill" aria-expanded={issuesOpen} onClick={() => setShowIssues((x) => !x)}
+          <button type="button" className="status-pill" aria-haspopup="dialog" onClick={() => setShowIssues(true)}
             style={pill({ background: 'var(--hl-red)', color: 'var(--hl-red-fg)' })}>
-            <Icon name="circle-alert" size={14} />{`${plural(issues, 'problem')} before the push`}<Icon name={issuesOpen ? 'chevron-up' : 'chevron-down'} size={14} />
+            <Icon name="circle-alert" size={14} />{`${plural(issues, 'problem')} before the push`}<Icon name="chevron-right" size={14} />
           </button>
         )}
         {v.over_budget.length > 0 && (
@@ -85,11 +85,7 @@ export function PlanSummary({ epic, v, name, checked }: { epic: string; v: Detai
             <Icon name="circle-check" size={14} />Ready to push</span>
         )}
       </div>
-      {issuesOpen && (
-        <div role="alert" aria-label="Before the push" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-red)' }}>
-          {before.map((p) => <span key={p} style={{ color: 'var(--hl-red-fg)', fontSize: 13 }}>{p}</span>)}
-        </div>
-      )}
+      {showIssues && <PushProblems epic={epic} v={v} name={name} refs={null} close={() => setShowIssues(false)} />}
       {warnOpen && (
         <div role="region" aria-label="Over the allocation" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px', borderRadius: 10, background: 'var(--hl-amber)' }}>
           <span className="eyebrow" style={{ color: 'var(--hl-amber-fg)' }}>Warnings: they do not stop the push.</span>

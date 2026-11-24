@@ -135,7 +135,8 @@ describe('detail plan', () => {
     onboarding({ step: 5 });
     members();
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'] }))),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ problems: ['Row 1 (Login): pick a BA'],
+        issues: [{ row_id: 1, ref: null, field: 'pic_ba', message: 'Row 1 (Login): pick a BA' }] }))),
       http.put('*/api/v1/planning/PAY-1100/detail', async ({ request }) => {
         saved = await request.json() as typeof saved;
         return HttpResponse.json(detailView({ rows: [{ ...LOGIN, ba_id: 'an' }, RUN], ...planned }));
@@ -146,13 +147,17 @@ describe('detail plan', () => {
     expect(screen.queryByLabelText('BA, Login')).toBeNull(); // picked on the steps' PIC cells, not on the function
     expect(screen.queryByText('Row 1 (Login): pick a BA')).toBeNull(); // not on the first visit, only counted
     expect(screen.getByRole('button', { name: '1 problem before the push' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Fix 1 problem to push' })).toBeTruthy();
     expect([...ba.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['–', 'An', 'Minh']); // anyone but a JM
     expect((screen.getByLabelText('PIC, [PAY] Run') as HTMLSelectElement).value).toBe('an'); // a ticket: its member
     expect(screen.queryByRole('button', { name: 'Check' })).toBeNull();
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Gantt', 'Master schedule', 'Detail plan']); // the effort per day is always above the matrix
-    fireEvent.click(screen.getByRole('button', { name: 'Fix 1 problem to push' }));
-    expect(await screen.findByText('Row 1 (Login): pick a BA')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Review push' })); // what stands before the push, as a table
+    const table = await screen.findByRole('dialog', { name: 'Before the push' });
+    const create = within(table).getByRole('row', { name: 'Login – Create' });
+    expect(within(create).getByLabelText('X: pick a BA')).toBeTruthy();
+    expect(within(create).getAllByLabelText('OK')).toHaveLength(3); // Task, Not yet plan, Step order
+    expect(within(table).queryByRole('row', { name: 'Login – BAL Review' })).toBeNull(); // its slot is the BAL's
+    fireEvent.click(within(table).getByRole('button', { name: 'Close' }));
     expect(screen.getByRole('row', { name: '[PAY] Login – BAL Review' })).toBeTruthy(); // one line per step, named by the name rules
     fireEvent.change(screen.getByLabelText('PIC, [PAY] Login – Create'), { target: { value: 'an' } });
     await waitFor(() => expect(saved).toEqual({ order: [1, 2], assigns: [{ row_id: 1, ba_id: 'an', bal_id: null, jm_id: null }, { row_id: 2, ba_id: 'an', bal_id: null, jm_id: null }] }));
@@ -293,15 +298,19 @@ describe('detail plan', () => {
     onboarding({ step: 5 });
     members();
     server.use(
-      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ push_blockers: ['[PAY] Run: 16h not planned yet'] }))),
+      http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({ push_blockers: ['[PAY] Run: 16h not planned yet'],
+        issues: [{ row_id: null, ref: '2', field: 'not_yet', message: '[PAY] Run: 16h not planned yet' }] }))),
       http.post('*/api/v1/planning/PAY-1100/detail/push/preview', async ({ request }) => { sent.push(['preview', await request.json()]); return HttpResponse.json({ updates: [], creates: [] }); }),
       http.post('*/api/v1/planning/PAY-1100/detail/push', async ({ request }) => { sent.push(['push', await request.json()]); return HttpResponse.json({ updated: [], created: {} }); }),
     );
     renderApp('/planning/detail?anken=PAY-1100');
-    expect((await screen.findByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Force push' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review push' }));
+    const table = await screen.findByRole('dialog', { name: 'Before the push' });
+    expect(within(within(table).getByRole('row', { name: 'Run' })).getByLabelText('X: 16h not planned yet')).toBeTruthy();
+    expect(sent).toEqual([]); // nothing asked of the server while the problems show
+    fireEvent.click(within(table).getByRole('button', { name: 'Force push' }));
     const review = await screen.findByRole('dialog', { name: 'Push review' });
-    expect(within(review).getByRole('note', { name: 'Forced' }).textContent).toContain('[PAY] Run: 16h not planned yet');
+    expect(within(review).getByRole('note', { name: 'Forced' }).textContent).toContain('Run: 16h not planned yet');
     fireEvent.click(within(review).getByRole('button', { name: 'Push to Jira' }));
     await waitFor(() => expect(sent).toEqual([['preview', { refs: null, force: true }], ['push', { refs: null, force: true }]]));
   });
@@ -319,9 +328,8 @@ describe('detail plan', () => {
     fireEvent.click(screen.getByLabelText('Pick Run'));
     const bar = screen.getByRole('group', { name: 'Picked functions and steps' });
     expect(within(bar).getByText('1 function, 1 step selected')).toBeTruthy();
-    fireEvent.click(within(bar).getByLabelText('Force'));
     fireEvent.click(within(bar).getByRole('button', { name: 'Push' }));
-    await waitFor(() => expect(sent).toEqual([{ refs: ['2', '1:balr'], force: true }]));
+    await waitFor(() => expect(sent).toEqual([{ refs: ['2', '1:balr'], force: false }]));
     expect(await screen.findByRole('dialog', { name: 'Push review' })).toBeTruthy();
   });
 
@@ -549,6 +557,7 @@ describe('detail plan', () => {
     server.use(http.get('*/api/v1/planning/PAY-1100/detail', () => HttpResponse.json(detailView({
       lines: [LINES[0], { ...LINES[1], out_of_order: true, cells: [{ day: '2026-10-08', hours: 2, auto: false }] }, LINES[2]],
       push_blockers: ['[PAY] Login – BAL Review: starts before the step before it ends'],
+      issues: [{ row_id: null, ref: '1:balr', field: 'order', message: '[PAY] Login – BAL Review: starts before the step before it ends' }],
     }))));
     renderApp('/planning/detail?anken=PAY-1100');
     const row = await screen.findByRole('row', { name: '[PAY] Login – BAL Review' });
@@ -556,9 +565,11 @@ describe('detail plan', () => {
     const cell = within(row).getByLabelText('[PAY] Login – BAL Review 2026-10-08').closest('td');
     expect(cell?.getAttribute('data-out-of-order')).toBe('true');
     expect(screen.getByRole('row', { name: '[PAY] Run' }).getAttribute('data-out-of-order')).toBeNull();
-    expect((screen.getByRole('button', { name: 'Review push' }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Fix 1 problem to push' }));
-    expect(await screen.findByText('[PAY] Login – BAL Review: starts before the step before it ends')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '1 problem before the push' }));
+    const table = await screen.findByRole('dialog', { name: 'Before the push' });
+    expect(within(table).getByLabelText('X: starts before the step before it ends')).toBeTruthy();
+    fireEvent.click(within(table).getByRole('button', { name: /Login – BAL Review/ })); // goes to the line on the plan
+    expect(screen.queryByRole('dialog', { name: 'Before the push' })).toBeNull();
   });
 
   it('sends a write after the cell saved before it, not alongside it', async () => {

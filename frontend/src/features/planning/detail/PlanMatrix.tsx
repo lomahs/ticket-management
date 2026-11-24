@@ -13,6 +13,7 @@ import { hoursByDay, lineMarks, withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
+import { GO_TO_LINE } from './PushProblems';
 import { left, LineActionsContext, Mark, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
 type Row = Schemas['EstimationRow'];
@@ -98,7 +99,6 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [by, setBy] = useState('1');
   const [way, setWay] = useState<'later' | 'earlier'>('later');
-  const [force, setForce] = useState(false);
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
   const [pics, setPics] = useState<Set<string>>(new Set());
@@ -208,6 +208,42 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     const edge = sc?.querySelector<HTMLElement>('thead .pm-c4');
     if (sc && th && edge) sc.scrollTo({ left: Math.max(0, th.offsetLeft - edge.offsetLeft - edge.offsetWidth - 8), behavior: 'smooth' });
   };
+
+  // a line asked for (from the table of what stands before the push): its levels unfold, the filters go when they hide it,
+  // then it scrolls into view
+  const [goal, setGoal] = useState<string | null>(null);
+  const foldsOf = (ref: string) => {
+    const l = v.lines.find((x) => x.ref === ref);
+    if (!l) return [];
+    const r = open.find((x) => x.id === l.row_id || x.id === l.linked_row_id);
+    const sub = r ? r.subphase : l.subphase;
+    return [`phase:${l.phase}`, `sub:${l.phase}:${sub}`, r ? `row:${r.id}` : `jira:${l.phase}:${l.subphase}:${l.function}`];
+  };
+  const goTo = useRef(foldsOf);
+  useLayoutEffect(() => { goTo.current = foldsOf; });
+  useEffect(() => {
+    const go = (e: Event) => {
+      const ref = (e as CustomEvent<string>).detail;
+      const keys = goTo.current(ref);
+      setFolded((f) => new Set([...f].filter((k) => !keys.includes(k))));
+      setGoal(ref);
+    };
+    window.addEventListener(GO_TO_LINE, go);
+    return () => window.removeEventListener(GO_TO_LINE, go);
+  }, []);
+  useEffect(() => {
+    if (!goal) return;
+    const tr = scroller.current?.querySelector<HTMLElement>(`tr[data-ref="${CSS.escape(goal)}"]`);
+    if (!tr) {
+      if (filtering) clearAll(); // hidden by the filters: shown once they are cleared
+      else setGoal(null);
+      return;
+    }
+    setGoal(null);
+    tr.scrollIntoView({ block: 'center' });
+    tr.classList.add('pm-flash');
+    window.setTimeout(() => tr.classList.remove('pm-flash'), 1600);
+  }, [goal, filtering]);
 
   const deleteStep = (l: MatrixLine) => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); };
 
@@ -400,10 +436,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
             </select>
             <Button size="sm" disabled={shift.isPending || shiftRefs.length === 0} onClick={shiftPicked}>Shift</Button>
             <span className="pm-tsep" aria-hidden="true" />
-            <label className="pm-force" title="Push past Not yet plan, steps out of order and the master schedule (a Task and a PIC are still needed)">
-              <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />Force
-            </label>
-            <PushFlow epic={epic} v={v} name={name} body={{ refs: shiftRefs, force }} label="Push" icon="upload" size="sm"
+            <PushFlow epic={epic} v={plan} name={name} body={{ refs: shiftRefs, force: false }} label="Push" icon="upload" size="sm" check
               title="Push the picked functions and steps to Jira" onDone={() => setPicked(new Set())} />
             <Button size="sm" appearance="subtle" onClick={() => setPicked(new Set())}>Cancel</Button>
           </div>

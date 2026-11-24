@@ -9,35 +9,21 @@ import { useToast } from '../../../shared/state/toast';
 import { onboardingQuery } from '../../onboarding';
 import { PUSH_ALL, usePushPlan, usePushPreview, type DetailPlanView, type PushBody } from './api';
 import { overDayText } from './PlanSummary';
+import { PushProblems } from './PushProblems';
+import { pushTable } from './pushTable';
 
 /**
- * The push of the plan, for the step's action bar: what stands before it (the problems, then what blocks the push), then Review
- * push, which opens what the push creates and changes in Jira (with the days above an allocation as a warning) and pushes it.
+ * The push of the plan, for the step's action bar: Review push opens what stands before it when something does (the problems as
+ * a table, with Force push), else what the push creates and changes in Jira (with the days above an allocation as a warning).
  */
 export function PushControls({ epic, v, name, onCheck }: { epic: string; v: DetailPlanView; name: (id: string) => string; onCheck: () => void }) {
   const admin = useCan('planning', 'write');
   // the sub-tasks to create, and the sub-tasks in Jira changed here
   const lines = v.lines.filter((l) => (l.row_id != null && !l.removed) || (l.issue_key != null && l.pending)).length;
   if (!admin || (!v.rows.some((r) => !r.pushed_at) && lines === 0)) return null;
-  const before = [...v.problems, ...v.push_blockers];
-  const issues = before.length;
-  const blocked = issues > 0 || lines === 0;
-  const why = issues > 0 ? `Fix ${issues} problem${issues === 1 ? '' : 's'} to push` : lines === 0 ? 'Nothing to push' : null;
   return (
-    <>
-      {why && (
-        <button type="button" className="row-btn eyebrow" onClick={onCheck} title={before.length ? before.join('\n') : undefined} style={{ color: issues ? 'var(--hl-red-fg)' : undefined, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Icon name="circle-alert" size={14} />{why}
-        </button>
-      )}
-      {issues > 0 && lines > 0 && (
-        <PushFlow epic={epic} v={v} name={name} body={{ refs: null, force: true }} label="Force push" icon="upload" appearance="secondary"
-          title="Push anyway: Not yet plan, steps out of order and the master schedule are ignored (a Task and a PIC are still needed)"
-          forced={before} />
-      )}
-      <PushFlow epic={epic} v={v} name={name} body={PUSH_ALL} label="Review push" icon="eye" disabled={blocked}
-        title={why ?? 'What the push creates and changes in Jira'} onStart={onCheck} />
-    </>
+    <PushFlow epic={epic} v={v} name={name} body={PUSH_ALL} label="Review push" icon="eye" disabled={lines === 0} check
+      title={lines === 0 ? 'Nothing to push' : 'What the push creates and changes in Jira'} onStart={onCheck} />
   );
 }
 
@@ -45,21 +31,27 @@ export function PushControls({ epic, v, name, onCheck }: { epic: string; v: Deta
  * A button that opens the review of a push of `body` and pushes it from there.
  *
  * @param forced what the push goes past, shown in the review; null when it is not forced
+ * @param check  open what stands before the push first, when something does ({@link PushProblems})
  */
-export function PushFlow({ epic, v, name, body, label, icon, appearance, size, disabled = false, title, forced = null, onStart, onDone }: {
+export function PushFlow({ epic, v, name, body, label, icon, appearance, size, disabled = false, title, forced = null, check = false, onStart, onDone }: {
   epic: string; v: DetailPlanView; name: (id: string) => string; body: PushBody; label: string; icon: IconName;
-  appearance?: 'primary' | 'secondary'; size?: 'sm' | 'md'; disabled?: boolean; title?: string; forced?: string[] | null; onStart?: () => void; onDone?: () => void;
+  appearance?: 'primary' | 'secondary'; size?: 'sm' | 'md'; disabled?: boolean; title?: string; forced?: string[] | null; check?: boolean;
+  onStart?: () => void; onDone?: () => void;
 }) {
   const toast = useToast();
   const preview = usePushPreview(epic);
   const push = usePushPlan(epic);
   const [open, setOpen] = useState(false);
+  const [problems, setProblems] = useState(false);
+  const blocked = () => { const t = pushTable(v, body.refs ?? null); return t.failing.length > 0 || t.general.length > 0; };
   return (
     <>
       <Button iconBefore={icon} appearance={appearance} size={size} disabled={disabled || preview.isPending} title={title} onClick={() => {
         onStart?.();
-        preview.mutate(body, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
+        if (check && blocked()) setProblems(true);
+        else preview.mutate(body, { onSuccess: () => setOpen(true), onError: (e) => toast(errorMessage(e), true) });
       }}>{label}</Button>
+      {problems && <PushProblems epic={epic} v={v} name={name} refs={body.refs ?? null} close={() => setProblems(false)} onDone={onDone} />}
       {open && preview.data && (
         <PushDialog epic={epic} v={v} name={name} creates={preview.data.creates} updates={preview.data.updates} pushing={push.isPending}
           forced={forced ?? (body.force ? [] : null)} close={() => setOpen(false)}
