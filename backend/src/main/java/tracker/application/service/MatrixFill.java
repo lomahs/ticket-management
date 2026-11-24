@@ -77,9 +77,9 @@ final class MatrixFill {
                     continue;
                 }
                 String end = l.end();
-                if (l.notYetH() > EPS) {
+                if (l.planNotYetH() > EPS) {
                     String earliest = from(today, phase == null ? null : phase.start(), before);
-                    DetailScheduler.Chain c = PlanRows.chain(r.phase(), List.of(new PlanRows.RowStep(st.kind(), st.ref(), l.notYetH(), null)),
+                    DetailScheduler.Chain c = PlanRows.chain(r.phase(), List.of(new PlanRows.RowStep(st.kind(), st.ref(), l.planNotYetH(), null)),
                             r.baId(), r.balId(), r.jmId(), w, earliest);
                     if (c != null) {
                         end = latest(end, run.place(c));

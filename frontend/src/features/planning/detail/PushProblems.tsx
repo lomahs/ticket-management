@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useCan } from '../../../shared/api/queries';
 import { Button, Icon } from '../../../shared/ds';
 import type { DetailPlanView } from './api';
@@ -32,12 +32,15 @@ export function PushProblems({ epic, v, name, refs, close, onDone }: {
   const hard = t.general.length > 0 || t.failing.some((r) => CHECKS.some((c) => !FORCEABLE.has(c.k) && (r.checks[c.k]?.length ?? 0) > 0));
   const forced = [...t.general, ...t.failing.flatMap((r) => CHECKS.flatMap((c) => (r.checks[c.k] ?? []).map((m) => `${r.label}: ${m}`)))];
   const go = (r: PushRow) => { close(); goToLine(r.ref); };
+  // one listener while the table is open, calling the close of the last render
+  const closing = useRef(close);
+  useLayoutEffect(() => { closing.current = close; });
   useEffect(() => {
     // the review of a Force push opens above the table: Escape is its own then
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector(`[role="dialog"][aria-label="${PUSH_REVIEW}"]`)) close(); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector(`[role="dialog"][aria-label="${PUSH_REVIEW}"]`)) closing.current(); };
     document.addEventListener('keydown', key);
     return () => document.removeEventListener('keydown', key);
-  }, [close]);
+  }, []);
   return (
     <div className="scrim" onClick={close}>
       <div className="dialog pp" role="dialog" aria-modal="true" aria-label="Before the push" onClick={(e) => e.stopPropagation()}>

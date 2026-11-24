@@ -370,7 +370,7 @@ public class DetailPlanService {
             }
             MatrixLine l = byKey.get(i.key());
             Map<String, Double> days = new TreeMap<>();
-            if (l != null) {
+            if (l != null && !(l.closed() && l.pending())) { // a Done one's changes here never reach Jira: Jira's plan is its plan
                 l.cells().forEach(c -> days.merge(c.day(), c.hours(), Numbers::sum));
             } else {
                 days.putAll(ctx.planDays(i));
