@@ -1,6 +1,13 @@
 import { stepLabel } from '../../../shared/format/labels';
 import type { DetailPlanView, MatrixLine } from './api';
 
+/** The name of the review of a push, its dialog's label. */
+export const PUSH_REVIEW = 'Push review';
+
+/** Asks the plan matrix to show a line: its levels unfolded and the filters cleared when they hide it, then scrolled to. */
+export const GO_TO_LINE = 'detail-plan:go';
+export const goToLine = (ref: string) => window.dispatchEvent(new CustomEvent<string>(GO_TO_LINE, { detail: ref }));
+
 /** What the push checks on each line, in the order of the table's columns. */
 export const CHECKS = [
   { k: 'task', label: 'Task' },

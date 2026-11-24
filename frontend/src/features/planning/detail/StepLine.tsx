@@ -109,7 +109,7 @@ export function Mark({ level, msgs }: { level: 'error' | 'warning'; msgs: string
   );
 }
 
-const NO_MARKS: LineMarks = { pic: [], notYet: [], notYetJira: [], order: [], overDay: [] };
+const NO_MARKS: LineMarks = { pic: [], notYet: [], notYetJira: [], order: [], orderJira: [], overDay: [] };
 
 /**
  * One step of the matrix (a sub-task): its PIC, Plan Estimation, Planned, Not yet plan, dates, then its hours on each day.
@@ -169,7 +169,7 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
     : <span aria-label={`Plan Estimation, ${l.summary}`}>{f2(l.plan_estimate_h)}</span>;
   return (
     <tr className={`pm-step${alone ? ' pm-alone' : ''}`} aria-label={l.summary} data-ref={l.ref} data-out-of-order={l.out_of_order || undefined} data-removed={l.removed || undefined}
-      title={l.out_of_order ? 'Starts before the step before it ends: push is blocked until it is fixed' : undefined}>
+      title={l.out_of_order ? `Starts before the step before it ends${marks.order.length ? ': push is blocked until it is fixed' : ''}` : undefined}>
       <th scope="row" className="pm-c0">
         <span className="pm-stp">
           {admin && (!l.removed && !l.closed
@@ -206,7 +206,7 @@ export const StepLine = memo(function StepLine({ l, row: r, hand, marks = NO_MAR
         data-left={left(l) || undefined}>
         <span className="pm-cellm"><Mark level="error" msgs={marks.notYet} /><Mark level="warning" msgs={marks.notYetJira} />{f2(l.plan_not_yet_h)}</span>
       </td>
-      <td className="pm-c5" aria-label={`Start, ${l.summary}`}><span className="pm-cellm">{l.start ? dm(l.start) : '–'}<Mark level="error" msgs={marks.order} /></span></td>
+      <td className="pm-c5" aria-label={`Start, ${l.summary}`}><span className="pm-cellm">{l.start ? dm(l.start) : '–'}<Mark level="error" msgs={marks.order} /><Mark level="warning" msgs={marks.orderJira} /></span></td>
       <td className="pm-c6" aria-label={`End, ${l.summary}`}>{l.end ? dm(l.end) : '–'}</td>
       <td className="pm-c7" aria-label={`Actual remaining, ${l.summary}`}>{l.actual_remaining_h == null ? '–' : f2(l.actual_remaining_h)}</td>
       {days.map((d) => {

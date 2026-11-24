@@ -535,7 +535,7 @@ button.do-pill[aria-pressed="true"] { box-shadow: 0 0 0 1.5px currentColor; }
 .pp-xm { display: block; text-align: center; font-weight: 700; }
 .pp-why { display: block; font-size: 12px; line-height: 1.35; }
 .pp-foot { display: flex; align-items: center; gap: 8px; }
-.pm-step.pm-flash > * { animation: pm-flash 1.6s ease-out; }
+.pm-step[data-flash] > * { animation: pm-flash 1.6s ease-out; }
 @keyframes pm-flash { 0%, 40% { background-color: var(--hl-amber); } 100% { background-color: inherit; } }
 .pp-go .key { white-space: nowrap; }
 /* the one day cell being typed in paints on its own layer, not with the whole matrix */

@@ -10,7 +10,7 @@ import { onboardingQuery } from '../../onboarding';
 import { PUSH_ALL, usePushPlan, usePushPreview, type DetailPlanView, type PushBody } from './api';
 import { overDayText } from './PlanSummary';
 import { PushProblems } from './PushProblems';
-import { pushTable, sentLines } from './pushTable';
+import { PUSH_REVIEW, pushTable, sentLines } from './pushTable';
 
 /**
  * The push of the plan, for the step's action bar: Review push opens what stands before it when something does (the problems as
@@ -63,9 +63,6 @@ export function PushFlow({ epic, v, name, body, label, icon, appearance, size, d
     </>
   );
 }
-
-/** The name of the review of a push, its dialog's label. */
-export const PUSH_REVIEW = 'Push review';
 
 /** What a push did, in words; nothing sent to Jira when only the hours per day changed. */
 const pushed = (created: number, updated: number) => (created + updated === 0 ? 'Pushed · the hours per day are kept here'

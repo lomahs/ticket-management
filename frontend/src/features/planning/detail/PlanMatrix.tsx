@@ -14,8 +14,7 @@ import { lineMarks, withTyped } from './matrixModel';
 import { usePersonName, type Person } from './DetailPlan';
 import { checkText } from './PlanSummary';
 import { PushFlow } from './PushControls';
-import { GO_TO_LINE } from './PushProblems';
-import { sends } from './pushTable';
+import { GO_TO_LINE, sends } from './pushTable';
 import { FootRow, GroupRow, LevelRow } from './MatrixRows';
 import { left, LineActionsContext, slotOf, step, StepLine, type LineActions, type Slot } from './StepLine';
 
@@ -183,7 +182,7 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     if (needle && ![l.summary, step(l.step)?.short ?? '', g.name, sub.name, l.issue_key ?? ''].some((t) => t.toLowerCase().includes(needle))) return false;
     if (pics.size && !pics.has(picOf(l))) return false;
     if (statuses.size) {
-      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: (left(l) && sends(l)) || (l.out_of_order && !l.removed) };
+      const st: Record<Status, boolean> = { planned: l.plan_h > 0.005, notyet: left(l), blocked: (left(l) || l.out_of_order) && sends(l) };
       if (![...statuses].some((s) => st[s as Status])) return false;
     }
     return !stories.size || stories.has(g.key);
@@ -258,8 +257,9 @@ export function PlanMatrix({ epic, v: plan, people, admin, assign, swap }: {
     }
     setGoal(null);
     tr.scrollIntoView({ block: 'center' });
-    tr.classList.add('pm-flash');
-    window.setTimeout(() => tr.classList.remove('pm-flash'), 1600);
+    // an attribute React does not render, so a render meanwhile keeps it
+    tr.dataset.flash = '';
+    window.setTimeout(() => { delete tr.dataset.flash; }, 1600);
   }, [goal, hiding]);
 
   const deleteStep = (l: MatrixLine) => { if (l.row_id != null) del.mutateAsync({ rowId: l.row_id, step: l.step }).catch(fail); };

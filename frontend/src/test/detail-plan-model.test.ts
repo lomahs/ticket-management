@@ -42,6 +42,17 @@ describe('matrix model', () => {
     expect(withTyped(v, [{ ref: 'gone', day: 'd1', hours: 2 }])).toBe(v);
   });
 
+  it('marks a slot no step has as its PIC on every step of its row', () => {
+    const row = { id: 1, ba_id: 'an', bal_id: null, jm_id: null, pushed_at: null };
+    const create = line('1:create', 8, [], { row_id: 1, pic_slot: 'ba' });
+    const run = line('1:fixb', 1, [], { row_id: 1, pic_slot: 'ba' });
+    const v = view([create, run], { rows: [row] as unknown as DetailPlanView['rows'],
+      issues: [{ row_id: 1, ref: null, field: 'pic_bal', message: 'pick a BAL', detail: 'pick a BAL' }] });
+    const m = lineMarks(v);
+    expect(m['1:create'].pic).toEqual(['pick a BAL']); // the BAL has a share of Create only
+    expect(m['1:fixb'].pic).toEqual(['pick a BAL']);
+  });
+
   it('puts each problem and day warning on its line', () => {
     const row = { id: 1, ba_id: 'an', bal_id: 'minh', jm_id: null, pushed_at: null };
     const create = line('1:create', 8, [], { row_id: 1, pic_slot: 'ba' });
@@ -60,11 +71,12 @@ describe('matrix model', () => {
       over_day: [{ member_id: 'an', date: 'd1', planned_h: 9, allocation_h: 8 }, { member_id: 'binh', date: 'd2', planned_h: 9, allocation_h: 8 }],
     });
     const m = lineMarks(v);
-    expect(m['1:create']).toEqual({ pic: [], notYet: ['8h not planned yet'], notYetJira: [], order: [], overDay: [v.over_day[0]] });
-    expect(m['1:balr']).toEqual({ pic: ['pick a BAL'], notYet: [], notYetJira: [], order: [], overDay: [] });
-    // a sub-task in Jira not changed here: the push does not send it, so its Not yet plan is a warning
-    expect(m['PAY-9']).toEqual({ pic: [], notYet: [], order: ['out of order'], overDay: [v.over_day[1]],
-      notYetJira: ['1h not planned yet · Jira\'s plan: it does not stop the push, changing it here does'] });
-    expect(m['1:fixb']).toEqual({ pic: [], notYet: [], notYetJira: [], order: [], overDay: [] }); // a removed step: nothing to fix on it
+    const jiras = " · Jira's plan: it does not stop the push, changing it here does";
+    expect(m['1:create']).toEqual({ pic: [], notYet: ['8h not planned yet'], notYetJira: [], order: [], orderJira: [], overDay: [v.over_day[0]] });
+    expect(m['1:balr']).toEqual({ pic: ['pick a BAL'], notYet: [], notYetJira: [], order: [], orderJira: [], overDay: [] });
+    // a sub-task in Jira not changed here: the push does not send it, so what is wrong on it is a warning
+    expect(m['PAY-9']).toEqual({ pic: [], notYet: [], order: [], overDay: [v.over_day[1]],
+      notYetJira: [`1h not planned yet${jiras}`], orderJira: [`out of order${jiras}`] });
+    expect(m['1:fixb']).toEqual({ pic: [], notYet: [], notYetJira: [], order: [], orderJira: [], overDay: [] }); // a removed step: nothing to fix on it
   });
 });

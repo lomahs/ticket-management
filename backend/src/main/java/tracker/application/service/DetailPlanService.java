@@ -539,7 +539,8 @@ public class DetailPlanService {
             throw new Invalid(e.getMessage(), "plan");
         }
         saveDraft(scope, epic, new DraftIn(open.stream().map(EstimationRow::id).toList(), assigns), false);
-        List<PlanIssue> problems = basis(scope, epic).problems();
+        Basis basis = basis(scope, epic); // the rows and their people as saved: only cells change from here
+        List<PlanIssue> problems = basis.problems();
         if (!problems.isEmpty()) {
             // a row of a phase the master schedule does not have got nobody: that is the cause to name
             for (PlanIssue p : problems) {
@@ -551,8 +552,8 @@ public class DetailPlanService {
             }
             throw new Invalid(problems.getFirst().message(), "plan");
         }
-        fill(scope, epic, a);
-        return view(scope, epic);
+        fill(scope, epic, basis, a);
+        return compute(scope, epic, basis).view();
     }
 
     /**
@@ -561,10 +562,10 @@ public class DetailPlanService {
      * which keeps whether it was typed; a sub-task in Jira without pending cells first keeps Jira's plan from today on. Refused
      * (nothing written) when the people of an unpushed row cannot take it; a sub-task in Jira they cannot take keeps its Not yet.
      */
-    private void fill(AnkenScope scope, String epic, Allocations a) {
+    private void fill(AnkenScope scope, String epic, Basis basis, Allocations a) {
         tx.executeWithoutResult(status -> {
-            Computed c = compute(scope, epic);
-            fill(epic, trim(epic, c) ? compute(scope, epic) : c, a); // what was trimmed is free again
+            Computed c = compute(scope, epic, basis);
+            fill(epic, trim(epic, c) ? compute(scope, epic, basis) : c, a); // what was trimmed is free again
         });
     }
 
@@ -739,10 +740,13 @@ public class DetailPlanService {
             }
         }
         // every line's issues show where they are; only those of the lines a push sends refuse it
+        List<PlanIssue> all = pushBlockers(epic, lines);
+        Set<String> sent = new HashSet<>(sendable(lines).stream().map(MatrixLine::ref).toList());
         List<PlanIssue> issues = new ArrayList<>(b.problems());
-        issues.addAll(pushBlockers(epic, lines));
+        issues.addAll(all);
         DetailPlanView view = new DetailPlanView(b.all(), b.tasks(), window, lines, over, allocated, overDay, checks, days, stale,
-                messages(b.problems()), messages(pushBlockers(epic, sendable(lines))), byHand, planVersions.lastSavedAt(epic), issues);
+                messages(b.problems()), messages(all.stream().filter(i -> i.ref() == null || sent.contains(i.ref())).toList()), byHand,
+                planVersions.lastSavedAt(epic), issues);
         return new Computed(ctx, schedule, rows, stepsOf, names, placed, parts, w, view);
     }
 
@@ -806,7 +810,8 @@ public class DetailPlanService {
             if (l.removed() || l.closed()) {
                 continue;
             }
-            if (l.issueKey() != null && l.planEstimateH() <= 0.01 && l.planH() > 0.01) {
+            boolean work = l.planH() > 0.01 || (l.actualRemainingH() != null && l.actualRemainingH() > 0.01);
+            if (l.issueKey() != null && l.planEstimateH() <= 0.01 && work) {
                 out.add(PlanIssue.of(null, l.ref(), "not_yet", l.summary(), "no Original Estimate in Jira to plan against: set it there"));
             } else if (l.planNotYetH() > 0.01) {
                 out.add(PlanIssue.of(null, l.ref(), "not_yet", l.summary(), Numbers.format(l.planNotYetH()) + "h not planned yet"));

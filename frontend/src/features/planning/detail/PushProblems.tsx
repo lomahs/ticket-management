@@ -2,12 +2,9 @@ import { useEffect, useState } from 'react';
 import { useCan } from '../../../shared/api/queries';
 import { Button, Icon } from '../../../shared/ds';
 import type { DetailPlanView } from './api';
-import { PUSH_REVIEW, PushFlow } from './PushControls';
-import { CHECKS, FORCEABLE, pushTable, type PushRow } from './pushTable';
+import { PushFlow } from './PushControls';
+import { CHECKS, FORCEABLE, goToLine, PUSH_REVIEW, pushTable, type PushRow } from './pushTable';
 
-/** Asks the plan matrix to show a line: its levels unfolded and the filters cleared when they hide it, then scrolled to. */
-export const GO_TO_LINE = 'detail-plan:go';
-export const goToLine = (ref: string) => window.dispatchEvent(new CustomEvent<string>(GO_TO_LINE, { detail: ref }));
 
 function Cell({ msgs }: { msgs: string[] | null }) {
   if (msgs == null) return <td className="pp-na" aria-label="Does not apply">–</td>;

@@ -46,16 +46,24 @@ export function withTyped(v: DetailPlanView, typed: CellIn[]): DetailPlanView {
 
 /**
  * What is wrong on a line: its PIC, its Not yet plan, its step order, and the days its PIC is planned over the allocation.
- * `notYetJira`: the Not yet plan of a sub-task in Jira the push does not send (nothing changed here), which does not stop it.
+ * `notYetJira`, `orderJira`: the same of a sub-task in Jira the push does not send (nothing changed here), which do not stop it.
  */
-export interface LineMarks { pic: string[]; notYet: string[]; notYetJira: string[]; order: string[]; overDay: Schemas['DayOverrun'][] }
+export interface LineMarks {
+  pic: string[]; notYet: string[]; notYetJira: string[]; order: string[]; orderJira: string[]; overDay: Schemas['DayOverrun'][];
+}
+
+const JIRAS = " · Jira's plan: it does not stop the push, changing it here does";
 
 /**
- * The marks of each line, by its ref: the problems on the line (or, for its PIC, on its row's slot) and the days its PIC is over
- * the allocation. A removed step has no PIC mark; a removed or closed one no day warning.
+ * The marks of each line, by its ref: the problems on the line (or, for its PIC, on its row's slot, and on every line of the row
+ * for a slot none of them has) and the days its PIC is over the allocation. A removed step has no PIC mark; a removed or closed
+ * one no day warning.
  */
 export function lineMarks(v: DetailPlanView): Record<string, LineMarks> {
   const open = new Map(v.rows.filter((r) => !r.pushed_at).map((r) => [r.id, r]));
+  // the PIC slots each row's steps have
+  const slots = new Map<number, Set<string>>();
+  for (const l of v.lines) if (l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed) slots.set(l.row_id, (slots.get(l.row_id) ?? new Set()).add(`pic_${l.pic_slot}`));
   const out: Record<string, LineMarks> = {};
   for (const l of v.lines) {
     const slot = l.issue_key == null && l.pic_slot ? SLOT[l.pic_slot] ?? null : null;
@@ -64,10 +72,12 @@ export function lineMarks(v: DetailPlanView): Record<string, LineMarks> {
     const on = (field: string) => v.issues.filter((i) => i.ref === l.ref && i.field === field).map((i) => i.message);
     out[l.ref] = {
       pic: l.issue_key == null && l.row_id != null && l.pic_slot && !l.removed
-        ? v.issues.filter((i) => i.row_id === l.row_id && i.field === `pic_${l.pic_slot}`).map((i) => i.message) : [],
+        ? v.issues.filter((i) => i.row_id === l.row_id && i.ref == null && (i.field === `pic_${l.pic_slot}`
+          || (i.field.startsWith('pic_') && !slots.get(l.row_id ?? -1)?.has(i.field)))).map((i) => i.message) : [],
       notYet: sends(l) ? on('not_yet') : [],
-      notYetJira: sends(l) ? [] : on('not_yet').map((m) => `${m} · Jira's plan: it does not stop the push, changing it here does`),
-      order: on('order'),
+      notYetJira: sends(l) ? [] : on('not_yet').map((m) => m + JIRAS),
+      order: sends(l) ? on('order') : [],
+      orderJira: sends(l) ? [] : on('order').map((m) => m + JIRAS),
       overDay: l.removed || l.closed ? [] : v.over_day.filter((o) => o.member_id === pic),
     };
   }
